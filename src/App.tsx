@@ -4,6 +4,7 @@ import Sidebar, { type Page } from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
+import Canais from './pages/Canais'
 import Criadores from './pages/Criadores'
 import AppStore from './pages/AppStore'
 import ChatSidebar from './components/ChatSidebar'
@@ -22,6 +23,7 @@ export default function App() {
       case 'visao-geral': return 'Visão Geral'
       case 'vendas': return 'Vendas'
       case 'clientes': return 'Clientes'
+      case 'canais': return 'Canais'
       case 'creators': return 'Criadores'
       case 'app-store': return 'App Store'
       default: return 'Início'
@@ -52,6 +54,7 @@ export default function App() {
           {activePage === 'visao-geral' && <Dashboard onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'vendas' && <Vendas onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'app-store' && <AppStore onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'creators' && activePage !== 'app-store' && (
