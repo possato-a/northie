@@ -5,7 +5,6 @@ import TopBar from '../components/TopBar'
 import DatePicker from '../components/DatePicker'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
-type Platform = 'Hotmart' | 'Stripe' | 'Kiwify' | 'Shopify'
 type Status = 'Pago' | 'Pendente' | 'Reembolsado'
 type Channel = 'Meta Ads' | 'Google Ads' | 'Google Orgânico' | 'Email' | 'Direto'
 type Method = 'Pix' | 'Cartão' | 'Boleto'
@@ -13,25 +12,25 @@ type Method = 'Pix' | 'Cartão' | 'Boleto'
 interface Transaction {
   id: string; date: string; client: string
   product: string; value: number
-  method: Method; status: Status; channel: Channel; platform: Platform
+  method: Method; status: Status; channel: Channel
 }
 
 const TRANSACTIONS: Transaction[] = [
-  { id: '1', date: '21/02', client: 'Ana Silva', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Hotmart' },
-  { id: '2', date: '21/02', client: 'João Mendes', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Direto', platform: 'Stripe' },
-  { id: '3', date: '20/02', client: 'Carla Souza', product: 'Plano Starter', value: 97, method: 'Boleto', status: 'Pendente', channel: 'Google Ads', platform: 'Hotmart' },
-  { id: '4', date: '20/02', client: 'Pedro Lima', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Kiwify' },
-  { id: '5', date: '19/02', client: 'Mariana Costa', product: 'Curso Digital', value: 297, method: 'Pix', status: 'Pago', channel: 'Google Orgânico', platform: 'Hotmart' },
-  { id: '6', date: '19/02', client: 'Rafael Nunes', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Reembolsado', channel: 'Meta Ads', platform: 'Hotmart' },
-  { id: '7', date: '18/02', client: 'Beatriz Alves', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Email', platform: 'Shopify' },
-  { id: '8', date: '18/02', client: 'Lucas Ferreira', product: 'Plano Starter', value: 97, method: 'Cartão', status: 'Pago', channel: 'Google Ads', platform: 'Stripe' },
-  { id: '9', date: '17/02', client: 'Camila Rocha', product: 'Curso Digital', value: 297, method: 'Boleto', status: 'Pendente', channel: 'Meta Ads', platform: 'Hotmart' },
-  { id: '10', date: '17/02', client: 'Diego Santos', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Direto', platform: 'Kiwify' },
-  { id: '11', date: '16/02', client: 'Fernanda Lima', product: 'Plano Pro Mensal', value: 197, method: 'Pix', status: 'Pago', channel: 'Google Orgânico', platform: 'Stripe' },
-  { id: '12', date: '16/02', client: 'Thiago Oliveira', product: 'Consultoria 1h', value: 350, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Hotmart' },
-  { id: '13', date: '15/02', client: 'Isabela Freitas', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Email', platform: 'Hotmart' },
-  { id: '14', date: '15/02', client: 'Bruno Castro', product: 'Plano Starter', value: 97, method: 'Pix', status: 'Pendente', channel: 'Google Ads', platform: 'Shopify' },
-  { id: '15', date: '14/02', client: 'Laura Mendes', product: 'Curso Digital', value: 297, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Stripe' },
+  { id: '1', date: '21/02', client: 'Ana Silva', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
+  { id: '2', date: '21/02', client: 'João Mendes', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Direto' },
+  { id: '3', date: '20/02', client: 'Carla Souza', product: 'Plano Starter', value: 97, method: 'Boleto', status: 'Pendente', channel: 'Google Ads' },
+  { id: '4', date: '20/02', client: 'Pedro Lima', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
+  { id: '5', date: '19/02', client: 'Mariana Costa', product: 'Curso Digital', value: 297, method: 'Pix', status: 'Pago', channel: 'Google Orgânico' },
+  { id: '6', date: '19/02', client: 'Rafael Nunes', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Reembolsado', channel: 'Meta Ads' },
+  { id: '7', date: '18/02', client: 'Beatriz Alves', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Email' },
+  { id: '8', date: '18/02', client: 'Lucas Ferreira', product: 'Plano Starter', value: 97, method: 'Cartão', status: 'Pago', channel: 'Google Ads' },
+  { id: '9', date: '17/02', client: 'Camila Rocha', product: 'Curso Digital', value: 297, method: 'Boleto', status: 'Pendente', channel: 'Meta Ads' },
+  { id: '10', date: '17/02', client: 'Diego Santos', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Direto' },
+  { id: '11', date: '16/02', client: 'Fernanda Lima', product: 'Plano Pro Mensal', value: 197, method: 'Pix', status: 'Pago', channel: 'Google Orgânico' },
+  { id: '12', date: '16/02', client: 'Thiago Oliveira', product: 'Consultoria 1h', value: 350, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
+  { id: '13', date: '15/02', client: 'Isabela Freitas', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Email' },
+  { id: '14', date: '15/02', client: 'Bruno Castro', product: 'Plano Starter', value: 97, method: 'Pix', status: 'Pendente', channel: 'Google Ads' },
+  { id: '15', date: '14/02', client: 'Laura Mendes', product: 'Curso Digital', value: 297, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
 ]
 
 const PRODUCTS = [
@@ -42,29 +41,6 @@ const PRODUCTS = [
   { name: 'Plano Starter', qty: 365, revenue: 35405, avgTicket: 97 },
 ]
 
-const PLATFORM_COLOR: Record<Platform, string> = {
-  Hotmart: '#FF5D2E',
-  Stripe: '#635BFF',
-  Kiwify: '#00D084',
-  Shopify: '#95BF47',
-}
-
-function PlatformBadge({ platform }: { platform: Platform }) {
-  return (
-    <span style={{
-      fontFamily: "'Geist Mono', monospace",
-      fontSize: 8, fontWeight: 600,
-      letterSpacing: '0.04em', textTransform: 'uppercase',
-      padding: '2px 5px', borderRadius: 2,
-      background: 'rgba(30,30,30,0.04)',
-      color: PLATFORM_COLOR[platform],
-      border: `1px solid ${PLATFORM_COLOR[platform]}22`,
-      marginLeft: 8, verticalAlign: 'middle'
-    }}>
-      {platform}
-    </span>
-  )
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtBR(v: number) {
@@ -313,8 +289,8 @@ function TransactionList() {
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(30,30,30,0.45)' }}>
               {t.date}
             </span>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
-              {t.client} <PlatformBadge platform={t.platform} />
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {t.client}
             </span>
             <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(30,30,30,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.product}
