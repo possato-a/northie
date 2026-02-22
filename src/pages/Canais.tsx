@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { KpiCard } from '../components/KpiCard'
 import TopBar from '../components/TopBar'
