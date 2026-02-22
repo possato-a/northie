@@ -73,39 +73,39 @@ export default function SalesHeatmap() {
 
             <div style={{ display: 'flex', gap: 12 }}>
                 {/* Day Labels */}
-                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '20px 0 4px', height: 104 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 0 6px', height: 130 }}>
                     {DAYS.map((d, i) => i % 2 === 1 && (
-                        <span key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(30,30,30,0.3)', lineHeight: 1 }}>{d}</span>
+                        <span key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(30,30,30,0.3)', lineHeight: 1 }}>{d}</span>
                     ))}
                 </div>
 
                 <div style={{ flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
-                    <div style={{ display: 'flex', gap: 3 }}>
+                    <div style={{ display: 'flex', gap: 4 }}>
                         {weeks.map((week, wi) => (
-                            <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {/* Month label logic - simplified */}
                                 {wi % 4 === 0 && (
                                     <span style={{
                                         fontFamily: "'Poppins', sans-serif",
-                                        fontSize: 10,
+                                        fontSize: 11,
                                         color: 'rgba(30,30,30,0.4)',
-                                        marginBottom: 4,
-                                        height: 12,
+                                        marginBottom: 6,
+                                        height: 14,
                                         whiteSpace: 'nowrap'
                                     }}>
                                         {MONTHS[week.find(d => d.count !== -1)?.date.getMonth() || 0]}
                                     </span>
                                 )}
-                                {wi % 4 !== 0 && <div style={{ height: 16 }} />}
+                                {wi % 4 !== 0 && <div style={{ height: 20 }} />}
 
                                 {week.map((day, di) => (
                                     <motion.div
                                         key={di}
-                                        whileHover={{ scale: 1.2, zIndex: 10 }}
+                                        whileHover={{ scale: 1.15, zIndex: 10 }}
                                         title={day.count !== -1 ? `${day.date.toLocaleDateString('pt-BR')}: ${day.count} vendas` : ''}
                                         style={{
-                                            width: 12,
-                                            height: 12,
+                                            width: 16,
+                                            height: 16,
                                             borderRadius: 2,
                                             background: getColor(day.count),
                                             cursor: day.count !== -1 ? 'pointer' : 'default',
