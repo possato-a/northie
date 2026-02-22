@@ -5,6 +5,7 @@ import DatePicker from './DatePicker'
 import RevenueChart from './RevenueChart'
 import ChannelChart from './ChannelChart'
 import TopClients from './TopClients'
+import SalesHeatmap from './SalesHeatmap'
 
 interface DashboardProps {
   onToggleChat?: () => void
@@ -57,6 +58,7 @@ export default function Dashboard({ onToggleChat }: DashboardProps) {
       >
         <div style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginBottom: 56 }} />
         <RevenueChart />
+        <SalesHeatmap />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, marginTop: 64 }}>
           <ChannelChart />
           <TopClients />
