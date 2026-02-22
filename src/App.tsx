@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar, { type Page } from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import Vendas from './pages/Vendas'
@@ -8,8 +8,10 @@ import Canais from './pages/Canais'
 import Criadores from './pages/Criadores'
 import AppStore from './pages/AppStore'
 import ChatSidebar from './components/ChatSidebar'
+import Login from './pages/Login'
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [activePage, setActivePage] = useState<Page>('visao-geral')
   const [collapsed, setCollapsed] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -30,8 +32,30 @@ export default function App() {
     }
   }, [activePage])
 
+  if (!isLoggedIn) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          key="login"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <Login onLogin={() => setIsLoggedIn(true)} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#FCF8F8' }}>
+    <motion.div
+      key="app"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+      style={{ display: 'flex', minHeight: '100vh', background: '#FCF8F8' }}
+    >
       <Sidebar
         activePage={activePage}
         onPageChange={setActivePage}
@@ -87,6 +111,6 @@ export default function App() {
         isFull={isChatFull}
         onToggleFull={() => setIsChatFull(!isChatFull)}
       />
-    </div>
+    </motion.div>
   )
 }
