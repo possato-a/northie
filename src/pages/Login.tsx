@@ -97,24 +97,25 @@ function ImagePanel() {
             position: 'relative',
             background: '#F2EEE9',
             overflow: 'hidden',
-            boxShadow: 'inset 0 0 0 1px rgba(20,16,14,0.14)',
+            border: '1px solid rgba(20,16,14,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
         }}>
-            {/* Bússola — grande, levemente deslocada para cima */}
+            {/* Bússola — ocupa o painel inteiro com espaço para o glass */}
             <motion.img
                 src="/bussola-northie.png"
                 alt="Bússola Northie"
-                initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 1.3, ease: [0.25, 0.1, 0.25, 1] }}
                 style={{
-                    position: 'absolute',
-                    width: '96%',
-                    height: '94%',
+                    width: '90%',
+                    height: 'calc(100% - 180px)',
                     objectFit: 'contain',
-                    top: '46%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
                     mixBlendMode: 'multiply',
+                    display: 'block',
+                    marginTop: '-40px',
                     zIndex: 1,
                 }}
             />
