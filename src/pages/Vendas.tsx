@@ -5,6 +5,7 @@ import TopBar from '../components/TopBar'
 import DatePicker from '../components/DatePicker'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
+type Platform = 'Hotmart' | 'Stripe' | 'Kiwify' | 'Shopify'
 type Status = 'Pago' | 'Pendente' | 'Reembolsado'
 type Channel = 'Meta Ads' | 'Google Ads' | 'Google Orgânico' | 'Email' | 'Direto'
 type Method = 'Pix' | 'Cartão' | 'Boleto'
@@ -12,25 +13,25 @@ type Method = 'Pix' | 'Cartão' | 'Boleto'
 interface Transaction {
   id: string; date: string; client: string
   product: string; value: number
-  method: Method; status: Status; channel: Channel
+  method: Method; status: Status; channel: Channel; platform: Platform
 }
 
 const TRANSACTIONS: Transaction[] = [
-  { id: '1', date: '21/02', client: 'Ana Silva', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-  { id: '2', date: '21/02', client: 'João Mendes', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Direto' },
-  { id: '3', date: '20/02', client: 'Carla Souza', product: 'Plano Starter', value: 97, method: 'Boleto', status: 'Pendente', channel: 'Google Ads' },
-  { id: '4', date: '20/02', client: 'Pedro Lima', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-  { id: '5', date: '19/02', client: 'Mariana Costa', product: 'Curso Digital', value: 297, method: 'Pix', status: 'Pago', channel: 'Google Orgânico' },
-  { id: '6', date: '19/02', client: 'Rafael Nunes', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Reembolsado', channel: 'Meta Ads' },
-  { id: '7', date: '18/02', client: 'Beatriz Alves', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Email' },
-  { id: '8', date: '18/02', client: 'Lucas Ferreira', product: 'Plano Starter', value: 97, method: 'Cartão', status: 'Pago', channel: 'Google Ads' },
-  { id: '9', date: '17/02', client: 'Camila Rocha', product: 'Curso Digital', value: 297, method: 'Boleto', status: 'Pendente', channel: 'Meta Ads' },
-  { id: '10', date: '17/02', client: 'Diego Santos', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Direto' },
-  { id: '11', date: '16/02', client: 'Fernanda Lima', product: 'Plano Pro Mensal', value: 197, method: 'Pix', status: 'Pago', channel: 'Google Orgânico' },
-  { id: '12', date: '16/02', client: 'Thiago Oliveira', product: 'Consultoria 1h', value: 350, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-  { id: '13', date: '15/02', client: 'Isabela Freitas', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Email' },
-  { id: '14', date: '15/02', client: 'Bruno Castro', product: 'Plano Starter', value: 97, method: 'Pix', status: 'Pendente', channel: 'Google Ads' },
-  { id: '15', date: '14/02', client: 'Laura Mendes', product: 'Curso Digital', value: 297, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
+  { id: '1', date: '21/02', client: 'Ana Silva', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Hotmart' },
+  { id: '2', date: '21/02', client: 'João Mendes', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Direto', platform: 'Stripe' },
+  { id: '3', date: '20/02', client: 'Carla Souza', product: 'Plano Starter', value: 97, method: 'Boleto', status: 'Pendente', channel: 'Google Ads', platform: 'Hotmart' },
+  { id: '4', date: '20/02', client: 'Pedro Lima', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Kiwify' },
+  { id: '5', date: '19/02', client: 'Mariana Costa', product: 'Curso Digital', value: 297, method: 'Pix', status: 'Pago', channel: 'Google Orgânico', platform: 'Hotmart' },
+  { id: '6', date: '19/02', client: 'Rafael Nunes', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Reembolsado', channel: 'Meta Ads', platform: 'Hotmart' },
+  { id: '7', date: '18/02', client: 'Beatriz Alves', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Email', platform: 'Shopify' },
+  { id: '8', date: '18/02', client: 'Lucas Ferreira', product: 'Plano Starter', value: 97, method: 'Cartão', status: 'Pago', channel: 'Google Ads', platform: 'Stripe' },
+  { id: '9', date: '17/02', client: 'Camila Rocha', product: 'Curso Digital', value: 297, method: 'Boleto', status: 'Pendente', channel: 'Meta Ads', platform: 'Hotmart' },
+  { id: '10', date: '17/02', client: 'Diego Santos', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Direto', platform: 'Kiwify' },
+  { id: '11', date: '16/02', client: 'Fernanda Lima', product: 'Plano Pro Mensal', value: 197, method: 'Pix', status: 'Pago', channel: 'Google Orgânico', platform: 'Stripe' },
+  { id: '12', date: '16/02', client: 'Thiago Oliveira', product: 'Consultoria 1h', value: 350, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Hotmart' },
+  { id: '13', date: '15/02', client: 'Isabela Freitas', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Email', platform: 'Hotmart' },
+  { id: '14', date: '15/02', client: 'Bruno Castro', product: 'Plano Starter', value: 97, method: 'Pix', status: 'Pendente', channel: 'Google Ads', platform: 'Shopify' },
+  { id: '15', date: '14/02', client: 'Laura Mendes', product: 'Curso Digital', value: 297, method: 'Cartão', status: 'Pago', channel: 'Meta Ads', platform: 'Stripe' },
 ]
 
 const PRODUCTS = [
@@ -41,19 +42,29 @@ const PRODUCTS = [
   { name: 'Plano Starter', qty: 365, revenue: 35405, avgTicket: 97 },
 ]
 
-interface PaymentLink { name: string; slug: string; clicks: number; active: boolean }
-const PAYMENT_LINKS: PaymentLink[] = [
-  { name: 'Plano Pro Mensal', slug: 'northie.co/pro', clicks: 294, active: true },
-  { name: 'Consultoria Estratégica', slug: 'northie.co/consult', clicks: 87, active: true },
-  { name: 'Black Friday 2024', slug: 'northie.co/bf24', clicks: 1240, active: false },
-]
+const PLATFORM_COLOR: Record<Platform, string> = {
+  Hotmart: '#FF5D2E',
+  Stripe: '#635BFF',
+  Kiwify: '#00D084',
+  Shopify: '#95BF47',
+}
 
-interface CheckoutPage { name: string; visits: number; conv: number; active: boolean }
-const CHECKOUT_PAGES: CheckoutPage[] = [
-  { name: 'Checkout Principal', visits: 342, conv: 18, active: true },
-  { name: 'Upsell Anual', visits: 89, conv: 24, active: true },
-  { name: 'Landing Curso', visits: 610, conv: 11, active: false },
-]
+function PlatformBadge({ platform }: { platform: Platform }) {
+  return (
+    <span style={{
+      fontFamily: "'Geist Mono', monospace",
+      fontSize: 8, fontWeight: 600,
+      letterSpacing: '0.04em', textTransform: 'uppercase',
+      padding: '2px 5px', borderRadius: 2,
+      background: 'rgba(30,30,30,0.04)',
+      color: PLATFORM_COLOR[platform],
+      border: `1px solid ${PLATFORM_COLOR[platform]}22`,
+      marginLeft: 8, verticalAlign: 'middle'
+    }}>
+      {platform}
+    </span>
+  )
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtBR(v: number) {
@@ -302,8 +313,8 @@ function TransactionList() {
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(30,30,30,0.45)' }}>
               {t.date}
             </span>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {t.client}
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
+              {t.client} <PlatformBadge platform={t.platform} />
             </span>
             <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(30,30,30,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.product}
@@ -400,186 +411,12 @@ function ProductRevenue() {
 }
 
 // ── Checkout settings ─────────────────────────────────────────────────────────
-function NewButton({ label }: { label: string }) {
-  return (
-    <motion.button
-      whileHover={{ borderColor: 'rgba(30,30,30,0.35)', color: '#1E1E1E' }}
-      whileTap={{ scale: 0.97 }}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        fontFamily: "'Poppins', sans-serif",
-        fontSize: 13, letterSpacing: '-0.3px',
-        color: 'rgba(30,30,30,0.5)',
-        border: '1px dashed rgba(30,30,30,0.2)',
-        borderRadius: 3, padding: '7px 14px',
-        background: 'transparent', cursor: 'pointer',
-        transition: 'border-color 0.2s, color 0.2s',
-      }}
-    >
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-        <line x1="5.5" y1="1" x2="5.5" y2="10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-        <line x1="1" y1="5.5" x2="10" y2="5.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-      </svg>
-      {label}
-    </motion.button>
-  )
-}
-
-function ActiveDot({ active }: { active: boolean }) {
-  return (
-    <span style={{
-      display: 'inline-block',
-      width: 6, height: 6, borderRadius: '50%',
-      background: active ? '#1E1E1E' : 'rgba(30,30,30,0.2)',
-      flexShrink: 0,
-    }} />
-  )
-}
-
-function CheckoutSettings() {
-  return (
-    <div>
-      <SectionLabel>CONFIGURAÇÕES DE CHECKOUT</SectionLabel>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 48 }}>
-
-        {/* Links de Pagamento */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, letterSpacing: '-0.4px', color: '#1E1E1E' }}>
-              Links de Pagamento
-            </span>
-            <NewButton label="Novo link" />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {PAYMENT_LINKS.map((link, i) => (
-              <motion.div
-                key={link.slug}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.07 + 0.2 }}
-                whileHover={{ backgroundColor: 'rgba(30,30,30,0.025)' }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '11px 12px', borderRadius: 3, cursor: 'pointer',
-                  opacity: link.active ? 1 : 0.45,
-                }}
-              >
-                <ActiveDot active={link.active} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {link.name}
-                  </p>
-                  <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', margin: '2px 0 0' }}>
-                    {link.slug}
-                  </p>
-                </div>
-                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'rgba(30,30,30,0.4)', whiteSpace: 'nowrap' }}>
-                  {fmtBR(link.clicks)} cliques
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Páginas de Checkout */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, letterSpacing: '-0.4px', color: '#1E1E1E' }}>
-              Páginas de Checkout
-            </span>
-            <NewButton label="Nova página" />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {CHECKOUT_PAGES.map((page, i) => (
-              <motion.div
-                key={page.name}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.07 + 0.25 }}
-                whileHover={{ backgroundColor: 'rgba(30,30,30,0.025)' }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '11px 12px', borderRadius: 3, cursor: 'pointer',
-                  opacity: page.active ? 1 : 0.45,
-                }}
-              >
-                <ActiveDot active={page.active} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', margin: 0 }}>
-                    {page.name}
-                  </p>
-                  <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', margin: '2px 0 0' }}>
-                    {fmtBR(page.visits)} visitas
-                  </p>
-                </div>
-                <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 11, color: 'rgba(30,30,30,0.5)', whiteSpace: 'nowrap' }}>
-                  {page.conv}% conv.
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Assinaturas Recorrentes */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.26, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, letterSpacing: '-0.4px', color: '#1E1E1E' }}>
-              Assinaturas Recorrentes
-            </span>
-            <NewButton label="Nova assinatura" />
-          </div>
-
-          {[
-            { label: 'Ativas', value: 487, dot: true },
-            { label: 'Trials em andamento', value: 23, dot: true },
-            { label: 'Pendentes renovação', value: 8, dot: false },
-          ].map((row, i) => (
-            <motion.div
-              key={row.label}
-              initial={{ opacity: 0, x: -6 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.07 + 0.3 }}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '13px 12px',
-                borderBottom: i < 2 ? '1px solid rgba(30,30,30,0.06)' : 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <ActiveDot active={row.dot} />
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(30,30,30,0.7)' }}>
-                  {row.label}
-                </span>
-              </div>
-              <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 18, letterSpacing: '-0.5px', color: '#1E1E1E' }}>
-                {row.value}
-              </span>
-            </motion.div>
-          ))}
-        </motion.div>
-
-      </div>
-    </div>
-  )
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) {
+  // Mock check for integrations
+  const hasIntegrations = true
+
   return (
     <div style={{ paddingTop: 28, paddingBottom: 80 }}>
       <TopBar onToggleChat={onToggleChat} />
@@ -598,52 +435,90 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) 
         Vendas
       </motion.h1>
 
-      {/* KPIs */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
-      >
-        <DatePicker />
-        <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
-          <KpiCard label="FATURAMENTO" value={240000} prefix="R$ " decimals={0} delay={0.1} />
-          <KpiCard label="TRANSAÇÕES" value={1244} decimals={0} delay={0.18} />
-          <KpiCard label="TICKET MÉDIO" value={192.9} prefix="R$ " decimals={2} delay={0.26} />
-          <KpiCard label="TAXA DE CONVERSÃO" value={3.2} suffix="%" decimals={1} delay={0.34} />
-          <KpiCard label="REEMBOLSOS" value={4800} prefix="R$ " decimals={0} delay={0.42} />
-        </div>
-      </motion.div>
+      {!hasIntegrations ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            marginTop: 80,
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            gap: 24, textAlign: 'center'
+          }}
+        >
+          <div style={{
+            width: 64, height: 64, borderRadius: '50%',
+            background: 'rgba(30,30,30,0.03)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'rgba(30,30,30,0.2)'
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M13 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V9L13 2Z" />
+              <path d="M13 2V9H20" />
+            </svg>
+          </div>
+          <p style={{
+            fontFamily: "'Poppins', sans-serif",
+            fontSize: 16, color: 'rgba(30,30,30,0.6)',
+            maxWidth: 320, lineHeight: 1.5
+          }}>
+            Conecte suas plataformas de venda na App Store para visualizar suas transações aqui.
+          </p>
+          <motion.button
+            whileHover={{ backgroundColor: '#1E1E1E', color: '#FCF8F8' }}
+            whileTap={{ scale: 0.98 }}
+            style={{
+              padding: '12px 24px',
+              borderRadius: 6,
+              border: '1px solid #1E1E1E',
+              background: 'transparent',
+              color: '#1E1E1E',
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 14, fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Ir para App Store
+          </motion.button>
+        </motion.div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
+          >
+            <DatePicker />
+            <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
+              <KpiCard label="FATURAMENTO" value={240000} prefix="R$ " decimals={0} delay={0.1} />
+              <KpiCard label="TRANSAÇÕES" value={1244} decimals={0} delay={0.18} />
+              <KpiCard label="TICKET MÉDIO" value={192.9} prefix="R$ " decimals={2} delay={0.26} />
+              <KpiCard label="TAXA DE CONVERSÃO" value={3.2} suffix="%" decimals={1} delay={0.34} />
+              <KpiCard label="REEMBOLSOS" value={4800} prefix="R$ " decimals={0} delay={0.42} />
+            </div>
+          </motion.div>
 
-      {/* Divider */}
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.5 }}
-        style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginTop: 52, marginBottom: 48 }}
-      />
+          {/* Divider */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.5 }}
+            style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginTop: 52, marginBottom: 48 }}
+          />
 
-      {/* Transactions + Products */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 56 }}
-      >
-        <TransactionList />
-        <ProductRevenue />
-      </motion.div>
-
-      {/* Divider */}
-      <div style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginTop: 52, marginBottom: 48 }} />
-
-      {/* Checkout settings */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
-      >
-        <CheckoutSettings />
-      </motion.div>
+          {/* Transactions + Products */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 56 }}
+          >
+            <TransactionList />
+            <ProductRevenue />
+          </motion.div>
+        </>
+      )}
     </div>
   )
 }
