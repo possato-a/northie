@@ -4,6 +4,7 @@ import Sidebar, { type Page } from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
+import Criadores from './pages/Criadores'
 import ChatSidebar from './components/ChatSidebar'
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
       case 'visao-geral': return 'Visão Geral'
       case 'vendas': return 'Vendas'
       case 'clientes': return 'Clientes'
+      case 'creators': return 'Criadores'
       default: return 'Início'
     }
   }, [activePage])
@@ -48,7 +50,8 @@ export default function App() {
           {activePage === 'visao-geral' && <Dashboard onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'vendas' && <Vendas onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && (
+          {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'creators' && (
             <motion.div
               key={activePage}
               initial={{ opacity: 0, y: 10 }}

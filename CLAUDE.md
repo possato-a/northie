@@ -1,44 +1,59 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Este arquivo fornece orientações para o Antigravity (e outros agentes de IA) ao trabalhar neste repositório. Ele contém as regras de design, arquitetura e infraestrutura estabelecidas.
 
-## Commands
+## Comandos Úteis
 
 ```bash
-npm run dev       # start dev server at http://localhost:5173
-npm run build     # type-check + production build
-npm run preview   # preview production build
+npm run dev       # Inicia servidor de dev em http://localhost:5173
+npm run build     # Type-check + build de produção
+npm run preview   # Preview do build de produção
+git push          # Dispara build automático na Vercel (branch main)
 ```
 
-## Stack
+## Stack Tecnológica
 
-- **React 18 + TypeScript** via Vite 6
-- **Framer Motion** for all animations (micro-interactions, count-up, layout transitions)
-- Fonts loaded from Google Fonts: **Poppins**, **Lora**, **Geist Mono**
-- Colors: `#FCF8F8` (background) · `#1E1E1E` (text/icons)
+- **Core**: React 18 + TypeScript via Vite 6.
+- **Animações**: Framer Motion (uso obrigatório para micro-interações e transições).
+- **Tipografia**: 
+    - `Poppins`: Interface geral e títulos.
+    - `Geist Mono`: Dados, números, tabelas e saídas de IA (estética técnica).
+- **Cores**: Base `#FCF8F8`, Texto/Ícones `#1E1E1E`.
 
-## Structure
+## Arquitetura e Componentes Chave
+
+### 1. Sistema de Chat IA (Ask Northie)
+- **Componente**: `src/components/ChatSidebar.tsx`.
+- **Modos de Exibição**:
+    - **Sidebar (380px)**: Empurra o conteúdo do `App.tsx` via `paddingRight`.
+    - **Workstation (Full-Screen)**: Modo tela inteira para análise profunda de dados, centralizado em 800px.
+- **Estética de Dados**: Uso de blocos de "Intelligence Output", efeito de scanline sutil e animação de "Thinking" técnica.
+- **Sugestões**: Chips contextuais dinâmicos baseados na página ativa (`context` prop).
+
+### 2. Layout Principal (`App.tsx`)
+- Sidebar fixa (`marginLeft` dinâmico).
+- Gerenciamento de estado global para `activePage`, `chatOpen` e `isChatFull`.
+- Transições de página suaves com `AnimatePresence`.
+
+### 3. Ícones (`src/icons.tsx`)
+- Centralizados em um arquivo, exportados como componentes React.
+- Devem usar `fill="currentColor"` para controle de cor/opacidade via pai.
+
+## Convenções de Código e Design
+
+- **Design Premium**: Evitar cores genéricas. Usar micro-interações (`whileHover`, `whileTap`) em todos os elementos interativos.
+- **Internacionalização**: Números e moedas sempre formatados para `pt-BR`.
+- **Easings de Animação**: 
+    - Layout: `[0.4, 0, 0.2, 1]`.
+    - Fades/Entradas: `[0.25, 0.1, 0.25, 1]`.
+- **Git/Vercel**: O projeto está conectado ao repositório `possato-a/northie` e deployado na Vercel. Commits na `main` são deploys automáticos.
+
+## Estrutura de Pastas
 
 ```
 src/
-  icons.tsx              # All SVG icons inlined as React components (fill="currentColor")
-  components/
-    Sidebar.tsx          # Collapsible sidebar with Framer Motion layout animation
-    Dashboard.tsx        # KPI dashboard — DatePicker, AnimatedNumber, KpiCard
-  App.tsx                # Root — sidebar state (collapsed, activePage), motion.main
-  index.css              # Global reset only
-svg-icons/               # Source SVG files (reference for any new icons)
+  components/       # Componentes reutilizáveis (KpiCard, ChatSidebar, Sidebar)
+  pages/            # Páginas completas (Vendas, Clientes, Dashboard)
+  icons.tsx         # Repositório de ícones SVG
+  App.tsx           # Orquestrador de estado e layout
 ```
-
-## Architecture
-
-- **Sidebar** is `position: fixed`, width animates between 70px (collapsed) and 250px via `motion.main`'s `marginLeft`.
-- All icons use `fill="currentColor"` so opacity is controlled at the container level via Framer Motion `animate={{ opacity }}`.
-- `AnimatedNumber` uses Framer Motion's `animate()` function (not a component) for count-up, formatted with `Intl.NumberFormat('pt-BR', ...)`.
-- New pages: add a `Page` union type value in `Sidebar.tsx` and a nav entry in `mainNav` or `bottomNav`; handle rendering in `App.tsx`.
-
-## Conventions
-
-- All icon components live in `src/icons.tsx`; SVG paths are sourced from `svg-icons/`.
-- Brazilian number format throughout (`pt-BR` locale).
-- Easing: `[0.4, 0, 0.2, 1]` for layout transitions, `[0.25, 0.1, 0.25, 1]` for content fades.
