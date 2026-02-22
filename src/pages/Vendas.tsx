@@ -34,11 +34,11 @@ const TRANSACTIONS: Transaction[] = [
 ]
 
 const PRODUCTS = [
-  { name: 'Plano Pro Anual', qty: 48, revenue: 84672, avgTicket: 1764 },
-  { name: 'Consultoria 1h', qty: 140, revenue: 49000, avgTicket: 350 },
-  { name: 'Curso Digital', qty: 210, revenue: 62370, avgTicket: 297 },
-  { name: 'Plano Pro Mensal', qty: 287, revenue: 56539, avgTicket: 197 },
-  { name: 'Plano Starter', qty: 365, revenue: 35405, avgTicket: 97 },
+  { name: 'Plano Pro Anual', qty: 48, revenue: 84672, avgTicket: 1764, margin: 82 },
+  { name: 'Consultoria 1h', qty: 140, revenue: 49000, avgTicket: 350, margin: 95 },
+  { name: 'Curso Digital', qty: 210, revenue: 62370, avgTicket: 297, margin: 70 },
+  { name: 'Plano Pro Mensal', qty: 287, revenue: 56539, avgTicket: 197, margin: 65 },
+  { name: 'Plano Starter', qty: 365, revenue: 35405, avgTicket: 97, margin: 45 },
 ]
 
 
@@ -328,7 +328,7 @@ function ProductRevenue() {
       {/* Header */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 44px 90px 90px',
+        gridTemplateColumns: '1fr 44px 90px 90px 72px',
         gap: '0 12px',
         paddingBottom: 10,
         borderBottom: '1px solid rgba(30,30,30,0.1)',
@@ -338,6 +338,7 @@ function ProductRevenue() {
         <TH align="right">QTD</TH>
         <TH align="right">RECEITA</TH>
         <TH align="right">TICKET MÉD.</TH>
+        <TH align="right">MARGEM %</TH>
       </div>
 
       {PRODUCTS.map((p, i) => (
@@ -349,7 +350,7 @@ function ProductRevenue() {
         >
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 44px 90px 90px',
+            gridTemplateColumns: '1fr 44px 90px 90px 72px',
             gap: '0 12px',
             alignItems: 'center',
             padding: '13px 0',
@@ -366,6 +367,15 @@ function ProductRevenue() {
             </span>
             <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(30,30,30,0.65)', textAlign: 'right' }}>
               R$ {fmtBR(p.avgTicket)}
+            </span>
+            <span style={{
+              fontFamily: "'Geist Mono', monospace",
+              fontSize: 12,
+              color: p.margin > 70 ? '#1E1E1E' : 'rgba(30,30,30,0.45)',
+              textAlign: 'right',
+              fontWeight: p.margin > 70 ? 500 : 400
+            }}>
+              {p.margin}%
             </span>
           </div>
 
