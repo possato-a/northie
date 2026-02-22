@@ -57,8 +57,10 @@ export default function Dashboard({ onToggleChat }: DashboardProps) {
         style={{ marginTop: 64 }}
       >
         <div style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginBottom: 56 }} />
-        <RevenueChart />
         <SalesHeatmap />
+        <div style={{ marginTop: 64 }}>
+          <RevenueChart />
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, marginTop: 64 }}>
           <ChannelChart />
           <TopClients />
