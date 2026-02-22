@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
 import Criadores from './pages/Criadores'
+import AppStore from './pages/AppStore'
 import ChatSidebar from './components/ChatSidebar'
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
       case 'vendas': return 'Vendas'
       case 'clientes': return 'Clientes'
       case 'creators': return 'Criadores'
+      case 'app-store': return 'App Store'
       default: return 'Início'
     }
   }, [activePage])
@@ -51,7 +53,8 @@ export default function App() {
           {activePage === 'vendas' && <Vendas onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'creators' && (
+          {activePage === 'app-store' && <AppStore onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'creators' && activePage !== 'app-store' && (
             <motion.div
               key={activePage}
               initial={{ opacity: 0, y: 10 }}
