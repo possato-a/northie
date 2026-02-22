@@ -36,6 +36,8 @@ const ACTIVE_CAMPAIGNS: ActiveCampaign[] = [
     { id: '2', name: 'Search - Brand Keywords brasil', platform: 'Google', spendToday: 120.45, roasToday: 8.5, status: 'Ativo' },
     { id: '3', name: 'Retargeting - All Visitors', platform: 'Meta', spendToday: 85.00, roasToday: 2.1, status: 'Ativo' },
     { id: '4', name: 'Competitor Conquesting', platform: 'Google', spendToday: 310.00, roasToday: 1.4, status: 'Pausado' },
+    { id: '5', name: 'Scaling - High LTV Lookalike', platform: 'Meta', spendToday: 680.00, roasToday: 3.8, status: 'Ativo' },
+    { id: '6', name: 'Performance Max - Sales', platform: 'Google', spendToday: 215.30, roasToday: 5.1, status: 'Ativo' },
 ]
 
 // ── Shared Primitives ────────────────────────────────────────────────────────
@@ -43,10 +45,11 @@ const ACTIVE_CAMPAIGNS: ActiveCampaign[] = [
 function SectionLabel({ children }: { children: React.ReactNode }) {
     return (
         <p style={{
-            fontFamily: "'Geist Mono', monospace",
+            fontFamily: "'Geist Mono', 'Courier New', monospace",
             fontSize: 11, color: 'rgba(30,30,30,0.4)',
             letterSpacing: '0.08em', marginBottom: 20,
-            textTransform: 'uppercase'
+            textTransform: 'uppercase',
+            fontWeight: 500
         }}>
             {children}
         </p>
@@ -59,6 +62,7 @@ function TH({ children, align = 'left' }: { children: React.ReactNode; align?: '
             fontFamily: "'Geist Mono', monospace",
             fontSize: 11, color: 'rgba(30,30,30,0.45)',
             letterSpacing: '0.04em', textAlign: align,
+            fontWeight: 500
         }}>
             {children}
         </span>
@@ -69,22 +73,76 @@ function fmtBR(v: number) {
     return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
 }
 
-// ── Simple Line Chart Component ──────────────────────────────────────────────
-function MiniSparkline({ data, color = '#1E1E1E' }: { data: number[], color?: string }) {
+// ── Premium Line Chart Component ──────────────────────────────────────────────
+function ChannelSparkline({ data, height = 40, id = 'default' }: { data: number[], height?: number, id?: string }) {
     const max = Math.max(...data)
     const min = Math.min(...data)
-    const range = max - min || 1
+    const range = (max - min) || 1
+    const padding = range * 0.15
+    const effectiveMax = max + padding
+    const effectiveMin = min - padding
+    const effectiveRange = effectiveMax - effectiveMin
+
     const points = data.map((v, i) => ({
         x: (i / (data.length - 1)) * 100,
-        y: 100 - ((v - min) / range) * 100
+        y: 100 - ((v - effectiveMin) / effectiveRange) * 100
     }))
 
-    const path = `M ${points[0].x},${points[0].y} ` + points.slice(1).map(p => `L ${p.x},${p.y}`).join(' ')
+    // Generate smooth cubic bezier curve
+    let pathData = `M ${points[0].x},${points[0].y}`
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[i]
+        const p1 = points[i + 1]
+        const cp1x = p0.x + (p1.x - p0.x) / 3
+        const cp2x = p0.x + 2 * (p1.x - p0.x) / 3
+        pathData += ` C ${cp1x},${p0.y} ${cp2x},${p1.y} ${p1.x},${p1.y}`
+    }
+
+    const fillData = `${pathData} L 100,100 L 0,100 Z`
+    const gradId = `chart-grad-${id.replace(/\s+/g, '-').toLowerCase()}`
+
+    const lastPoint = points[points.length - 1]
 
     return (
-        <svg viewBox="0 0 100 100" style={{ width: 80, height: 30, overflow: 'visible' }}>
-            <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <div style={{ width: '100%', height, position: 'relative' }}>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
+                <defs>
+                    <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="rgba(30,30,30,0.12)" />
+                        <stop offset="100%" stopColor="rgba(30,30,30,0)" />
+                    </linearGradient>
+                </defs>
+                <path d={fillData} fill={`url(#${gradId})`} />
+                <motion.path
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    d={pathData}
+                    fill="none"
+                    stroke="#1E1E1E"
+                    strokeWidth={1.5}
+                    vectorEffect="non-scaling-stroke"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                />
+            </svg>
+            {/* Endpoint dot fora do SVG para não ser deformado pelo preserveAspectRatio="none" */}
+            <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 1.2, duration: 0.3 }}
+                style={{
+                    position: 'absolute',
+                    left: `${lastPoint.x}%`,
+                    top: `${lastPoint.y}%`,
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: '#1E1E1E',
+                    transform: 'translate(-50%, -50%)',
+                }}
+            />
+        </div>
     )
 }
 
@@ -129,11 +187,13 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
 
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 90px 110px 80px 80px 90px 100px',
+                    gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 100px 100px 100px 120px',
                     gap: '0 24px',
-                    paddingBottom: 12,
+                    paddingBottom: 16,
                     borderBottom: '1px solid rgba(30,30,30,0.1)',
                     marginBottom: 4,
+                    paddingLeft: 12,
+                    paddingRight: 12,
                 }}>
                     <TH>CANAL</TH>
                     <TH align="right">GASTO</TH>
@@ -147,51 +207,60 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 {CHANNELS_DATA.map((ch, i) => (
                     <motion.div
                         key={ch.name}
-                        initial={{ opacity: 0, y: 6 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: i * 0.05 + 0.2 }}
+                        transition={{ duration: 0.4, delay: i * 0.04 + 0.2 }}
+                        whileHover={{ backgroundColor: 'rgba(30,30,30,0.02)', x: 4 }}
                         style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 90px 110px 80px 80px 90px 100px',
+                            gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 100px 100px 100px 120px',
                             gap: '0 24px',
                             alignItems: 'center',
-                            padding: '16px 0',
-                            borderBottom: '1px solid rgba(30,30,30,0.055)',
+                            padding: '20px 12px',
+                            borderBottom: '1px solid rgba(30,30,30,0.05)',
+                            borderRadius: 6,
+                            cursor: 'default',
+                            transition: 'all 0.2s ease',
                         }}
                     >
-                        <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', fontWeight: 500 }}>
+                        <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, letterSpacing: '-0.3px', color: '#1E1E1E', fontWeight: 500 }}>
                             {ch.name}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: ch.spend > 0 ? '#1E1E1E' : 'rgba(30,30,30,0.35)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: ch.spend > 0 ? '#1E1E1E' : 'rgba(30,30,30,0.3)', textAlign: 'right' }}>
                             {ch.spend > 0 ? `R$ ${fmtBR(ch.spend)}` : '—'}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right', fontWeight: 500 }}>
                             R$ {fmtBR(ch.revenue)}
                         </span>
                         <span style={{
                             fontFamily: "'Geist Mono', monospace",
                             fontSize: 13,
-                            color: ch.roas >= 3 ? '#1E1E1E' : ch.roas > 0 ? 'rgba(30,30,30,0.6)' : 'rgba(30,30,30,0.3)',
+                            color: ch.roas >= 3 ? '#1E1E1E' : ch.roas > 0 ? 'rgba(30,30,30,0.6)' : 'rgba(30,30,30,0.2)',
                             textAlign: 'right',
-                            fontWeight: ch.roas >= 3 ? 500 : 400
+                            fontWeight: ch.roas >= 3 ? 600 : 400
                         }}>
                             {ch.roas > 0 ? `${ch.roas.toFixed(1)}x` : '—'}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(30,30,30,0.65)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(30,30,30,0.5)', textAlign: 'right' }}>
                             {ch.cac > 0 ? `R$ ${fmtBR(ch.cac)}` : '—'}
                         </span>
                         <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right' }}>
                             {ch.customers}
                         </span>
-                        <span style={{
-                            fontFamily: "'Geist Mono', monospace",
-                            fontSize: 13,
-                            color: ch.ltv >= 1000 ? '#1E1E1E' : 'rgba(30,30,30,0.65)',
-                            textAlign: 'right',
-                            fontWeight: ch.ltv >= 1000 ? 500 : 400
-                        }}>
-                            R$ {fmtBR(ch.ltv)}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span style={{
+                                fontFamily: "'Geist Mono', monospace",
+                                fontSize: 14,
+                                color: ch.ltv >= 1000 ? '#1E1E1E' : 'rgba(30,30,30,0.6)',
+                                textAlign: 'right',
+                                fontWeight: ch.ltv >= 1000 ? 500 : 400
+                            }}>
+                                R$ {fmtBR(ch.ltv)}
+                            </span>
+                            {ch.ltv > 1000 && (
+                                <span style={{ fontSize: 9, color: 'rgba(30,30,30,0.3)', fontWeight: 600, marginTop: 2 }}>HIGH VALUE</span>
+                            )}
+                        </div>
                     </motion.div>
                 ))}
             </div>
@@ -200,100 +269,154 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, marginTop: 80 }}>
                 <div>
                     <SectionLabel>ROAS POR CANAL AO LONGO DO TEMPO</SectionLabel>
-                    <div style={{ height: 200, display: 'flex', alignItems: 'flex-end', gap: 24, padding: '20px 0', borderBottom: '1px solid rgba(30,30,30,0.08)' }}>
-                        {/* Simplified Visual Representation */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 80, color: 'rgba(30,30,30,0.4)' }}>GOOGLE</span>
-                                <MiniSparkline data={[2.1, 2.5, 3.2, 3.1, 3.6, 3.8]} color="#1E1E1E" />
-                                <span style={{ fontSize: 12, fontWeight: 500 }}>3.8x</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 80, color: 'rgba(30,30,30,0.4)' }}>META ADS</span>
-                                <MiniSparkline data={[4.2, 3.8, 3.5, 3.0, 2.8, 2.5]} color="rgba(30,30,30,0.3)" />
-                                <span style={{ fontSize: 12, color: 'rgba(30,30,30,0.4)' }}>2.5x</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 80, color: 'rgba(30,30,30,0.4)' }}>EMAIL</span>
-                                <MiniSparkline data={[12, 15, 22, 28, 32, 30]} color="#1E1E1E" />
-                                <span style={{ fontSize: 12, fontWeight: 500 }}>30x</span>
-                            </div>
+                    <div style={{
+                        background: '#FFF',
+                        border: '1px solid rgba(30,30,30,0.06)',
+                        borderRadius: 12,
+                        padding: 32,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                            {[
+                                { name: 'GOOGLE', data: [2.1, 2.3, 2.8, 2.5, 2.9, 3.2, 3.1, 3.4, 3.6, 3.8], val: '3.8x', strong: true },
+                                { name: 'META ADS', data: [4.2, 4.0, 3.8, 3.9, 3.5, 3.2, 3.0, 2.8, 2.7, 2.5], val: '2.5x', strong: false },
+                                { name: 'EMAIL', data: [12, 14, 15, 18, 22, 25, 28, 31, 32, 30], val: '30x', strong: true }
+                            ].map((item) => (
+                                <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 70, color: 'rgba(30,30,30,0.4)', fontWeight: 500 }}>{item.name}</span>
+                                    <div style={{ flex: 1 }}>
+                                        <ChannelSparkline data={item.data} id={`roas-${item.name}`} />
+                                    </div>
+                                    <span style={{
+                                        fontSize: 16,
+                                        fontFamily: "'Poppins', sans-serif",
+                                        fontWeight: 500,
+                                        width: 50,
+                                        textAlign: 'right',
+                                        color: item.strong ? '#1E1E1E' : 'rgba(30,30,30,0.3)'
+                                    }}>
+                                        {item.val}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
 
                 <div>
                     <SectionLabel>CAC POR CANAL AO LONGO DO TEMPO</SectionLabel>
-                    <div style={{ height: 200, display: 'flex', alignItems: 'flex-end', gap: 24, padding: '20px 0', borderBottom: '1px solid rgba(30,30,30,0.08)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 80, color: 'rgba(30,30,30,0.4)' }}>GOOGLE</span>
-                                <MiniSparkline data={[210, 205, 198, 200, 185, 182]} color="#1E1E1E" />
-                                <span style={{ fontSize: 12, fontWeight: 500 }}>R$ 182</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 80, color: 'rgba(30,30,30,0.4)' }}>META ADS</span>
-                                <MiniSparkline data={[65, 72, 80, 88, 92, 110]} color="rgba(30,30,30,0.3)" />
-                                <span style={{ fontSize: 12, color: 'rgba(30,30,30,0.4)' }}>R$ 110</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 80, color: 'rgba(30,30,30,0.4)' }}>EMAIL</span>
-                                <MiniSparkline data={[20, 18, 15, 14, 15, 16]} color="#1E1E1E" />
-                                <span style={{ fontSize: 12, fontWeight: 500 }}>R$ 16</span>
-                            </div>
+                    <div style={{
+                        background: '#FFF',
+                        border: '1px solid rgba(30,30,30,0.06)',
+                        borderRadius: 12,
+                        padding: 32,
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                            {[
+                                { name: 'GOOGLE', data: [210, 208, 205, 202, 198, 195, 200, 190, 185, 182], val: 'R$ 182', strong: true },
+                                { name: 'META ADS', data: [65, 68, 72, 75, 80, 85, 88, 90, 92, 110], val: 'R$ 110', strong: false, color: 'rgba(30,30,30,0.3)' },
+                                { name: 'EMAIL', data: [20, 19, 18, 17, 15, 16, 14, 15, 15, 16], val: 'R$ 16', strong: true }
+                            ].map((item) => (
+                                <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+                                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 70, color: 'rgba(30,30,30,0.4)', fontWeight: 500 }}>{item.name}</span>
+                                    <div style={{ flex: 1 }}>
+                                        <ChannelSparkline data={item.data} id={`cac-${item.name}`} />
+                                    </div>
+                                    <span style={{
+                                        fontSize: 16,
+                                        fontFamily: "'Poppins', sans-serif",
+                                        fontWeight: 500,
+                                        width: 80,
+                                        textAlign: 'right',
+                                        color: item.strong ? '#1E1E1E' : 'rgba(30,30,30,0.3)'
+                                    }}>
+                                        {item.val}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Block 3: Campanhas Ativas */}
-            <div style={{ marginTop: 80 }}>
-                <SectionLabel>CAMPANHAS ATIVAS (ADS MANAGER LITE)</SectionLabel>
+            <div style={{ marginTop: 100 }}>
+                <SectionLabel>CAMPANHAS ATIVAS</SectionLabel>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 32 }}>
                     {ACTIVE_CAMPAIGNS.map((camp, i) => (
                         <motion.div
                             key={camp.id}
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.4, delay: i * 0.1 + 0.5 }}
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.4, delay: i * 0.08 + 0.4 }}
+                            whileHover={{ y: -6, boxShadow: '0 12px 30px rgba(0,0,0,0.05)', borderColor: 'rgba(30,30,30,0.15)' }}
                             style={{
-                                padding: 24,
-                                borderRadius: 8,
-                                background: '#FFF',
-                                border: '1px solid rgba(30,30,30,0.08)',
+                                padding: 32,
+                                borderRadius: 16,
+                                background: 'rgba(255, 255, 255, 0.7)',
+                                backdropFilter: 'blur(8px)',
+                                border: '1px solid rgba(30,30,30,0.06)',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: 16
+                                gap: 24,
+                                transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
-                                    <span style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(30,30,30,0.4)', textTransform: 'uppercase' }}>{camp.platform}</span>
-                                    <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 15, fontWeight: 500, margin: '4px 0 0', color: '#1E1E1E' }}>{camp.name}</h3>
+                                    <span style={{
+                                        fontSize: 10,
+                                        fontFamily: "'Geist Mono', monospace",
+                                        color: 'rgba(30,30,30,0.4)',
+                                        textTransform: 'uppercase',
+                                        fontWeight: 500,
+                                        letterSpacing: '0.04em'
+                                    }}>
+                                        {camp.platform}
+                                    </span>
+                                    <h3 style={{
+                                        fontFamily: "'Poppins', sans-serif",
+                                        fontSize: 18,
+                                        fontWeight: 500,
+                                        margin: '6px 0 0',
+                                        color: '#1E1E1E',
+                                        letterSpacing: '-0.4px'
+                                    }}>
+                                        {camp.name}
+                                    </h3>
                                 </div>
-                                <span style={{
-                                    padding: '3px 7px',
-                                    borderRadius: 3,
+                                <div style={{
+                                    padding: '4px 10px',
+                                    borderRadius: 100,
                                     fontSize: 9,
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                     textTransform: 'uppercase',
-                                    background: camp.status === 'Ativo' ? 'rgba(30,30,30,0.06)' : 'transparent',
-                                    border: camp.status === 'Ativo' ? 'none' : '1px solid rgba(30,30,30,0.1)',
-                                    color: camp.status === 'Ativo' ? '#1E1E1E' : 'rgba(30,30,30,0.3)'
+                                    background: camp.status === 'Ativo' ? '#1E1E1E' : 'rgba(30,30,30,0.05)',
+                                    color: camp.status === 'Ativo' ? '#FFF' : 'rgba(30,30,30,0.3)',
+                                    letterSpacing: '0.05em'
                                 }}>
                                     {camp.status}
-                                </span>
+                                </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, paddingTop: 8, borderTop: '1px solid rgba(30,30,30,0.04)' }}>
                                 <div>
-                                    <p style={{ fontSize: 10, color: 'rgba(30,30,30,0.4)', margin: 0, textTransform: 'uppercase' }}>Gasto Hoje</p>
-                                    <p style={{ fontSize: 16, fontWeight: 500, margin: '2px 0 0' }}>R$ {camp.spendToday.toFixed(2)}</p>
+                                    <p style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(30,30,30,0.4)', margin: 0, textTransform: 'uppercase', fontWeight: 600 }}>Gasto Hoje</p>
+                                    <p style={{ fontSize: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 500, margin: '4px 0 0' }}>R$ {camp.spendToday.toFixed(2)}</p>
                                 </div>
                                 <div>
-                                    <p style={{ fontSize: 10, color: 'rgba(30,30,30,0.4)', margin: 0, textTransform: 'uppercase' }}>ROAS Atual</p>
-                                    <p style={{ fontSize: 16, fontWeight: 500, margin: '2px 0 0', color: camp.roasToday > 3 ? '#1E1E1E' : '#E53E3E' }}>{camp.roasToday}x</p>
+                                    <p style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(30,30,30,0.4)', margin: 0, textTransform: 'uppercase', fontWeight: 600 }}>ROAS Atual</p>
+                                    <p style={{
+                                        fontSize: 20,
+                                        fontFamily: "'Poppins', sans-serif",
+                                        fontWeight: 600,
+                                        margin: '4px 0 0',
+                                        color: camp.roasToday > 3 ? '#1E1E1E' : '#E53E3E'
+                                    }}>
+                                        {camp.roasToday}x
+                                    </p>
                                 </div>
                             </div>
                         </motion.div>

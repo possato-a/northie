@@ -57,7 +57,7 @@ export default function App() {
           {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'app-store' && <AppStore onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'creators' && activePage !== 'app-store' && (
+          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'app-store' && (
             <motion.div
               key={activePage}
               initial={{ opacity: 0, y: 10 }}
