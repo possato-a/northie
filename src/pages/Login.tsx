@@ -97,6 +97,7 @@ function ImagePanel() {
             position: 'relative',
             background: '#F2EEE9',
             overflow: 'hidden',
+            boxShadow: 'inset 0 0 0 1px rgba(20,16,14,0.14)',
         }}>
             {/* Bússola — grande, levemente deslocada para cima */}
             <motion.img
@@ -435,47 +436,28 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     const [view, setView] = useState<AuthView>('login')
 
     return (
-        // Fundo que emoldura o card — como o desktop na imagem de referência
         <div style={{
             width: '100vw',
             height: '100vh',
-            background: '#C2BDB8',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 28,
+            overflow: 'hidden',
         }}>
-            {/* Card container com borda — fiel à referência */}
-            <div style={{
-                width: '100%',
-                maxWidth: 1080,
-                height: '100%',
-                maxHeight: 680,
-                display: 'flex',
-                borderRadius: 18,
-                overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.18)',
-                boxShadow: '0 48px 96px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.06)',
-            }}>
-                {/* Painel esquerdo — fixo, independente do form */}
-                <ImagePanel />
+            <ImagePanel />
 
-                {/* Painel direito — troca entre login e signup */}
-                <AnimatePresence mode="wait">
-                    {view === 'login' ? (
-                        <LoginForm
-                            key="login"
-                            onLogin={onLogin}
-                            onSwitchToSignup={() => setView('signup')}
-                        />
-                    ) : (
-                        <SignupForm
-                            key="signup"
-                            onSwitchToLogin={() => setView('login')}
-                        />
-                    )}
-                </AnimatePresence>
-            </div>
+            <AnimatePresence mode="wait">
+                {view === 'login' ? (
+                    <LoginForm
+                        key="login"
+                        onLogin={onLogin}
+                        onSwitchToSignup={() => setView('signup')}
+                    />
+                ) : (
+                    <SignupForm
+                        key="signup"
+                        onSwitchToLogin={() => setView('login')}
+                    />
+                )}
+            </AnimatePresence>
         </div>
     )
 }
