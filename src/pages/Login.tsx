@@ -112,12 +112,11 @@ function ImagePanel() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 1.3, ease: [0.25, 0.1, 0.25, 1] }}
                 style={{
-                    width: '90%',
-                    height: 'calc(100% - 180px)',
-                    objectFit: 'contain',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
                     mixBlendMode: isDark ? 'normal' : 'multiply',
                     display: 'block',
-                    marginTop: '-40px',
                     zIndex: 1,
                 }}
             />
