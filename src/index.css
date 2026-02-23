@@ -8,10 +8,55 @@ html, body, #root {
   height: 100%;
 }
 
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+
+:root {
+  /* Surfaces */
+  --bg: #FCF8F8;
+  --surface: #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, 0.7);
+
+  /* Foreground — text, icons, borders */
+  --fg: #1E1E1E;
+  --fg-rgb: 30, 30, 30;
+
+  /* Inverted elements: dark buttons/badges in light mode */
+  --inv: #1E1E1E;
+  --on-inv: #FCF8F8;
+}
+
+[data-theme="dark"] {
+  --bg: #131110;
+  --surface: #1D1A17;
+  --surface-glass: rgba(29, 26, 23, 0.9);
+
+  --fg: #EDE9E4;
+  --fg-rgb: 237, 233, 228;
+
+  /* In dark mode inverted elements flip: light button, dark text */
+  --inv: #EDE9E4;
+  --on-inv: #131110;
+}
+
+/* ── Base styles ───────────────────────────────────────────────────────────── */
+
 body {
-  background: #FCF8F8;
-  color: #1E1E1E;
+  background: var(--bg);
+  color: var(--fg);
   font-family: 'Poppins', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* Smooth theme transitions for common properties */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+
+/* Disable transition on elements that animate via framer-motion to avoid conflicts */
+[data-framer-motion] {
+  transition: none !important;
 }

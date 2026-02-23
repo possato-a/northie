@@ -9,6 +9,7 @@ import {
   AppStoreIcon,
   SettingsIcon,
 } from '../icons'
+import { useTheme } from '../ThemeContext'
 
 export type Page =
   | 'visao-geral'
@@ -49,7 +50,7 @@ function NavItem({ icon, label, pageId, activePage, onPageChange, collapsed, del
         border: 'none',
         cursor: 'pointer',
         padding: 0,
-        color: '#1E1E1E',
+        color: 'var(--fg)',
         width: '100%',
         justifyContent: collapsed ? 'center' : 'flex-start',
       }}
@@ -107,6 +108,8 @@ const bottomNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
 ]
 
 export default function Sidebar({ activePage, onPageChange, collapsed, onToggle }: SidebarProps) {
+  const { isDark, toggleTheme } = useTheme()
+
   return (
     <motion.aside
       animate={{ width: collapsed ? 70 : 250 }}
@@ -116,8 +119,8 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
         top: 0,
         left: 0,
         height: '100vh',
-        borderRight: '1px solid rgba(30,30,30,0.15)',
-        background: '#FCF8F8',
+        borderRight: '1px solid rgba(var(--fg-rgb), 0.15)',
+        background: 'var(--bg)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 100,
@@ -147,7 +150,7 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
                 fontWeight: 400,
                 fontSize: 24,
                 letterSpacing: '-0.96px',
-                color: '#1E1E1E',
+                color: 'var(--fg)',
                 lineHeight: 1,
                 whiteSpace: 'nowrap',
               }}
@@ -168,7 +171,7 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
             border: 'none',
             cursor: 'pointer',
             padding: 0,
-            color: '#1E1E1E',
+            color: 'var(--fg)',
             display: 'flex',
             alignItems: 'center',
             flexShrink: 0,
@@ -180,7 +183,7 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
       </div>
 
       {/* Divider */}
-      <div style={{ height: 1, background: 'rgba(30,30,30,0.15)', flexShrink: 0 }} />
+      <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.15)', flexShrink: 0 }} />
 
       {/* Main nav */}
       <div
@@ -206,7 +209,7 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
       </div>
 
       {/* Bottom divider */}
-      <div style={{ height: 1, background: 'rgba(30,30,30,0.15)', flexShrink: 0 }} />
+      <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.15)', flexShrink: 0 }} />
 
       {/* Bottom nav */}
       <div
@@ -219,6 +222,39 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
           flexShrink: 0,
         }}
       >
+        <motion.button
+          onClick={toggleTheme}
+          whileHover={{ opacity: 1 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: collapsed ? 0 : 10,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            color: 'var(--fg)',
+            width: '100%',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            opacity: 0.55,
+            marginBottom: 24,
+          }}
+        >
+          {isDark ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          )}
+          {!collapsed && (
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, letterSpacing: '-0.64px', whiteSpace: 'nowrap' }}>
+              {isDark ? 'Modo Claro' : 'Modo Escuro'}
+            </span>
+          )}
+        </motion.button>
         {bottomNav.map((item, i) => (
           <NavItem
             key={item.pageId}

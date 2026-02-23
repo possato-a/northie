@@ -49,9 +49,9 @@ function fmtBR(v: number) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 const STATUS_STYLE: Record<Status, React.CSSProperties> = {
-  Pago: { background: 'rgba(30,30,30,0.08)', color: '#1E1E1E' },
-  Pendente: { border: '1px solid rgba(30,30,30,0.18)', color: 'rgba(30,30,30,0.6)' },
-  Reembolsado: { background: 'rgba(30,30,30,0.04)', color: 'rgba(30,30,30,0.38)' },
+  Pago: { background: 'rgba(var(--fg-rgb), 0.08)', color: 'var(--fg)' },
+  Pendente: { border: '1px solid rgba(var(--fg-rgb), 0.18)', color: 'rgba(var(--fg-rgb), 0.6)' },
+  Reembolsado: { background: 'rgba(var(--fg-rgb), 0.04)', color: 'rgba(var(--fg-rgb), 0.38)' },
 }
 
 function StatusBadge({ status }: { status: Status }) {
@@ -72,9 +72,9 @@ function MethodBadge({ method }: { method: Method }) {
   return (
     <span style={{
       fontFamily: "'Geist Mono', monospace",
-      fontSize: 11, color: 'rgba(30,30,30,0.5)',
+      fontSize: 11, color: 'rgba(var(--fg-rgb), 0.5)',
       padding: '3px 7px',
-      border: '1px solid rgba(30,30,30,0.1)',
+      border: '1px solid rgba(var(--fg-rgb), 0.1)',
       borderRadius: 3, whiteSpace: 'nowrap',
     }}>
       {method}
@@ -87,7 +87,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p style={{
       fontFamily: "'Geist Mono', 'Courier New', monospace",
-      fontSize: 12, color: 'rgba(30,30,30,0.5)',
+      fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)',
       letterSpacing: '0.06em', marginBottom: 20,
     }}>
       {children}
@@ -100,7 +100,7 @@ function TH({ children, align = 'left' }: { children: React.ReactNode; align?: '
   return (
     <span style={{
       fontFamily: "'Geist Mono', monospace",
-      fontSize: 11, color: 'rgba(30,30,30,0.45)',
+      fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)',
       letterSpacing: '0.04em', textAlign: align,
     }}>
       {children}
@@ -144,8 +144,8 @@ function TransactionList() {
                 fontSize: 13, letterSpacing: '-0.3px',
                 padding: '5px 12px', borderRadius: 3, border: 'none',
                 cursor: 'pointer',
-                background: statusFilter === s ? 'rgba(30,30,30,0.09)' : 'transparent',
-                color: statusFilter === s ? '#1E1E1E' : 'rgba(30,30,30,0.5)',
+                background: statusFilter === s ? 'rgba(var(--fg-rgb), 0.09)' : 'transparent',
+                color: statusFilter === s ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.5)',
                 transition: 'background 0.15s, color 0.15s',
               }}
             >
@@ -167,9 +167,9 @@ function TransactionList() {
               fontFamily: "'Poppins', sans-serif",
               fontSize: 13, letterSpacing: '-0.3px',
               padding: '5px 12px', borderRadius: 3,
-              border: '1px solid rgba(30,30,30,0.13)',
+              border: '1px solid rgba(var(--fg-rgb), 0.13)',
               background: 'transparent', cursor: 'pointer',
-              color: channelFilter !== 'Todos' ? '#1E1E1E' : 'rgba(30,30,30,0.55)',
+              color: channelFilter !== 'Todos' ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.55)',
             }}
           >
             {channelFilter === 'Todos' ? 'Canal' : channelFilter}
@@ -186,22 +186,22 @@ function TransactionList() {
                 transition={{ duration: 0.15 }}
                 style={{
                   position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                  background: '#FCF8F8', border: '1px solid rgba(30,30,30,0.14)',
+                  background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.14)',
                   borderRadius: 4, padding: '6px 0', zIndex: 200,
-                  minWidth: 160, boxShadow: '0 4px 20px rgba(30,30,30,0.07)',
+                  minWidth: 160, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.07)',
                 }}
               >
                 {CHANNELS.map(c => (
                   <motion.button
                     key={c}
                     onClick={() => { setChannelFilter(c); setChannelOpen(false) }}
-                    whileHover={{ backgroundColor: 'rgba(30,30,30,0.04)' }}
+                    whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '8px 14px', background: 'none', border: 'none',
                       cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
                       fontSize: 13, letterSpacing: '-0.3px',
-                      color: channelFilter === c ? '#1E1E1E' : 'rgba(30,30,30,0.65)',
+                      color: channelFilter === c ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)',
                       fontWeight: channelFilter === c ? 500 : 400,
                     }}
                   >
@@ -216,12 +216,12 @@ function TransactionList() {
         {/* Inline search */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 7,
-          border: '1px solid rgba(30,30,30,0.13)', borderRadius: 3,
+          border: '1px solid rgba(var(--fg-rgb), 0.13)', borderRadius: 3,
           padding: '5px 10px', height: 32,
         }}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.35, flexShrink: 0 }}>
-            <circle cx="5" cy="5" r="4" stroke="#1E1E1E" strokeWidth="1.3" />
-            <line x1="8.5" y1="8.5" x2="11" y2="11" stroke="#1E1E1E" strokeWidth="1.3" strokeLinecap="round" />
+            <circle cx="5" cy="5" r="4" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" />
+            <line x1="8.5" y1="8.5" x2="11" y2="11" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" strokeLinecap="round" />
           </svg>
           <input
             value={search}
@@ -231,7 +231,7 @@ function TransactionList() {
               border: 'none', background: 'transparent', outline: 'none',
               fontFamily: "'Poppins', sans-serif",
               fontSize: 13, letterSpacing: '-0.3px',
-              color: '#1E1E1E', width: 90,
+              color: 'var(--fg)', width: 90,
             }}
           />
         </div>
@@ -243,7 +243,7 @@ function TransactionList() {
         gridTemplateColumns: '52px 1fr 1fr 80px 72px 90px',
         gap: '0 12px',
         paddingBottom: 10,
-        borderBottom: '1px solid rgba(30,30,30,0.1)',
+        borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)',
         marginBottom: 2,
       }}>
         <TH>DATA</TH>
@@ -264,7 +264,7 @@ function TransactionList() {
             exit={{ opacity: 0 }}
             style={{
               fontFamily: "'Poppins', sans-serif",
-              fontSize: 14, color: 'rgba(30,30,30,0.35)',
+              fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)',
               padding: '24px 0', textAlign: 'center',
             }}
           >
@@ -283,19 +283,19 @@ function TransactionList() {
               gap: '0 12px',
               alignItems: 'center',
               padding: '13px 0',
-              borderBottom: '1px solid rgba(30,30,30,0.055)',
+              borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)',
             }}
           >
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(30,30,30,0.45)' }}>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.45)' }}>
               {t.date}
             </span>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.client}
             </span>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(30,30,30,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.product}
             </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right' }}>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>
               R$ {fmtBR(t.value)}
             </span>
             <MethodBadge method={t.method} />
@@ -307,7 +307,7 @@ function TransactionList() {
       {filtered.length > 0 && (
         <p style={{
           fontFamily: "'Geist Mono', monospace",
-          fontSize: 11, color: 'rgba(30,30,30,0.35)',
+          fontSize: 11, color: 'rgba(var(--fg-rgb), 0.35)',
           marginTop: 14,
         }}>
           {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
@@ -331,7 +331,7 @@ function ProductRevenue() {
         gridTemplateColumns: '1fr 44px 90px 90px 72px',
         gap: '0 12px',
         paddingBottom: 10,
-        borderBottom: '1px solid rgba(30,30,30,0.1)',
+        borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)',
         marginBottom: 2,
       }}>
         <TH>PRODUTO</TH>
@@ -354,24 +354,24 @@ function ProductRevenue() {
             gap: '0 12px',
             alignItems: 'center',
             padding: '13px 0',
-            borderBottom: '1px solid rgba(30,30,30,0.055)',
+            borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)',
           }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E' }}>
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)' }}>
               {p.name}
             </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(30,30,30,0.55)', textAlign: 'right' }}>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.55)', textAlign: 'right' }}>
               {p.qty}
             </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right' }}>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>
               R$ {fmtBR(p.revenue)}
             </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(30,30,30,0.65)', textAlign: 'right' }}>
+            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.65)', textAlign: 'right' }}>
               R$ {fmtBR(p.avgTicket)}
             </span>
             <span style={{
               fontFamily: "'Geist Mono', monospace",
               fontSize: 12,
-              color: p.margin > 70 ? '#1E1E1E' : 'rgba(30,30,30,0.45)',
+              color: p.margin > 70 ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.45)',
               textAlign: 'right',
               fontWeight: p.margin > 70 ? 500 : 400
             }}>
@@ -381,10 +381,10 @@ function ProductRevenue() {
 
           {/* Proportion bar */}
           <motion.div
-            style={{ height: 2, background: 'rgba(30,30,30,0.06)', borderRadius: 99, marginBottom: 2 }}
+            style={{ height: 2, background: 'rgba(var(--fg-rgb), 0.06)', borderRadius: 99, marginBottom: 2 }}
           >
             <motion.div
-              style={{ height: '100%', background: 'rgba(30,30,30,0.35)', borderRadius: 99 }}
+              style={{ height: '100%', background: 'rgba(var(--fg-rgb), 0.35)', borderRadius: 99 }}
               initial={{ width: 0 }}
               animate={{ width: `${(p.revenue / maxRevenue) * 100}%` }}
               transition={{ duration: 0.8, delay: i * 0.08 + 0.35, ease: [0.4, 0, 0.2, 1] }}
@@ -414,7 +414,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) 
         style={{
           fontFamily: "'Poppins', sans-serif",
           fontWeight: 400, fontSize: 40,
-          letterSpacing: '-1.6px', color: '#1E1E1E',
+          letterSpacing: '-1.6px', color: 'var(--fg)',
           lineHeight: 1, margin: 0,
         }}
       >
@@ -433,9 +433,9 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) 
         >
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: 'rgba(30,30,30,0.03)',
+            background: 'rgba(var(--fg-rgb), 0.03)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'rgba(30,30,30,0.2)'
+            color: 'rgba(var(--fg-rgb), 0.2)'
           }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M13 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V9L13 2Z" />
@@ -444,20 +444,20 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) 
           </div>
           <p style={{
             fontFamily: "'Poppins', sans-serif",
-            fontSize: 16, color: 'rgba(30,30,30,0.6)',
+            fontSize: 16, color: 'rgba(var(--fg-rgb), 0.6)',
             maxWidth: 320, lineHeight: 1.5
           }}>
             Conecte suas plataformas de venda na App Store para visualizar suas transações aqui.
           </p>
           <motion.button
-            whileHover={{ backgroundColor: '#1E1E1E', color: '#FCF8F8' }}
+            whileHover={{ backgroundColor: 'var(--inv)', color: 'var(--on-inv)' }}
             whileTap={{ scale: 0.98 }}
             style={{
               padding: '12px 24px',
               borderRadius: 6,
-              border: '1px solid #1E1E1E',
+              border: '1px solid var(--fg)',
               background: 'transparent',
-              color: '#1E1E1E',
+              color: 'var(--fg)',
               fontFamily: "'Poppins', sans-serif",
               fontSize: 14, fontWeight: 500,
               cursor: 'pointer',
@@ -490,7 +490,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) 
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             transition={{ duration: 0.4, delay: 0.5 }}
-            style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginTop: 52, marginBottom: 48 }}
+            style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 52, marginBottom: 48 }}
           />
 
           {/* Transactions + Products */}

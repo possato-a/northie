@@ -54,7 +54,7 @@ export default function App() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-      style={{ display: 'flex', minHeight: '100vh', background: '#FCF8F8' }}
+      style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}
     >
       <Sidebar
         activePage={activePage}
@@ -71,7 +71,7 @@ export default function App() {
         style={{
           flex: 1,
           minHeight: '100vh',
-          background: '#FCF8F8',
+          background: 'var(--bg)',
         }}
       >
         <div style={{ padding: '28px 64px 80px' }}>

@@ -55,14 +55,14 @@ function ThinkingIndicator({ context }: { context: string }) {
                                 repeat: Infinity,
                                 delay: i * 0.2,
                             }}
-                            style={{ width: 4, height: 4, borderRadius: '50%', background: '#1E1E1E' }}
+                            style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--inv)' }}
                         />
                     ))}
                 </div>
                 <span style={{
                     fontFamily: "'Geist Mono', monospace",
                     fontSize: 11,
-                    color: 'rgba(30,30,30,0.6)',
+                    color: 'rgba(var(--fg-rgb), 0.6)',
                     letterSpacing: '0.02em'
                 }}>
                     Processando inteligência de {context}...
@@ -72,7 +72,7 @@ function ThinkingIndicator({ context }: { context: string }) {
                 initial={{ width: 0 }}
                 animate={{ width: '60%' }}
                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                style={{ height: 1, background: 'rgba(30,30,30,0.08)', borderRadius: 1 }}
+                style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', borderRadius: 1 }}
             />
         </motion.div>
     )
@@ -81,18 +81,18 @@ function ThinkingIndicator({ context }: { context: string }) {
 function SuggestionChip({ label, onClick }: { label: string; onClick: () => void }) {
     return (
         <motion.button
-            whileHover={{ backgroundColor: 'rgba(30,30,30,0.05)', borderColor: 'rgba(30,30,30,0.2)' }}
+            whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.05)', borderColor: 'rgba(var(--fg-rgb), 0.2)' }}
             whileTap={{ scale: 0.97 }}
             onClick={onClick}
             style={{
                 padding: '6px 12px',
                 borderRadius: 16,
-                border: '1px solid rgba(30,30,30,0.1)',
+                border: '1px solid rgba(var(--fg-rgb), 0.1)',
                 background: 'transparent',
                 cursor: 'pointer',
                 fontFamily: "'Poppins', sans-serif",
                 fontSize: 12,
-                color: 'rgba(30,30,30,0.7)',
+                color: 'rgba(var(--fg-rgb), 0.7)',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.2s'
             }}
@@ -173,22 +173,22 @@ LTV Médio     | R$ 2.340  | -2%
                     transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                     style={{
                         position: 'fixed', top: 0, right: 0, bottom: 0,
-                        background: '#FCF8F8',
-                        borderLeft: '1px solid rgba(30,30,30,0.1)',
+                        background: 'var(--bg)',
+                        borderLeft: '1px solid rgba(var(--fg-rgb), 0.1)',
                         zIndex: 400, display: 'flex', flexDirection: 'column',
-                        boxShadow: isFull ? 'none' : '-10px 0 40px rgba(30,30,30,0.03)'
+                        boxShadow: isFull ? 'none' : '-10px 0 40px rgba(var(--fg-rgb), 0.03)'
                     }}
                 >
                     {/* Scanline pattern overlay (subtle) */}
                     <div style={{
                         position: 'absolute', inset: 0, pointerEvents: 'none',
-                        background: 'linear-gradient(rgba(30,30,30,0.003) 50%, transparent 50%)',
+                        background: 'linear-gradient(rgba(var(--fg-rgb), 0.003) 50%, transparent 50%)',
                         backgroundSize: '100% 4px', opacity: 0.5, zIndex: 1
                     }} />
 
                     {/* Header */}
                     <div style={{
-                        padding: isFull ? '24px 64px' : '24px 32px', borderBottom: '1px solid rgba(30,30,30,0.06)',
+                        padding: isFull ? '24px 64px' : '24px 32px', borderBottom: '1px solid rgba(var(--fg-rgb), 0.06)',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 2,
                         transition: 'padding 0.4s ease'
                     }}>
@@ -198,7 +198,7 @@ LTV Médio     | R$ 2.340  | -2%
                             </motion.div>
                             <span style={{
                                 fontFamily: "'Poppins', sans-serif", fontSize: 18, fontWeight: 400,
-                                letterSpacing: '-0.5px', color: '#1E1E1E'
+                                letterSpacing: '-0.5px', color: 'var(--fg)'
                             }}>
                                 Ask Northie {isFull && <span style={{ opacity: 0.3, fontWeight: 300, fontSize: 14, marginLeft: 8 }}>/ Workstation</span>}
                             </span>
@@ -207,11 +207,11 @@ LTV Médio     | R$ 2.340  | -2%
                         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                             <motion.button
                                 onClick={onToggleFull}
-                                whileHover={{ opacity: 0.6, backgroundColor: 'rgba(30,30,30,0.04)' }}
+                                whileHover={{ opacity: 0.6, backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
                                 whileTap={{ scale: 0.92 }}
                                 style={{
-                                    background: 'none', border: '1px solid rgba(30,30,30,0.1)',
-                                    borderRadius: 4, cursor: 'pointer', padding: 6, color: 'rgba(30,30,30,0.5)',
+                                    background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)',
+                                    borderRadius: 4, cursor: 'pointer', padding: 6, color: 'rgba(var(--fg-rgb), 0.5)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                                 }}
                                 title={isFull ? "Minimizar" : "Expandir para tela cheia"}
@@ -223,7 +223,7 @@ LTV Médio     | R$ 2.340  | -2%
                                 onClick={onClose}
                                 whileHover={{ opacity: 0.6 }}
                                 whileTap={{ scale: 0.92 }}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'rgba(30,30,30,0.5)' }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'rgba(var(--fg-rgb), 0.5)' }}
                             >
                                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                                     <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -263,7 +263,7 @@ LTV Médio     | R$ 2.340  | -2%
                                     {m.role === 'assistant' && (
                                         <p style={{
                                             fontFamily: "'Geist Mono', monospace", fontSize: 10,
-                                            color: 'rgba(30,30,30,0.3)', marginBottom: 8,
+                                            color: 'rgba(var(--fg-rgb), 0.3)', marginBottom: 8,
                                             letterSpacing: '0.08em', textTransform: 'uppercase'
                                         }}>
                                             Intelligence Output
@@ -273,24 +273,24 @@ LTV Médio     | R$ 2.340  | -2%
                                     <div style={{
                                         padding: m.role === 'user' ? '10px 16px' : '0',
                                         borderRadius: m.role === 'user' ? 6 : 0,
-                                        background: m.role === 'user' ? 'rgba(30,30,30,0.04)' : 'none',
-                                        borderLeft: m.role === 'assistant' ? '1px solid rgba(30,30,30,0.1)' : 'none',
+                                        background: m.role === 'user' ? 'rgba(var(--fg-rgb), 0.04)' : 'none',
+                                        borderLeft: m.role === 'assistant' ? '1px solid rgba(var(--fg-rgb), 0.1)' : 'none',
                                         paddingLeft: m.role === 'assistant' ? 16 : 0,
                                     }}>
                                         <div style={{
                                             fontFamily: "'Poppins', sans-serif",
-                                            fontSize: 14, lineHeight: 1.6, color: '#1E1E1E',
+                                            fontSize: 14, lineHeight: 1.6, color: 'var(--fg)',
                                             letterSpacing: '-0.2px', whiteSpace: 'pre-wrap'
                                         }}>
                                             {m.content.split('```').map((part, index) => (
                                                 index % 2 === 1 ? (
                                                     <div key={index} style={{
-                                                        background: 'rgba(30,30,30,0.02)',
+                                                        background: 'rgba(var(--fg-rgb), 0.02)',
                                                         padding: '24px', borderRadius: 6,
                                                         fontFamily: "'Geist Mono', monospace",
                                                         fontSize: 13, margin: '20px 0',
-                                                        border: '1px solid rgba(30,30,30,0.05)',
-                                                        overflowX: 'auto', color: 'rgba(30,30,30,0.8)',
+                                                        border: '1px solid rgba(var(--fg-rgb), 0.05)',
+                                                        overflowX: 'auto', color: 'rgba(var(--fg-rgb), 0.8)',
                                                         lineHeight: 1.7
                                                     }}>
                                                         {part}
@@ -312,7 +312,7 @@ LTV Médio     | R$ 2.340  | -2%
                     {/* Footer / Input Area - Center content if full screen */}
                     <div style={{
                         padding: isFull ? '32px 0 48px' : '24px 32px 32px',
-                        borderTop: '1px solid rgba(30,30,30,0.06)', zIndex: 2,
+                        borderTop: '1px solid rgba(var(--fg-rgb), 0.06)', zIndex: 2,
                         transition: 'padding 0.4s ease'
                     }}>
                         <div style={{
@@ -332,10 +332,10 @@ LTV Médio     | R$ 2.340  | -2%
 
                             <div style={{
                                 display: 'flex', gap: 12, background: 'transparent',
-                                border: '1px solid rgba(30,30,30,0.12)', borderRadius: 6,
+                                border: '1px solid rgba(var(--fg-rgb), 0.12)', borderRadius: 6,
                                 padding: '12px 14px', alignItems: 'flex-end',
                                 transition: 'all 0.2s',
-                                boxShadow: '0 2px 8px rgba(30,30,30,0.02)'
+                                boxShadow: '0 2px 8px rgba(var(--fg-rgb), 0.02)'
                             }}>
                                 <textarea
                                     value={input}
@@ -350,7 +350,7 @@ LTV Médio     | R$ 2.340  | -2%
                                     style={{
                                         flex: 1, border: 'none', background: 'transparent',
                                         outline: 'none', fontFamily: "'Poppins', sans-serif",
-                                        fontSize: 14, color: '#1E1E1E', resize: 'none',
+                                        fontSize: 14, color: 'var(--fg)', resize: 'none',
                                         minHeight: 24, maxHeight: 120, padding: 0
                                     }}
                                 />
@@ -360,7 +360,7 @@ LTV Médio     | R$ 2.340  | -2%
                                     whileHover={{ scale: input.trim() ? 1.05 : 1, opacity: 0.8 }}
                                     whileTap={{ scale: 0.95 }}
                                     style={{
-                                        background: '#1E1E1E', color: '#FCF8F8', border: 'none',
+                                        background: 'var(--inv)', color: 'var(--on-inv)', border: 'none',
                                         borderRadius: 4, width: 28, height: 28,
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         cursor: input.trim() ? 'pointer' : 'default',

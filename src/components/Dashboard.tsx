@@ -24,7 +24,7 @@ export default function Dashboard({ onToggleChat }: DashboardProps) {
         style={{
           fontFamily: "'Poppins', sans-serif",
           fontWeight: 400, fontSize: 40,
-          letterSpacing: '-1.6px', color: '#1E1E1E',
+          letterSpacing: '-1.6px', color: 'var(--fg)',
           lineHeight: 1, margin: 0,
         }}
       >
@@ -56,7 +56,7 @@ export default function Dashboard({ onToggleChat }: DashboardProps) {
         transition={{ duration: 0.5, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
         style={{ marginTop: 64 }}
       >
-        <div style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginBottom: 56 }} />
+        <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginBottom: 56 }} />
         <SalesHeatmap />
         <div style={{ marginTop: 64 }}>
           <RevenueChart />

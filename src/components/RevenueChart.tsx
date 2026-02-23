@@ -79,7 +79,7 @@ export default function RevenueChart() {
         style={{
           fontFamily: "'Geist Mono', 'Courier New', monospace",
           fontSize: 12,
-          color: 'rgba(30,30,30,0.5)',
+          color: 'rgba(var(--fg-rgb), 0.5)',
           letterSpacing: '0.06em',
           marginBottom: 24,
         }}
@@ -96,8 +96,8 @@ export default function RevenueChart() {
       >
         <defs>
           <linearGradient id="rev-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#1E1E1E" stopOpacity="0.07" />
-            <stop offset="100%" stopColor="#1E1E1E" stopOpacity="0" />
+            <stop offset="0%" style={{ stopColor: 'rgba(var(--fg-rgb), 0.07)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgba(var(--fg-rgb), 0)' }} />
           </linearGradient>
         </defs>
 
@@ -108,13 +108,13 @@ export default function RevenueChart() {
             <g key={v}>
               <line
                 x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-                stroke="rgba(30,30,30,0.07)" strokeWidth={1}
+                style={{ stroke: 'rgba(var(--fg-rgb), 0.07)' }} strokeWidth={1}
               />
               <text
                 x={PAD.left - 10} y={y}
                 textAnchor="end" dominantBaseline="middle"
                 fontFamily="'Geist Mono', monospace" fontSize={11}
-                fill="rgba(30,30,30,0.38)"
+                style={{ fill: 'rgba(var(--fg-rgb), 0.38)' }}
               >
                 {v / 1000}k
               </text>
@@ -129,8 +129,7 @@ export default function RevenueChart() {
             x={xAt(i)} y={H - 4}
             textAnchor="middle"
             fontFamily="'Geist Mono', monospace" fontSize={11}
-            fill={hovered === i ? 'rgba(30,30,30,0.7)' : 'rgba(30,30,30,0.38)'}
-            style={{ transition: 'fill 0.15s' }}
+            style={{ fill: hovered === i ? 'rgba(var(--fg-rgb), 0.7)' : 'rgba(var(--fg-rgb), 0.38)', transition: 'fill 0.15s' }}
           >
             {d.month}
           </text>
@@ -149,7 +148,7 @@ export default function RevenueChart() {
         <motion.path
           d={LINE_D}
           fill="none"
-          stroke="#1E1E1E"
+          style={{ stroke: 'var(--fg)' }}
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -167,31 +166,30 @@ export default function RevenueChart() {
               {/* Vertical crosshair */}
               <line
                 x1={hp.x} y1={PAD.top} x2={hp.x} y2={PAD.top + CH}
-                stroke="rgba(30,30,30,0.18)" strokeWidth={1} strokeDasharray="3 3"
+                style={{ stroke: 'rgba(var(--fg-rgb), 0.18)' }} strokeWidth={1} strokeDasharray="3 3"
               />
               {/* Halo + dot */}
-              <circle cx={hp.x} cy={hp.y} r={7} fill="rgba(30,30,30,0.06)" />
-              <circle cx={hp.x} cy={hp.y} r={3.5} fill="#FCF8F8" stroke="#1E1E1E" strokeWidth={1.5} />
+              <circle cx={hp.x} cy={hp.y} r={7} style={{ fill: 'rgba(var(--fg-rgb), 0.06)' }} />
+              <circle cx={hp.x} cy={hp.y} r={3.5} style={{ fill: 'var(--bg)', stroke: 'var(--fg)' }} strokeWidth={1.5} />
 
               {/* Tooltip */}
               <rect
                 x={tx} y={ty}
                 width={TOOLTIP_W} height={TOOLTIP_H}
                 rx={3} ry={3}
-                fill="#FCF8F8"
-                stroke="rgba(30,30,30,0.14)" strokeWidth={1}
+                style={{ fill: 'var(--bg)', stroke: 'rgba(var(--fg-rgb), 0.14)' }} strokeWidth={1}
               />
               <text
                 x={tx + 13} y={ty + 19}
                 fontFamily="'Geist Mono', monospace" fontSize={11}
-                fill="rgba(30,30,30,0.5)"
+                style={{ fill: 'rgba(var(--fg-rgb), 0.5)' }}
               >
                 {hd.month} 2024
               </text>
               <text
                 x={tx + 13} y={ty + 37}
                 fontFamily="'Poppins', sans-serif" fontSize={14} fontWeight={500}
-                fill="#1E1E1E"
+                style={{ fill: 'var(--fg)' }}
               >
                 R$ {fmtBR(hd.value)}
               </text>

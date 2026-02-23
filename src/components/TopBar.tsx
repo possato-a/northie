@@ -25,7 +25,7 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
           alignItems: 'center',
           gap: 10,
           height: 40,
-          border: `1px solid ${focused ? 'rgba(30,30,30,0.35)' : 'rgba(30,30,30,0.14)'}`,
+          border: `1px solid ${focused ? 'rgba(var(--fg-rgb), 0.35)' : 'rgba(var(--fg-rgb), 0.14)'}`,
           borderRadius: 4,
           paddingLeft: 14,
           paddingRight: 14,
@@ -34,8 +34,8 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
         }}
       >
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
-          <circle cx="6.5" cy="6.5" r="5.5" stroke="#1E1E1E" strokeWidth="1.3" />
-          <line x1="10.5" y1="10.5" x2="14" y2="14" stroke="#1E1E1E" strokeWidth="1.3" strokeLinecap="round" />
+          <circle cx="6.5" cy="6.5" r="5.5" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" />
+          <line x1="10.5" y1="10.5" x2="14" y2="14" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" strokeLinecap="round" />
         </svg>
         <input
           value={query}
@@ -51,14 +51,14 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
             fontFamily: "'Poppins', sans-serif",
             fontSize: 14,
             letterSpacing: '-0.3px',
-            color: '#1E1E1E',
+            color: 'var(--fg)',
           }}
         />
         <span style={{
           fontFamily: "'Geist Mono', monospace",
           fontSize: 11,
-          color: 'rgba(30,30,30,0.35)',
-          border: '1px solid rgba(30,30,30,0.14)',
+          color: 'rgba(var(--fg-rgb), 0.35)',
+          border: '1px solid rgba(var(--fg-rgb), 0.14)',
           borderRadius: 3,
           padding: '2px 6px',
           flexShrink: 0,
@@ -70,14 +70,14 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
       {/* Ask Northie Button */}
       <motion.button
         onClick={onToggleChat}
-        whileHover={{ opacity: 0.8, backgroundColor: 'rgba(30,30,30,0.04)' }}
+        whileHover={{ opacity: 0.8, backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
         whileTap={{ scale: 0.96 }}
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
           height: 40, padding: '0 16px',
-          border: '1px solid rgba(30,30,30,0.14)',
+          border: '1px solid rgba(var(--fg-rgb), 0.14)',
           borderRadius: 4, background: 'transparent',
-          cursor: 'pointer', color: '#1E1E1E', flexShrink: 0,
+          cursor: 'pointer', color: 'var(--fg)', flexShrink: 0,
         }}
       >
         <AskNorthieIcon />
@@ -97,9 +97,9 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 40, height: 40,
-          border: '1px solid rgba(30,30,30,0.14)',
+          border: '1px solid rgba(var(--fg-rgb), 0.14)',
           borderRadius: 4, background: 'transparent',
-          cursor: 'pointer', color: '#1E1E1E', opacity: 0.7, flexShrink: 0,
+          cursor: 'pointer', color: 'var(--fg)', opacity: 0.7, flexShrink: 0,
         }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -117,9 +117,9 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 40, height: 40,
-          border: '1px solid rgba(30,30,30,0.14)',
+          border: '1px solid rgba(var(--fg-rgb), 0.14)',
           borderRadius: 4, background: 'transparent',
-          cursor: 'pointer', color: '#1E1E1E', opacity: 0.7, flexShrink: 0,
+          cursor: 'pointer', color: 'var(--fg)', opacity: 0.7, flexShrink: 0,
         }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -135,8 +135,8 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
         whileHover={{ opacity: 0.8 }}
         style={{
           width: 40, height: 40, borderRadius: 4,
-          border: '1px solid rgba(30,30,30,0.14)',
-          background: '#1E1E1E',
+          border: '1px solid rgba(var(--fg-rgb), 0.14)',
+          background: 'var(--inv)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', flexShrink: 0,
         }}
@@ -144,7 +144,7 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
         <span style={{
           fontFamily: "'Poppins', sans-serif",
           fontSize: 14, fontWeight: 500,
-          color: '#FCF8F8', letterSpacing: '-0.3px',
+          color: 'var(--on-inv)', letterSpacing: '-0.3px',
         }}>
           F
         </span>

@@ -34,7 +34,7 @@ export default function DatePicker() {
         style={{
           display: 'flex', alignItems: 'center', gap: 10,
           background: 'none', border: 'none', cursor: 'pointer',
-          padding: '6px 0', color: '#1E1E1E',
+          padding: '6px 0', color: 'var(--fg)',
         }}
       >
         <span style={{ display: 'flex', opacity: 0.7 }}>
@@ -43,7 +43,7 @@ export default function DatePicker() {
         <span style={{
           fontFamily: "'Poppins', sans-serif",
           fontSize: 16, letterSpacing: '-0.64px',
-          color: 'rgba(30,30,30,0.7)',
+          color: 'rgba(var(--fg-rgb), 0.7)',
         }}>
           {selected ?? 'Selecionar período'}
         </span>
@@ -58,22 +58,22 @@ export default function DatePicker() {
             transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
             style={{
               position: 'absolute', top: 'calc(100% + 8px)', left: 0,
-              background: '#FCF8F8', border: '1px solid rgba(30,30,30,0.15)',
+              background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.15)',
               borderRadius: 4, padding: '8px 0', zIndex: 200,
-              minWidth: 200, boxShadow: '0 4px 20px rgba(30,30,30,0.08)',
+              minWidth: 200, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.08)',
             }}
           >
             {PERIODS.map(period => (
               <motion.button
                 key={period}
                 onClick={() => { setSelected(period); setOpen(false) }}
-                whileHover={{ backgroundColor: 'rgba(30,30,30,0.04)' }}
+                whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
                 style={{
                   display: 'block', width: '100%', textAlign: 'left',
                   padding: '10px 16px', background: 'none', border: 'none',
                   cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
                   fontSize: 14, letterSpacing: '-0.5px',
-                  color: selected === period ? '#1E1E1E' : 'rgba(30,30,30,0.7)',
+                  color: selected === period ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.7)',
                   fontWeight: selected === period ? 500 : 400,
                 }}
               >

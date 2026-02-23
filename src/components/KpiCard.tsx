@@ -79,7 +79,7 @@ export function KpiCard({
         style={{
           width: 1,
           height: 64,
-          background: 'rgba(30,30,30,0.25)',
+          background: 'rgba(var(--fg-rgb), 0.25)',
           transformOrigin: 'top',
           flexShrink: 0,
         }}
@@ -89,7 +89,7 @@ export function KpiCard({
           fontFamily: "'Geist Mono', 'Courier New', monospace",
           fontWeight: 400,
           fontSize: 16,
-          color: 'rgba(30,30,30,0.7)',
+          color: 'rgba(var(--fg-rgb), 0.7)',
           lineHeight: 1,
         }}>
           {label}
@@ -99,7 +99,7 @@ export function KpiCard({
           fontWeight: 400,
           fontSize: 40,
           letterSpacing: '-1.6px',
-          color: '#1E1E1E',
+          color: 'var(--fg)',
           lineHeight: 1,
           whiteSpace: 'nowrap',
         }}>

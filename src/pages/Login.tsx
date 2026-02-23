@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTheme } from '../ThemeContext'
 
 type AuthView = 'login' | 'signup'
 
@@ -26,7 +27,7 @@ const labelStyle: React.CSSProperties = {
     display: 'block',
     fontFamily: "'Geist Mono', monospace",
     fontSize: 10,
-    color: 'rgba(255,255,255,0.32)',
+    color: 'rgba(var(--fg-rgb), 0.32)',
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     marginBottom: 7,
@@ -36,10 +37,10 @@ function getInputStyle(focused: boolean): React.CSSProperties {
     return {
         width: '100%',
         padding: '12px 16px',
-        background: focused ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)',
-        border: focused ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
+        background: focused ? 'rgba(var(--fg-rgb), 0.08)' : 'rgba(var(--fg-rgb), 0.05)',
+        border: focused ? '1px solid rgba(var(--fg-rgb), 0.3)' : '1px solid rgba(var(--fg-rgb), 0.08)',
         borderRadius: 7,
-        color: '#FFF',
+        color: 'var(--fg)',
         fontFamily: "'Poppins', sans-serif",
         fontSize: 14,
         outline: 'none',
@@ -76,11 +77,11 @@ function PasswordInput({
                 style={{
                     position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'rgba(255,255,255,0.22)', padding: 0, display: 'flex',
+                    color: 'rgba(var(--fg-rgb), 0.22)', padding: 0, display: 'flex',
                     transition: 'color 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.22)')}
+                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.55)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.22)')}
             >
                 <EyeIcon open={show} />
             </button>
@@ -91,20 +92,21 @@ function PasswordInput({
 // ── Left Image Panel ──────────────────────────────────────────────────────────
 
 function ImagePanel() {
+    const { isDark } = useTheme()
     return (
         <div style={{
             flex: '0 0 55%',
             position: 'relative',
-            background: '#F2EEE9',
+            background: 'var(--bg)',
             overflow: 'hidden',
-            border: '1px solid rgba(20,16,14,0.5)',
+            borderRight: '1px solid rgba(var(--fg-rgb), 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
         }}>
             {/* Bússola — ocupa o painel inteiro com espaço para o glass */}
             <motion.img
-                src="/bussola-northie.png"
+                src={isDark ? "/northie-bussola-dark.png" : "/bussola-northie.png"}
                 alt="Bússola Northie"
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -113,7 +115,7 @@ function ImagePanel() {
                     width: '90%',
                     height: 'calc(100% - 180px)',
                     objectFit: 'contain',
-                    mixBlendMode: 'multiply',
+                    mixBlendMode: isDark ? 'normal' : 'multiply',
                     display: 'block',
                     marginTop: '-40px',
                     zIndex: 1,
@@ -131,10 +133,10 @@ function ImagePanel() {
                     left: 20,
                     right: 20,
                     zIndex: 3,
-                    background: 'rgba(248, 244, 240, 0.58)',
+                    background: 'var(--surface-glass)',
                     backdropFilter: 'blur(22px) saturate(1.6)',
                     WebkitBackdropFilter: 'blur(22px) saturate(1.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.72)',
+                    border: '1px solid rgba(var(--fg-rgb), 0.12)',
                     borderRadius: 14,
                     padding: '20px 26px',
                     boxShadow: '0 2px 24px rgba(0,0,0,0.05)',
@@ -144,7 +146,7 @@ function ImagePanel() {
                     fontFamily: "'Poppins', sans-serif",
                     fontSize: 17,
                     fontWeight: 400,
-                    color: 'rgba(28,24,22,0.82)',
+                    color: 'rgba(var(--fg-rgb), 0.82)',
                     letterSpacing: '-0.3px',
                     lineHeight: 1.5,
                     margin: '0 0 10px',
@@ -154,7 +156,7 @@ function ImagePanel() {
                 <p style={{
                     fontFamily: "'Geist Mono', monospace",
                     fontSize: 10,
-                    color: 'rgba(28,24,22,0.38)',
+                    color: 'rgba(var(--fg-rgb), 0.38)',
                     letterSpacing: '0.1em',
                     margin: 0,
                     textTransform: 'uppercase',
@@ -175,7 +177,7 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
 
     const panelStyle: React.CSSProperties = {
         flex: '0 0 45%',
-        background: '#161616',
+        background: 'var(--surface)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -197,17 +199,17 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.05 }}
-                style={{ fontFamily: "'Lora', serif", fontSize: 18, color: 'rgba(255,255,255,0.78)', marginBottom: 52 }}
+                style={{ fontFamily: "'Lora', serif", fontSize: 18, color: 'rgba(var(--fg-rgb), 0.78)', marginBottom: 52 }}
             >
                 Northie
             </motion.div>
 
             {/* Heading */}
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 30, fontWeight: 400, color: '#FFF', letterSpacing: '-1.1px', margin: '0 0 8px', lineHeight: 1.1 }}>
+                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 30, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-1.1px', margin: '0 0 8px', lineHeight: 1.1 }}>
                     Bem-vindo de volta
                 </h1>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: 'rgba(255,255,255,0.32)', margin: '0 0 40px', lineHeight: 1.6 }}>
+                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.32)', margin: '0 0 40px', lineHeight: 1.6 }}>
                     Entre com seus dados para acessar o painel.
                 </p>
             </motion.div>
@@ -245,7 +247,7 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 </div>
 
                 <div style={{ textAlign: 'right', marginTop: -4 }}>
-                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 12, color: 'rgba(255,255,255,0.25)', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0 }}>
+                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.25)', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0 }}>
                         Esqueceu a senha?
                     </button>
                 </div>
@@ -254,7 +256,7 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                     type="submit"
                     whileHover={{ opacity: 0.88 }}
                     whileTap={{ scale: 0.982 }}
-                    style={{ width: '100%', padding: '14px', background: '#F5F1EE', color: '#161616', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 6, letterSpacing: '-0.1px' }}
+                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 6, letterSpacing: '-0.1px' }}
                 >
                     Entrar
                 </motion.button>
@@ -262,18 +264,18 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
 
             {/* Footer */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }} style={{ marginTop: 36, textAlign: 'center' }}>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.2)', margin: 0 }}>
+                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.2)', margin: 0 }}>
                     Não tem conta?{' '}
                     <button
                         onClick={onSwitchToSignup}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 600, padding: 0, transition: 'color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.75)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.5)', fontWeight: 600, padding: 0, transition: 'color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.75)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.5)')}
                     >
                         Criar conta
                     </button>
                 </p>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.11)', margin: '28px 0 0', lineHeight: 1.65 }}>
+                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.11)', margin: '28px 0 0', lineHeight: 1.65 }}>
                     Ao entrar, você concorda com nossos{' '}
                     <span style={{ textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: 2 }}>Termos de Uso</span>
                     {' '}e{' '}
@@ -295,7 +297,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 
     const panelStyle: React.CSSProperties = {
         flex: '0 0 45%',
-        background: '#161616',
+        background: 'var(--surface)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -317,17 +319,17 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.05 }}
-                style={{ fontFamily: "'Lora', serif", fontSize: 18, color: 'rgba(255,255,255,0.78)', marginBottom: 44 }}
+                style={{ fontFamily: "'Lora', serif", fontSize: 18, color: 'rgba(var(--fg-rgb), 0.78)', marginBottom: 44 }}
             >
                 Northie
             </motion.div>
 
             {/* Heading */}
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 30, fontWeight: 400, color: '#FFF', letterSpacing: '-1.1px', margin: '0 0 8px', lineHeight: 1.1 }}>
+                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 30, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-1.1px', margin: '0 0 8px', lineHeight: 1.1 }}>
                     Criar sua conta
                 </h1>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: 'rgba(255,255,255,0.32)', margin: '0 0 32px', lineHeight: 1.6 }}>
+                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.32)', margin: '0 0 32px', lineHeight: 1.6 }}>
                     Junte-se à Northie e transforme dados em decisões.
                 </p>
             </motion.div>
@@ -393,7 +395,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                 </div>
 
                 {/* Helper text — igual à referência */}
-                <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(255,255,255,0.18)', margin: '0', lineHeight: 1.6 }}>
+                <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.18)', margin: '0', lineHeight: 1.6 }}>
                     Mínimo 8 caracteres, incluindo um número e um caractere especial.
                 </p>
 
@@ -401,7 +403,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                     type="submit"
                     whileHover={{ opacity: 0.88 }}
                     whileTap={{ scale: 0.982 }}
-                    style={{ width: '100%', padding: '14px', background: '#F5F1EE', color: '#161616', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 8, letterSpacing: '-0.1px' }}
+                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 8, letterSpacing: '-0.1px' }}
                 >
                     Criar conta
                 </motion.button>
@@ -409,18 +411,18 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 
             {/* Footer */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }} style={{ marginTop: 32, textAlign: 'center' }}>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.2)', margin: 0 }}>
+                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.2)', margin: 0 }}>
                     Já tem conta?{' '}
                     <button
                         onClick={onSwitchToLogin}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 600, padding: 0, transition: 'color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.75)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.5)', fontWeight: 600, padding: 0, transition: 'color 0.15s' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.75)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.5)')}
                     >
                         Entrar
                     </button>
                 </p>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.11)', margin: '24px 0 0', lineHeight: 1.65 }}>
+                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.11)', margin: '24px 0 0', lineHeight: 1.65 }}>
                     Ao criar sua conta, você concorda com nossos{' '}
                     <span style={{ textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: 2 }}>Termos de Uso</span>
                     {' '}e{' '}

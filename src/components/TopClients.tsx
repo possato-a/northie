@@ -15,14 +15,14 @@ function fmtBR(v: number) {
 const COL_LABEL: React.CSSProperties = {
   fontFamily: "'Geist Mono', 'Courier New', monospace",
   fontSize: 11,
-  color: 'rgba(30,30,30,0.45)',
+  color: 'rgba(var(--fg-rgb), 0.45)',
   letterSpacing: '0.04em',
 }
 
 const COL_VALUE: React.CSSProperties = {
   fontFamily: "'Geist Mono', 'Courier New', monospace",
   fontSize: 13,
-  color: 'rgba(30,30,30,0.65)',
+  color: 'rgba(var(--fg-rgb), 0.65)',
   textAlign: 'right' as const,
 }
 
@@ -33,7 +33,7 @@ export default function TopClients() {
         style={{
           fontFamily: "'Geist Mono', 'Courier New', monospace",
           fontSize: 12,
-          color: 'rgba(30,30,30,0.5)',
+          color: 'rgba(var(--fg-rgb), 0.5)',
           letterSpacing: '0.06em',
           marginBottom: 28,
         }}
@@ -47,7 +47,7 @@ export default function TopClients() {
           display: 'grid',
           gridTemplateColumns: '1fr 100px 80px 100px',
           paddingBottom: 10,
-          borderBottom: '1px solid rgba(30,30,30,0.1)',
+          borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)',
           marginBottom: 2,
         }}
       >
@@ -69,7 +69,7 @@ export default function TopClients() {
             gridTemplateColumns: '1fr 100px 80px 100px',
             alignItems: 'center',
             padding: '15px 0',
-            borderBottom: '1px solid rgba(30,30,30,0.06)',
+            borderBottom: '1px solid rgba(var(--fg-rgb), 0.06)',
           }}
         >
           {/* Name */}
@@ -77,7 +77,7 @@ export default function TopClients() {
             style={{
               fontFamily: "'Poppins', sans-serif",
               fontSize: 14,
-              color: '#1E1E1E',
+              color: 'var(--fg)',
               letterSpacing: '-0.3px',
             }}
           >
@@ -92,8 +92,8 @@ export default function TopClients() {
 
           {/* LTV */}
           <motion.span
-            style={{ ...COL_VALUE, color: 'rgba(30,30,30,0.8)' }}
-            whileHover={{ color: '#1E1E1E' }}
+            style={{ ...COL_VALUE, color: 'rgba(var(--fg-rgb), 0.8)' }}
+            whileHover={{ color: 'var(--fg)' }}
             transition={{ duration: 0.15 }}
           >
             R$ {fmtBR(c.ltv)}

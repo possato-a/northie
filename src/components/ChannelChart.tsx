@@ -25,7 +25,7 @@ export default function ChannelChart() {
         style={{
           fontFamily: "'Geist Mono', 'Courier New', monospace",
           fontSize: 12,
-          color: 'rgba(30,30,30,0.5)',
+          color: 'rgba(var(--fg-rgb), 0.5)',
           letterSpacing: '0.06em',
           marginBottom: 28,
         }}
@@ -56,7 +56,7 @@ export default function ChannelChart() {
                   style={{
                     fontFamily: "'Poppins', sans-serif",
                     fontSize: 14,
-                    color: '#1E1E1E',
+                    color: 'var(--fg)',
                     letterSpacing: '-0.3px',
                   }}
                 >
@@ -67,7 +67,7 @@ export default function ChannelChart() {
                     style={{
                       fontFamily: "'Geist Mono', 'Courier New', monospace",
                       fontSize: 11,
-                      color: 'rgba(30,30,30,0.45)',
+                      color: 'rgba(var(--fg-rgb), 0.45)',
                     }}
                   >
                     {fmtPct(ch.value)}
@@ -76,7 +76,7 @@ export default function ChannelChart() {
                     style={{
                       fontFamily: "'Geist Mono', 'Courier New', monospace",
                       fontSize: 13,
-                      color: 'rgba(30,30,30,0.7)',
+                      color: 'rgba(var(--fg-rgb), 0.7)',
                     }}
                   >
                     R$ {fmtBR(ch.value)}
@@ -88,13 +88,13 @@ export default function ChannelChart() {
               <div
                 style={{
                   height: 5,
-                  background: 'rgba(30,30,30,0.07)',
+                  background: 'rgba(var(--fg-rgb), 0.07)',
                   borderRadius: 99,
                   overflow: 'hidden',
                 }}
               >
                 <motion.div
-                  style={{ height: '100%', background: '#1E1E1E', borderRadius: 99 }}
+                  style={{ height: '100%', background: 'var(--inv)', borderRadius: 99 }}
                   initial={{ width: '0%' }}
                   animate={{ width: `${pct}%` }}
                   transition={{

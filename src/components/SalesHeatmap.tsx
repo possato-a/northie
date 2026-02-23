@@ -53,18 +53,18 @@ export default function SalesHeatmap() {
 
     const getColor = (count: number) => {
         if (count === -1) return 'transparent'
-        if (count === 0) return 'rgba(30,30,30,0.03)'
-        if (count <= 5) return 'rgba(30,30,30,0.1)'
-        if (count <= 10) return 'rgba(30,30,30,0.25)'
-        if (count <= 18) return 'rgba(30,30,30,0.5)'
-        return '#1E1E1E'
+        if (count === 0) return 'rgba(var(--fg-rgb), 0.03)'
+        if (count <= 5) return 'rgba(var(--fg-rgb), 0.1)'
+        if (count <= 10) return 'rgba(var(--fg-rgb), 0.25)'
+        if (count <= 18) return 'rgba(var(--fg-rgb), 0.5)'
+        return 'var(--inv)'
     }
 
     return (
         <div style={{ marginTop: 40, overflow: 'hidden' }}>
             <p style={{
                 fontFamily: "'Geist Mono', monospace",
-                fontSize: 12, color: 'rgba(30,30,30,0.5)',
+                fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)',
                 letterSpacing: '0.06em', marginBottom: 24,
                 textTransform: 'uppercase'
             }}>
@@ -75,7 +75,7 @@ export default function SalesHeatmap() {
                 {/* Day Labels */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 0 6px', height: 130 }}>
                     {DAYS.map((d, i) => i % 2 === 1 && (
-                        <span key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(30,30,30,0.3)', lineHeight: 1 }}>{d}</span>
+                        <span key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.3)', lineHeight: 1 }}>{d}</span>
                     ))}
                 </div>
 
@@ -88,7 +88,7 @@ export default function SalesHeatmap() {
                                     <span style={{
                                         fontFamily: "'Poppins', sans-serif",
                                         fontSize: 11,
-                                        color: 'rgba(30,30,30,0.4)',
+                                        color: 'rgba(var(--fg-rgb), 0.4)',
                                         marginBottom: 6,
                                         height: 14,
                                         whiteSpace: 'nowrap'
@@ -120,11 +120,11 @@ export default function SalesHeatmap() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(30,30,30,0.4)' }}>Menos</span>
+                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Menos</span>
                 {[0, 5, 10, 18, 25].map(c => (
                     <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: getColor(c) }} />
                 ))}
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(30,30,30,0.4)' }}>Mais</span>
+                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Mais</span>
             </div>
         </div>
     )

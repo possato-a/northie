@@ -46,7 +46,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     return (
         <p style={{
             fontFamily: "'Geist Mono', 'Courier New', monospace",
-            fontSize: 11, color: 'rgba(30,30,30,0.4)',
+            fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)',
             letterSpacing: '0.08em', marginBottom: 20,
             textTransform: 'uppercase',
             fontWeight: 500
@@ -60,7 +60,7 @@ function TH({ children, align = 'left' }: { children: React.ReactNode; align?: '
     return (
         <span style={{
             fontFamily: "'Geist Mono', monospace",
-            fontSize: 11, color: 'rgba(30,30,30,0.45)',
+            fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)',
             letterSpacing: '0.04em', textAlign: align,
             fontWeight: 500
         }}>
@@ -108,8 +108,8 @@ function ChannelSparkline({ data, height = 40, id = 'default' }: { data: number[
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%', display: 'block', overflow: 'visible' }}>
                 <defs>
                     <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="rgba(30,30,30,0.12)" />
-                        <stop offset="100%" stopColor="rgba(30,30,30,0)" />
+                        <stop offset="0%" style={{ stopColor: 'rgba(var(--fg-rgb), 0.12)' }} />
+                        <stop offset="100%" style={{ stopColor: 'rgba(var(--fg-rgb), 0)' }} />
                     </linearGradient>
                 </defs>
                 <path d={fillData} fill={`url(#${gradId})`} />
@@ -119,7 +119,7 @@ function ChannelSparkline({ data, height = 40, id = 'default' }: { data: number[
                     transition={{ duration: 1.5, ease: "easeOut" }}
                     d={pathData}
                     fill="none"
-                    stroke="#1E1E1E"
+                    style={{ stroke: 'var(--fg)' }}
                     strokeWidth={1.5}
                     vectorEffect="non-scaling-stroke"
                     strokeLinecap="round"
@@ -138,7 +138,7 @@ function ChannelSparkline({ data, height = 40, id = 'default' }: { data: number[
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    background: '#1E1E1E',
+                    background: 'var(--inv)',
                     transform: 'translate(-50%, -50%)',
                 }}
             />
@@ -160,7 +160,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 style={{
                     fontFamily: "'Poppins', sans-serif",
                     fontWeight: 400, fontSize: 40,
-                    letterSpacing: '-1.6px', color: '#1E1E1E',
+                    letterSpacing: '-1.6px', color: 'var(--fg)',
                     lineHeight: 1, margin: 0,
                 }}
             >
@@ -190,7 +190,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                     gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 100px 100px 100px 120px',
                     gap: '0 24px',
                     paddingBottom: 16,
-                    borderBottom: '1px solid rgba(30,30,30,0.1)',
+                    borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)',
                     marginBottom: 4,
                     paddingLeft: 12,
                     paddingRight: 12,
@@ -210,55 +210,55 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: i * 0.04 + 0.2 }}
-                        whileHover={{ backgroundColor: 'rgba(30,30,30,0.02)', x: 4 }}
+                        whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.02)', x: 4 }}
                         style={{
                             display: 'grid',
                             gridTemplateColumns: 'minmax(180px, 1fr) 100px 120px 100px 100px 100px 120px',
                             gap: '0 24px',
                             alignItems: 'center',
                             padding: '20px 12px',
-                            borderBottom: '1px solid rgba(30,30,30,0.05)',
+                            borderBottom: '1px solid rgba(var(--fg-rgb), 0.05)',
                             borderRadius: 6,
                             cursor: 'default',
                             transition: 'all 0.2s ease',
                         }}
                     >
-                        <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, letterSpacing: '-0.3px', color: '#1E1E1E', fontWeight: 500 }}>
+                        <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, letterSpacing: '-0.3px', color: 'var(--fg)', fontWeight: 500 }}>
                             {ch.name}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: ch.spend > 0 ? '#1E1E1E' : 'rgba(30,30,30,0.3)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: ch.spend > 0 ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.3)', textAlign: 'right' }}>
                             {ch.spend > 0 ? `R$ ${fmtBR(ch.spend)}` : '—'}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right', fontWeight: 500 }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right', fontWeight: 500 }}>
                             R$ {fmtBR(ch.revenue)}
                         </span>
                         <span style={{
                             fontFamily: "'Geist Mono', monospace",
                             fontSize: 13,
-                            color: ch.roas >= 3 ? '#1E1E1E' : ch.roas > 0 ? 'rgba(30,30,30,0.6)' : 'rgba(30,30,30,0.2)',
+                            color: ch.roas >= 3 ? 'var(--fg)' : ch.roas > 0 ? 'rgba(var(--fg-rgb), 0.6)' : 'rgba(var(--fg-rgb), 0.2)',
                             textAlign: 'right',
                             fontWeight: ch.roas >= 3 ? 600 : 400
                         }}>
                             {ch.roas > 0 ? `${ch.roas.toFixed(1)}x` : '—'}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(30,30,30,0.5)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.5)', textAlign: 'right' }}>
                             {ch.cac > 0 ? `R$ ${fmtBR(ch.cac)}` : '—'}
                         </span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right' }}>
+                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>
                             {ch.customers}
                         </span>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                             <span style={{
                                 fontFamily: "'Geist Mono', monospace",
                                 fontSize: 14,
-                                color: ch.ltv >= 1000 ? '#1E1E1E' : 'rgba(30,30,30,0.6)',
+                                color: ch.ltv >= 1000 ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.6)',
                                 textAlign: 'right',
                                 fontWeight: ch.ltv >= 1000 ? 500 : 400
                             }}>
                                 R$ {fmtBR(ch.ltv)}
                             </span>
                             {ch.ltv > 1000 && (
-                                <span style={{ fontSize: 9, color: 'rgba(30,30,30,0.3)', fontWeight: 600, marginTop: 2 }}>HIGH VALUE</span>
+                                <span style={{ fontSize: 9, color: 'rgba(var(--fg-rgb), 0.3)', fontWeight: 600, marginTop: 2 }}>HIGH VALUE</span>
                             )}
                         </div>
                     </motion.div>
@@ -270,8 +270,8 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 <div>
                     <SectionLabel>ROAS POR CANAL AO LONGO DO TEMPO</SectionLabel>
                     <div style={{
-                        background: '#FFF',
-                        border: '1px solid rgba(30,30,30,0.06)',
+                        background: 'var(--surface)',
+                        border: '1px solid rgba(var(--fg-rgb), 0.06)',
                         borderRadius: 12,
                         padding: 32,
                         boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
@@ -283,7 +283,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                 { name: 'EMAIL', data: [12, 14, 15, 18, 22, 25, 28, 31, 32, 30], val: '30x', strong: true }
                             ].map((item) => (
                                 <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 70, color: 'rgba(30,30,30,0.4)', fontWeight: 500 }}>{item.name}</span>
+                                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 70, color: 'rgba(var(--fg-rgb), 0.4)', fontWeight: 500 }}>{item.name}</span>
                                     <div style={{ flex: 1 }}>
                                         <ChannelSparkline data={item.data} id={`roas-${item.name}`} />
                                     </div>
@@ -293,7 +293,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                         fontWeight: 500,
                                         width: 50,
                                         textAlign: 'right',
-                                        color: item.strong ? '#1E1E1E' : 'rgba(30,30,30,0.3)'
+                                        color: item.strong ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.3)'
                                     }}>
                                         {item.val}
                                     </span>
@@ -306,8 +306,8 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 <div>
                     <SectionLabel>CAC POR CANAL AO LONGO DO TEMPO</SectionLabel>
                     <div style={{
-                        background: '#FFF',
-                        border: '1px solid rgba(30,30,30,0.06)',
+                        background: 'var(--surface)',
+                        border: '1px solid rgba(var(--fg-rgb), 0.06)',
                         borderRadius: 12,
                         padding: 32,
                         boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
@@ -315,11 +315,11 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                             {[
                                 { name: 'GOOGLE', data: [210, 208, 205, 202, 198, 195, 200, 190, 185, 182], val: 'R$ 182', strong: true },
-                                { name: 'META ADS', data: [65, 68, 72, 75, 80, 85, 88, 90, 92, 110], val: 'R$ 110', strong: false, color: 'rgba(30,30,30,0.3)' },
+                                { name: 'META ADS', data: [65, 68, 72, 75, 80, 85, 88, 90, 92, 110], val: 'R$ 110', strong: false, color: 'rgba(var(--fg-rgb), 0.3)' },
                                 { name: 'EMAIL', data: [20, 19, 18, 17, 15, 16, 14, 15, 15, 16], val: 'R$ 16', strong: true }
                             ].map((item) => (
                                 <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-                                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 70, color: 'rgba(30,30,30,0.4)', fontWeight: 500 }}>{item.name}</span>
+                                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", width: 70, color: 'rgba(var(--fg-rgb), 0.4)', fontWeight: 500 }}>{item.name}</span>
                                     <div style={{ flex: 1 }}>
                                         <ChannelSparkline data={item.data} id={`cac-${item.name}`} />
                                     </div>
@@ -329,7 +329,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                         fontWeight: 500,
                                         width: 80,
                                         textAlign: 'right',
-                                        color: item.strong ? '#1E1E1E' : 'rgba(30,30,30,0.3)'
+                                        color: item.strong ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.3)'
                                     }}>
                                         {item.val}
                                     </span>
@@ -351,13 +351,13 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                             initial={{ opacity: 0, scale: 0.98 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ duration: 0.4, delay: i * 0.08 + 0.4 }}
-                            whileHover={{ y: -6, boxShadow: '0 12px 30px rgba(0,0,0,0.05)', borderColor: 'rgba(30,30,30,0.15)' }}
+                            whileHover={{ y: -6, boxShadow: '0 12px 30px rgba(0,0,0,0.05)', borderColor: 'rgba(var(--fg-rgb), 0.15)' }}
                             style={{
                                 padding: 32,
                                 borderRadius: 16,
-                                background: 'rgba(255, 255, 255, 0.7)',
+                                background: 'var(--surface-glass)',
                                 backdropFilter: 'blur(8px)',
-                                border: '1px solid rgba(30,30,30,0.06)',
+                                border: '1px solid rgba(var(--fg-rgb), 0.06)',
                                 display: 'flex',
                                 flexDirection: 'column',
                                 gap: 24,
@@ -369,7 +369,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                     <span style={{
                                         fontSize: 10,
                                         fontFamily: "'Geist Mono', monospace",
-                                        color: 'rgba(30,30,30,0.4)',
+                                        color: 'rgba(var(--fg-rgb), 0.4)',
                                         textTransform: 'uppercase',
                                         fontWeight: 500,
                                         letterSpacing: '0.04em'
@@ -381,7 +381,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                         fontSize: 18,
                                         fontWeight: 500,
                                         margin: '6px 0 0',
-                                        color: '#1E1E1E',
+                                        color: 'var(--fg)',
                                         letterSpacing: '-0.4px'
                                     }}>
                                         {camp.name}
@@ -393,27 +393,27 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                     fontSize: 9,
                                     fontWeight: 700,
                                     textTransform: 'uppercase',
-                                    background: camp.status === 'Ativo' ? '#1E1E1E' : 'rgba(30,30,30,0.05)',
-                                    color: camp.status === 'Ativo' ? '#FFF' : 'rgba(30,30,30,0.3)',
+                                    background: camp.status === 'Ativo' ? 'var(--inv)' : 'rgba(var(--fg-rgb), 0.05)',
+                                    color: camp.status === 'Ativo' ? 'var(--on-inv)' : 'rgba(var(--fg-rgb), 0.3)',
                                     letterSpacing: '0.05em'
                                 }}>
                                     {camp.status}
                                 </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, paddingTop: 8, borderTop: '1px solid rgba(30,30,30,0.04)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, paddingTop: 8, borderTop: '1px solid rgba(var(--fg-rgb), 0.04)' }}>
                                 <div>
-                                    <p style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(30,30,30,0.4)', margin: 0, textTransform: 'uppercase', fontWeight: 600 }}>Gasto Hoje</p>
+                                    <p style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(var(--fg-rgb), 0.4)', margin: 0, textTransform: 'uppercase', fontWeight: 600 }}>Gasto Hoje</p>
                                     <p style={{ fontSize: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 500, margin: '4px 0 0' }}>R$ {camp.spendToday.toFixed(2)}</p>
                                 </div>
                                 <div>
-                                    <p style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(30,30,30,0.4)', margin: 0, textTransform: 'uppercase', fontWeight: 600 }}>ROAS Atual</p>
+                                    <p style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(var(--fg-rgb), 0.4)', margin: 0, textTransform: 'uppercase', fontWeight: 600 }}>ROAS Atual</p>
                                     <p style={{
                                         fontSize: 20,
                                         fontFamily: "'Poppins', sans-serif",
                                         fontWeight: 600,
                                         margin: '4px 0 0',
-                                        color: camp.roasToday > 3 ? '#1E1E1E' : '#E53E3E'
+                                        color: camp.roasToday > 3 ? 'var(--fg)' : '#E53E3E'
                                     }}>
                                         {camp.roasToday}x
                                     </p>

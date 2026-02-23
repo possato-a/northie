@@ -188,11 +188,11 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
 
     return (
         <motion.div
-            whileHover={{ y: -4, borderColor: 'rgba(30,30,30,0.2)' }}
+            whileHover={{ y: -4, borderColor: 'rgba(var(--fg-rgb),0.2)' }}
             onClick={onClick}
             style={{
-                padding: 24, borderRadius: 12, border: '1px solid rgba(30,30,30,0.1)',
-                background: '#FFF', display: 'flex', flexDirection: 'column', gap: 16,
+                padding: 24, borderRadius: 12, border: '1px solid rgba(var(--fg-rgb),0.1)',
+                background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 16,
                 transition: 'all 0.2s', cursor: 'pointer', position: 'relative'
             }}
         >
@@ -207,7 +207,7 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
                     </div>
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 600, color: '#1E1E1E' }}>
+                            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>
                                 {plugin.name}
                             </span>
                             <span style={{
@@ -218,7 +218,7 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
                             </span>
                         </div>
                         <p style={{
-                            fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(30,30,30,0.5)',
+                            fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb),0.5)',
                             margin: '4px 0 0', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden'
                         }}>
                             {plugin.description}
@@ -228,15 +228,15 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 12 }}>
-                <span style={{ fontSize: 11, color: 'rgba(30,30,30,0.4)', fontFamily: "'Poppins', sans-serif" }}>
+                <span style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.4)', fontFamily: "'Poppins', sans-serif" }}>
                     {plugin.installCount}
                 </span>
                 <button
                     disabled={!isAvailable}
                     style={{
                         padding: '8px 16px', borderRadius: 6, border: 'none',
-                        background: isAvailable ? '#1E1E1E' : 'rgba(30,30,30,0.05)',
-                        color: isAvailable ? '#FFF' : 'rgba(30,30,30,0.3)',
+                        background: isAvailable ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.05)',
+                        color: isAvailable ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.3)',
                         fontSize: 12, fontWeight: 600, cursor: isAvailable ? 'pointer' : 'default',
                         fontFamily: "'Poppins', sans-serif", transition: 'all 0.2s'
                     }}
@@ -259,7 +259,7 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
             <button
                 onClick={onBack}
                 style={{
-                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(30,30,30,0.5)',
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(var(--fg-rgb),0.5)',
                     display: 'flex', alignItems: 'center', gap: 8, padding: 0, marginBottom: 40,
                     fontFamily: "'Poppins', sans-serif", fontSize: 14
                 }}
@@ -284,12 +284,12 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
                         <div>
                             <h1 style={{
                                 fontFamily: "'Poppins', sans-serif", fontSize: 32, fontWeight: 500, margin: 0,
-                                letterSpacing: '-1.2px', color: '#1E1E1E'
+                                letterSpacing: '-1.2px', color: 'var(--fg)'
                             }}>
                                 {plugin.name}
                             </h1>
                             <p style={{
-                                fontFamily: "'Poppins', sans-serif", fontSize: 18, color: 'rgba(30,30,30,0.5)',
+                                fontFamily: "'Poppins', sans-serif", fontSize: 18, color: 'rgba(var(--fg-rgb),0.5)',
                                 margin: '8px 0 0', fontWeight: 400
                             }}>
                                 {plugin.description}
@@ -298,8 +298,8 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
                         <button
                             style={{
                                 padding: '12px 32px', borderRadius: 8, border: 'none',
-                                background: plugin.status === 'Instalar' ? '#1E1E1E' : 'rgba(30,30,30,0.05)',
-                                color: plugin.status === 'Instalar' ? '#FFF' : 'rgba(30,30,30,0.3)',
+                                background: plugin.status === 'Instalar' ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.05)',
+                                color: plugin.status === 'Instalar' ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.3)',
                                 fontSize: 14, fontWeight: 600, cursor: plugin.status === 'Instalar' ? 'pointer' : 'default',
                                 fontFamily: "'Poppins', sans-serif"
                             }}
@@ -310,8 +310,8 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
 
                     <div style={{
                         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40,
-                        marginTop: 48, padding: '32px 0', borderTop: '1px solid rgba(30,30,30,0.1)',
-                        borderBottom: '1px solid rgba(30,30,30,0.1)'
+                        marginTop: 48, padding: '32px 0', borderTop: '1px solid rgba(var(--fg-rgb),0.1)',
+                        borderBottom: '1px solid rgba(var(--fg-rgb),0.1)'
                     }}>
                         <Metric label="REVIEWS" value={plugin.reviews} sub="⭐⭐⭐⭐⭐" />
                         <Metric label="INSTALLS" value={plugin.metricInstalls} sub="Mensalmente" />
@@ -325,7 +325,7 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
                         </h2>
                         <p style={{
                             fontFamily: "'Poppins', sans-serif", fontSize: 16, lineHeight: 1.6,
-                            color: 'rgba(30,30,30,0.7)', marginBottom: 32
+                            color: 'rgba(var(--fg-rgb),0.7)', marginBottom: 32
                         }}>
                             {plugin.fullDescription}
                         </p>
@@ -334,7 +334,7 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
                         </h3>
                         <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 20 }}>
                             {plugin.features.map((f, i) => (
-                                <li key={i} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 15, color: 'rgba(30,30,30,0.7)' }}>
+                                <li key={i} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 15, color: 'rgba(var(--fg-rgb),0.7)' }}>
                                     {f}
                                 </li>
                             ))}
@@ -349,13 +349,13 @@ function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) 
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
     return (
         <div>
-            <p style={{ fontSize: 10, fontWeight: 600, color: 'rgba(30,30,30,0.4)', letterSpacing: '0.05em', marginBottom: 8 }}>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'rgba(var(--fg-rgb),0.4)', letterSpacing: '0.05em', marginBottom: 8 }}>
                 {label}
             </p>
-            <p style={{ fontSize: 24, fontWeight: 500, color: '#1E1E1E', margin: 0, letterSpacing: '-0.5px' }}>
+            <p style={{ fontSize: 24, fontWeight: 500, color: 'var(--fg)', margin: 0, letterSpacing: '-0.5px' }}>
                 {value}
             </p>
-            <p style={{ fontSize: 11, color: 'rgba(30,30,30,0.4)', marginTop: 4 }}>
+            <p style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.4)', marginTop: 4 }}>
                 {sub}
             </p>
         </div>
@@ -398,7 +398,7 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <h1 style={{
                                 fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 40,
-                                letterSpacing: '-1.6px', color: '#1E1E1E', margin: 0
+                                letterSpacing: '-1.6px', color: 'var(--fg)', margin: 0
                             }}>
                                 App Store
                             </h1>
@@ -410,14 +410,15 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     style={{
-                                        padding: '12px 16px 12px 40px', borderRadius: 8, border: '1px solid rgba(30,30,30,0.1)',
-                                        background: '#FFF', width: 280, fontSize: 14, outline: 'none',
-                                        fontFamily: "'Poppins', sans-serif", transition: 'border-color 0.2s'
+                                        padding: '12px 16px 12px 40px', borderRadius: 8, border: '1px solid rgba(var(--fg-rgb),0.1)',
+                                        background: 'var(--surface)', width: 280, fontSize: 14, outline: 'none',
+                                        fontFamily: "'Poppins', sans-serif", transition: 'border-color 0.2s',
+                                        color: 'var(--fg)'
                                     }}
                                 />
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{
                                     position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                                    color: 'rgba(30,30,30,0.3)'
+                                    color: 'rgba(var(--fg-rgb),0.3)'
                                 }}>
                                     <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="2" />
                                     <path d="M11 11L14 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -433,9 +434,9 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
                                     onClick={() => setActiveCategory(cat)}
                                     style={{
                                         padding: '8px 20px', borderRadius: 20, border: '1px solid',
-                                        borderColor: activeCategory === cat ? '#1E1E1E' : 'rgba(30,30,30,0.1)',
-                                        background: activeCategory === cat ? '#1E1E1E' : 'transparent',
-                                        color: activeCategory === cat ? '#FFF' : 'rgba(30,30,30,0.6)',
+                                        borderColor: activeCategory === cat ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.1)',
+                                        background: activeCategory === cat ? 'var(--inv)' : 'transparent',
+                                        color: activeCategory === cat ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.6)',
                                         fontSize: 14, fontWeight: 500, cursor: 'pointer',
                                         fontFamily: "'Poppins', sans-serif", transition: 'all 0.2s'
                                     }}
@@ -460,7 +461,7 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
 
                         {filteredPlugins.length === 0 && (
                             <div style={{
-                                textAlign: 'center', marginTop: 100, color: 'rgba(30,30,30,0.3)',
+                                textAlign: 'center', marginTop: 100, color: 'rgba(var(--fg-rgb),0.3)',
                                 fontFamily: "'Poppins', sans-serif"
                             }}>
                                 Nenhum plugin encontrado para sua busca.

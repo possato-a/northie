@@ -4,7 +4,9 @@
       "mcp__claude_ai_Figma__get_design_context",
       "mcp__claude_ai_Figma__get_screenshot",
       "Bash(cd /c/Users/Possato/Documents/northie && npm install 2>&1)",
-      "Bash(cd /c/Users/Possato/Documents/northie && npx tsc --noEmit 2>&1)"
+      "Bash(cd /c/Users/Possato/Documents/northie && npx tsc --noEmit 2>&1)",
+      "Bash(cd:*)",
+      "Bash(cd /c/Users/Possato/Documents/northie && npm run build 2>&1)"
     ]
   }
 }

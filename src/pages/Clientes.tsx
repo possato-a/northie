@@ -88,7 +88,7 @@ function fmtBR(v: number) {
 // ── Shared primitives ─────────────────────────────────────────────────────────
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ fontFamily: "'Geist Mono','Courier New',monospace", fontSize: 12, color: 'rgba(30,30,30,0.5)', letterSpacing: '0.06em', marginBottom: 20 }}>
+    <p style={{ fontFamily: "'Geist Mono','Courier New',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', marginBottom: 20 }}>
       {children}
     </p>
   )
@@ -96,16 +96,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function TH({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
   return (
-    <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.04em', textAlign: align }}>
+    <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em', textAlign: align }}>
       {children}
     </span>
   )
 }
 
 const STATUS_STYLE: Record<ClientStatus, React.CSSProperties> = {
-  Lucrativo: { background: 'rgba(30,30,30,0.08)', color: '#1E1E1E' },
-  Payback: { border: '1px solid rgba(30,30,30,0.18)', color: 'rgba(30,30,30,0.6)' },
-  Risco: { background: 'rgba(30,30,30,0.04)', color: 'rgba(30,30,30,0.38)' },
+  Lucrativo: { background: 'rgba(var(--fg-rgb), 0.08)', color: 'var(--fg)' },
+  Payback: { border: '1px solid rgba(var(--fg-rgb), 0.18)', color: 'rgba(var(--fg-rgb), 0.6)' },
+  Risco: { background: 'rgba(var(--fg-rgb), 0.04)', color: 'rgba(var(--fg-rgb), 0.38)' },
 }
 
 function StatusBadge({ status }: { status: ClientStatus }) {
@@ -133,7 +133,7 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(30,30,30,0.12)', zIndex: 300 }}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(var(--fg-rgb), 0.12)', zIndex: 300 }}
       />
 
       {/* Panel */}
@@ -144,8 +144,8 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
         transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
         style={{
           position: 'fixed', top: 0, right: 0, bottom: 0,
-          width: 380, background: '#FCF8F8',
-          borderLeft: '1px solid rgba(30,30,30,0.12)',
+          width: 380, background: 'var(--bg)',
+          borderLeft: '1px solid rgba(var(--fg-rgb), 0.12)',
           zIndex: 301, overflowY: 'auto',
           padding: '28px 32px 48px',
           display: 'flex', flexDirection: 'column', gap: 0,
@@ -154,10 +154,10 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
           <div>
-            <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: '#1E1E1E', margin: 0 }}>
+            <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: 'var(--fg)', margin: 0 }}>
               {client.name}
             </p>
-            <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', margin: '6px 0 0', letterSpacing: '0.03em' }}>
+            <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', margin: '6px 0 0', letterSpacing: '0.03em' }}>
               {client.channel} · {client.segment}
             </p>
           </div>
@@ -165,7 +165,7 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
             onClick={onClose}
             whileHover={{ opacity: 0.6 }}
             whileTap={{ scale: 0.92 }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'rgba(30,30,30,0.5)', display: 'flex' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'rgba(var(--fg-rgb), 0.5)', display: 'flex' }}
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -182,23 +182,23 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
             { label: 'LTV', value: `R$ ${fmtBR(client.ltv)}` },
             { label: 'MARGEM', value: `${client.margin}%` },
           ].map((m) => (
-            <div key={m.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(30,30,30,0.07)' }}>
-              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.04em' }}>{m.label}</span>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 15, letterSpacing: '-0.4px', color: '#1E1E1E' }}>{m.value}</span>
+            <div key={m.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.07)' }}>
+              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>{m.label}</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 15, letterSpacing: '-0.4px', color: 'var(--fg)' }}>{m.value}</span>
             </div>
           ))}
 
           {/* Churn probability */}
-          <div style={{ padding: '13px 0', borderBottom: '1px solid rgba(30,30,30,0.07)' }}>
+          <div style={{ padding: '13px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.07)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.04em' }}>PROB. CHURN</span>
-              <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 15, letterSpacing: '-0.4px', color: client.churnProb > 60 ? 'rgba(30,30,30,0.45)' : '#1E1E1E' }}>
+              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>PROB. CHURN</span>
+              <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 15, letterSpacing: '-0.4px', color: client.churnProb > 60 ? 'rgba(var(--fg-rgb), 0.45)' : 'var(--fg)' }}>
                 {client.churnProb}%
               </span>
             </div>
-            <div style={{ height: 3, background: 'rgba(30,30,30,0.07)', borderRadius: 99 }}>
+            <div style={{ height: 3, background: 'rgba(var(--fg-rgb), 0.07)', borderRadius: 99 }}>
               <motion.div
-                style={{ height: '100%', borderRadius: 99, background: `rgba(30,30,30,${0.15 + client.churnProb / 100 * 0.7})` }}
+                style={{ height: '100%', borderRadius: 99, background: `rgba(var(--fg-rgb), ${0.15 + client.churnProb / 100 * 0.7})` }}
                 initial={{ width: 0 }}
                 animate={{ width: `${client.churnProb}%` }}
                 transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
@@ -209,12 +209,12 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
 
         {/* Produtos */}
         <div style={{ marginBottom: 28 }}>
-          <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.06em', marginBottom: 12 }}>PRODUTOS</p>
+          <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.06em', marginBottom: 12 }}>PRODUTOS</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {products.map(([name, qty]) => (
               <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(30,30,30,0.8)' }}>{name}</span>
-                <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.4)' }}>{qty}×</span>
+                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.8)' }}>{name}</span>
+                <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)' }}>{qty}×</span>
               </div>
             ))}
           </div>
@@ -222,7 +222,7 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
 
         {/* Purchase history */}
         <div>
-          <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.06em', marginBottom: 12 }}>HISTÓRICO</p>
+          <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.06em', marginBottom: 12 }}>HISTÓRICO</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {client.purchases.map((p, i) => (
               <motion.div
@@ -230,13 +230,13 @@ function ClientProfile({ client, onClose }: { client: Client; onClose: () => voi
                 initial={{ opacity: 0, x: 8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.2, delay: i * 0.04 }}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(30,30,30,0.055)' }}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)' }}
               >
                 <div>
-                  <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, letterSpacing: '-0.3px', color: '#1E1E1E', margin: 0 }}>{p.product}</p>
-                  <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(30,30,30,0.38)', margin: '2px 0 0' }}>{p.date}</p>
+                  <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0 }}>{p.product}</p>
+                  <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{p.date}</p>
                 </div>
-                <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'rgba(30,30,30,0.7)' }}>R$ {fmtBR(p.value)}</span>
+                <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.7)' }}>R$ {fmtBR(p.value)}</span>
               </motion.div>
             ))}
           </div>
@@ -286,9 +286,9 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
             display: 'flex', alignItems: 'center', gap: 6,
             fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px',
             padding: '5px 12px', borderRadius: 3,
-            border: '1px solid rgba(30,30,30,0.13)',
+            border: '1px solid rgba(var(--fg-rgb), 0.13)',
             background: 'transparent', cursor: 'pointer',
-            color: value !== 'Todos' ? '#1E1E1E' : 'rgba(30,30,30,0.55)',
+            color: value !== 'Todos' ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.55)',
           }}
         >
           {value === 'Todos' ? label : value}
@@ -301,14 +301,14 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
             <motion.div
               initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.15 }}
-              style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#FCF8F8', border: '1px solid rgba(30,30,30,0.14)', borderRadius: 4, padding: '6px 0', zIndex: 200, minWidth: 170, boxShadow: '0 4px 20px rgba(30,30,30,0.07)' }}
+              style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.14)', borderRadius: 4, padding: '6px 0', zIndex: 200, minWidth: 170, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.07)' }}
             >
               {options.map(opt => (
                 <motion.button
                   key={opt}
                   onClick={() => { onSel(opt); onToggle() }}
-                  whileHover={{ backgroundColor: 'rgba(30,30,30,0.04)' }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: value === opt ? '#1E1E1E' : 'rgba(30,30,30,0.65)', fontWeight: value === opt ? 500 : 400 }}
+                  whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: value === opt ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)', fontWeight: value === opt ? 500 : 400 }}
                 >
                   {opt}
                 </motion.button>
@@ -332,7 +332,7 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
               key={s}
               onClick={() => setStatusFilter(s)}
               whileTap={{ scale: 0.97 }}
-              style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: 'none', cursor: 'pointer', background: statusFilter === s ? 'rgba(30,30,30,0.09)' : 'transparent', color: statusFilter === s ? '#1E1E1E' : 'rgba(30,30,30,0.5)', transition: 'background 0.15s, color 0.15s' }}
+              style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: 'none', cursor: 'pointer', background: statusFilter === s ? 'rgba(var(--fg-rgb), 0.09)' : 'transparent', color: statusFilter === s ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.5)', transition: 'background 0.15s, color 0.15s' }}
             >
               {s}
             </motion.button>
@@ -341,20 +341,20 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
         <div style={{ flex: 1 }} />
         <Dropdown value={segmentFilter} options={SEGMENTS} label="Segmento" open={segmentOpen} onToggle={() => { setSegmentOpen(o => !o); setChannelOpen(false) }} onSelect={setRFMSegmentFilter} />
         <Dropdown value={channelFilter} options={CHANNELS} label="Canal" open={channelOpen} onToggle={() => { setChannelOpen(o => !o); setSegmentOpen(false) }} onSelect={setChannelFilter} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid rgba(30,30,30,0.13)', borderRadius: 3, padding: '5px 10px', height: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid rgba(var(--fg-rgb), 0.13)', borderRadius: 3, padding: '5px 10px', height: 32 }}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.35, flexShrink: 0 }}>
-            <circle cx="5" cy="5" r="4" stroke="#1E1E1E" strokeWidth="1.3" />
-            <line x1="8.5" y1="8.5" x2="11" y2="11" stroke="#1E1E1E" strokeWidth="1.3" strokeLinecap="round" />
+            <circle cx="5" cy="5" r="4" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" />
+            <line x1="8.5" y1="8.5" x2="11" y2="11" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" strokeLinecap="round" />
           </svg>
           <input
             value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-            style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', width: 90 }}
+            style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', width: 90 }}
           />
         </div>
       </div>
 
       {/* Table header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', paddingBottom: 10, borderBottom: '1px solid rgba(30,30,30,0.1)', marginBottom: 2 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', paddingBottom: 10, borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)', marginBottom: 2 }}>
         <TH>NOME</TH>
         <TH align="right">TOTAL GASTO</TH>
         <TH align="right">CAC</TH>
@@ -367,7 +367,7 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
       <div style={{ minHeight: 360 }}>
         <AnimatePresence mode="popLayout" initial={false}>
           {paginated.length === 0 ? (
-            <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(30,30,30,0.35)', padding: '24px 0', textAlign: 'center' }}>
+            <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
               Nenhum cliente encontrado
             </motion.p>
           ) : paginated.map((c, i) => (
@@ -378,17 +378,17 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.25, delay: i * 0.03, ease: [0.25, 0.1, 0.25, 1] }}
               onClick={() => onSelect(c)}
-              whileHover={{ backgroundColor: 'rgba(30,30,30,0.025)' }}
-              style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', alignItems: 'center', padding: '13px 6px', borderBottom: '1px solid rgba(30,30,30,0.055)', cursor: 'pointer', borderRadius: 3, margin: '0 -6px' }}
+              whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.025)' }}
+              style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', alignItems: 'center', padding: '13px 6px', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)', cursor: 'pointer', borderRadius: 3, margin: '0 -6px' }}
             >
               <div>
-                <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: '#1E1E1E', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
-                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(30,30,30,0.38)', margin: '2px 0 0' }}>{c.channel}</p>
+                <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{c.channel}</p>
               </div>
-              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: '#1E1E1E', textAlign: 'right' }}>R$ {fmtBR(c.totalSpent)}</span>
-              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(30,30,30,0.6)', textAlign: 'right' }}>{c.cac > 0 ? `R$ ${fmtBR(c.cac)}` : '—'}</span>
-              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(30,30,30,0.6)', textAlign: 'right' }}>R$ {fmtBR(c.ltv)}</span>
-              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(30,30,30,0.6)', textAlign: 'right' }}>{c.margin}%</span>
+              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>R$ {fmtBR(c.totalSpent)}</span>
+              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>{c.cac > 0 ? `R$ ${fmtBR(c.cac)}` : '—'}</span>
+              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>R$ {fmtBR(c.ltv)}</span>
+              <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>{c.margin}%</span>
               <StatusBadge status={c.status} />
             </motion.div>
           ))}
@@ -397,7 +397,7 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
 
       {/* Pagination Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
-        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.35)' }}>
+        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.35)' }}>
           {filtered.length} cliente{filtered.length !== 1 ? 's' : ''}
         </p>
 
@@ -409,14 +409,14 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
               whileTap={{ scale: 0.95 }}
               style={{
                 background: 'none', border: 'none', cursor: page === 0 ? 'default' : 'pointer',
-                color: '#1E1E1E', opacity: page === 0 ? 0.2 : 0.6, padding: 4
+                color: 'var(--fg)', opacity: page === 0 ? 0.2 : 0.6, padding: 4
               }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </motion.button>
-            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)' }}>
+            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)' }}>
               {page + 1} / {totalPages}
             </span>
             <motion.button
@@ -425,7 +425,7 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
               whileTap={{ scale: 0.95 }}
               style={{
                 background: 'none', border: 'none', cursor: page === totalPages - 1 ? 'default' : 'pointer',
-                color: '#1E1E1E', opacity: page === totalPages - 1 ? 0.2 : 0.6, padding: 4
+                color: 'var(--fg)', opacity: page === totalPages - 1 ? 0.2 : 0.6, padding: 4
               }}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -475,9 +475,9 @@ function RFMCards() {
             onClick={() => setActiveIndex(p => Math.max(0, p - 1))}
             whileTap={{ scale: 0.95 }}
             style={{
-              background: 'none', border: '1px solid rgba(30,30,30,0.1)', borderRadius: 4,
+              background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
               cursor: activeIndex === 0 ? 'default' : 'pointer',
-              color: '#1E1E1E', opacity: activeIndex === 0 ? 0.2 : 0.6, padding: '4px 8px'
+              color: 'var(--fg)', opacity: activeIndex === 0 ? 0.2 : 0.6, padding: '4px 8px'
             }}
           >
             Anterior
@@ -486,9 +486,9 @@ function RFMCards() {
             onClick={() => setActiveIndex(p => Math.min(segments.length - 1, p + 1))}
             whileTap={{ scale: 0.95 }}
             style={{
-              background: 'none', border: '1px solid rgba(30,30,30,0.1)', borderRadius: 4,
+              background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
               cursor: activeIndex === segments.length - 1 ? 'default' : 'pointer',
-              color: '#1E1E1E', opacity: activeIndex === segments.length - 1 ? 0.2 : 0.6, padding: '4px 8px'
+              color: 'var(--fg)', opacity: activeIndex === segments.length - 1 ? 0.2 : 0.6, padding: '4px 8px'
             }}
           >
             Próximo
@@ -503,16 +503,11 @@ function RFMCards() {
             const data = stats[seg]
             const offset = i - activeIndex
 
-            // Layout logic for card stack
-            // If i < activeIndex, card is "discarded" to the left/bottom
-            // If i === activeIndex, card is front and center
-            // If i > activeIndex, card is peeked behind
-
             const isBehind = i > activeIndex
             const isFront = i === activeIndex
             const isPast = i < activeIndex
 
-            if (isPast) return null // Hide old cards for cleaner look, or keep for stack effect
+            if (isPast) return null
 
             return (
               <motion.div
@@ -524,7 +519,7 @@ function RFMCards() {
                   x: offset * 32,
                   y: offset * -12,
                   zIndex: segments.length - i,
-                  boxShadow: isFront ? '0 12px 40px rgba(30,30,30,0.12)' : '0 4px 12px rgba(30,30,30,0.05)',
+                  boxShadow: isFront ? '0 12px 40px rgba(var(--fg-rgb), 0.12)' : '0 4px 12px rgba(var(--fg-rgb), 0.05)',
                   filter: isFront ? 'blur(0px)' : 'blur(1px)'
                 }}
                 exit={{ opacity: 0, x: -100, rotate: -10 }}
@@ -534,8 +529,8 @@ function RFMCards() {
                   top: 0,
                   left: 0,
                   width: 'calc(100% - 100px)',
-                  background: '#FCF8F8',
-                  border: '1px solid rgba(30,30,30,0.1)',
+                  background: 'var(--bg)',
+                  border: '1px solid rgba(var(--fg-rgb), 0.1)',
                   borderRadius: 12,
                   padding: '32px',
                   cursor: isFront ? 'default' : 'pointer'
@@ -544,12 +539,12 @@ function RFMCards() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 18, letterSpacing: '-0.5px', color: '#1E1E1E', margin: 0 }}>{cfg.label}</p>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.4)', margin: '6px 0 24px', letterSpacing: '0.02em', maxWidth: 200 }}>{cfg.sub}</p>
+                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 18, letterSpacing: '-0.5px', color: 'var(--fg)', margin: 0 }}>{cfg.label}</p>
+                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)', margin: '6px 0 24px', letterSpacing: '0.02em', maxWidth: 200 }}>{cfg.sub}</p>
                   </div>
                   <div style={{
-                    width: 40, height: 40, borderRadius: '50%', border: '1px solid rgba(30,30,30,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(30,30,30,0.3)'
+                    width: 40, height: 40, borderRadius: '50%', border: '1px solid rgba(var(--fg-rgb), 0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(var(--fg-rgb), 0.3)'
                   }}>
                     {i + 1}
                   </div>
@@ -557,19 +552,19 @@ function RFMCards() {
 
                 <div style={{ display: 'flex', gap: 32, marginBottom: 32 }}>
                   <div>
-                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 40, fontWeight: 400, letterSpacing: '-1.6px', color: '#1E1E1E', margin: 0, lineHeight: 1 }}>{data.count}</p>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.4)', margin: '8px 0 0', letterSpacing: '0.04em' }}>CLIENTES</p>
+                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 40, fontWeight: 400, letterSpacing: '-1.6px', color: 'var(--fg)', margin: 0, lineHeight: 1 }}>{data.count}</p>
+                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)', margin: '8px 0 0', letterSpacing: '0.04em' }}>CLIENTES</p>
                   </div>
-                  <div style={{ width: 1, background: 'rgba(30,30,30,0.08)', flexShrink: 0 }} />
+                  <div style={{ width: 1, background: 'rgba(var(--fg-rgb), 0.08)', flexShrink: 0 }} />
                   <div>
-                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: 'rgba(30,30,30,0.8)', margin: 0, lineHeight: 1.2 }}>R$ {fmtBR(data.revenue)}</p>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.4)', margin: '8px 0 0', letterSpacing: '0.04em' }}>RECEITA ESTIMADA</p>
+                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: 'rgba(var(--fg-rgb), 0.8)', margin: 0, lineHeight: 1.2 }}>R$ {fmtBR(data.revenue)}</p>
+                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)', margin: '8px 0 0', letterSpacing: '0.04em' }}>RECEITA ESTIMADA</p>
                   </div>
                 </div>
 
-                <div style={{ borderTop: '1px solid rgba(30,30,30,0.07)', paddingTop: 24 }}>
-                  <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.5)', letterSpacing: '0.06em', margin: '0 0 10px' }}>IA STRATEGY</p>
-                  <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, letterSpacing: '-0.3px', color: 'rgba(30,30,30,0.75)', margin: 0, lineHeight: 1.5 }}>
+                <div style={{ borderTop: '1px solid rgba(var(--fg-rgb), 0.07)', paddingTop: 24 }}>
+                  <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', margin: '0 0 10px' }}>IA STRATEGY</p>
+                  <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.75)', margin: 0, lineHeight: 1.5 }}>
                     {cfg.suggestion}
                   </p>
                 </div>
@@ -599,11 +594,11 @@ function CohortHeatmap() {
 
   function cellBg(v: number | null) {
     if (v === null) return 'transparent'
-    return `rgba(30,30,30,${v / 100 * 0.6})`
+    return `rgba(var(--fg-rgb), ${v / 100 * 0.6})`
   }
   function cellColor(v: number | null) {
-    if (v === null) return 'rgba(30,30,30,0.2)'
-    return v > 50 ? '#FCF8F8' : '#1E1E1E'
+    if (v === null) return 'rgba(var(--fg-rgb), 0.2)'
+    return v > 50 ? 'var(--on-inv)' : 'var(--fg)'
   }
 
   return (
@@ -614,7 +609,7 @@ function CohortHeatmap() {
           <motion.button
             onClick={() => setDropOpen(o => !o)}
             whileTap={{ scale: 0.97 }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: '1px solid rgba(30,30,30,0.13)', background: 'transparent', cursor: 'pointer', color: channel !== 'Todos' ? '#1E1E1E' : 'rgba(30,30,30,0.55)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: '1px solid rgba(var(--fg-rgb), 0.13)', background: 'transparent', cursor: 'pointer', color: channel !== 'Todos' ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.55)' }}
           >
             {channel === 'Todos' ? 'Canal de origem' : channel}
             <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
@@ -626,14 +621,14 @@ function CohortHeatmap() {
               <motion.div
                 initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
-                style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#FCF8F8', border: '1px solid rgba(30,30,30,0.14)', borderRadius: 4, padding: '6px 0', zIndex: 200, minWidth: 160, boxShadow: '0 4px 20px rgba(30,30,30,0.07)' }}
+                style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.14)', borderRadius: 4, padding: '6px 0', zIndex: 200, minWidth: 160, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.07)' }}
               >
                 {COHORT_CHANNELS.map(ch => (
                   <motion.button
                     key={ch}
                     onClick={() => { setChannel(ch); setDropOpen(false) }}
-                    whileHover={{ backgroundColor: 'rgba(30,30,30,0.04)' }}
-                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: channel === ch ? '#1E1E1E' : 'rgba(30,30,30,0.65)', fontWeight: channel === ch ? 500 : 400 }}
+                    whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: channel === ch ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)', fontWeight: channel === ch ? 500 : 400 }}
                   >
                     {ch}
                   </motion.button>
@@ -647,10 +642,10 @@ function CohortHeatmap() {
       <div style={{ overflowX: 'auto' }}>
         {/* Header row */}
         <div style={{ display: 'grid', gridTemplateColumns: '80px 56px repeat(4, 72px)', gap: 4, marginBottom: 4 }}>
-          <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.04em' }}>SAFRA</span>
-          <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.04em', textAlign: 'center' }}>N</span>
+          <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>SAFRA</span>
+          <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em', textAlign: 'center' }}>N</span>
           {PERIOD_COLS.map(p => (
-            <span key={p.key} style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.04em', textAlign: 'center' }}>{p.label}</span>
+            <span key={p.key} style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em', textAlign: 'center' }}>{p.label}</span>
           ))}
         </div>
 
@@ -662,14 +657,14 @@ function CohortHeatmap() {
             transition={{ duration: 0.3, delay: ri * 0.06 + 0.1 }}
             style={{ display: 'grid', gridTemplateColumns: '80px 56px repeat(4, 72px)', gap: 4, marginBottom: 4 }}
           >
-            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(30,30,30,0.6)', display: 'flex', alignItems: 'center' }}>{row.month}</span>
-            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(30,30,30,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{row.n}</span>
+            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', display: 'flex', alignItems: 'center' }}>{row.month}</span>
+            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{row.n}</span>
             {PERIOD_COLS.map(p => {
               const val = row[p.key] as number | null
               return (
                 <div
                   key={p.key}
-                  style={{ height: 48, borderRadius: 3, background: cellBg(val), display: 'flex', alignItems: 'center', justifyContent: 'center', border: val === null ? '1px dashed rgba(30,30,30,0.07)' : 'none' }}
+                  style={{ height: 48, borderRadius: 3, background: cellBg(val), display: 'flex', alignItems: 'center', justifyContent: 'center', border: val === null ? '1px dashed rgba(var(--fg-rgb), 0.07)' : 'none' }}
                 >
                   <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: cellColor(val), letterSpacing: '0.02em' }}>
                     {val !== null ? `${val}%` : '—'}
@@ -688,14 +683,14 @@ function CohortHeatmap() {
         transition={{ delay: 0.6, duration: 0.4 }}
         style={{
           marginTop: 28, padding: '20px',
-          background: 'rgba(30,30,30,0.02)', borderRadius: 8,
-          border: '1px solid rgba(30,30,30,0.06)'
+          background: 'rgba(var(--fg-rgb), 0.02)', borderRadius: 8,
+          border: '1px solid rgba(var(--fg-rgb), 0.06)'
         }}
       >
-        <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(30,30,30,0.45)', letterSpacing: '0.08em', margin: '0 0 8px', textTransform: 'uppercase' }}>Insight de Retenção</p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(30,30,30,0.7)', margin: 0, lineHeight: 1.6, letterSpacing: '-0.2px' }}>
-          As safras de <span style={{ color: '#1E1E1E', fontWeight: 500 }}>Q4/24</span> apresentam retenção 12% superior à média anual.
-          Clientes vindos de <span style={{ color: '#1E1E1E', fontWeight: 500 }}>Google Orgânico</span> têm o LTV mais resiliente.
+        <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.08em', margin: '0 0 8px', textTransform: 'uppercase' }}>Insight de Retenção</p>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.7)', margin: 0, lineHeight: 1.6, letterSpacing: '-0.2px' }}>
+          As safras de <span style={{ color: 'var(--fg)', fontWeight: 500 }}>Q4/24</span> apresentam retenção 12% superior à média anual.
+          Clientes vindos de <span style={{ color: 'var(--fg)', fontWeight: 500 }}>Google Orgânico</span> têm o LTV mais resiliente.
         </p>
       </motion.div>
     </div>
@@ -716,7 +711,7 @@ function AIActions() {
         {visible.length === 0 ? (
           <motion.p
             key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(30,30,30,0.35)', padding: '8px 0' }}
+            style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '8px 0' }}
           >
             Todas as sugestões foram processadas.
           </motion.p>
@@ -730,14 +725,14 @@ function AIActions() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: 24, transition: { duration: 0.2 } }}
               transition={{ duration: 0.3, delay: i * 0.06, ease: [0.25, 0.1, 0.25, 1] }}
-              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', border: '1px solid rgba(30,30,30,0.09)', borderRadius: 6, marginBottom: 8 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', border: '1px solid rgba(var(--fg-rgb), 0.09)', borderRadius: 6, marginBottom: 8 }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, letterSpacing: '-0.4px', color: '#1E1E1E', margin: 0 }}>
-                  <span style={{ fontFamily: "'Geist Mono',monospace", fontWeight: 500, color: '#1E1E1E' }}>{action.count}</span>
+                <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, letterSpacing: '-0.4px', color: 'var(--fg)', margin: 0 }}>
+                  <span style={{ fontFamily: "'Geist Mono',monospace", fontWeight: 500, color: 'var(--fg)' }}>{action.count}</span>
                   {' '}{action.description}.
                 </p>
-                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(30,30,30,0.45)', margin: '4px 0 0', letterSpacing: '0.03em' }}>
+                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', margin: '4px 0 0', letterSpacing: '0.03em' }}>
                   {action.action} · {action.segment}
                 </p>
               </div>
@@ -749,17 +744,17 @@ function AIActions() {
                   style={{
                     fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px',
                     padding: '7px 16px', borderRadius: 3, border: 'none', cursor: 'pointer',
-                    background: isApproved ? 'rgba(30,30,30,0.85)' : '#1E1E1E',
-                    color: '#FCF8F8', transition: 'background 0.2s',
+                    background: isApproved ? 'rgba(var(--fg-rgb), 0.85)' : 'var(--inv)',
+                    color: 'var(--on-inv)', transition: 'background 0.2s',
                   }}
                 >
                   {isApproved ? 'Aprovado ✓' : 'Aprovar'}
                 </motion.button>
                 <motion.button
                   onClick={() => setDismissed(s => new Set([...s, action.id]))}
-                  whileHover={{ backgroundColor: 'rgba(30,30,30,0.05)' }}
+                  whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.05)' }}
                   whileTap={{ scale: 0.96 }}
-                  style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '7px 12px', borderRadius: 3, border: '1px solid rgba(30,30,30,0.13)', background: 'transparent', cursor: 'pointer', color: 'rgba(30,30,30,0.5)' }}
+                  style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '7px 12px', borderRadius: 3, border: '1px solid rgba(var(--fg-rgb), 0.13)', background: 'transparent', cursor: 'pointer', color: 'rgba(var(--fg-rgb), 0.5)' }}
                 >
                   Ignorar
                 </motion.button>
@@ -784,7 +779,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 40, letterSpacing: '-1.6px', color: '#1E1E1E', lineHeight: 1, margin: 0 }}
+        style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 40, letterSpacing: '-1.6px', color: 'var(--fg)', lineHeight: 1, margin: 0 }}
       >
         Clientes
       </motion.h1>
@@ -807,7 +802,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
       {/* Divider */}
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.5 }}
-        style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginTop: 52, marginBottom: 48 }}
+        style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 52, marginBottom: 48 }}
       />
 
       {/* Analysis Section (Row 1): Cohort + Client List */}
@@ -821,7 +816,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
       </motion.div>
 
       {/* Divider */}
-      <div style={{ height: 1, background: 'rgba(30,30,30,0.08)', marginTop: 12, marginBottom: 48 }} />
+      <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 12, marginBottom: 48 }} />
 
       {/* Strategy Section (Row 2): RFM cards + AI Actions */}
       <motion.div
