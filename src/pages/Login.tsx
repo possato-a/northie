@@ -97,7 +97,7 @@ function ImagePanel() {
         <div style={{
             flex: '0 0 55%',
             position: 'relative',
-            background: 'var(--bg)',
+            background: isDark ? '#000' : 'var(--bg)',
             overflow: 'hidden',
             borderRight: '1px solid rgba(var(--fg-rgb), 0.1)',
             display: 'flex',
@@ -114,9 +114,10 @@ function ImagePanel() {
                 style={{
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
-                    mixBlendMode: isDark ? 'normal' : 'multiply',
+                    objectFit: 'contain',
+                    mixBlendMode: isDark ? 'screen' : 'multiply',
                     display: 'block',
+                    marginTop: '-40px',
                     zIndex: 1,
                 }}
             />
