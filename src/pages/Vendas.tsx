@@ -17,33 +17,6 @@ interface Transaction {
   method: Method; status: Status; channel: Channel
 }
 
-const TRANSACTIONS: Transaction[] = [
-  { id: '1', date: '21/02', client: 'Ana Silva', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-  { id: '2', date: '21/02', client: 'João Mendes', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Direto' },
-  { id: '3', date: '20/02', client: 'Carla Souza', product: 'Plano Starter', value: 97, method: 'Boleto', status: 'Pendente', channel: 'Google Ads' },
-  { id: '4', date: '20/02', client: 'Pedro Lima', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-  { id: '5', date: '19/02', client: 'Mariana Costa', product: 'Curso Digital', value: 297, method: 'Pix', status: 'Pago', channel: 'Google Orgânico' },
-  { id: '6', date: '19/02', client: 'Rafael Nunes', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Reembolsado', channel: 'Meta Ads' },
-  { id: '7', date: '18/02', client: 'Beatriz Alves', product: 'Consultoria 1h', value: 350, method: 'Pix', status: 'Pago', channel: 'Email' },
-  { id: '8', date: '18/02', client: 'Lucas Ferreira', product: 'Plano Starter', value: 97, method: 'Cartão', status: 'Pago', channel: 'Google Ads' },
-  { id: '9', date: '17/02', client: 'Camila Rocha', product: 'Curso Digital', value: 297, method: 'Boleto', status: 'Pendente', channel: 'Meta Ads' },
-  { id: '10', date: '17/02', client: 'Diego Santos', product: 'Plano Pro Anual', value: 1764, method: 'Cartão', status: 'Pago', channel: 'Direto' },
-  { id: '11', date: '16/02', client: 'Fernanda Lima', product: 'Plano Pro Mensal', value: 197, method: 'Pix', status: 'Pago', channel: 'Google Orgânico' },
-  { id: '12', date: '16/02', client: 'Thiago Oliveira', product: 'Consultoria 1h', value: 350, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-  { id: '13', date: '15/02', client: 'Isabela Freitas', product: 'Plano Pro Mensal', value: 197, method: 'Cartão', status: 'Pago', channel: 'Email' },
-  { id: '14', date: '15/02', client: 'Bruno Castro', product: 'Plano Starter', value: 97, method: 'Pix', status: 'Pendente', channel: 'Google Ads' },
-  { id: '15', date: '14/02', client: 'Laura Mendes', product: 'Curso Digital', value: 297, method: 'Cartão', status: 'Pago', channel: 'Meta Ads' },
-]
-
-const PRODUCTS = [
-  { name: 'Plano Pro Anual', qty: 48, revenue: 84672, avgTicket: 1764, margin: 82 },
-  { name: 'Consultoria 1h', qty: 140, revenue: 49000, avgTicket: 350, margin: 95 },
-  { name: 'Curso Digital', qty: 210, revenue: 62370, avgTicket: 297, margin: 70 },
-  { name: 'Plano Pro Mensal', qty: 287, revenue: 56539, avgTicket: 197, margin: 65 },
-  { name: 'Plano Starter', qty: 365, revenue: 35405, avgTicket: 97, margin: 45 },
-]
-
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtBR(v: number) {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
@@ -114,32 +87,13 @@ function TH({ children, align = 'left' }: { children: React.ReactNode; align?: '
 const STATUS_FILTERS: Array<Status | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'Reembolsado']
 const CHANNELS: Array<Channel | 'Todos'> = ['Todos', 'Meta Ads', 'Google Ads', 'Google Orgânico', 'Email', 'Direto']
 
-function TransactionList() {
-  const [realTransactions, setRealTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
+function TransactionList({ transactions, loading }: { transactions: Transaction[], loading: boolean }) {
   const [statusFilter, setStatusFilter] = useState<Status | 'Todos'>('Todos')
   const [channelFilter, setChannelFilter] = useState<Channel | 'Todos'>('Todos')
   const [channelOpen, setChannelOpen] = useState(false)
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    dataApi.getTransactions().then(res => {
-      // Map backend fields to frontend Transaction type
-      const mapped = res.data.map((t: any) => ({
-        id: t.id,
-        date: new Date(t.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        client: t.customer_name || 'Desconhecido',
-        product: t.product_name || 'Produto Northie',
-        value: Number(t.amount_net),
-        method: t.payment_method || 'Cartão',
-        status: t.status === 'approved' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Reembolsado',
-        channel: t.acquisition_channel || 'Direto'
-      }))
-      setRealTransactions(mapped)
-    }).finally(() => setLoading(false))
-  }, [])
-
-  const filtered = useMemo(() => realTransactions.filter(t => {
+  const filtered = useMemo(() => transactions.filter(t => {
     if (statusFilter !== 'Todos' && t.status !== statusFilter) return false
     if (channelFilter !== 'Todos' && t.channel !== channelFilter) return false
     if (search && !t.client.toLowerCase().includes(search.toLowerCase()) &&
@@ -343,8 +297,22 @@ function TransactionList() {
 }
 
 // ── Product revenue table ─────────────────────────────────────────────────────
-function ProductRevenue() {
-  const maxRevenue = Math.max(...PRODUCTS.map(p => p.revenue))
+function ProductRevenue({ transactions }: { transactions: Transaction[] }) {
+  const products = useMemo(() => {
+    const map = new Map<string, { qty: number; revenue: number; avgTicket: number; margin: number }>()
+    transactions.forEach(t => {
+      const prev = map.get(t.product) || { qty: 0, revenue: 0, avgTicket: 0, margin: 70 }
+      map.set(t.product, {
+        qty: prev.qty + 1,
+        revenue: prev.revenue + t.value,
+        avgTicket: (prev.revenue + t.value) / (prev.qty + 1),
+        margin: 70
+      })
+    })
+    return Array.from(map.entries()).map(([name, stats]) => ({ name, ...stats }))
+  }, [transactions])
+
+  const maxRevenue = useMemo(() => Math.max(0, ...products.map(p => p.revenue)), [products])
 
   return (
     <div>
@@ -366,7 +334,7 @@ function ProductRevenue() {
         <TH align="right">MARGEM %</TH>
       </div>
 
-      {PRODUCTS.map((p, i) => (
+      {products.map((p, i) => (
         <motion.div
           key={p.name}
           initial={{ opacity: 0, y: 6 }}
@@ -427,6 +395,37 @@ function ProductRevenue() {
 export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => void; user?: any }) {
   // Mock check for integrations
   const hasIntegrations = true
+  const [realTransactions, setRealTransactions] = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    dataApi.getTransactions().then(res => {
+      const mapped = res.data.map((t: any) => ({
+        id: t.id,
+        date: new Date(t.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        client: t.customer_name || 'Desconhecido',
+        product: t.product_name || 'Produto Northie',
+        value: Number(t.amount_net),
+        method: t.payment_method || 'Cartão',
+        status: t.status === 'approved' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Reembolsado',
+        channel: t.acquisition_channel || 'Direto'
+      }))
+      setRealTransactions(mapped)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const kpis = useMemo(() => {
+    const faturamento = realTransactions.filter(t => t.status === 'Pago').reduce((sum, t) => sum + t.value, 0)
+    const tickets = realTransactions.filter(t => t.status === 'Pago').map(t => t.value)
+    const avgTicket = tickets.length > 0 ? faturamento / tickets.length : 0
+    return {
+      faturamento,
+      transacoes: realTransactions.length,
+      avgTicket,
+      conversion: 3.2, // Still mock
+      reembolsos: realTransactions.filter(t => t.status === 'Reembolsado').reduce((sum, t) => sum + t.value, 0)
+    }
+  }, [realTransactions])
 
   return (
     <div style={{ paddingTop: 28, paddingBottom: 80 }}>
@@ -503,11 +502,11 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
           >
             <DatePicker />
             <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
-              <KpiCard label="FATURAMENTO" value={240000} prefix="R$ " decimals={0} delay={0.1} />
-              <KpiCard label="TRANSAÇÕES" value={1244} decimals={0} delay={0.18} />
-              <KpiCard label="TICKET MÉDIO" value={192.9} prefix="R$ " decimals={2} delay={0.26} />
-              <KpiCard label="TAXA DE CONVERSÃO" value={3.2} suffix="%" decimals={1} delay={0.34} />
-              <KpiCard label="REEMBOLSOS" value={4800} prefix="R$ " decimals={0} delay={0.42} />
+              <KpiCard label="FATURAMENTO" value={kpis.faturamento} prefix="R$ " decimals={0} delay={0.1} />
+              <KpiCard label="TRANSAÇÕES" value={kpis.transacoes} decimals={0} delay={0.18} />
+              <KpiCard label="TICKET MÉDIO" value={kpis.avgTicket} prefix="R$ " decimals={2} delay={0.26} />
+              <KpiCard label="TAXA DE CONVERSÃO" value={kpis.conversion} suffix="%" decimals={1} delay={0.34} />
+              <KpiCard label="REEMBOLSOS" value={kpis.reembolsos} prefix="R$ " decimals={0} delay={0.42} />
             </div>
           </motion.div>
 
@@ -525,8 +524,8 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
             transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
             style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 56 }}
           >
-            <TransactionList />
-            <ProductRevenue />
+            <TransactionList transactions={realTransactions} loading={loading} />
+            <ProductRevenue transactions={realTransactions} />
           </motion.div>
         </>
       )}

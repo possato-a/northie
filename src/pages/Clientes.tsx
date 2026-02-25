@@ -21,24 +21,6 @@ interface CohortRow { month: string; n: number; r30: number | null; r60: number 
 interface AIAction { id: string; count: number; description: string; action: string; segment: RFMSegment }
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
-const CLIENTS: Client[] = [
-  { id: '1', name: 'Ana Silva', channel: 'Meta Ads', totalSpent: 3940, cac: 180, ltv: 4200, margin: 62, status: 'Lucrativo', segment: 'Champions', lastPurchase: '21/02', churnProb: 8, purchases: [{ date: '21/02', product: 'Plano Pro Anual', value: 1764 }, { date: '10/01', product: 'Consultoria 1h', value: 350 }, { date: '05/12', product: 'Plano Pro Mensal', value: 197 }, { date: '03/11', product: 'Curso Digital', value: 297 }, { date: '02/08', product: 'Plano Starter', value: 97 }] },
-  { id: '2', name: 'João Mendes', channel: 'Direto', totalSpent: 2870, cac: 0, ltv: 3100, margin: 78, status: 'Lucrativo', segment: 'Champions', lastPurchase: '21/02', churnProb: 12, purchases: [{ date: '21/02', product: 'Consultoria 1h', value: 350 }, { date: '15/01', product: 'Plano Pro Mensal', value: 197 }, { date: '10/12', product: 'Consultoria 1h', value: 350 }, { date: '20/09', product: 'Plano Pro Anual', value: 1764 }] },
-  { id: '3', name: 'Pedro Lima', channel: 'Meta Ads', totalSpent: 3528, cac: 220, ltv: 3800, margin: 58, status: 'Lucrativo', segment: 'Champions', lastPurchase: '20/02', churnProb: 15, purchases: [{ date: '20/02', product: 'Plano Pro Anual', value: 1764 }, { date: '12/11', product: 'Plano Pro Anual', value: 1764 }] },
-  { id: '4', name: 'Mariana Costa', channel: 'Google Orgânico', totalSpent: 1188, cac: 0, ltv: 1400, margin: 71, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '19/02', churnProb: 22, purchases: [{ date: '19/02', product: 'Curso Digital', value: 297 }, { date: '15/01', product: 'Plano Pro Mensal', value: 197 }, { date: '10/12', product: 'Plano Starter', value: 97 }] },
-  { id: '5', name: 'Diego Santos', channel: 'Direto', totalSpent: 5292, cac: 0, ltv: 5800, margin: 82, status: 'Lucrativo', segment: 'Champions', lastPurchase: '17/02', churnProb: 5, purchases: [{ date: '17/02', product: 'Plano Pro Anual', value: 1764 }, { date: '10/11', product: 'Plano Pro Anual', value: 1764 }, { date: '08/08', product: 'Plano Pro Anual', value: 1764 }] },
-  { id: '6', name: 'Beatriz Alves', channel: 'Email', totalSpent: 1050, cac: 45, ltv: 1200, margin: 55, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '18/02', churnProb: 30, purchases: [{ date: '18/02', product: 'Consultoria 1h', value: 350 }, { date: '20/01', product: 'Plano Pro Mensal', value: 197 }, { date: '10/12', product: 'Plano Starter', value: 97 }] },
-  { id: '7', name: 'Fernanda Lima', channel: 'Google Orgânico', totalSpent: 591, cac: 0, ltv: 800, margin: 48, status: 'Payback', segment: 'Novos Promissores', lastPurchase: '16/02', churnProb: 35, purchases: [{ date: '16/02', product: 'Plano Pro Mensal', value: 197 }, { date: '10/01', product: 'Plano Pro Mensal', value: 197 }, { date: '05/12', product: 'Plano Starter', value: 97 }] },
-  { id: '8', name: 'Lucas Ferreira', channel: 'Google Ads', totalSpent: 291, cac: 310, ltv: 600, margin: 32, status: 'Payback', segment: 'Novos Promissores', lastPurchase: '18/02', churnProb: 42, purchases: [{ date: '18/02', product: 'Plano Starter', value: 97 }, { date: '20/01', product: 'Plano Starter', value: 97 }, { date: '10/12', product: 'Plano Starter', value: 97 }] },
-  { id: '9', name: 'Rafael Nunes', channel: 'Meta Ads', totalSpent: 394, cac: 280, ltv: 500, margin: 28, status: 'Payback', segment: 'Em Risco', lastPurchase: '14/01', churnProb: 68, purchases: [{ date: '14/01', product: 'Plano Pro Mensal', value: 197 }, { date: '10/12', product: 'Plano Pro Mensal', value: 197 }] },
-  { id: '10', name: 'Camila Rocha', channel: 'Meta Ads', totalSpent: 297, cac: 250, ltv: 400, margin: 22, status: 'Risco', segment: 'Em Risco', lastPurchase: '10/01', churnProb: 75, purchases: [{ date: '10/01', product: 'Curso Digital', value: 297 }] },
-  { id: '11', name: 'Thiago Oliveira', channel: 'Meta Ads', totalSpent: 197, cac: 195, ltv: 300, margin: 18, status: 'Risco', segment: 'Em Risco', lastPurchase: '15/01', churnProb: 80, purchases: [{ date: '15/01', product: 'Plano Pro Mensal', value: 197 }] },
-  { id: '12', name: 'Isabela Freitas', channel: 'Email', totalSpent: 591, cac: 55, ltv: 700, margin: 52, status: 'Payback', segment: 'Em Risco', lastPurchase: '05/01', churnProb: 72, purchases: [{ date: '05/01', product: 'Plano Pro Mensal', value: 197 }, { date: '10/11', product: 'Plano Pro Mensal', value: 197 }, { date: '05/09', product: 'Plano Pro Mensal', value: 197 }] },
-  { id: '13', name: 'Bruno Castro', channel: 'Google Ads', totalSpent: 291, cac: 320, ltv: 400, margin: 15, status: 'Risco', segment: 'Inativos', lastPurchase: '20/10', churnProb: 88, purchases: [{ date: '20/10', product: 'Plano Starter', value: 97 }, { date: '15/09', product: 'Plano Starter', value: 97 }] },
-  { id: '14', name: 'Laura Mendes', channel: 'Meta Ads', totalSpent: 594, cac: 200, ltv: 700, margin: 38, status: 'Payback', segment: 'Inativos', lastPurchase: '01/11', churnProb: 83, purchases: [{ date: '01/11', product: 'Curso Digital', value: 297 }, { date: '15/08', product: 'Curso Digital', value: 297 }] },
-  { id: '15', name: 'Carlos Pereira', channel: 'Direto', totalSpent: 1764, cac: 0, ltv: 2000, margin: 65, status: 'Lucrativo', segment: 'Inativos', lastPurchase: '20/10', churnProb: 60, purchases: [{ date: '20/10', product: 'Plano Pro Anual', value: 1764 }] },
-]
-
 const COHORT_DATA: Record<string, CohortRow[]> = {
   'Todos': [
     { month: 'Set/24', n: 42, r30: 85, r60: 72, r90: 61, r180: 48 },
@@ -252,9 +234,7 @@ const STATUS_FILTERS: Array<ClientStatus | 'Todos'> = ['Todos', 'Lucrativo', 'Pa
 const CHANNELS: Array<ClientChannel | 'Todos'> = ['Todos', 'Meta Ads', 'Google Ads', 'Google Orgânico', 'Email', 'Direto']
 const SEGMENTS: Array<RFMSegment | 'Todos'> = ['Todos', 'Champions', 'Em Risco', 'Novos Promissores', 'Inativos']
 
-function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
-  const [realClients, setRealClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
+function ClientList({ clients, loading, onSelect }: { clients: Client[], loading: boolean, onSelect: (c: Client) => void }) {
   const [statusFilter, setStatusFilter] = useState<ClientStatus | 'Todos'>('Todos')
   const [channelOpen, setChannelOpen] = useState(false)
   const [segmentOpen, setSegmentOpen] = useState(false)
@@ -264,33 +244,13 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
   const [page, setPage] = useState(0)
   const PAGE_SIZE = 6
 
-  useEffect(() => {
-    dataApi.getCustomers().then(res => {
-      const mapped = res.data.map((c: any) => ({
-        id: c.id,
-        name: c.name || c.email || 'Cliente',
-        channel: c.acquisition_channel || 'Direto',
-        totalSpent: Number(c.total_ltv),
-        cac: Number(c.cac || 0),
-        ltv: Number(c.total_ltv),
-        margin: Number(c.margin || 70),
-        status: c.total_ltv > 0 ? 'Lucrativo' : 'Payback',
-        segment: c.rfm_segment || 'Novos Promissores',
-        lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
-        purchases: [],
-        churnProb: Number(c.churn_probability || 0)
-      }))
-      setRealClients(mapped)
-    }).finally(() => setLoading(false))
-  }, [])
-
-  const filtered = useMemo(() => realClients.filter(c => {
+  const filtered = useMemo(() => clients.filter(c => {
     if (statusFilter !== 'Todos' && c.status !== statusFilter) return false
     if (channelFilter !== 'Todos' && c.channel !== channelFilter) return false
     if (segmentFilter !== 'Todos' && c.segment !== segmentFilter) return false
     if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
-  }), [statusFilter, channelFilter, segmentFilter, search])
+  }), [clients, statusFilter, channelFilter, segmentFilter, search])
 
   const paginated = useMemo(() => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [filtered, page])
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
@@ -474,7 +434,7 @@ const RFM_CONFIG: Record<RFMSegment, { label: string; sub: string; suggestion: s
   'Inativos': { label: 'Inativos', sub: 'Sem atividade há 90+ dias', suggestion: 'Campanha de winback' },
 }
 
-function RFMCards() {
+function RFMCards({ clients }: { clients: Client[] }) {
   const [activeIndex, setActiveIndex] = useState(0)
 
   const stats = useMemo(() => {
@@ -484,12 +444,12 @@ function RFMCards() {
       'Novos Promissores': { count: 0, revenue: 0 },
       'Inativos': { count: 0, revenue: 0 },
     }
-    CLIENTS.forEach(c => {
+    clients.forEach(c => {
       result[c.segment].count++
       result[c.segment].revenue += c.totalSpent
     })
     return result
-  }, [])
+  }, [clients])
 
   const segments: RFMSegment[] = ['Champions', 'Novos Promissores', 'Em Risco', 'Inativos']
 
@@ -797,6 +757,39 @@ function AIActions() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [realClients, setRealClients] = useState<Client[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    dataApi.getCustomers().then(res => {
+      const mapped = res.data.map((c: any) => ({
+        id: c.id,
+        name: c.name || c.email || 'Cliente',
+        channel: c.acquisition_channel || 'Direto',
+        totalSpent: Number(c.total_ltv),
+        cac: Number(c.cac || 0),
+        ltv: Number(c.total_ltv),
+        margin: Number(c.margin || 70),
+        status: (c.total_ltv > 0 ? 'Lucrativo' : 'Payback') as ClientStatus,
+        segment: (c.rfm_segment as RFMSegment) || 'Novos Promissores',
+        lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
+        purchases: [],
+        churnProb: Number(c.churn_probability || 0)
+      }))
+      setRealClients(mapped)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const kpis = useMemo(() => {
+    const total = realClients.length || 1
+    return {
+      ativos: realClients.length,
+      ltvMedio: realClients.reduce((sum, c) => sum + c.ltv, 0) / total,
+      churnMedio: realClients.reduce((sum, c) => sum + c.churnProb, 0) / total,
+      lucrativos: realClients.filter(c => c.status === 'Lucrativo').length,
+      payback: realClients.filter(c => c.status === 'Payback').length
+    }
+  }, [realClients])
 
   return (
     <div style={{ paddingTop: 28, paddingBottom: 80 }}>
@@ -818,11 +811,11 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
       >
         <DatePicker />
         <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
-          <KpiCard label="CLIENTES ATIVOS" value={847} decimals={0} delay={0.1} />
-          <KpiCard label="LTV MÉDIO" value={2340} prefix="R$ " decimals={0} delay={0.18} />
-          <KpiCard label="CHURN DO PERÍODO" value={4.7} suffix="%" decimals={1} delay={0.26} />
-          <KpiCard label="LUCRATIVOS" value={312} decimals={0} delay={0.34} />
-          <KpiCard label="EM PAYBACK" value={535} decimals={0} delay={0.42} />
+          <KpiCard label="CLIENTES ATIVOS" value={kpis.ativos} decimals={0} delay={0.1} />
+          <KpiCard label="LTV MÉDIO" value={kpis.ltvMedio} prefix="R$ " decimals={0} delay={0.18} />
+          <KpiCard label="CHURN MÉDIO" value={kpis.churnMedio} suffix="%" decimals={1} delay={0.26} />
+          <KpiCard label="LUCRATIVOS" value={kpis.lucrativos} decimals={0} delay={0.34} />
+          <KpiCard label="EM PAYBACK" value={kpis.payback} decimals={0} delay={0.42} />
         </div>
       </motion.div>
 
@@ -839,7 +832,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
         style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.25fr)', gap: 64, marginBottom: 64 }}
       >
         <CohortHeatmap />
-        <ClientList onSelect={setSelectedClient} />
+        <ClientList clients={realClients} loading={loading} onSelect={setSelectedClient} />
       </motion.div>
 
       {/* Divider */}
@@ -851,7 +844,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
         transition={{ duration: 0.5, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
         style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64 }}
       >
-        <RFMCards />
+        <RFMCards clients={realClients} />
         <AIActions />
       </motion.div>
 
