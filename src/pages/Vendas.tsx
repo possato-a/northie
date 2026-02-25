@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/KpiCard'
 import TopBar from '../components/TopBar'
 import DatePicker from '../components/DatePicker'
+import { dataApi } from '../lib/api'
+import { useEffect } from 'react'
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 type Status = 'Pago' | 'Pendente' | 'Reembolsado'
@@ -113,12 +115,31 @@ const STATUS_FILTERS: Array<Status | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'R
 const CHANNELS: Array<Channel | 'Todos'> = ['Todos', 'Meta Ads', 'Google Ads', 'Google Orgânico', 'Email', 'Direto']
 
 function TransactionList() {
+  const [realTransactions, setRealTransactions] = useState<Transaction[]>([])
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<Status | 'Todos'>('Todos')
   const [channelFilter, setChannelFilter] = useState<Channel | 'Todos'>('Todos')
   const [channelOpen, setChannelOpen] = useState(false)
   const [search, setSearch] = useState('')
 
-  const filtered = useMemo(() => TRANSACTIONS.filter(t => {
+  useEffect(() => {
+    dataApi.getTransactions().then(res => {
+      // Map backend fields to frontend Transaction type
+      const mapped = res.data.map((t: any) => ({
+        id: t.id,
+        date: new Date(t.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        client: t.customer_name || 'Desconhecido',
+        product: t.product_name || 'Produto Northie',
+        value: Number(t.amount_net),
+        method: t.payment_method || 'Cartão',
+        status: t.status === 'approved' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Reembolsado',
+        channel: t.acquisition_channel || 'Direto'
+      }))
+      setRealTransactions(mapped)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const filtered = useMemo(() => realTransactions.filter(t => {
     if (statusFilter !== 'Todos' && t.status !== statusFilter) return false
     if (channelFilter !== 'Todos' && t.channel !== channelFilter) return false
     if (search && !t.client.toLowerCase().includes(search.toLowerCase()) &&
@@ -256,7 +277,11 @@ function TransactionList() {
 
       {/* Rows */}
       <AnimatePresence mode="popLayout">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <motion.p key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
+            Carregando transações...
+          </motion.p>
+        ) : filtered.length === 0 ? (
           <motion.p
             key="empty"
             initial={{ opacity: 0 }}
@@ -399,7 +424,7 @@ function ProductRevenue() {
 // ── Checkout settings ─────────────────────────────────────────────────────────
 
 // ── Page ──────────────────────────────────────────────────────────────────────
-export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) {
+export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => void; user?: any }) {
   // Mock check for integrations
   const hasIntegrations = true
 
@@ -418,7 +443,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void }) 
           lineHeight: 1, margin: 0,
         }}
       >
-        Vendas
+        Vendas {user ? `- ${user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0]}` : ''}
       </motion.h1>
 
       {!hasIntegrations ? (

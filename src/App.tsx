@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar, { type Page } from './components/Sidebar'
 import Dashboard from './components/Dashboard'
@@ -9,13 +9,40 @@ import Criadores from './pages/Criadores'
 import AppStore from './pages/AppStore'
 import ChatSidebar from './components/ChatSidebar'
 import Login from './pages/Login'
+import { supabase } from './lib/supabase'
+import { Session } from '@supabase/supabase-js'
+import { setProfileId } from './lib/api'
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [session, setSession] = useState<Session | null>(null)
   const [activePage, setActivePage] = useState<Page>('visao-geral')
   const [collapsed, setCollapsed] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [isChatFull, setIsChatFull] = useState(false)
+
+  // 1. Check for current session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setIsLoggedIn(!!session)
+      if (session?.user?.id) {
+        setProfileId(session.user.id)
+      }
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      setIsLoggedIn(!!session)
+      if (session?.user?.id) {
+        setProfileId(session.user.id)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const sidebarWidth = collapsed ? 70 : 250
   const chatPadding = chatOpen && !isChatFull ? 380 : 0
@@ -75,12 +102,27 @@ export default function App() {
         }}
       >
         <div style={{ padding: '28px 64px 80px' }}>
-          {activePage === 'visao-geral' && <Dashboard onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'vendas' && <Vendas onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage === 'visao-geral' && (
+            <Dashboard
+              onToggleChat={() => setChatOpen(!chatOpen)}
+              user={session?.user}
+            />
+          )}
+          {activePage === 'vendas' && (
+            <Vendas
+              onToggleChat={() => setChatOpen(!chatOpen)}
+              user={session?.user}
+            />
+          )}
           {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'app-store' && <AppStore onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage === 'app-store' && (
+            <AppStore
+              onToggleChat={() => setChatOpen(!chatOpen)}
+              user={session?.user}
+            />
+          )}
           {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'app-store' && (
             <motion.div
               key={activePage}

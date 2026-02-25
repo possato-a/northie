@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/KpiCard'
 import TopBar from '../components/TopBar'
 import DatePicker from '../components/DatePicker'
+import { dataApi } from '../lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ClientStatus = 'Lucrativo' | 'Payback' | 'Risco'
@@ -252,6 +253,8 @@ const CHANNELS: Array<ClientChannel | 'Todos'> = ['Todos', 'Meta Ads', 'Google A
 const SEGMENTS: Array<RFMSegment | 'Todos'> = ['Todos', 'Champions', 'Em Risco', 'Novos Promissores', 'Inativos']
 
 function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
+  const [realClients, setRealClients] = useState<Client[]>([])
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<ClientStatus | 'Todos'>('Todos')
   const [channelOpen, setChannelOpen] = useState(false)
   const [segmentOpen, setSegmentOpen] = useState(false)
@@ -261,7 +264,27 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
   const [page, setPage] = useState(0)
   const PAGE_SIZE = 6
 
-  const filtered = useMemo(() => CLIENTS.filter(c => {
+  useEffect(() => {
+    dataApi.getCustomers().then(res => {
+      const mapped = res.data.map((c: any) => ({
+        id: c.id,
+        name: c.name || c.email || 'Cliente',
+        channel: c.acquisition_channel || 'Direto',
+        totalSpent: Number(c.total_ltv),
+        cac: Number(c.cac || 0),
+        ltv: Number(c.total_ltv),
+        margin: Number(c.margin || 70),
+        status: c.total_ltv > 0 ? 'Lucrativo' : 'Payback',
+        segment: c.rfm_segment || 'Novos Promissores',
+        lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
+        purchases: [],
+        churnProb: Number(c.churn_probability || 0)
+      }))
+      setRealClients(mapped)
+    }).finally(() => setLoading(false))
+  }, [])
+
+  const filtered = useMemo(() => realClients.filter(c => {
     if (statusFilter !== 'Todos' && c.status !== statusFilter) return false
     if (channelFilter !== 'Todos' && c.channel !== channelFilter) return false
     if (segmentFilter !== 'Todos' && c.segment !== segmentFilter) return false
@@ -366,7 +389,11 @@ function ClientList({ onSelect }: { onSelect: (c: Client) => void }) {
       {/* Rows */}
       <div style={{ minHeight: 360 }}>
         <AnimatePresence mode="popLayout" initial={false}>
-          {paginated.length === 0 ? (
+          {loading ? (
+            <motion.p key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
+              Carregando clientes...
+            </motion.p>
+          ) : filtered.length === 0 ? (
             <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
               Nenhum cliente encontrado
             </motion.p>

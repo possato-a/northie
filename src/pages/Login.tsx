@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../ThemeContext'
+import { supabase } from '../lib/supabase'
 
 type AuthView = 'login' | 'signup'
 
@@ -174,6 +175,26 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [focused, setFocused] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoading(true)
+        setError(null)
+
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        })
+
+        if (error) {
+            setError(error.message)
+            setLoading(false)
+        } else {
+            onLogin()
+        }
+    }
 
     const panelStyle: React.CSSProperties = {
         flex: '0 0 45%',
@@ -219,9 +240,14 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.18 }}
-                onSubmit={e => { e.preventDefault(); onLogin() }}
+                onSubmit={handleLogin}
                 style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
             >
+                {error && (
+                    <div style={{ padding: 12, borderRadius: 6, background: 'rgba(255,0,0,0.05)', color: '#ff4d4d', fontSize: 13, fontFamily: "'Poppins', sans-serif" }}>
+                        {error}
+                    </div>
+                )}
                 <div>
                     <label style={labelStyle}>Email *</label>
                     <input
@@ -232,6 +258,7 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                         onBlur={() => setFocused(null)}
                         placeholder="ex: voce@empresa.com"
                         style={getInputStyle(focused === 'email')}
+                        required
                     />
                 </div>
 
@@ -254,11 +281,12 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
 
                 <motion.button
                     type="submit"
-                    whileHover={{ opacity: 0.88 }}
-                    whileTap={{ scale: 0.982 }}
-                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 6, letterSpacing: '-0.1px' }}
+                    disabled={loading}
+                    whileHover={loading ? {} : { opacity: 0.88 }}
+                    whileTap={loading ? {} : { scale: 0.982 }}
+                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: loading ? 'default' : 'pointer', marginTop: 6, letterSpacing: '-0.1px', opacity: loading ? 0.7 : 1 }}
                 >
-                    Entrar
+                    {loading ? 'Entrando...' : 'Entrar'}
                 </motion.button>
             </motion.form>
 
@@ -286,14 +314,45 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
     )
 }
 
-// ── Signup Form ───────────────────────────────────────────────────────────────
-
 function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [confirm, setConfirm] = useState('')
     const [focused, setFocused] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const handleSignup = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (password !== confirm) {
+            setError('As senhas não coincidem')
+            return
+        }
+
+        setLoading(true)
+        setError(null)
+
+        const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    full_name: name
+                },
+                emailRedirectTo: window.location.origin
+            }
+        })
+
+        if (error) {
+            setError(error.message)
+            setLoading(false)
+        } else {
+            setLoading(false)
+            alert('Conta criada com sucesso! Verifique seu email para confirmar o cadastro.')
+            onSwitchToLogin()
+        }
+    }
 
     const panelStyle: React.CSSProperties = {
         flex: '0 0 45%',
@@ -339,9 +398,14 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.18 }}
-                onSubmit={e => e.preventDefault()}
+                onSubmit={handleSignup}
                 style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
             >
+                {error && (
+                    <div style={{ padding: 12, borderRadius: 6, background: 'rgba(255,0,0,0.05)', color: '#ff4d4d', fontSize: 13, fontFamily: "'Poppins', sans-serif" }}>
+                        {error}
+                    </div>
+                )}
                 {/* Nome */}
                 <div>
                     <label style={labelStyle}>Nome completo *</label>
@@ -353,6 +417,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                         onBlur={() => setFocused(null)}
                         placeholder="Ex: Lucas Montano"
                         style={getInputStyle(focused === 'name')}
+                        required
                     />
                 </div>
 
@@ -367,6 +432,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                         onBlur={() => setFocused(null)}
                         placeholder="ex: voce@empresa.com"
                         style={getInputStyle(focused === 'email')}
+                        required
                     />
                 </div>
 
@@ -401,11 +467,12 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
 
                 <motion.button
                     type="submit"
-                    whileHover={{ opacity: 0.88 }}
-                    whileTap={{ scale: 0.982 }}
-                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer', marginTop: 8, letterSpacing: '-0.1px' }}
+                    disabled={loading}
+                    whileHover={loading ? {} : { opacity: 0.88 }}
+                    whileTap={loading ? {} : { scale: 0.982 }}
+                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: loading ? 'default' : 'pointer', marginTop: 8, letterSpacing: '-0.1px', opacity: loading ? 0.7 : 1 }}
                 >
-                    Criar conta
+                    {loading ? 'Criando conta...' : 'Criar conta'}
                 </motion.button>
             </motion.form>
 

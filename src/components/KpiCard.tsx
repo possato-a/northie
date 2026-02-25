@@ -54,6 +54,10 @@ interface KpiCardProps {
   locale?: string
   decimals?: number
   delay?: number
+  // Keep these as optional for backward compatibility during transition
+  icon?: React.ReactNode
+  trend?: string
+  positive?: boolean
 }
 
 export function KpiCard({

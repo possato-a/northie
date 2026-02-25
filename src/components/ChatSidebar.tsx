@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AskNorthieIcon } from '../icons'
+import { aiApi } from '../lib/api'
 
 interface Message {
     id: string
@@ -127,7 +128,7 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
         }
     }, [messages, isThinking])
 
-    const handleSend = (text?: string) => {
+    const handleSend = async (text?: string) => {
         const messageText = text || input
         if (!messageText.trim()) return
 
@@ -137,30 +138,27 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
 
         setIsThinking(true)
 
-        // Mock AI Analysis Logic
-        setTimeout(() => {
-            setIsThinking(false)
+        try {
+            const response = await aiApi.chat(messageText)
+            const aiData = response.data
+
             const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
+                id: Date.now().toString(),
                 role: 'assistant',
-                content: `Baseado na sua solicitação sobre "${messageText}", identifiquei um padrão importante nos dados de ${context}:
-
-### Insight de Análise
-Atualmente, observamos uma tendência de crescimento estável, mas com um ponto de atenção no CAC.
-
-### Dados Relevantes
-\`\`\`
-Métrica       | Valor     | Delta (30d)
----------------------------------------
-Faturamento   | R$ 240k   | +12%
-CAC Médio     | R$ 310    | +8.4% (Subindo)
-LTV Médio     | R$ 2.340  | -2%
-\`\`\`
-
-**Ação Sugerida:** Reavaliar a alocação de budget no Meta Ads para reduzir o CAC sem comprometer o volume de novos clientes.`
+                content: aiData.content
             }
             setMessages(prev => [...prev, aiMsg])
-        }, 1800)
+        } catch (err) {
+            console.error('Error calling Northie AI:', err)
+            const errorMsg: Message = {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: 'Desculpe, tive um problema ao me conectar com meu cérebro. Verifique se o servidor está rodando.'
+            }
+            setMessages(prev => [...prev, errorMsg])
+        } finally {
+            setIsThinking(false)
+        }
     }
 
     return (

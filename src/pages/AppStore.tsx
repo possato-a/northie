@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/TopBar'
+import { supabase } from '../lib/supabase'
 
 // ── Types & Mock Data ────────────────────────────────────────────────────────
 
@@ -248,103 +249,6 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
     )
 }
 
-function DetailView({ plugin, onBack }: { plugin: Plugin; onBack: () => void }) {
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            style={{ width: '100%' }}
-        >
-            <button
-                onClick={onBack}
-                style={{
-                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(var(--fg-rgb),0.5)',
-                    display: 'flex', alignItems: 'center', gap: 8, padding: 0, marginBottom: 40,
-                    fontFamily: "'Poppins', sans-serif", fontSize: 14
-                }}
-            >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M10 13L5 8L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Voltar para a App Store
-            </button>
-
-            <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
-                <div style={{
-                    width: 120, height: 120, borderRadius: 24, background: plugin.iconColor,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF',
-                    fontSize: 48, fontWeight: 700, flexShrink: 0
-                }}>
-                    {plugin.name[0]}
-                </div>
-
-                <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                            <h1 style={{
-                                fontFamily: "'Poppins', sans-serif", fontSize: 32, fontWeight: 500, margin: 0,
-                                letterSpacing: '-1.2px', color: 'var(--fg)'
-                            }}>
-                                {plugin.name}
-                            </h1>
-                            <p style={{
-                                fontFamily: "'Poppins', sans-serif", fontSize: 18, color: 'rgba(var(--fg-rgb),0.5)',
-                                margin: '8px 0 0', fontWeight: 400
-                            }}>
-                                {plugin.description}
-                            </p>
-                        </div>
-                        <button
-                            style={{
-                                padding: '12px 32px', borderRadius: 8, border: 'none',
-                                background: plugin.status === 'Instalar' ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.05)',
-                                color: plugin.status === 'Instalar' ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.3)',
-                                fontSize: 14, fontWeight: 600, cursor: plugin.status === 'Instalar' ? 'pointer' : 'default',
-                                fontFamily: "'Poppins', sans-serif"
-                            }}
-                        >
-                            {plugin.status}
-                        </button>
-                    </div>
-
-                    <div style={{
-                        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40,
-                        marginTop: 48, padding: '32px 0', borderTop: '1px solid rgba(var(--fg-rgb),0.1)',
-                        borderBottom: '1px solid rgba(var(--fg-rgb),0.1)'
-                    }}>
-                        <Metric label="REVIEWS" value={plugin.reviews} sub="⭐⭐⭐⭐⭐" />
-                        <Metric label="INSTALLS" value={plugin.metricInstalls} sub="Mensalmente" />
-                        <Metric label="DESENVOLVIDO POR" value={plugin.developer} sub="Official Partner" />
-                        <Metric label="CATEGORIA" value={plugin.category} sub="Northie Store" />
-                    </div>
-
-                    <div style={{ marginTop: 48 }}>
-                        <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 500, marginBottom: 24 }}>
-                            Sobre o App
-                        </h2>
-                        <p style={{
-                            fontFamily: "'Poppins', sans-serif", fontSize: 16, lineHeight: 1.6,
-                            color: 'rgba(var(--fg-rgb),0.7)', marginBottom: 32
-                        }}>
-                            {plugin.fullDescription}
-                        </p>
-                        <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-                            Benefícios principais:
-                        </h3>
-                        <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 20 }}>
-                            {plugin.features.map((f, i) => (
-                                <li key={i} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 15, color: 'rgba(var(--fg-rgb),0.7)' }}>
-                                    {f}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </motion.div>
-    )
-}
 
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
     return (
@@ -364,21 +268,86 @@ function Metric({ label, value, sub }: { label: string; value: string; sub: stri
 
 // ── Main Page Component ─────────────────────────────────────────────────────
 
-export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }) {
+export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => void; user?: any }) {
     const [activeCategory, setActiveCategory] = useState<Category>('Todos')
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
+    const [installedPlugins, setInstalledPlugins] = useState<string[]>([])
+
+    // Fetch existing integrations from Supabase
+    useEffect(() => {
+        const fetchIntegrations = async () => {
+            const { data, error } = await supabase
+                .from('integrations')
+                .select('platform')
+                .eq('profile_id', user?.id)
+                .eq('status', 'active')
+
+            if (data && !error) {
+                const platforms = data.map((item: { platform: string }) =>
+                    item.platform === 'meta' ? 'meta-ads' : `${item.platform}-ads`
+                )
+                setInstalledPlugins(platforms)
+            }
+        }
+        fetchIntegrations()
+    }, [])
+
+    // Listen for OAuth success from popup
+    useEffect(() => {
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'NORTHIE_OAUTH_SUCCESS') {
+                const { platform } = event.data
+                const id = platform === 'meta' ? 'meta-ads' : `${platform}-ads`
+                setInstalledPlugins(prev => [...new Set([...prev, id])])
+            }
+        }
+        window.addEventListener('message', handleMessage)
+        return () => window.removeEventListener('message', handleMessage)
+    }, [])
 
     const categories: Category[] = ['Todos', 'Integrações', 'Marketing', 'Pagamentos', 'Fiscal', 'Em breve']
 
+    const currentPlugins = useMemo(() => {
+        return PLUGINS.map(p => ({
+            ...p,
+            status: installedPlugins.includes(p.id) ? 'Conectado' : p.status
+        }))
+    }, [installedPlugins])
+
     const filteredPlugins = useMemo(() => {
-        return PLUGINS.filter(p => {
+        return currentPlugins.filter(p => {
             const matchesCategory = activeCategory === 'Todos' || p.category === activeCategory
             const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 p.description.toLowerCase().includes(searchQuery.toLowerCase())
             return matchesCategory && matchesSearch
         })
-    }, [activeCategory, searchQuery])
+    }, [activeCategory, searchQuery, currentPlugins])
+
+    const handleInstall = (pluginId: string) => {
+        if (pluginId === 'meta-ads') {
+            const width = 600
+            const height = 700
+            const left = window.screen.width / 2 - width / 2
+            const top = window.screen.height / 2 - height / 2
+
+            const profileId = user?.id
+            const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
+
+            window.open(
+                `${baseUrl}/api/integrations/connect/meta?profileId=${profileId}`,
+                'NorthieMetaAuth',
+                `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+            )
+        } else {
+            alert('Esta integração estará disponível em breve.')
+        }
+    }
+
+    const currentSelectedPlugin = useMemo(() => {
+        if (!selectedPlugin) return null
+        return currentPlugins.find(p => p.id === selectedPlugin.id) || selectedPlugin
+    }, [selectedPlugin, currentPlugins])
 
     return (
         <div style={{ paddingTop: 28, paddingBottom: 80 }}>
@@ -386,8 +355,13 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
             {!selectedPlugin && <TopBar onToggleChat={onToggleChat} />}
 
             <AnimatePresence mode='wait'>
-                {selectedPlugin ? (
-                    <DetailView key="detail" plugin={selectedPlugin} onBack={() => setSelectedPlugin(null)} />
+                {currentSelectedPlugin ? (
+                    <DetailView
+                        key="detail"
+                        plugin={currentSelectedPlugin}
+                        onBack={() => setSelectedPlugin(null)}
+                        onInstall={() => handleInstall(currentSelectedPlugin.id)}
+                    />
                 ) : (
                     <motion.div
                         key="grid"
@@ -453,8 +427,8 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
                             {filteredPlugins.map(plugin => (
                                 <PluginCard
                                     key={plugin.id}
-                                    plugin={plugin}
-                                    onClick={() => setSelectedPlugin(plugin)}
+                                    plugin={plugin as Plugin}
+                                    onClick={() => setSelectedPlugin(plugin as Plugin)}
                                 />
                             ))}
                         </div>
@@ -471,5 +445,106 @@ export default function AppStore({ onToggleChat }: { onToggleChat?: () => void }
                 )}
             </AnimatePresence>
         </div>
+    )
+}
+
+// Wrapper for DetailView back and enable functional install
+function DetailView({ plugin, onBack, onInstall }: { plugin: Plugin | any; onBack: () => void; onInstall: () => void }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            style={{ width: '100%' }}
+        >
+            <button
+                onClick={onBack}
+                style={{
+                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(var(--fg-rgb),0.5)',
+                    display: 'flex', alignItems: 'center', gap: 8, padding: 0, marginBottom: 40,
+                    fontFamily: "'Poppins', sans-serif", fontSize: 14
+                }}
+            >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M10 13L5 8L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Voltar para a App Store
+            </button>
+
+            <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+                <div style={{
+                    width: 120, height: 120, borderRadius: 24, background: plugin.iconColor,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF',
+                    fontSize: 48, fontWeight: 700, flexShrink: 0
+                }}>
+                    {plugin.name[0]}
+                </div>
+
+                <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                            <h1 style={{
+                                fontFamily: "'Poppins', sans-serif", fontSize: 32, fontWeight: 500, margin: 0,
+                                letterSpacing: '-1.2px', color: 'var(--fg)'
+                            }}>
+                                {plugin.name}
+                            </h1>
+                            <p style={{
+                                fontFamily: "'Poppins', sans-serif", fontSize: 18, color: 'rgba(var(--fg-rgb),0.5)',
+                                margin: '8px 0 0', fontWeight: 400
+                            }}>
+                                {plugin.description}
+                            </p>
+                        </div>
+                        <button
+                            onClick={onInstall}
+                            disabled={plugin.status === 'Conectado'}
+                            style={{
+                                padding: '12px 32px', borderRadius: 8, border: 'none',
+                                background: plugin.status === 'Conectado' ? '#059669' : (plugin.status === 'Instalar' ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.05)'),
+                                color: (plugin.status === 'Instalar' || plugin.status === 'Conectado') ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.3)',
+                                fontSize: 14, fontWeight: 600, cursor: (plugin.status === 'Instalar' && plugin.status !== 'Conectado') ? 'pointer' : 'default',
+                                fontFamily: "'Poppins', sans-serif", transition: 'all 0.3s'
+                            }}
+                        >
+                            {plugin.status === 'Conectado' ? '✓ Conectado' : plugin.status}
+                        </button>
+                    </div>
+
+                    <div style={{
+                        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40,
+                        marginTop: 48, padding: '32px 0', borderTop: '1px solid rgba(var(--fg-rgb),0.1)',
+                        borderBottom: '1px solid rgba(var(--fg-rgb),0.1)'
+                    }}>
+                        <Metric label="REVIEWS" value={plugin.reviews} sub="⭐⭐⭐⭐⭐" />
+                        <Metric label="INSTALLS" value={plugin.metricInstalls} sub="Mensalmente" />
+                        <Metric label="DESENVOLVIDO POR" value={plugin.developer} sub="Official Partner" />
+                        <Metric label="CATEGORIA" value={plugin.category} sub="Northie Store" />
+                    </div>
+
+                    <div style={{ marginTop: 48 }}>
+                        <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 500, marginBottom: 24 }}>
+                            Sobre o App
+                        </h2>
+                        <p style={{
+                            fontFamily: "'Poppins', sans-serif", fontSize: 16, lineHeight: 1.6,
+                            color: 'rgba(var(--fg-rgb),0.7)', marginBottom: 32
+                        }}>
+                            {plugin.fullDescription}
+                        </p>
+                        <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
+                            Benefícios principais:
+                        </h3>
+                        <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 20 }}>
+                            {plugin.features.map((f: any, i: any) => (
+                                <li key={i} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 15, color: 'rgba(var(--fg-rgb),0.7)' }}>
+                                    {f}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
     )
 }
