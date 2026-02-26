@@ -265,6 +265,7 @@ async function upsertAdMetric(payload: AdMetricPayload): Promise<void> {
             platform: payload.platform,
             date: payload.date,
             spend_brl: payload.spendBrl,
+            spend_original: payload.spendBrl,
             impressions: payload.impressions,
             clicks: payload.clicks,
             account_id: payload.accountId,
