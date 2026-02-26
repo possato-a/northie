@@ -4,6 +4,12 @@ import * as IntegrationController from '../controllers/integration.controller.js
 const router = Router();
 
 /**
+ * @route GET /api/integrations/status
+ * @desc Returns active integrations for the current profile (x-profile-id)
+ */
+router.get('/status', IntegrationController.getIntegrationStatus);
+
+/**
  * @route GET /api/integrations/connect/:platform
  * @desc Start OAuth flow for a platform (meta, google, etc.)
  */
@@ -20,5 +26,11 @@ router.get('/callback/:platform', IntegrationController.handleCallback);
  * @desc Deactivate integration for a platform
  */
 router.post('/disconnect/:platform', IntegrationController.disconnectPlatform);
+
+/**
+ * @route POST /api/integrations/sync/:platform
+ * @desc Trigger immediate ad metrics sync. Body: { days?: number }
+ */
+router.post('/sync/:platform', IntegrationController.triggerSync);
 
 export default router;

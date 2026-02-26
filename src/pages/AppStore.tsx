@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
-import { supabase } from '../lib/supabase'
 import { integrationApi } from '../lib/api'
 import {
     PageHeader, SectionLabel,
@@ -274,26 +273,28 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
     const [installedPlugins, setInstalledPlugins] = useState<string[]>([])
+    const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null)
     const [webhookOpen, setWebhookOpen] = useState<Plugin | null>(null)
 
     useEffect(() => {
         const fetchIntegrations = async () => {
-            const { data, error } = await supabase
-                .from('integrations')
-                .select('platform')
-                .eq('profile_id', user?.id)
-                .eq('status', 'active')
-
-            if (data && !error) {
-                const platforms = data.map((item: { platform: string }) => {
-                    if (item.platform === 'meta') return 'meta-ads'
-                    if (item.platform === 'google') return 'google-ads'
-                    return item.platform
-                })
-                setInstalledPlugins(platforms)
+            try {
+                const { data } = await integrationApi.getStatus()
+                if (Array.isArray(data)) {
+                    const platforms = data
+                        .filter((item: { status: string }) => item.status === 'active')
+                        .map((item: { platform: string }) => {
+                            if (item.platform === 'meta') return 'meta-ads'
+                            if (item.platform === 'google') return 'google-ads'
+                            return item.platform
+                        })
+                    setInstalledPlugins(platforms)
+                }
+            } catch {
+                // silently ignore — user may not be logged in yet
             }
         }
-        fetchIntegrations()
+        if (user?.id) fetchIntegrations()
     }, [user?.id])
 
     useEffect(() => {
@@ -350,6 +351,19 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         }
     }
 
+    const handleSync = async (pluginId: string) => {
+        const platform = pluginId === 'meta-ads' ? 'meta' : pluginId.replace('-ads', '')
+        setSyncingPlatform(pluginId)
+        try {
+            await integrationApi.sync(platform, 30)
+            alert(`Sincronização dos últimos 30 dias iniciada para ${pluginId}. Os dados aparecerão em instantes.`)
+        } catch {
+            alert('Falha ao iniciar sincronização. Tente novamente.')
+        } finally {
+            setSyncingPlatform(null)
+        }
+    }
+
     const handleDisconnect = async (pluginId: string) => {
         if (!window.confirm(`Tem certeza que deseja desconectar o ${pluginId}?`)) return
 
@@ -382,6 +396,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         onBack={() => setSelectedPlugin(null)}
                         onInstall={() => handleInstall(currentSelectedPlugin.id)}
                         onDisconnect={() => handleDisconnect(currentSelectedPlugin.id)}
+                        onSync={() => handleSync(currentSelectedPlugin.id)}
+                        isSyncing={syncingPlatform === currentSelectedPlugin.id}
                     />
                 ) : (
                     <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -442,8 +458,16 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     )
 }
 
-function DetailView({ plugin, onBack, onInstall, onDisconnect }: { plugin: Plugin; onBack: () => void; onInstall: () => void; onDisconnect: () => void }) {
+function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, isSyncing }: {
+    plugin: Plugin
+    onBack: () => void
+    onInstall: () => void
+    onDisconnect: () => void
+    onSync: () => void
+    isSyncing: boolean
+}) {
     const isConnected = plugin.status === 'Conectado'
+    const supportsSync = ['meta-ads', 'google-ads'].includes(plugin.id)
 
     return (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
@@ -462,6 +486,13 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect }: { plugin: Plugi
                         >
                             {isConnected ? 'Conectado' : plugin.status}
                         </Btn>
+                        {isConnected && supportsSync && (
+                            <Btn variant="ghost" size="md" onClick={onSync} disabled={isSyncing}
+                                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>}
+                            >
+                                {isSyncing ? 'Sincronizando...' : 'Sincronizar agora'}
+                            </Btn>
+                        )}
                         {isConnected && (
                             <Btn variant="danger" size="md" onClick={onDisconnect}>
                                 Desconectar

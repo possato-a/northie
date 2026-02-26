@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
+import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -116,6 +117,13 @@ export async function handleCallback(req: Request, res: Response) {
 
         if (tokens.access_token) {
             await IntegrationService.saveIntegration(profileId as string, platform as string, tokens);
+
+            // Dispara backfill dos últimos 30 dias em background (não bloqueia o redirect)
+            if (platform === 'meta') {
+                backfillMetaAds(profileId as string, 30).catch(err =>
+                    console.error('[IntegrationController] Backfill Meta error:', err.message)
+                );
+            }
         }
 
         res.send(`
@@ -186,5 +194,62 @@ export async function disconnectPlatform(req: Request, res: Response) {
     } catch (error: any) {
         console.error('[IntegrationController] Disconnect Error:', error);
         res.status(500).json({ error: 'Failed to disconnect integration' });
+    }
+}
+
+/**
+ * Returns the list of active integrations for the current profile.
+ * Used by the frontend to check connection status on load.
+ */
+export async function getIntegrationStatus(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+
+    try {
+        const { data, error } = await supabase
+            .from('integrations')
+            .select('platform, status, last_sync_at')
+            .eq('profile_id', profileId);
+
+        if (error) throw error;
+
+        res.status(200).json(data ?? []);
+    } catch (error: any) {
+        res.status(500).json({ error: 'Failed to fetch integration status' });
+    }
+}
+
+/**
+ * Triggers an immediate ad metrics sync for a specific platform.
+ * POST /api/integrations/sync/:platform
+ * Accepts optional body: { days: number } to backfill N days (default: 2).
+ */
+export async function triggerSync(req: Request, res: Response) {
+    const { platform } = req.params;
+    const profileId = req.headers['x-profile-id'] as string;
+
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+
+    const days: number = Number(req.body?.days) || 2;
+
+    try {
+        if (platform === 'meta') {
+            // Run in background — respond immediately
+            backfillMetaAds(profileId, days).catch(err =>
+                console.error('[IntegrationController] triggerSync Meta error:', err.message)
+            );
+            return res.status(202).json({ message: `Meta Ads sync started for last ${days} days.` });
+        }
+
+        if (platform === 'all') {
+            runAdsSyncForAllProfiles().catch(err =>
+                console.error('[IntegrationController] triggerSync all error:', err.message)
+            );
+            return res.status(202).json({ message: 'Full sync started for all active integrations.' });
+        }
+
+        return res.status(400).json({ error: `Sync not supported for platform: ${platform}` });
+    } catch (error: any) {
+        res.status(500).json({ error: 'Failed to trigger sync' });
     }
 }

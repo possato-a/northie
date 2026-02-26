@@ -21,29 +21,66 @@ function yesterday(): string {
     return d.toISOString().split('T')[0]!;
 }
 
+function daysAgo(n: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().split('T')[0]!;
+}
+
 // ── Meta Ads Sync ─────────────────────────────────────────────────────────────
 
 /**
  * Busca métricas diárias de todas as ad accounts vinculadas ao token do perfil.
- * Usa o endpoint /me/adaccounts → /insights com granularidade diária.
+ * @param since  Data inicial no formato YYYY-MM-DD (default: ontem)
+ * @param until  Data final no formato YYYY-MM-DD (default: hoje)
  */
-async function syncMetaAds(profileId: string): Promise<void> {
+async function syncMetaAds(
+    profileId: string,
+    since = yesterday(),
+    until = today(),
+): Promise<void> {
     const tokens = await IntegrationService.getIntegration(profileId, 'meta');
     if (!tokens?.access_token) {
         console.log(`[AdsSync] Meta: no token for profile ${profileId}, skipping.`);
         return;
     }
 
-    const dateRange = { since: yesterday(), until: today() };
+    // Tenta renovar o token se estiver perto de expirar antes de fazer requests
+    let accessToken = tokens.access_token;
+    if (IntegrationService.isNearExpiry(tokens)) {
+        try {
+            const refreshed = await IntegrationService.refreshTokens(profileId, 'meta');
+            accessToken = refreshed.access_token;
+        } catch {
+            // refreshTokens já marca como inactive — apenas loga e para
+            console.error(`[AdsSync] Meta: token renewal failed for profile ${profileId}, aborting sync.`);
+            return;
+        }
+    }
+
+    const dateRange = { since, until };
 
     // 1. Listar ad accounts do usuário
-    const accountsRes = await axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
-        params: {
-            access_token: tokens.access_token,
-            fields: 'id,name',
-            limit: 50,
-        },
-    });
+    let accountsRes;
+    try {
+        accountsRes = await axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
+            params: { access_token: accessToken, fields: 'id,name', limit: 50 },
+        });
+    } catch (err: any) {
+        const fbError = err.response?.data?.error;
+        // Token inválido ou revogado
+        if (fbError?.code === 190) {
+            console.error(`[AdsSync] Meta: invalid/expired token for profile ${profileId} — marking inactive.`);
+            await supabase
+                .from('integrations')
+                .update({ status: 'inactive' })
+                .eq('profile_id', profileId)
+                .eq('platform', 'meta');
+        } else {
+            console.error(`[AdsSync] Meta: failed to list ad accounts for profile ${profileId}:`, fbError ?? err.message);
+        }
+        return;
+    }
 
     const accounts: Array<{ id: string; name: string }> = accountsRes.data?.data || [];
     if (accounts.length === 0) {
@@ -58,7 +95,7 @@ async function syncMetaAds(profileId: string): Promise<void> {
                 `https://graph.facebook.com/v18.0/${account.id}/insights`,
                 {
                     params: {
-                        access_token: tokens.access_token,
+                        access_token: accessToken,
                         fields: 'spend,impressions,clicks,date_start',
                         time_range: JSON.stringify(dateRange),
                         time_increment: 1, // 1 = por dia
@@ -93,6 +130,18 @@ async function syncMetaAds(profileId: string): Promise<void> {
             );
         }
     }
+}
+
+/**
+ * Backfill inicial: puxar os últimos `days` dias ao conectar pela primeira vez.
+ * Chamado pelo integration.controller após salvar os tokens com sucesso.
+ */
+export async function backfillMetaAds(profileId: string, days = 30): Promise<void> {
+    console.log(`[AdsSync] Meta backfill: fetching last ${days} days for profile ${profileId}`);
+    const since = daysAgo(days);
+    const until = today();
+    await syncMetaAds(profileId, since, until);
+    console.log(`[AdsSync] Meta backfill complete for profile ${profileId}`);
 }
 
 // ── Google Ads Sync ───────────────────────────────────────────────────────────

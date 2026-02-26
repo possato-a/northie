@@ -7,6 +7,7 @@ export interface OAuthTokens {
     access_token: string
     refresh_token?: string
     expires_in?: number
+    expires_at?: number   // Unix timestamp (ms) — calculado ao salvar
     token_type?: string
     scope?: string
 }

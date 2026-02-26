@@ -28,6 +28,7 @@ export const dashboardApi = {
 export const integrationApi = {
     getStatus: () => api.get('/integrations/status'),
     disconnect: (platform: string) => api.post(`/integrations/disconnect/${platform}`),
+    sync: (platform: string, days = 2) => api.post(`/integrations/sync/${platform}`, { days }),
 };
 
 export const campaignApi = {
