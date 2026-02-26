@@ -46,5 +46,6 @@ router.get('/retention', DashboardController.getRetentionCohort);
 router.get('/top-customers', DashboardController.getTopCustomers);
 router.get('/channel-trends', DashboardController.getChannelTrends);
 router.get('/ad-campaigns', DashboardController.getAdCampaigns);
+router.get('/ad-campaigns/:campaignId', DashboardController.getAdCampaignDetail);
 
 export default router;

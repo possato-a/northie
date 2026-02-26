@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import ChannelSparkline from '../components/charts/ChannelSparkline'
@@ -57,34 +57,280 @@ function ChartCard({ children }: { children: React.ReactNode }) {
 
 // ── Campaign status tag ────────────────────────────────────────────────────────
 
-function CampaignStatusTag({ status }: { status: string }) {
-    const isActive = status === 'Ativo'
+function StatusTag({ status }: { status: string }) {
+    const s = (status || '').toUpperCase()
+    let cls = 'tag tag-neutral'
+    if (s === 'ACTIVE') cls = 'tag tag-complete'
+    else if (s === 'PAUSED') cls = 'tag tag-neutral'
+    else if (s === 'ARCHIVED' || s === 'DELETED') cls = 'tag tag-critical'
+    const label = s === 'ACTIVE' ? 'Ativo' : s === 'PAUSED' ? 'Pausado' : s === 'ARCHIVED' ? 'Arquivado' : status
+    return <span className={cls}>{label}</span>
+}
+
+// ── Table grid columns ────────────────────────────────────────────────────────
+// Name | Status | Spend | Impressions | Reach | Clicks | CTR | CPC | CPM | Freq
+const GRID = 'minmax(200px,1fr) 80px 90px 90px 80px 70px 60px 70px 70px 60px'
+
+function MetricCell({ value, format = 'num' }: { value: number; format?: 'brl' | 'num' | 'pct' | 'x' }) {
+    if (value == null || isNaN(value) || value === 0) {
+        return (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', textAlign: 'right' }}>
+                —
+            </span>
+        )
+    }
+    let text = ''
+    if (format === 'brl') text = `R$ ${fmtBR(value)}`
+    else if (format === 'pct') text = `${value.toFixed(2)}%`
+    else if (format === 'x') text = `${value.toFixed(2)}x`
+    else text = value >= 1000 ? fmtBR(value) : value.toString()
     return (
-        <span className={isActive ? 'tag tag-complete' : 'tag tag-neutral'}>
-            {status}
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+            {text}
         </span>
+    )
+}
+
+// ── Expandable campaign row ───────────────────────────────────────────────────
+
+function CampaignRow({ camp, days }: { camp: any; days: number }) {
+    const [expanded, setExpanded] = useState(false)
+    const [detail, setDetail] = useState<{ adsets: any[]; ads: any[] } | null>(null)
+    const [loadingDetail, setLoadingDetail] = useState(false)
+    const [expandedAdsets, setExpandedAdsets] = useState<Set<string>>(new Set())
+
+    const toggle = async () => {
+        if (!expanded && !detail) {
+            setLoadingDetail(true)
+            try {
+                const res = await dashboardApi.getAdCampaignDetail(camp.campaign_id, days)
+                setDetail(res.data)
+            } catch (err) {
+                console.error('Failed to load campaign detail:', err)
+                setDetail({ adsets: [], ads: [] })
+            } finally {
+                setLoadingDetail(false)
+            }
+        }
+        setExpanded(v => !v)
+    }
+
+    const toggleAdset = (adsetId: string) => {
+        setExpandedAdsets(prev => {
+            const next = new Set(prev)
+            if (next.has(adsetId)) next.delete(adsetId)
+            else next.add(adsetId)
+            return next
+        })
+    }
+
+    return (
+        <>
+            {/* Campaign row */}
+            <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25 }}
+                className="notion-row"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: GRID,
+                    gap: '0 12px',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                }}
+                onClick={toggle}
+            >
+                {/* Name with chevron */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                    <motion.span
+                        animate={{ rotate: expanded ? 90 : 0 }}
+                        transition={{ duration: 0.18 }}
+                        style={{ color: 'var(--color-text-tertiary)', fontSize: 12, flexShrink: 0, lineHeight: 1 }}
+                    >
+                        ▶
+                    </motion.span>
+                    <span style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-base)',
+                        fontWeight: 500,
+                        color: 'var(--color-text-primary)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                    }}>
+                        {camp.campaign_name}
+                    </span>
+                </div>
+
+                <div><StatusTag status={camp.status} /></div>
+                <MetricCell value={camp.spend_brl} format="brl" />
+                <MetricCell value={camp.impressions} format="num" />
+                <MetricCell value={camp.reach} format="num" />
+                <MetricCell value={camp.clicks} format="num" />
+                <MetricCell value={camp.ctr} format="pct" />
+                <MetricCell value={camp.cpc_brl} format="brl" />
+                <MetricCell value={camp.cpm_brl} format="brl" />
+                <MetricCell value={camp.frequency} format="x" />
+            </motion.div>
+
+            {/* Adsets */}
+            <AnimatePresence>
+                {expanded && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        {loadingDetail ? (
+                            <div style={{
+                                paddingLeft: 36,
+                                paddingTop: 8,
+                                paddingBottom: 8,
+                                fontFamily: 'var(--font-sans)',
+                                fontSize: 'var(--text-sm)',
+                                color: 'var(--color-text-tertiary)',
+                            }}>
+                                Carregando conjuntos...
+                            </div>
+                        ) : (detail?.adsets || []).map(adset => {
+                            const adsetExpanded = expandedAdsets.has(adset.adset_id)
+                            const adsForAdset = (detail?.ads || []).filter(a => a.adset_id === adset.adset_id)
+                            return (
+                                <div key={adset.adset_id}>
+                                    {/* Adset row */}
+                                    <div
+                                        className="notion-row"
+                                        style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: GRID,
+                                            gap: '0 12px',
+                                            alignItems: 'center',
+                                            cursor: adsForAdset.length > 0 ? 'pointer' : 'default',
+                                            background: 'var(--color-bg-secondary)',
+                                        }}
+                                        onClick={() => adsForAdset.length > 0 && toggleAdset(adset.adset_id)}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 28, overflow: 'hidden' }}>
+                                            {adsForAdset.length > 0 ? (
+                                                <motion.span
+                                                    animate={{ rotate: adsetExpanded ? 90 : 0 }}
+                                                    transition={{ duration: 0.15 }}
+                                                    style={{ color: 'var(--color-text-tertiary)', fontSize: 10, flexShrink: 0 }}
+                                                >
+                                                    ▶
+                                                </motion.span>
+                                            ) : (
+                                                <span style={{ width: 10, flexShrink: 0 }} />
+                                            )}
+                                            <span style={{
+                                                fontFamily: 'var(--font-sans)',
+                                                fontSize: 'var(--text-sm)',
+                                                color: 'var(--color-text-secondary)',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                {adset.adset_name}
+                                            </span>
+                                        </div>
+                                        <div><StatusTag status={adset.status} /></div>
+                                        <MetricCell value={adset.spend_brl} format="brl" />
+                                        <MetricCell value={adset.impressions} format="num" />
+                                        <MetricCell value={adset.reach} format="num" />
+                                        <MetricCell value={adset.clicks} format="num" />
+                                        <MetricCell value={adset.ctr} format="pct" />
+                                        <MetricCell value={adset.cpc_brl} format="brl" />
+                                        <MetricCell value={adset.cpm_brl} format="brl" />
+                                        <MetricCell value={adset.frequency} format="x" />
+                                    </div>
+
+                                    {/* Ads */}
+                                    <AnimatePresence>
+                                        {adsetExpanded && adsForAdset.map(ad => (
+                                            <motion.div
+                                                key={ad.ad_id}
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                transition={{ duration: 0.15 }}
+                                                style={{ overflow: 'hidden' }}
+                                            >
+                                                <div
+                                                    className="notion-row"
+                                                    style={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: GRID,
+                                                        gap: '0 12px',
+                                                        alignItems: 'center',
+                                                        cursor: 'default',
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 56, overflow: 'hidden' }}>
+                                                        <span style={{ color: 'var(--color-text-tertiary)', fontSize: 10, flexShrink: 0 }}>◦</span>
+                                                        <span style={{
+                                                            fontFamily: 'var(--font-sans)',
+                                                            fontSize: 'var(--text-xs)',
+                                                            color: 'var(--color-text-tertiary)',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {ad.ad_name}
+                                                        </span>
+                                                    </div>
+                                                    <div><StatusTag status={ad.status} /></div>
+                                                    <MetricCell value={ad.spend_brl} format="brl" />
+                                                    <MetricCell value={ad.impressions} format="num" />
+                                                    <MetricCell value={ad.reach} format="num" />
+                                                    <MetricCell value={ad.clicks} format="num" />
+                                                    <MetricCell value={ad.ctr} format="pct" />
+                                                    <MetricCell value={ad.cpc_brl} format="brl" />
+                                                    <MetricCell value={ad.cpm_brl} format="brl" />
+                                                    <MetricCell value={ad.frequency} format="x" />
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
+                                </div>
+                            )
+                        })}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </>
     )
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+const PERIOD_OPTIONS = [
+    { label: '7d', value: 7 },
+    { label: '30d', value: 30 },
+    { label: '90d', value: 90 },
+    { label: 'Tudo', value: 0 },
+]
+
 export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) {
     const [performance, setPerformance] = useState<any[]>([])
     const [trends, setTrends] = useState<any>(null)
     const [campaigns, setCampaigns] = useState<any[]>([])
-    const [loading, setLoading] = useState(true)
+    const [, setLoading] = useState(true)
+    const [periodDays, setPeriodDays] = useState(30)
+    const [campaignsLoading, setCampaignsLoading] = useState(false)
 
+    // Fetch static data once
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [perfRes, trendsRes, campsRes] = await Promise.all([
+                const [perfRes, trendsRes] = await Promise.all([
                     dashboardApi.getAttribution(),
                     dashboardApi.getChannelTrends(),
-                    dashboardApi.getAdCampaigns(),
                 ])
                 setPerformance(perfRes.data)
                 setTrends(trendsRes.data)
-                setCampaigns(campsRes.data)
             } catch (error) {
                 console.error('Failed to fetch channel data:', error)
             } finally {
@@ -93,6 +339,22 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
         }
         fetchData()
     }, [])
+
+    // Fetch campaigns when period changes
+    useEffect(() => {
+        const fetchCampaigns = async () => {
+            setCampaignsLoading(true)
+            try {
+                const res = await dashboardApi.getAdCampaigns(periodDays)
+                setCampaigns(res.data)
+            } catch (error) {
+                console.error('Failed to fetch campaigns:', error)
+            } finally {
+                setCampaignsLoading(false)
+            }
+        }
+        fetchCampaigns()
+    }, [periodDays])
 
     const totals = useMemo(() =>
         performance.reduce((acc: any, curr: any) => ({
@@ -326,83 +588,81 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 </div>
             </div>
 
-            {/* Campanhas Ativas */}
+            {/* Campanhas */}
             <div style={{ marginTop: 56 }}>
-                <SectionLabel>Campanhas Ativas</SectionLabel>
+                {/* Header row: label + period filters */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <p style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        color: 'var(--color-text-secondary)',
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
+                        margin: 0,
+                    }}>
+                        Campanhas
+                    </p>
 
-                {loading ? (
-                    <div style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)' }}>
+                    {/* Period filter pills */}
+                    <div style={{ display: 'flex', gap: 4 }}>
+                        {PERIOD_OPTIONS.map(opt => (
+                            <button
+                                key={opt.value}
+                                onClick={() => setPeriodDays(opt.value)}
+                                style={{
+                                    fontFamily: 'var(--font-sans)',
+                                    fontSize: 'var(--text-xs)',
+                                    fontWeight: 500,
+                                    padding: '4px 10px',
+                                    borderRadius: 6,
+                                    border: '1px solid',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s',
+                                    background: periodDays === opt.value ? 'var(--color-text-primary)' : 'transparent',
+                                    color: periodDays === opt.value ? 'var(--color-bg-primary)' : 'var(--color-text-tertiary)',
+                                    borderColor: periodDays === opt.value ? 'var(--color-text-primary)' : 'var(--color-border)',
+                                }}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {campaignsLoading ? (
+                    <div style={{ color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', paddingTop: 12 }}>
                         Carregando campanhas...
                     </div>
                 ) : campaigns.length === 0 ? (
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-tertiary)' }}>
-                        Nenhuma campanha ativa encontrada.
+                        Nenhuma campanha encontrada no período.
                     </p>
                 ) : (
-                    /* Table layout — mais Notion que cards */
                     <>
-                        {/* Header */}
+                        {/* Table header */}
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: '1fr 120px 100px 90px 90px',
-                            gap: '0 16px',
+                            gridTemplateColumns: GRID,
+                            gap: '0 12px',
                             paddingBottom: 10,
                             borderBottom: '1px solid var(--color-border)',
                             marginBottom: 2,
                         }}>
                             <TH>Campanha</TH>
-                            <TH>Plataforma</TH>
-                            <TH align="right">Gasto Hoje</TH>
-                            <TH align="right">ROAS</TH>
-                            <TH align="right">Status</TH>
+                            <TH>Status</TH>
+                            <TH align="right">Gasto</TH>
+                            <TH align="right">Impressões</TH>
+                            <TH align="right">Alcance</TH>
+                            <TH align="right">Cliques</TH>
+                            <TH align="right">CTR</TH>
+                            <TH align="right">CPC</TH>
+                            <TH align="right">CPM</TH>
+                            <TH align="right">Freq.</TH>
                         </div>
 
-                        {campaigns.map((camp, i) => (
-                            <motion.div
-                                key={camp.id}
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3, delay: i * 0.05 + 0.3 }}
-                                className="notion-row"
-                                style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 120px 100px 90px 90px',
-                                    gap: '0 16px',
-                                    alignItems: 'center',
-                                    cursor: 'default',
-                                }}
-                                onHoverStart={e => (e.target as HTMLElement).style.background = 'var(--color-bg-secondary)'}
-                                onHoverEnd={e => (e.target as HTMLElement).style.background = 'transparent'}
-                            >
-                                <span style={{
-                                    fontFamily: 'var(--font-sans)',
-                                    fontSize: 'var(--text-base)',
-                                    fontWeight: 400,
-                                    color: 'var(--color-text-primary)',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                }}>
-                                    {camp.name}
-                                </span>
-                                <span className="tag tag-neutral" style={{ fontFamily: 'var(--font-sans)', width: 'fit-content' }}>
-                                    {camp.platform}
-                                </span>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
-                                    R$ {camp.spendToday.toFixed(2)}
-                                </span>
-                                <span style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: 'var(--text-sm)',
-                                    textAlign: 'right',
-                                    color: camp.roasToday > 3 ? 'var(--status-complete)' : camp.roasToday > 0 ? 'var(--status-planning)' : 'var(--color-text-tertiary)',
-                                }}>
-                                    {camp.roasToday > 0 ? `${camp.roasToday}x` : '—'}
-                                </span>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                    <CampaignStatusTag status={camp.status} />
-                                </div>
-                            </motion.div>
+                        {campaigns.map(camp => (
+                            <CampaignRow key={camp.campaign_id} camp={camp} days={periodDays} />
                         ))}
                     </>
                 )}

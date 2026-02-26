@@ -395,50 +395,161 @@ export async function getChannelTrends(req: Request, res: Response) {
 }
 
 /**
- * Returns latest ad campaigns from ad_metrics
+ * Returns campaigns aggregated by campaign_id for a given period.
+ * Query param: days (default 30). Use days=0 for all-time.
  */
 export async function getAdCampaigns(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    const days = Number(req.query.days ?? 30);
 
     try {
-        // Since we don't have a lookup table for ad names yet (MVP),
-        // we show the platforms aggregate spend today.
-        // In a real scenario, we'd fetch from Meta/Google API or normalized cache.
-        const today = new Date().toISOString().split('T')[0];
-
-        const { data: metrics } = await supabase
-            .from('ad_metrics')
-            .select('platform, spend_brl, impressions, clicks')
+        let query = supabase
+            .from('ad_campaigns')
+            .select('campaign_id, campaign_name, platform, account_name, status, date, spend_brl, impressions, reach, clicks, ctr, cpc_brl, cpm_brl, frequency')
             .eq('profile_id', profileId)
-            .eq('date', today);
+            .eq('level', 'campaign')
+            .order('date', { ascending: false });
 
-        // Attributed sales today per platform
-        const { data: txs } = await supabase
-            .from('transactions')
-            .select('platform, amount_net')
-            .eq('profile_id', profileId)
-            .eq('status', 'approved')
-            .gte('created_at', today + 'T00:00:00Z');
+        if (days > 0) {
+            const since = new Date();
+            since.setDate(since.getDate() - days);
+            query = query.gte('date', since.toISOString().split('T')[0]);
+        }
 
-        const campaigns = ['meta', 'google'].map(p => {
-            const m = metrics?.find(m => m.platform === p);
-            const pTxs = txs?.filter(t => t.platform === p) || [];
-            const revenue = pTxs.reduce((sum, t) => sum + Number(t.amount_net), 0);
-            const spend = Number(m?.spend_brl || 0);
+        const { data, error } = await query;
+        if (error) throw error;
 
-            return {
-                id: p,
-                name: p === 'meta' ? 'Meta Ads Portfolio' : 'Google Ads Portfolio',
-                platform: p === 'meta' ? 'Meta' : 'Google',
-                spendToday: spend,
-                roasToday: spend > 0 ? Number((revenue / spend).toFixed(2)) : 0,
-                status: 'Ativo'
-            };
-        });
+        // Aggregate by campaign_id
+        const map: Record<string, any> = {};
+        for (const row of data || []) {
+            if (!map[row.campaign_id]) {
+                map[row.campaign_id] = {
+                    campaign_id: row.campaign_id,
+                    campaign_name: row.campaign_name,
+                    platform: row.platform,
+                    account_name: row.account_name,
+                    status: row.status,
+                    spend_brl: 0,
+                    impressions: 0,
+                    reach: 0,
+                    clicks: 0,
+                    ctr: 0,
+                    cpc_brl: 0,
+                    cpm_brl: 0,
+                    frequency: 0,
+                    days_count: 0,
+                };
+            }
+            const c = map[row.campaign_id];
+            c.spend_brl += Number(row.spend_brl);
+            c.impressions += Number(row.impressions);
+            c.reach += Number(row.reach);
+            c.clicks += Number(row.clicks);
+            c.days_count += 1;
+            // Keep latest status
+            if (row.status) c.status = row.status;
+        }
 
-        res.status(200).json(campaigns);
+        // Recalculate derived metrics from aggregates
+        const result = Object.values(map).map((c: any) => ({
+            ...c,
+            ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0,
+            cpc_brl: c.clicks > 0 ? Number((c.spend_brl / c.clicks).toFixed(2)) : 0,
+            cpm_brl: c.impressions > 0 ? Number((c.spend_brl / c.impressions * 1000).toFixed(2)) : 0,
+            spend_brl: Number(c.spend_brl.toFixed(2)),
+        })).sort((a, b) => b.spend_brl - a.spend_brl);
+
+        res.status(200).json(result);
     } catch (error: any) {
         console.error('Ad Campaigns Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
+ * Returns adsets and ads for a specific campaign.
+ * GET /dashboard/ad-campaigns/:campaignId?days=30
+ */
+export async function getAdCampaignDetail(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    const { campaignId } = req.params;
+    const days = Number(req.query.days ?? 30);
+
+    try {
+        let query = supabase
+            .from('ad_campaigns')
+            .select('campaign_id, adset_id, adset_name, ad_id, ad_name, platform, level, status, date, spend_brl, impressions, reach, clicks, ctr, cpc_brl, cpm_brl, frequency')
+            .eq('profile_id', profileId)
+            .eq('campaign_id', campaignId)
+            .in('level', ['adset', 'ad'])
+            .order('date', { ascending: false });
+
+        if (days > 0) {
+            const since = new Date();
+            since.setDate(since.getDate() - days);
+            query = query.gte('date', since.toISOString().split('T')[0]);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        // Aggregate adsets
+        const adsets: Record<string, any> = {};
+        const ads: Record<string, any> = {};
+
+        for (const row of data || []) {
+            if (row.level === 'adset' && row.adset_id) {
+                if (!adsets[row.adset_id]) {
+                    adsets[row.adset_id] = {
+                        adset_id: row.adset_id,
+                        adset_name: row.adset_name,
+                        campaign_id: row.campaign_id,
+                        status: row.status,
+                        spend_brl: 0, impressions: 0, reach: 0, clicks: 0,
+                    };
+                }
+                const a = adsets[row.adset_id];
+                a.spend_brl += Number(row.spend_brl);
+                a.impressions += Number(row.impressions);
+                a.reach += Number(row.reach);
+                a.clicks += Number(row.clicks);
+                if (row.status) a.status = row.status;
+            }
+
+            if (row.level === 'ad' && row.ad_id) {
+                if (!ads[row.ad_id]) {
+                    ads[row.ad_id] = {
+                        ad_id: row.ad_id,
+                        ad_name: row.ad_name,
+                        adset_id: row.adset_id,
+                        campaign_id: row.campaign_id,
+                        status: row.status,
+                        spend_brl: 0, impressions: 0, reach: 0, clicks: 0,
+                    };
+                }
+                const a = ads[row.ad_id];
+                a.spend_brl += Number(row.spend_brl);
+                a.impressions += Number(row.impressions);
+                a.reach += Number(row.reach);
+                a.clicks += Number(row.clicks);
+                if (row.status) a.status = row.status;
+            }
+        }
+
+        const finalize = (item: any) => ({
+            ...item,
+            spend_brl: Number(item.spend_brl.toFixed(2)),
+            ctr: item.impressions > 0 ? Number(((item.clicks / item.impressions) * 100).toFixed(2)) : 0,
+            cpc_brl: item.clicks > 0 ? Number((item.spend_brl / item.clicks).toFixed(2)) : 0,
+            cpm_brl: item.impressions > 0 ? Number((item.spend_brl / item.impressions * 1000).toFixed(2)) : 0,
+        });
+
+        res.status(200).json({
+            adsets: Object.values(adsets).map(finalize).sort((a, b) => b.spend_brl - a.spend_brl),
+            ads: Object.values(ads).map(finalize).sort((a, b) => b.spend_brl - a.spend_brl),
+        });
+    } catch (error: any) {
+        console.error('Ad Campaign Detail Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }
