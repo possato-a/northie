@@ -8,5 +8,6 @@ const router = Router();
  * @desc Ask Northie for insights
  */
 router.post('/chat', AIController.handleChatMessage);
+router.delete('/history', AIController.clearChatHistory);
 
 export default router;

@@ -16,6 +16,7 @@ export interface ChatContext {
     profileId: string;
     stats?: any;
     attribution?: any;
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export async function generateAIResponse(message: string, context: ChatContext) {
@@ -25,9 +26,10 @@ export async function generateAIResponse(message: string, context: ChatContext) 
     const systemPrompt = `
 You are Northie, a highly strategic and elite business AI for founders and CEOs.
 Your goal is to provide blunt, data-driven, and actionable insights based on the workspace stats.
+Always respond in Brazilian Portuguese (pt-BR).
 
 Current workspace data for Profile ID ${context.profileId}:
-- Total Approved Revenue: ${context.stats?.total_revenue} ${context.stats?.currency}
+- Total Approved Revenue: R$ ${(context.stats?.total_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 - Total Customers: ${context.stats?.total_customers}
 - Channel Attribution (Last Click): ${JSON.stringify(context.attribution)}
 
@@ -36,16 +38,21 @@ Rules:
 2. If one channel dominates (e.g. Meta Ads), remind them about platform risk.
 3. Be professional but direct. No fluff.
 4. Use Markdown for formatting.
+5. Maintain continuity — you have access to the recent conversation history.
     `.trim();
+
+    // 2. Montar mensagens com histórico + mensagem atual
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+        ...(context.history || []),
+        { role: 'user', content: message },
+    ];
 
     try {
         const response = await anthropic.messages.create({
             model: 'claude-3-haiku-20240307',
             max_tokens: 1024,
             system: systemPrompt,
-            messages: [
-                { role: 'user', content: message }
-            ],
+            messages,
         });
 
         const content = response.content[0];

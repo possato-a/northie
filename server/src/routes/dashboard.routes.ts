@@ -27,4 +27,24 @@ router.get('/growth', DashboardController.getGrowthMetrics);
  */
 router.get('/chart', DashboardController.getRevenueChart);
 
+/**
+ * @route GET /api/dashboard/heatmap
+ * @desc Daily sales intensity
+ */
+router.get('/heatmap', DashboardController.getSalesHeatmap);
+
+/**
+ * @route GET /api/dashboard/retention
+ * @desc Cohort retention data
+ */
+router.get('/retention', DashboardController.getRetentionCohort);
+
+/**
+ * @route GET /api/dashboard/top-customers
+ * @desc Top customers by LTV
+ */
+router.get('/top-customers', DashboardController.getTopCustomers);
+router.get('/channel-trends', DashboardController.getChannelTrends);
+router.get('/ad-campaigns', DashboardController.getAdCampaigns);
+
 export default router;

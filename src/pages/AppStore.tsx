@@ -1,7 +1,12 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import TopBar from '../components/TopBar'
+import TopBar from '../components/layout/TopBar'
 import { supabase } from '../lib/supabase'
+import { integrationApi } from '../lib/api'
+import {
+    PageHeader, SectionLabel,
+    Btn, Modal, EmptyState, FilterPills, Input
+} from '../components/ui/shared'
 
 // ── Types & Mock Data ────────────────────────────────────────────────────────
 
@@ -14,12 +19,13 @@ interface Plugin {
     description: string
     fullDescription: string
     installCount: string
-    status: 'Instalar' | 'Em breve'
+    status: 'Instalar' | 'Em breve' | 'Conectado'
     iconColor: string
     developer: string
     reviews: string
     metricInstalls: string
     features: string[]
+    logoUrl?: string
 }
 
 const PLUGINS: Plugin[] = [
@@ -27,11 +33,12 @@ const PLUGINS: Plugin[] = [
         id: 'meta-ads',
         name: 'Meta Ads',
         category: 'Integrações',
-        description: 'Conecte sua conta e acompanhe gastos, ROAS e CAC em tempo real dentro da Northie.',
+        description: 'Conecte sua conta e acompanhe gastos, ROAS e CAC em tempo real.',
         fullDescription: 'O Meta Ads é a integração oficial para rastreamento de conversões em campanhas do Facebook e Instagram Ads.',
         installCount: '5.410 instalaram nos últimos 7 dias',
         status: 'Instalar',
-        iconColor: '#0064E0',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-meta.png',
         developer: '@northie',
         reviews: '5.0',
         metricInstalls: '12k+',
@@ -44,14 +51,35 @@ const PLUGINS: Plugin[] = [
         ]
     },
     {
+        id: 'google-ads',
+        name: 'Google Ads',
+        category: 'Integrações',
+        description: 'Acompanhe performance e CAC das suas campanhas do Google.',
+        fullDescription: 'Análise detalhada de Search, Display e YouTube Ads.',
+        installCount: '2.800 instalaram nos últimos 7 dias',
+        status: 'Instalar',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-googleads.png',
+        developer: '@northie',
+        reviews: '4.9',
+        metricInstalls: '4k+',
+        features: [
+            'Sincronização de custos de campanhas',
+            'Atribuição de conversões via GCLID',
+            'Cálculo de ROAS por palavra-chave',
+            'Monitoramento de CTR e CPC'
+        ]
+    },
+    {
         id: 'hotmart',
         name: 'Hotmart',
         category: 'Integrações',
         description: 'Importe histórico de vendas e clientes automaticamente.',
-        fullDescription: 'Sincronize sua conta Hotmart para ter uma visão consolidada de suas vendas de infoprodutos diretamente na Northie.',
+        fullDescription: 'Sincronize sua conta Hotmart para ter uma visão consolidada de suas vendas de infoprodutos.',
         installCount: '3.200 instalaram nos últimos 7 dias',
         status: 'Instalar',
         iconColor: '#F04E23',
+        logoUrl: '/logos/logo-hotmart.jpg',
         developer: '@northie',
         reviews: '4.9',
         metricInstalls: '8k+',
@@ -66,11 +94,12 @@ const PLUGINS: Plugin[] = [
         id: 'stripe',
         name: 'Stripe',
         category: 'Pagamentos',
-        description: 'Sincronize transações e receita recorrente com a Northie.',
+        description: 'Sincronize transações e receita recorrente.',
         fullDescription: 'A integração mais robusta para pagamentos globais e MRR.',
         installCount: '1.850 instalaram nos últimos 7 dias',
         status: 'Instalar',
         iconColor: '#635BFF',
+        logoUrl: '/logos/logo-stripe.png',
         developer: '@northie',
         reviews: '5.0',
         metricInstalls: '5k+',
@@ -82,187 +111,159 @@ const PLUGINS: Plugin[] = [
         ]
     },
     {
-        id: 'kiwify',
-        name: 'Kiwify',
-        category: 'Integrações',
-        description: 'Conecte sua loja e unifique dados de vendas na plataforma.',
-        fullDescription: 'Unifique seus dados da Kiwify com outras fontes para uma análise de growth completa.',
-        installCount: '2.100 instalaram nos últimos 7 dias',
-        status: 'Instalar',
-        iconColor: '#00D1FF',
-        developer: '@northie',
-        reviews: '4.8',
-        metricInstalls: '6k+',
-        features: [
-            'Webhook integrado para vendas imediatas',
-            'Relatórios de checkout e abandono de carrinho',
-            'Gestão de afiliados sincronizada',
-            'Dashboard de comissões simplificado'
-        ]
-    },
-    {
-        id: 'whatsapp',
-        name: 'WhatsApp',
-        category: 'Marketing',
-        description: 'Dispare notificações automáticas para clientes via WhatsApp.',
-        fullDescription: 'Automação de mensagens para recuperação de carrinho e pós-venda.',
-        installCount: '4.500 instalaram nos últimos 7 dias',
-        status: 'Instalar',
-        iconColor: '#25D366',
-        developer: '@northie',
-        reviews: '4.9',
-        metricInstalls: '15k+',
-        features: [
-            'Mensagens de boas-vindas automáticas',
-            'Recuperação de boletos e Pix pendentes',
-            'Pesquisas de NPS pós-venda',
-            'Atendimento centralizado'
-        ]
-    },
-    {
-        id: 'resend',
-        name: 'Resend Email',
-        category: 'Marketing',
-        description: 'Envie emails transacionais e de reativação direto da Northie.',
-        fullDescription: 'Infraestrutura de email moderna para desenvolvedores e founders.',
-        installCount: '1.200 instalaram nos últimos 7 dias',
-        status: 'Instalar',
-        iconColor: '#1E1E1E',
-        developer: '@northie',
-        reviews: '5.0',
-        metricInstalls: '3k+',
-        features: [
-            'Templates de email personalizáveis',
-            'Alta entregabilidade garantida',
-            'Analytics de abertura e cliques',
-            'Automação baseada em triggers de compra'
-        ]
-    },
-    {
         id: 'shopify',
         name: 'Shopify',
         category: 'Integrações',
         description: 'Sincronize produtos, pedidos e clientes do seu e-commerce.',
         fullDescription: 'A maior plataforma de e-commerce do mundo integrada à Northie.',
-        installCount: '0 instalados',
-        status: 'Em breve',
-        iconColor: '#96BF48',
+        installCount: '1.100 instalaram nos últimos 7 dias',
+        status: 'Instalar',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-shopify.png',
         developer: '@northie',
-        reviews: '-',
-        metricInstalls: '0',
-        features: ['Em desenvolvimento']
-    },
-    {
-        id: 'google-ads',
-        name: 'Google Ads',
-        category: 'Integrações',
-        description: 'Acompanhe performance e CAC das suas campanhas do Google.',
-        fullDescription: 'Análise detalhada de Search, Display e YouTube Ads.',
-        installCount: '0 instalados',
-        status: 'Em breve',
-        iconColor: '#4285F4',
-        developer: '@northie',
-        reviews: '-',
-        metricInstalls: '0',
-        features: ['Em desenvolvimento']
-    },
-    {
-        id: 'discord',
-        name: 'Discord',
-        category: 'Marketing',
-        description: 'Conecte sua comunidade e notifique membros automaticamente.',
-        fullDescription: 'Integração de comunidade para membros VIP e alertas.',
-        installCount: '0 instalados',
-        status: 'Em breve',
-        iconColor: '#5865F2',
-        developer: '@northie',
-        reviews: '-',
-        metricInstalls: '0',
-        features: ['Em desenvolvimento']
+        reviews: '4.8',
+        metricInstalls: '2k+',
+        features: [
+            'Sincronização automática de pedidos',
+            'Rastreamento de conversão por canal',
+            'Gestão de estoque sincronizada',
+            'Analytics de clientes recorrentes'
+        ]
     }
 ]
 
 // ── Components ───────────────────────────────────────────────────────────────
 
 function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }) {
-    const isAvailable = plugin.status === 'Instalar'
+    const isAvailable = plugin.status !== 'Em breve'
+    const isConnected = plugin.status === 'Conectado'
 
     return (
         <motion.div
-            whileHover={{ y: -4, borderColor: 'rgba(var(--fg-rgb),0.2)' }}
+            whileHover={{ y: -2, borderColor: 'var(--color-border)' }}
             onClick={onClick}
             style={{
-                padding: 24, borderRadius: 12, border: '1px solid rgba(var(--fg-rgb),0.1)',
-                background: 'var(--surface)', display: 'flex', flexDirection: 'column', gap: 16,
-                transition: 'all 0.2s', cursor: 'pointer', position: 'relative'
+                padding: 20,
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-bg-primary)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                transition: 'all var(--transition-base)',
+                cursor: 'pointer',
+                position: 'relative',
+                boxShadow: 'var(--shadow-sm)',
             }}
         >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                    <div style={{
-                        width: 48, height: 48, borderRadius: 10, background: plugin.iconColor,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF',
-                        fontSize: 20, fontWeight: 700
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                <div style={{
+                    width: 44, height: 44, borderRadius: 'var(--radius-md)', background: plugin.iconColor,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, fontWeight: 700, overflow: 'hidden',
+                    border: '1px solid var(--color-border)',
+                    flexShrink: 0,
+                }}>
+                    {plugin.logoUrl ? (
+                        <img src={plugin.logoUrl} alt={plugin.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 8 }} />
+                    ) : (
+                        <span style={{ color: 'var(--color-text-secondary)' }}>{plugin.name[0]}</span>
+                    )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                            {plugin.name}
+                        </span>
+                        {plugin.developer === '@northie' && (
+                            <span className="tag tag-complete" style={{ fontSize: 9 }}>Oficial</span>
+                        )}
+                    </div>
+                    <p style={{
+                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)',
+                        margin: 0, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
                     }}>
-                        {plugin.name[0]}
-                    </div>
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 600, color: 'var(--fg)' }}>
-                                {plugin.name}
-                            </span>
-                            <span style={{
-                                fontSize: 9, fontWeight: 700, color: '#059669', background: 'rgba(5,150,105,0.1)',
-                                padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase'
-                            }}>
-                                Northie
-                            </span>
-                        </div>
-                        <p style={{
-                            fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb),0.5)',
-                            margin: '4px 0 0', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden'
-                        }}>
-                            {plugin.description}
-                        </p>
-                    </div>
+                        {plugin.description}
+                    </p>
                 </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 12 }}>
-                <span style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.4)', fontFamily: "'Poppins', sans-serif" }}>
-                    {plugin.installCount}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--color-border)' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-sans)' }}>
+                    {plugin.installCount.split(' ')[0]} instalações
                 </span>
-                <button
-                    disabled={!isAvailable}
-                    style={{
-                        padding: '8px 16px', borderRadius: 6, border: 'none',
-                        background: isAvailable ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.05)',
-                        color: isAvailable ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.3)',
-                        fontSize: 12, fontWeight: 600, cursor: isAvailable ? 'pointer' : 'default',
-                        fontFamily: "'Poppins', sans-serif", transition: 'all 0.2s'
-                    }}
+                <Btn
+                    variant={isConnected ? 'ghost' : isAvailable ? 'secondary' : 'ghost'}
+                    size="sm"
+                    disabled={!isAvailable && !isConnected}
+                    icon={isConnected ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : undefined}
                 >
-                    {plugin.status}
-                </button>
+                    {isConnected ? 'Conectado' : plugin.status}
+                </Btn>
             </div>
         </motion.div>
     )
 }
 
-
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
     return (
         <div>
-            <p style={{ fontSize: 10, fontWeight: 600, color: 'rgba(var(--fg-rgb),0.4)', letterSpacing: '0.05em', marginBottom: 8 }}>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
                 {label}
             </p>
-            <p style={{ fontSize: 24, fontWeight: 500, color: 'var(--fg)', margin: 0, letterSpacing: '-0.5px' }}>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.5px' }}>
                 {value}
             </p>
-            <p style={{ fontSize: 11, color: 'rgba(var(--fg-rgb),0.4)', marginTop: 4 }}>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: 4 }}>
                 {sub}
             </p>
         </div>
+    )
+}
+
+function WebhookModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
+    const webhookUrl = `https://northie.vercel.app/api/webhooks/${plugin.id.replace('-ads', '')}`
+
+    return (
+        <Modal onClose={onClose} maxWidth={520} title={`Configurar ${plugin.name}`} subtitle={`Para sincronizar suas vendas, configure o Webhook no painel da ${plugin.name}.`}>
+            <div style={{ marginTop: 24 }}>
+                <div style={{ background: 'var(--color-bg-secondary)', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', marginBottom: 24 }}>
+                    <SectionLabel gutterBottom={8}>URL DE DESTINO (POST)</SectionLabel>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <code style={{
+                            flex: 1, background: 'transparent', color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)',
+                            fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                        }}>
+                            {webhookUrl}
+                        </code>
+                        <Btn
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                                navigator.clipboard.writeText(webhookUrl)
+                                alert('URL Copiada!')
+                            }}
+                        >
+                            COPIAR
+                        </Btn>
+                    </div>
+                </div>
+
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                    <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 12 }}>Passo a passo:</p>
+                    <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <li>Acesse o painel da {plugin.name}</li>
+                        <li>Procure por "Webhooks" ou "Configurações de API"</li>
+                        <li>Cole a URL acima e selecione o evento "Venda Aprovada"</li>
+                        <li>Salve as modificações</li>
+                    </ol>
+                </div>
+
+                <Btn variant="primary" size="md" fullWidth style={{ marginTop: 32 }} onClick={onClose}>
+                    Concluir configuração
+                </Btn>
+            </div>
+        </Modal>
     )
 }
 
@@ -273,8 +274,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
     const [installedPlugins, setInstalledPlugins] = useState<string[]>([])
+    const [webhookOpen, setWebhookOpen] = useState<Plugin | null>(null)
 
-    // Fetch existing integrations from Supabase
     useEffect(() => {
         const fetchIntegrations = async () => {
             const { data, error } = await supabase
@@ -284,16 +285,17 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 .eq('status', 'active')
 
             if (data && !error) {
-                const platforms = data.map((item: { platform: string }) =>
-                    item.platform === 'meta' ? 'meta-ads' : `${item.platform}-ads`
-                )
+                const platforms = data.map((item: { platform: string }) => {
+                    if (item.platform === 'meta') return 'meta-ads'
+                    if (item.platform === 'google') return 'google-ads'
+                    return item.platform
+                })
                 setInstalledPlugins(platforms)
             }
         }
         fetchIntegrations()
-    }, [])
+    }, [user?.id])
 
-    // Listen for OAuth success from popup
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.type === 'NORTHIE_OAUTH_SUCCESS') {
@@ -311,7 +313,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const currentPlugins = useMemo(() => {
         return PLUGINS.map(p => ({
             ...p,
-            status: installedPlugins.includes(p.id) ? 'Conectado' : p.status
+            status: (installedPlugins.includes(p.id) ? 'Conectado' : p.status) as any
         }))
     }, [installedPlugins])
 
@@ -325,22 +327,41 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }, [activeCategory, searchQuery, currentPlugins])
 
     const handleInstall = (pluginId: string) => {
-        if (pluginId === 'meta-ads') {
+        if (pluginId === 'meta-ads' || pluginId === 'google-ads') {
+            const platform = pluginId === 'meta-ads' ? 'meta' : 'google'
             const width = 600
             const height = 700
             const left = window.screen.width / 2 - width / 2
             const top = window.screen.height / 2 - height / 2
 
             const profileId = user?.id
-            const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
+            const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://northie.vercel.app'
 
             window.open(
-                `${baseUrl}/api/integrations/connect/meta?profileId=${profileId}`,
-                'NorthieMetaAuth',
+                `${baseUrl}/api/integrations/connect/${platform}?profileId=${profileId}`,
+                `Northie${platform}Auth`,
                 `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
             )
+        } else if (['stripe', 'hotmart', 'shopify'].includes(pluginId)) {
+            const plugin = PLUGINS.find(p => p.id === pluginId)
+            if (plugin) setWebhookOpen(plugin)
         } else {
             alert('Esta integração estará disponível em breve.')
+        }
+    }
+
+    const handleDisconnect = async (pluginId: string) => {
+        if (!window.confirm(`Tem certeza que deseja desconectar o ${pluginId}?`)) return
+
+        try {
+            await integrationApi.disconnect(pluginId)
+            setInstalledPlugins(prev => prev.filter(id => id !== pluginId))
+            if (selectedPlugin?.id === pluginId) {
+                setSelectedPlugin(prev => prev ? { ...prev, status: 'Instalar' } : null)
+            }
+        } catch (error) {
+            console.error('Failed to disconnect:', error)
+            alert('Falha ao desconectar. Tente novamente.')
         }
     }
 
@@ -351,7 +372,6 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
 
     return (
         <div style={{ paddingTop: 28, paddingBottom: 80 }}>
-            {/* Search & Back Header always visible or managed by state */}
             {!selectedPlugin && <TopBar onToggleChat={onToggleChat} />}
 
             <AnimatePresence mode='wait'>
@@ -361,68 +381,37 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         plugin={currentSelectedPlugin}
                         onBack={() => setSelectedPlugin(null)}
                         onInstall={() => handleInstall(currentSelectedPlugin.id)}
+                        onDisconnect={() => handleDisconnect(currentSelectedPlugin.id)}
                     />
                 ) : (
-                    <motion.div
-                        key="grid"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <h1 style={{
-                                fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 40,
-                                letterSpacing: '-1.6px', color: 'var(--fg)', margin: 0
-                            }}>
-                                App Store
-                            </h1>
+                    <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        <PageHeader
+                            title="App Store"
+                            subtitle="Encontre e instale integrações oficiais para potencializar seu dashboard."
+                            actions={
+                                <div style={{ position: 'relative' }}>
+                                    <Input
+                                        type="text"
+                                        placeholder="Pesquisar plugins..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        style={{ width: 280 }}
+                                        icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>}
+                                    />
+                                </div>
+                            }
+                        />
 
-                            <div style={{ position: 'relative' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Pesquisar plugins..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    style={{
-                                        padding: '12px 16px 12px 40px', borderRadius: 8, border: '1px solid rgba(var(--fg-rgb),0.1)',
-                                        background: 'var(--surface)', width: 280, fontSize: 14, outline: 'none',
-                                        fontFamily: "'Poppins', sans-serif", transition: 'border-color 0.2s',
-                                        color: 'var(--fg)'
-                                    }}
-                                />
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{
-                                    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                                    color: 'rgba(var(--fg-rgb),0.3)'
-                                }}>
-                                    <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="2" />
-                                    <path d="M11 11L14 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                </svg>
-                            </div>
+                        <div style={{ marginTop: 32 }}>
+                            <FilterPills
+                                options={categories}
+                                active={activeCategory}
+                                onChange={(c) => setActiveCategory(c as Category)}
+                            />
                         </div>
 
-                        {/* Filters */}
-                        <div style={{ display: 'flex', gap: 12, marginTop: 40, flexWrap: 'wrap' }}>
-                            {categories.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setActiveCategory(cat)}
-                                    style={{
-                                        padding: '8px 20px', borderRadius: 20, border: '1px solid',
-                                        borderColor: activeCategory === cat ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.1)',
-                                        background: activeCategory === cat ? 'var(--inv)' : 'transparent',
-                                        color: activeCategory === cat ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.6)',
-                                        fontSize: 14, fontWeight: 500, cursor: 'pointer',
-                                        fontFamily: "'Poppins', sans-serif", transition: 'all 0.2s'
-                                    }}
-                                >
-                                    {cat}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Grid */}
                         <div style={{
-                            display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24, marginTop: 48
+                            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20, marginTop: 32
                         }}>
                             {filteredPlugins.map(plugin => (
                                 <PluginCard
@@ -434,110 +423,96 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         </div>
 
                         {filteredPlugins.length === 0 && (
-                            <div style={{
-                                textAlign: 'center', marginTop: 100, color: 'rgba(var(--fg-rgb),0.3)',
-                                fontFamily: "'Poppins', sans-serif"
-                            }}>
-                                Nenhum plugin encontrado para sua busca.
-                            </div>
+                            <EmptyState
+                                title="Não encontramos este App"
+                                description={`Não existem resultados para "${searchQuery}" nesta categoria.`}
+                                action={<Btn variant="secondary" size="sm" onClick={() => setSearchQuery('')}>Limpar busca</Btn>}
+                            />
                         )}
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {webhookOpen && (
+                    <WebhookModal plugin={webhookOpen} onClose={() => setWebhookOpen(null)} />
                 )}
             </AnimatePresence>
         </div>
     )
 }
 
-// Wrapper for DetailView back and enable functional install
-function DetailView({ plugin, onBack, onInstall }: { plugin: Plugin | any; onBack: () => void; onInstall: () => void }) {
-    return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            style={{ width: '100%' }}
-        >
-            <button
-                onClick={onBack}
-                style={{
-                    background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(var(--fg-rgb),0.5)',
-                    display: 'flex', alignItems: 'center', gap: 8, padding: 0, marginBottom: 40,
-                    fontFamily: "'Poppins', sans-serif", fontSize: 14
-                }}
-            >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M10 13L5 8L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Voltar para a App Store
-            </button>
+function DetailView({ plugin, onBack, onInstall, onDisconnect }: { plugin: Plugin; onBack: () => void; onInstall: () => void; onDisconnect: () => void }) {
+    const isConnected = plugin.status === 'Conectado'
 
-            <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+    return (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+            <PageHeader
+                title={plugin.name}
+                subtitle={plugin.description}
+                breadcrumb={{ label: 'Voltar para App Store', onClick: onBack }}
+                actions={
+                    <div style={{ display: 'flex', gap: 12 }}>
+                        <Btn
+                            variant={isConnected ? 'secondary' : 'primary'}
+                            size="md"
+                            onClick={onInstall}
+                            disabled={isConnected}
+                            icon={isConnected ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : undefined}
+                        >
+                            {isConnected ? 'Conectado' : plugin.status}
+                        </Btn>
+                        {isConnected && (
+                            <Btn variant="danger" size="md" onClick={onDisconnect}>
+                                Desconectar
+                            </Btn>
+                        )}
+                    </div>
+                }
+            />
+
+            <div style={{ display: 'flex', gap: 48, marginTop: 40, alignItems: 'flex-start' }}>
                 <div style={{
-                    width: 120, height: 120, borderRadius: 24, background: plugin.iconColor,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF',
-                    fontSize: 48, fontWeight: 700, flexShrink: 0
+                    width: 120, height: 120, borderRadius: 'var(--radius-xl)', background: plugin.iconColor,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden', border: '1px solid var(--color-border)', flexShrink: 0
                 }}>
-                    {plugin.name[0]}
+                    {plugin.logoUrl ? (
+                        <img src={plugin.logoUrl} alt={plugin.name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 16 }} />
+                    ) : (
+                        <span style={{ fontSize: 40, color: 'var(--color-text-secondary)', fontWeight: 600 }}>{plugin.name[0]}</span>
+                    )}
                 </div>
 
                 <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                            <h1 style={{
-                                fontFamily: "'Poppins', sans-serif", fontSize: 32, fontWeight: 500, margin: 0,
-                                letterSpacing: '-1.2px', color: 'var(--fg)'
-                            }}>
-                                {plugin.name}
-                            </h1>
-                            <p style={{
-                                fontFamily: "'Poppins', sans-serif", fontSize: 18, color: 'rgba(var(--fg-rgb),0.5)',
-                                margin: '8px 0 0', fontWeight: 400
-                            }}>
-                                {plugin.description}
-                            </p>
-                        </div>
-                        <button
-                            onClick={onInstall}
-                            disabled={plugin.status === 'Conectado'}
-                            style={{
-                                padding: '12px 32px', borderRadius: 8, border: 'none',
-                                background: plugin.status === 'Conectado' ? '#059669' : (plugin.status === 'Instalar' ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.05)'),
-                                color: (plugin.status === 'Instalar' || plugin.status === 'Conectado') ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.3)',
-                                fontSize: 14, fontWeight: 600, cursor: (plugin.status === 'Instalar' && plugin.status !== 'Conectado') ? 'pointer' : 'default',
-                                fontFamily: "'Poppins', sans-serif", transition: 'all 0.3s'
-                            }}
-                        >
-                            {plugin.status === 'Conectado' ? '✓ Conectado' : plugin.status}
-                        </button>
-                    </div>
-
                     <div style={{
-                        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40,
-                        marginTop: 48, padding: '32px 0', borderTop: '1px solid rgba(var(--fg-rgb),0.1)',
-                        borderBottom: '1px solid rgba(var(--fg-rgb),0.1)'
+                        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24,
+                        paddingBottom: 32, borderBottom: '1px solid var(--color-border)'
                     }}>
                         <Metric label="REVIEWS" value={plugin.reviews} sub="⭐⭐⭐⭐⭐" />
-                        <Metric label="INSTALLS" value={plugin.metricInstalls} sub="Mensalmente" />
-                        <Metric label="DESENVOLVIDO POR" value={plugin.developer} sub="Official Partner" />
-                        <Metric label="CATEGORIA" value={plugin.category} sub="Northie Store" />
+                        <Metric label="INSTALLS" value={plugin.metricInstalls} sub="Globalmente" />
+                        <Metric label="DESENVOLVEDOR" value={plugin.developer} sub="Official Partner" />
+                        <Metric label="CATEGORIA" value={plugin.category} sub="App Type" />
                     </div>
 
-                    <div style={{ marginTop: 48 }}>
-                        <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 500, marginBottom: 24 }}>
+                    <div style={{ marginTop: 40 }}>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 400, color: 'var(--color-text-primary)', marginBottom: 16 }}>
                             Sobre o App
                         </h2>
                         <p style={{
-                            fontFamily: "'Poppins', sans-serif", fontSize: 16, lineHeight: 1.6,
-                            color: 'rgba(var(--fg-rgb),0.7)', marginBottom: 32
+                            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', lineHeight: 1.6,
+                            color: 'var(--color-text-secondary)', marginBottom: 32, maxWidth: 640
                         }}>
                             {plugin.fullDescription}
                         </p>
-                        <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-                            Benefícios principais:
-                        </h3>
-                        <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 20 }}>
-                            {plugin.features.map((f: any, i: any) => (
-                                <li key={i} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 15, color: 'rgba(var(--fg-rgb),0.7)' }}>
+
+                        <SectionLabel gutterBottom={16}>Benefícios principais</SectionLabel>
+                        <ul style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingLeft: 0, listStyle: 'none' }}>
+                            {plugin.features.map((f, i) => (
+                                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, fontFamily: 'var(--font-sans)', fontSize: 'var(--text-md)', color: 'var(--color-text-secondary)' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 2 }}>
+                                        <polyline points="20 6 9 17 4 12" />
+                                    </svg>
                                     {f}
                                 </li>
                             ))}

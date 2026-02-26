@@ -18,10 +18,24 @@ export const dashboardApi = {
     getAttribution: () => api.get('/dashboard/attribution'),
     getGrowth: () => api.get('/dashboard/growth'),
     getChart: () => api.get('/dashboard/chart'),
+    getHeatmap: () => api.get('/dashboard/heatmap'),
+    getRetention: () => api.get('/dashboard/retention'),
+    getTopCustomers: () => api.get('/dashboard/top-customers'),
+    getChannelTrends: () => api.get('/dashboard/channel-trends'),
+    getAdCampaigns: () => api.get('/dashboard/ad-campaigns'),
 };
 
 export const integrationApi = {
     getStatus: () => api.get('/integrations/status'),
+    disconnect: (platform: string) => api.post(`/integrations/disconnect/${platform}`),
+};
+
+export const campaignApi = {
+    list: () => api.get('/campaigns'),
+    create: (data: any) => api.post('/campaigns', data),
+    listCreators: (id: string) => api.get(`/campaigns/${id}/creators`),
+    addCreator: (data: any) => api.post('/campaigns/add-creator', data),
+    confirmPayout: (data: any) => api.post('/campaigns/confirm-payout', data),
 };
 
 export const dataApi = {

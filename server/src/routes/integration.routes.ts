@@ -15,4 +15,10 @@ router.get('/connect/:platform', IntegrationController.connectPlatform);
  */
 router.get('/callback/:platform', IntegrationController.handleCallback);
 
+/**
+ * @route POST /api/integrations/disconnect/:platform
+ * @desc Deactivate integration for a platform
+ */
+router.post('/disconnect/:platform', IntegrationController.disconnectPlatform);
+
 export default router;

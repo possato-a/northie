@@ -13,6 +13,8 @@ export async function normalizeData(rawId: string, platform: string, payload: an
             await handleHotmartNormalization(payload, profileId);
         } else if (platform === 'kiwify') {
             await handleKiwifyNormalization(payload, profileId);
+        } else if (platform === 'shopify') {
+            await handleShopifyNormalization(payload, profileId);
         } else {
             console.warn(`No normalization handler for platform: ${platform}`);
             return;
@@ -77,11 +79,42 @@ async function handleKiwifyNormalization(payload: any, profileId: string) {
 }
 
 /**
- * Helper to upsert customer and insert transaction with Attribution Logic
+ * Handler para webhooks Shopify (evento orders/paid).
+ * O visitorId é injetado via note_attributes pelo pixel Northie no checkout.
  */
-async function syncTransaction(profileId: string, email: string, platform: string, externalId: string, amount: number, visitorId?: string) {
+async function handleShopifyNormalization(payload: any, profileId: string) {
+    if (payload.financial_status !== 'paid') return;
+
+    const email: string = payload.email;
+    const amount: number = parseFloat(payload.total_price);
+    const transactionId: string = String(payload.id);
+
+    // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
+    const noteAttrs: Array<{ name: string; value: string }> = payload.note_attributes || [];
+    const visitorId = noteAttrs.find((a: any) => a.name === 'northie_vid')?.value;
+
+    console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
+
+    await syncTransaction(profileId, email, 'shopify', transactionId, amount, visitorId);
+}
+
+/**
+ * Helper to upsert customer and insert transaction with Attribution Logic.
+ * Resolve canal (utm_source), campanha e criador a partir do visitor_id.
+ * Gera comissão automaticamente quando uma venda de criador é detectada.
+ */
+async function syncTransaction(
+    profileId: string,
+    email: string,
+    platform: string,
+    externalId: string,
+    amount: number,
+    visitorId?: string
+) {
     // 1. Attribution Lookup (Last Click Logic)
-    let channel: any = 'desconhecido';
+    let channel: string = 'desconhecido';
+    let campaignId: string | null = null;
+    let creatorId: string | null = null;
 
     console.log(`[Attribution] Looking for visit with visitor_id: ${visitorId} for profile: ${profileId}`);
 
@@ -103,6 +136,43 @@ async function syncTransaction(profileId: string, email: string, platform: strin
     if (latestVisit) {
         channel = latestVisit.utm_source || 'organico';
         console.log(`[Attribution] Match found! Channel: ${channel}`);
+
+        // Resolver campanha e criador pelo utm_campaign
+        if (latestVisit.utm_campaign) {
+            const { data: campaign } = await supabase
+                .from('campaigns')
+                .select('id, commission_rate')
+                .eq('profile_id', profileId)
+                .ilike('name', latestVisit.utm_campaign)
+                .eq('status', 'active')
+                .single();
+
+            if (campaign) {
+                campaignId = campaign.id;
+
+                // Resolver criador pelo affiliate_id (se existir) ou pegar o único da campanha
+                if (latestVisit.affiliate_id) {
+                    const { data: cc } = await supabase
+                        .from('campaign_creators')
+                        .select('creator_id')
+                        .eq('campaign_id', campaign.id)
+                        .eq('creator_id', latestVisit.affiliate_id)
+                        .single();
+                    if (cc) creatorId = cc.creator_id;
+                } else {
+                    const { data: cc } = await supabase
+                        .from('campaign_creators')
+                        .select('creator_id')
+                        .eq('campaign_id', campaign.id)
+                        .eq('status', 'active')
+                        .limit(1)
+                        .single();
+                    if (cc) creatorId = cc.creator_id;
+                }
+
+                console.log(`[Attribution] Campaign: ${campaignId} | Creator: ${creatorId}`);
+            }
+        }
     } else {
         console.log('[Attribution] No matching visit found.');
     }
@@ -110,11 +180,10 @@ async function syncTransaction(profileId: string, email: string, platform: strin
     // 2. Upsert Customer
     const { data: customer, error: custError } = await supabase
         .from('customers')
-        .upsert({
-            profile_id: profileId,
-            email: email,
-            acquisition_channel: channel
-        }, { onConflict: 'profile_id, email' })
+        .upsert(
+            { profile_id: profileId, email, acquisition_channel: channel },
+            { onConflict: 'profile_id, email' }
+        )
         .select()
         .single();
 
@@ -125,9 +194,9 @@ async function syncTransaction(profileId: string, email: string, platform: strin
 
     console.log(`[Normalization] Customer synced: ${customer.id} (Channel: ${channel})`);
 
-    // 3. Insert Transaction
+    // 3. Insert Transaction (com campaign_id e creator_id se resolvidos)
     console.log(`[Normalization] Inserting transaction for customer ${customer.id}`);
-    const { error: transError } = await supabase
+    const { data: transaction, error: transError } = await supabase
         .from('transactions')
         .insert({
             profile_id: profileId,
@@ -137,15 +206,46 @@ async function syncTransaction(profileId: string, email: string, platform: strin
             amount_gross: amount,
             amount_net: amount,
             status: 'approved',
-            northie_attribution_id: visitorId
-        });
+            northie_attribution_id: visitorId,
+            campaign_id: campaignId,
+            creator_id: creatorId,
+        })
+        .select('id')
+        .single();
 
     if (transError) {
         console.error('[Normalization] Transaction insert error:', transError);
         throw transError;
     }
 
-    // 4. Update LTV
+    // 4. Gerar comissão se venda atribuída a criador
+    if (campaignId && creatorId && transaction) {
+        const { data: campaign } = await supabase
+            .from('campaigns')
+            .select('commission_rate')
+            .eq('id', campaignId)
+            .single();
+
+        const rate = Number(campaign?.commission_rate || 0);
+        if (rate > 0) {
+            const commissionAmount = Number((amount * rate / 100).toFixed(2));
+            const { error: commErr } = await supabase.from('commissions').insert({
+                profile_id: profileId,
+                campaign_id: campaignId,
+                creator_id: creatorId,
+                transaction_id: transaction.id,
+                amount: commissionAmount,
+                status: 'pending',
+            });
+            if (commErr) {
+                console.error('[Normalization] Commission insert error:', commErr);
+            } else {
+                console.log(`[Normalization] Commission generated: R$${commissionAmount} for creator ${creatorId}`);
+            }
+        }
+    }
+
+    // 5. Update LTV
     const newLtv = (Number(customer.total_ltv) || 0) + amount;
     await supabase
         .from('customers')

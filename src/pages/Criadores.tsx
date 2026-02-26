@@ -1,644 +1,559 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { KpiCard } from '../components/KpiCard'
-import TopBar from '../components/TopBar'
+import { KpiCard } from '../components/ui/KpiCard'
+import TopBar from '../components/layout/TopBar'
+import { campaignApi } from '../lib/api'
+import { fmtBR } from '../lib/utils'
+import type { Creator } from '../types'
+import {
+    PageHeader, SectionLabel, TH, Divider,
+    Btn, Modal, Input, Textarea, SelectField,
+    EmptyState, LoadingRow, FilterPills
+} from '../components/ui/shared'
 
-// ── Types ───────────────────────────────────────────────────────────
+// ── Commision status tag ──────────────────────────────────────────────────────
 
-type Status = 'pendente' | 'pago'
-type CommissionType = 'percentual' | 'fixo'
-
-interface Creator {
-    id: string
-    name: string
-    email: string
-    affiliateLink: string
-    sales: number
-    revenue: number
-    commission: number
-    status: Status
-    paidAt?: string
+function CommTag({ pending }: { pending: number }) {
+    return pending > 0
+        ? <span className="tag tag-planning">Pendente</span>
+        : <span className="tag tag-complete">Pago</span>
 }
 
-interface Campaign {
-    id: string
-    name: string
-    product: string
-    description: string
-    commissionType: CommissionType
-    commissionValue: number
-    startDate: string
-    endDate: string
-    creators: Creator[]
-}
-
-// ── Mock Data ────────────────────────────────────────────────────────
-
-const INITIAL_CAMPAIGNS: Campaign[] = [
-    {
-        id: '1',
-        name: 'Lançamento Verão 2026',
-        product: 'Northie Pro Plan',
-        description: 'Foco em founders que precisam de analytics avançado.',
-        commissionType: 'percentual',
-        commissionValue: 20,
-        startDate: '2026-01-01',
-        endDate: '2026-03-31',
-        creators: [
-            { id: 'c1', name: 'Ana Silva', email: 'ana@creators.com', affiliateLink: 'northie.co/ref/ana-silva', sales: 24, revenue: 4800, commission: 960, status: 'pendente' },
-            { id: 'c2', name: 'Bruno Costa', email: 'bruno@creators.com', affiliateLink: 'northie.co/ref/bruno-c', sales: 12, revenue: 2400, commission: 480, status: 'pago', paidAt: '20/02/2026' },
-            { id: 'c3', name: 'Carla Souza', email: 'carla@influencer.co', affiliateLink: 'northie.co/ref/carla-influencer', sales: 56, revenue: 11200, commission: 2240, status: 'pendente' },
-        ]
-    },
-    {
-        id: '2',
-        name: 'Black Friday 2025',
-        product: 'Módulo Analytics',
-        description: 'Promoção exclusiva para a base de seguidores.',
-        commissionType: 'fixo',
-        commissionValue: 100,
-        startDate: '2025-11-20',
-        endDate: '2025-11-30',
-        creators: [
-            { id: 'c4', name: 'Ricardo Nunes', email: 'ric@tech.com', affiliateLink: 'northie.co/ref/ricardo-n', sales: 15, revenue: 1500, commission: 150, status: 'pago', paidAt: '15/12/2025' },
-        ]
-    },
-]
-
-// ── Shared Primitives ────────────────────────────────────────────────
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-    return (
-        <p style={{
-            fontFamily: "'Geist Mono', monospace",
-            fontSize: 11, color: 'rgba(var(--fg-rgb),0.4)',
-            letterSpacing: '0.08em', marginBottom: 16,
-            textTransform: 'uppercase',
-            fontWeight: 500
-        }}>
-            {children}
-        </p>
-    )
-}
-
-const inputStyle: React.CSSProperties = {
-    padding: '12px 16px', borderRadius: 6, border: '1px solid rgba(var(--fg-rgb),0.1)',
-    background: 'var(--surface)', fontSize: 14, outline: 'none', fontFamily: "'Poppins', sans-serif",
-    color: 'var(--fg)'
-}
-
-const labelStyle: React.CSSProperties = {
-    fontSize: 10, fontWeight: 600, color: 'rgba(var(--fg-rgb),0.4)', letterSpacing: '0.05em', marginBottom: 8,
-    fontFamily: "'Geist Mono', monospace", textTransform: 'uppercase'
-}
-
-const thBaseStyle: React.CSSProperties = {
-    padding: '16px 0', fontSize: 10, fontWeight: 500, color: 'rgba(var(--fg-rgb),0.4)',
-    letterSpacing: '0.05em', textTransform: 'uppercase', fontFamily: "'Geist Mono', monospace"
-}
-
-const tdBaseStyle: React.CSSProperties = {
-    padding: '20px 0', fontSize: 14, color: 'var(--fg)',
-    fontFamily: "'Poppins', sans-serif",
-    fontWeight: 400
-}
-
-// ── Campaign Detail View ─────────────────────────────────────────────
+// ── Campaign Detail ────────────────────────────────────────────────────────────
 
 function CampaignDetails({
-    campaign,
-    onBack,
-    onAddCreator,
-    onPayCreator
+    campaign, onBack, onAddCreator, onPayCreator
 }: {
-    campaign: Campaign
+    campaign: any
     onBack: () => void
     onAddCreator: () => void
-    onPayCreator: (creator: Creator) => void
+    onPayCreator: (creator: any) => void
 }) {
-    const totalRevenue = campaign.creators.reduce((acc, c) => acc + c.revenue, 0)
-    const totalCommission = campaign.creators.reduce((acc, c) => acc + c.commission, 0)
-    const salesCount = campaign.creators.reduce((acc, c) => acc + c.sales, 0)
-
+    const totalRevenue = campaign.creators.reduce((a: number, c: Creator) => a + c.revenue, 0)
+    const totalCommission = campaign.creators.reduce((a: number, c: Creator) => a + (c.paid_commission + c.pending_commission), 0)
+    const salesCount = campaign.creators.reduce((a: number, c: Creator) => a + c.sales_count, 0)
     const roi = totalCommission > 0 ? (totalRevenue / totalCommission).toFixed(1) : '—'
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
         >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 40 }}>
-                <motion.button
-                    onClick={onBack}
-                    whileHover={{ x: -4 }}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                        color: 'rgba(var(--fg-rgb),0.5)',
-                        fontFamily: "'Poppins', sans-serif",
-                        fontSize: 14,
-                        fontWeight: 500
-                    }}
-                >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="19" y1="12" x2="5" y2="12" />
-                        <polyline points="12 19 5 12 12 5" />
-                    </svg>
-                    Voltar para campanhas
-                </motion.button>
-            </div>
+            <PageHeader
+                title={campaign.name}
+                subtitle={`${campaign.product_name} · ${campaign.type === 'percentual' ? `${campaign.commission_rate}%` : `R$ ${campaign.commission_rate}`} de comissão`}
+                breadcrumb={{ label: 'Voltar para campanhas', onClick: onBack }}
+                actions={
+                    <Btn variant="secondary" size="sm" onClick={onAddCreator}
+                        icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}
+                    >
+                        Adicionar criador
+                    </Btn>
+                }
+            />
 
+            {/* Stats strip */}
             <div style={{
-                background: 'var(--surface)',
-                border: '1px solid rgba(var(--fg-rgb),0.06)',
-                borderRadius: 24,
-                padding: '56px 48px',
-                marginBottom: 64,
-                boxShadow: '0 4px 30px rgba(0,0,0,0.02)'
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 24,
+                margin: '32px 0',
+                padding: '24px 0',
+                borderTop: '1px solid var(--color-border)',
+                borderBottom: '1px solid var(--color-border)',
             }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 64 }}>
-                    <div>
-                        <h2 style={{
-                            fontFamily: "'Poppins', sans-serif",
-                            fontSize: 40,
-                            fontWeight: 500,
-                            margin: 0,
-                            letterSpacing: '-1.8px',
-                            color: 'var(--fg)'
-                        }}>
-                            {campaign.name}
-                        </h2>
-                        <p style={{
-                            fontFamily: "'Poppins', sans-serif",
-                            fontSize: 18,
-                            color: 'rgba(var(--fg-rgb),0.4)',
-                            marginTop: 12,
-                            letterSpacing: '-0.2px'
-                        }}>
-                            {campaign.product} · {campaign.commissionType === 'percentual' ? `${campaign.commissionValue}%` : `R$ ${campaign.commissionValue}`} de comissão
-                        </p>
+                {[
+                    { label: 'Vendas', value: salesCount },
+                    { label: 'Receita total', value: `R$ ${fmtBR(totalRevenue)}` },
+                    { label: 'Comissões', value: `R$ ${fmtBR(totalCommission)}` },
+                    { label: 'ROI', value: `${roi}x` },
+                ].map((s, i) => (
+                    <div key={i} style={{ paddingLeft: i > 0 ? 24 : 0, borderLeft: i > 0 ? '1px solid var(--color-border)' : 'none' }}>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{s.label}</p>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.5px' }}>{s.value}</p>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                        <span style={{
-                            fontSize: 11,
-                            fontFamily: "'Geist Mono', monospace",
-                            color: 'rgba(var(--fg-rgb),0.3)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                            fontWeight: 500
-                        }}>
-                            ROI DA CAMPANHA
+                ))}
+            </div>
+
+            {/* Creators table */}
+            <SectionLabel gutterBottom={12}>Criadores participantes</SectionLabel>
+
+            {/* Table header */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 130px 80px 110px 110px 90px 90px',
+                gap: '0 16px',
+                paddingBottom: 10,
+                borderBottom: '1px solid var(--color-border)',
+                marginBottom: 2,
+            }}>
+                <TH>Nome</TH>
+                <TH>Instagram</TH>
+                <TH align="right">Vendas</TH>
+                <TH align="right">Receita</TH>
+                <TH align="right">Comissão</TH>
+                <TH>Status</TH>
+                <TH align="right">Ações</TH>
+            </div>
+
+            {campaign.creators.length === 0 ? (
+                <EmptyState
+                    title="Nenhum criador ainda"
+                    description="Adicione criadores para começar a rastrear vendas."
+                    action={<Btn variant="primary" size="sm" onClick={onAddCreator}>Adicionar criador</Btn>}
+                />
+            ) : (
+                campaign.creators.map((creator: Creator, i: number) => (
+                    <motion.div
+                        key={creator.id}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                        className="notion-row"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 130px 80px 110px 110px 90px 90px',
+                            gap: '0 16px',
+                            alignItems: 'center',
+                            height: 'var(--table-row-height)',
+                            borderBottom: '1px solid var(--color-border)',
+                            transition: 'background var(--transition-fast)',
+                        }}
+                        onHoverStart={e => (e.target as HTMLElement).style.background = 'var(--color-bg-secondary)'}
+                        onHoverEnd={e => (e.target as HTMLElement).style.background = 'transparent'}
+                    >
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                            {creator.name}
                         </span>
-                        <p style={{
-                            fontSize: 72,
-                            fontFamily: "'Poppins', sans-serif",
-                            fontWeight: 500,
-                            margin: '4px 0 0',
-                            color: 'var(--fg)',
-                            letterSpacing: '-2px'
-                        }}>
-                            {roi}x
-                        </p>
-                    </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 40 }}>
-                    {[
-                        { label: 'VENDAS', val: salesCount, prefix: '' },
-                        { label: 'RECEITA TOTAL', val: `R$ ${totalRevenue.toLocaleString('pt-BR')}`, prefix: '' },
-                        { label: 'COMISSÕES', val: `R$ ${totalCommission.toLocaleString('pt-BR')}`, prefix: '' },
-                        { label: 'PRAZO', val: new Date(campaign.endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase(), prefix: '' },
-                    ].map((item, idx) => (
-                        <div key={idx} style={{ borderLeft: '1px solid rgba(var(--fg-rgb),0.08)', paddingLeft: 24 }}>
-                            <SectionLabel>{item.label}</SectionLabel>
-                            <p style={{ fontSize: 24, fontWeight: 500, margin: 0, letterSpacing: '-0.5px' }}>{item.val}</p>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
+                            {creator.instagram || '—'}
+                        </span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+                            {creator.sales_count}
+                        </span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+                            R$ {fmtBR(creator.revenue)}
+                        </span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', textAlign: 'right' }}>
+                            R$ {fmtBR(creator.pending_commission)}
+                        </span>
+                        <div>
+                            <CommTag pending={creator.pending_commission} />
                         </div>
-                    ))}
-                </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
-                <SectionLabel>CRIADORES PARTICIPANTES</SectionLabel>
-                <motion.button
-                    onClick={onAddCreator}
-                    whileHover={{ scale: 1.02, backgroundColor: 'var(--inv)', color: 'var(--on-inv)' }}
-                    whileTap={{ scale: 0.98 }}
-                    style={{
-                        padding: '12px 24px', borderRadius: 8, border: '1px solid var(--inv)',
-                        background: 'transparent', cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
-                        fontSize: 14, fontWeight: 500, transition: 'all 0.2s',
-                        color: 'var(--fg)'
-                    }}
-                >
-                    Adicionar criador
-                </motion.button>
-            </div>
-
-            <div style={{ background: 'var(--surface)', borderRadius: 16, border: '1px solid rgba(var(--fg-rgb),0.06)', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(var(--fg-rgb),0.08)', background: 'rgba(var(--fg-rgb),0.01)' }}>
-                            <th style={{ ...thBaseStyle, paddingLeft: 24, textAlign: 'left' }}>NOME</th>
-                            <th style={{ ...thBaseStyle, textAlign: 'left' }}>LINK</th>
-                            <th style={{ ...thBaseStyle, textAlign: 'right' }}>VENDAS</th>
-                            <th style={{ ...thBaseStyle, textAlign: 'right' }}>RECEITA</th>
-                            <th style={{ ...thBaseStyle, textAlign: 'right' }}>COMISSÃO</th>
-                            <th style={{ ...thBaseStyle, textAlign: 'left' }}>STATUS</th>
-                            <th style={{ ...thBaseStyle, paddingRight: 24, textAlign: 'right' }}>AÇÕES</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {campaign.creators.map(creator => (
-                            <motion.tr
-                                key={creator.id}
-                                whileHover={{ backgroundColor: 'rgba(var(--fg-rgb),0.01)' }}
-                                style={{ borderBottom: '1px solid rgba(var(--fg-rgb),0.04)', transition: 'background 0.2s' }}
-                            >
-                                <td style={{ ...tdBaseStyle, paddingLeft: 24, fontWeight: 500 }}>{creator.name}</td>
-                                <td style={{ ...tdBaseStyle, fontFamily: "'Geist Mono', monospace", color: 'rgba(var(--fg-rgb),0.4)', fontSize: 13 }}>{creator.affiliateLink}</td>
-                                <td style={{ ...tdBaseStyle, textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}>{creator.sales}</td>
-                                <td style={{ ...tdBaseStyle, textAlign: 'right', fontFamily: "'Geist Mono', monospace" }}>R$ {creator.revenue.toLocaleString('pt-BR')}</td>
-                                <td style={{ ...tdBaseStyle, textAlign: 'right', fontFamily: "'Geist Mono', monospace", fontWeight: 500 }}>R$ {creator.commission.toLocaleString('pt-BR')}</td>
-                                <td style={{ ...tdBaseStyle }}>
-                                    <span style={{
-                                        padding: '4px 10px', borderRadius: 100, fontSize: 10, fontWeight: 500, textTransform: 'uppercase',
-                                        backgroundColor: creator.status === 'pago' ? 'var(--inv)' : 'rgba(var(--fg-rgb),0.04)',
-                                        color: creator.status === 'pago' ? 'var(--on-inv)' : 'rgba(var(--fg-rgb),0.4)',
-                                        letterSpacing: '0.04em'
-                                    }}>
-                                        {creator.status}
-                                    </span>
-                                </td>
-                                <td style={{ ...tdBaseStyle, paddingRight: 24, textAlign: 'right' }}>
-                                    <div style={{ display: 'flex', gap: 16, justifyContent: 'flex-end' }}>
-                                        {creator.status === 'pendente' && (
-                                            <button
-                                                onClick={() => onPayCreator(creator)}
-                                                style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'var(--fg)', fontWeight: 600 }}
-                                            >
-                                                Pagar
-                                            </button>
-                                        )}
-                                        <button style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb),0.4)', fontWeight: 500 }}>Copiar</button>
-                                    </div>
-                                </td>
-                            </motion.tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            {creator.pending_commission > 0 && (
+                                <Btn variant="primary" size="sm" onClick={() => onPayCreator(creator)}>Pagar</Btn>
+                            )}
+                            <Btn variant="ghost" size="sm">Copiar</Btn>
+                        </div>
+                    </motion.div>
+                ))
+            )}
         </motion.div>
     )
 }
 
-// ── Modals ────────────────────────────────────────────────────────────
+// ── New Campaign Modal ────────────────────────────────────────────────────────
 
 function NewCampaignModal({ onClose, onCreate }: { onClose: () => void; onCreate: (c: any) => void }) {
+    const [formData, setFormData] = useState({
+        name: '',
+        product_name: 'Northie Pro Plan',
+        type: 'percentual',
+        commission_rate: 20,
+        start_date: '',
+        end_date: '',
+        description: ''
+    })
+
+    function set(key: string, val: any) {
+        setFormData(prev => ({ ...prev, [key]: val }))
+    }
+
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(var(--fg-rgb),0.4)', backdropFilter: 'blur(8px)' }} />
-            <motion.div
-                initial={{ opacity: 0, y: 40, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.98 }}
-                style={{ width: '100%', maxWidth: 540, background: 'var(--surface)', borderRadius: 24, padding: 48, position: 'relative', zIndex: 1001, boxShadow: '0 32px 80px rgba(0,0,0,0.2)' }}
-            >
-                <h2 style={{ fontFamily: "'Poppins', sans-serif", margin: '0 0 12px', fontSize: 32, fontWeight: 500, letterSpacing: '-1.2px' }}>Nova Campanha</h2>
-                <p style={{ color: 'rgba(var(--fg-rgb),0.4)', fontSize: 16, marginBottom: 40 }}>Defina os termos do seu novo programa de criadores.</p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>NOME DA CAMPANHA</label>
-                        <input placeholder="Ex: Lançamento Coleção Outono" style={inputStyle} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>PRODUTO VINCULADO</label>
-                        <select style={inputStyle}>
-                            <option>Northie Pro Plan</option>
-                            <option>Módulo Analytics</option>
-                            <option>Mentoria Individual</option>
-                        </select>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <label style={labelStyle}>TIPO DE COMISSÃO</label>
-                            <select style={inputStyle}>
-                                <option value="percentual">Percentual (%)</option>
-                                <option value="fixo">Valor Fixo (R$)</option>
-                            </select>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <label style={labelStyle}>VALOR</label>
-                            <input placeholder="20" style={inputStyle} />
-                        </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <label style={labelStyle}>INÍCIO</label>
-                            <input type="date" style={inputStyle} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <label style={labelStyle}>FIM</label>
-                            <input type="date" style={inputStyle} />
-                        </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>DESCRIÇÃO</label>
-                        <textarea placeholder="Briefing rápido para os criadores..." style={{ ...inputStyle, minHeight: 100, resize: 'none' }} />
-                    </div>
+        <Modal onClose={onClose} maxWidth={520} title="Nova Campanha" subtitle="Defina os termos do seu novo programa de criadores.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 20 }}>
+                <Input
+                    label="Nome da campanha"
+                    value={formData.name}
+                    onChange={e => set('name', e.target.value)}
+                    placeholder="Ex: Lançamento Coleção Verão"
+                />
+                <SelectField
+                    label="Produto vinculado"
+                    value={formData.product_name}
+                    onChange={e => set('product_name', e.target.value)}
+                >
+                    <option>Northie Pro Plan</option>
+                    <option>Módulo Analytics</option>
+                    <option>Mentoria Individual</option>
+                </SelectField>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12 }}>
+                    <SelectField
+                        label="Tipo de comissão"
+                        value={formData.type}
+                        onChange={e => set('type', e.target.value)}
+                    >
+                        <option value="percentual">Percentual (%)</option>
+                        <option value="fixo">Valor fixo (R$)</option>
+                    </SelectField>
+                    <Input
+                        label="Valor"
+                        value={formData.commission_rate}
+                        onChange={e => set('commission_rate', Number(e.target.value))}
+                        type="number"
+                        placeholder="20"
+                    />
                 </div>
-
-                <div style={{ display: 'flex', gap: 16, marginTop: 48 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'none', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: 'var(--fg)' }}>Cancelar</button>
-                    <button onClick={onCreate} style={{ flex: 1, padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontFamily: "'Poppins', sans-serif" }}>Criar campanha</button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <Input label="Início" type="date" value={formData.start_date} onChange={e => set('start_date', e.target.value)} />
+                    <Input label="Fim" type="date" value={formData.end_date} onChange={e => set('end_date', e.target.value)} />
                 </div>
-            </motion.div>
-        </div>
+                <Textarea
+                    label="Descrição"
+                    value={formData.description}
+                    onChange={e => set('description', e.target.value)}
+                    placeholder="Briefing para os criadores..."
+                    style={{ minHeight: 80 }}
+                />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                <Btn variant="secondary" size="md" fullWidth onClick={onClose}>Cancelar</Btn>
+                <Btn variant="primary" size="md" fullWidth onClick={() => onCreate(formData)}>Criar campanha</Btn>
+            </div>
+        </Modal>
     )
 }
+
+// ── Add Creator Modal ─────────────────────────────────────────────────────────
 
 function AddCreatorModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name: string, email: string) => void }) {
     const [name, setName] = useState('')
     const [email, setEmail] = useState('')
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(var(--fg-rgb),0.4)', backdropFilter: 'blur(8px)' }} />
-            <motion.div
-                initial={{ opacity: 0, y: 40, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.98 }}
-                style={{ width: '100%', maxWidth: 440, background: 'var(--surface)', borderRadius: 24, padding: 48, position: 'relative', zIndex: 1101, boxShadow: '0 32px 80px rgba(0,0,0,0.2)' }}
-            >
-                <h3 style={{ fontFamily: "'Poppins', sans-serif", margin: '0 0 12px', fontSize: 26, fontWeight: 500, letterSpacing: '-0.8px' }}>Novo Criador</h3>
-                <p style={{ color: 'rgba(var(--fg-rgb),0.4)', fontSize: 15, marginBottom: 32 }}>Adicione um parceiro para esta campanha.</p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>NOME COMPLETO</label>
-                        <input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Lucas Montano" style={inputStyle} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>EMAIL DE CONTATO</label>
-                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="lucas@northie.co" style={inputStyle} />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, marginTop: 40 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '12px', background: 'none', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: 'var(--fg)' }}>Cancelar</button>
-                    <button onClick={() => onAdd(name, email)} style={{ flex: 1, padding: '12px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontFamily: "'Poppins', sans-serif" }}>Confirmar</button>
-                </div>
-            </motion.div>
-        </div>
+        <Modal onClose={onClose} maxWidth={440} title="Novo Criador" subtitle="Adicione um parceiro para esta campanha.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 20 }}>
+                <Input label="Nome completo" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Lucas Montano" />
+                <Input label="Email de contato" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="lucas@northie.co" />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+                <Btn variant="secondary" size="md" fullWidth onClick={onClose}>Cancelar</Btn>
+                <Btn variant="primary" size="md" fullWidth onClick={() => onAdd(name, email)}>Confirmar</Btn>
+            </div>
+        </Modal>
     )
 }
 
-function PaymentConfirmModal({ creator, onClose, onConfirm }: { creator: Creator; onClose: () => void; onConfirm: () => void }) {
+// ── Payment Confirm Modal ─────────────────────────────────────────────────────
+
+function PaymentConfirmModal({ creator, onClose, onConfirm }: { creator: any; onClose: () => void; onConfirm: () => void }) {
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(var(--fg-rgb),0.4)', backdropFilter: 'blur(8px)' }} />
-            <motion.div
-                initial={{ opacity: 0, y: 40, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.98 }}
-                style={{ width: '100%', maxWidth: 440, background: 'var(--surface)', borderRadius: 24, padding: 48, position: 'relative', zIndex: 1201, boxShadow: '0 32px 80px rgba(0,0,0,0.2)' }}
-            >
-                <h3 style={{ fontFamily: "'Poppins', sans-serif", margin: '0 0 12px', fontSize: 26, fontWeight: 500, letterSpacing: '-0.8px' }}>Confirmar Payout</h3>
-                <p style={{ color: 'rgba(var(--fg-rgb),0.4)', fontSize: 15, marginBottom: 32 }}>Deseja registrar o pagamento para <strong>{creator.name}</strong>?</p>
-
-                <div style={{ background: 'rgba(var(--fg-rgb),0.02)', padding: 32, borderRadius: 16, textAlign: 'center', marginBottom: 40, border: '1px dashed rgba(var(--fg-rgb),0.1)' }}>
-                    <span style={{ fontSize: 11, fontFamily: "'Geist Mono', monospace", color: 'rgba(var(--fg-rgb),0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>VALOR A LIQUIDAR</span>
-                    <p style={{ fontSize: 40, fontFamily: "'Poppins', sans-serif", fontWeight: 600, margin: '8px 0 0', color: 'var(--fg)', letterSpacing: '-1.5px' }}>R$ {creator.commission.toLocaleString('pt-BR')}</p>
+        <Modal onClose={onClose} maxWidth={420} title="Confirmar Pagamento">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 16 }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', margin: 0 }}>
+                    Registrar pagamento para <strong style={{ color: 'var(--color-text-primary)' }}>{creator.name}</strong>?
+                </p>
+                <div style={{
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: '20px',
+                    textAlign: 'center',
+                    margin: '16px 0',
+                }}>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>VALOR A LIQUIDAR</p>
+                    <p style={{
+                        fontFamily: 'var(--font-display)',
+                        fontSize: 36,
+                        fontWeight: 400,
+                        letterSpacing: '-1.4px',
+                        color: 'var(--color-text-primary)',
+                        margin: 0,
+                    }}>R$ {fmtBR(creator.pending_commission)}</p>
                 </div>
-
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '12px', background: 'none', border: '1px solid rgba(var(--fg-rgb),0.1)', borderRadius: 10, cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: 'var(--fg)' }}>Voltar</button>
-                    <button onClick={onConfirm} style={{ flex: 1, padding: '12px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontFamily: "'Poppins', sans-serif" }}>Confirmar Pagamento</button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                    <Btn variant="secondary" size="md" fullWidth onClick={onClose}>Voltar</Btn>
+                    <Btn variant="primary" size="md" fullWidth onClick={onConfirm}>Confirmar pagamento</Btn>
                 </div>
-            </motion.div>
-        </div>
+            </div>
+        </Modal>
     )
 }
 
-// ── Main Component ───────────────────────────────────────────────────────────
+// ── Campaign Card ─────────────────────────────────────────────────────────────
+
+function CampaignCard({ camp, onClick, index }: { camp: any; onClick: () => void; index: number }) {
+    const [hovered, setHovered] = useState(false)
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: index * 0.06 }}
+            onClick={onClick}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                padding: '20px 24px',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-lg)',
+                background: hovered ? 'var(--color-bg-secondary)' : 'var(--color-bg-primary)',
+                cursor: 'pointer',
+                transition: 'all var(--transition-base)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+            }}
+        >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-md)',
+                        fontWeight: 500,
+                        color: 'var(--color-text-primary)',
+                        margin: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                    }}>
+                        {camp.name}
+                    </h3>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginTop: 3 }}>
+                        {camp.product_name}
+                    </p>
+                </div>
+                <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Criadores</span>
+                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '2px 0 0' }}>{camp.creators_count}</p>
+                </div>
+            </div>
+
+            {/* Stats grid */}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px 24px',
+                padding: '14px 0',
+                borderTop: '1px solid var(--color-border)',
+            }}>
+                {[
+                    { label: 'Comissão', value: camp.type === 'percentual' ? `${camp.commission_rate}%` : `R$ ${camp.commission_rate}` },
+                    { label: 'Vendas', value: camp.sales_count || 0 },
+                    { label: 'Pendente', value: `R$ ${new Intl.NumberFormat('pt-BR').format(Number(camp.commission_total || 0))}` },
+                    { label: 'Prazo', value: camp.end_date ? new Date(camp.end_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase() : 'OPEN' },
+                ].map((s, i) => (
+                    <div key={i}>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 3px' }}>{s.label}</p>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', margin: 0 }}>{s.value}</p>
+                    </div>
+                ))}
+            </div>
+
+            {/* Creator avatars */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex' }}>
+                    {(camp.creators || []).slice(0, 4).map((c: any, idx: number) => (
+                        <div key={c.id} style={{
+                            width: 24, height: 24, borderRadius: 'var(--radius-sm)',
+                            background: 'var(--color-bg-tertiary)',
+                            border: `2px solid var(--color-bg-primary)`,
+                            marginLeft: idx > 0 ? -8 : 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500,
+                            color: 'var(--color-text-secondary)',
+                        }}>
+                            {c.name.charAt(0).toUpperCase()}
+                        </div>
+                    ))}
+                    {(camp.creators || []).length > 4 && (
+                        <div style={{
+                            width: 24, height: 24, borderRadius: 'var(--radius-sm)',
+                            background: 'var(--color-bg-tertiary)',
+                            border: `2px solid var(--color-bg-primary)`,
+                            marginLeft: -8,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: 'var(--font-sans)', fontSize: 9,
+                            color: 'var(--color-text-tertiary)',
+                        }}>
+                            +{camp.creators.length - 4}
+                        </div>
+                    )}
+                </div>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                    {(camp?.creators || []).length} criadores
+                </span>
+                <svg style={{ marginLeft: 'auto', color: 'var(--color-text-tertiary)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                </svg>
+            </div>
+        </motion.div>
+    )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Criadores({ onToggleChat }: { onToggleChat?: () => void }) {
-    const [campaigns, setCampaigns] = useState<Campaign[]>(INITIAL_CAMPAIGNS)
+    const [campaigns, setCampaigns] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
     const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null)
     const [isNewCampaignOpen, setIsNewCampaignOpen] = useState(false)
     const [isAddCreatorOpen, setIsAddCreatorOpen] = useState(false)
-    const [creatorToPay, setCreatorToPay] = useState<Creator | null>(null)
+    const [creatorToPay, setCreatorToPay] = useState<any | null>(null)
+    const [campaignCreators, setCampaignCreators] = useState<any[]>([])
+    const [statusFilter, setStatusFilter] = useState('Todas')
 
-    const selectedCampaign = useMemo(() =>
-        campaigns.find(c => c.id === selectedCampaignId),
-        [campaigns, selectedCampaignId])
+    const fetchCampaigns = async () => {
+        try {
+            const res = await campaignApi.list()
+            setCampaigns(res.data)
+        } catch (error) {
+            console.error('Failed to fetch campaigns:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => { fetchCampaigns() }, [])
+
+    useEffect(() => {
+        if (selectedCampaignId) {
+            campaignApi.listCreators(selectedCampaignId).then(res => setCampaignCreators(res.data))
+        }
+    }, [selectedCampaignId])
+
+    const selectedCampaign = useMemo(() => campaigns.find(c => c.id === selectedCampaignId), [campaigns, selectedCampaignId])
 
     const globalKPIs = useMemo(() => {
-        let paid = 0, pending = 0, sales = 0, revenue = 0, creators = 0
+        let pending = 0, sales = 0, creators = 0
         campaigns.forEach(camp => {
-            creators += camp.creators.length
-            camp.creators.forEach(c => {
-                sales += c.sales
-                revenue += c.revenue
-                if (c.status === 'pago') paid += c.commission
-                else pending += c.commission
-            })
+            creators += camp.creators_count || 0
+            sales += camp.sales_count || 0
+            pending += Number(camp.commission_total || 0)
         })
-        return { paid, pending, sales, ticket: sales > 0 ? (revenue / sales).toFixed(2) : 0, creators }
+        return { pending, sales, creators, paid: 0 }
     }, [campaigns])
 
-    const handleCreateCampaign = () => {
-        // Mock creation
-        setIsNewCampaignOpen(false)
-    }
+    const filteredCampaigns = useMemo(() => {
+        if (statusFilter === 'Todas') return campaigns
+        return campaigns.filter(c => c.type === statusFilter.toLowerCase())
+    }, [campaigns, statusFilter])
 
-    const handleAddCreator = (name: string, email: string) => {
-        if (!selectedCampaignId) return
-        const slug = name.toLowerCase().replace(/ /g, '-')
-        const newCreator: Creator = {
-            id: Math.random().toString(),
-            name,
-            email,
-            affiliateLink: `northie.co/ref/${slug}`,
-            sales: 0,
-            revenue: 0,
-            commission: 0,
-            status: 'pendente'
+    const handleCreateCampaign = async (data: any) => {
+        try {
+            await campaignApi.create(data)
+            fetchCampaigns()
+            setIsNewCampaignOpen(false)
+        } catch {
+            alert('Erro ao criar campanha')
         }
-        setCampaigns(prev => prev.map(c =>
-            c.id === selectedCampaignId
-                ? { ...c, creators: [newCreator, ...c.creators] }
-                : c
-        ))
-        setIsAddCreatorOpen(false)
     }
 
-    const handleConfirmPayment = () => {
+    const handleAddCreator = async (name: string, email: string) => {
+        if (!selectedCampaignId) return
+        try {
+            await campaignApi.addCreator({ campaignId: selectedCampaignId, name, email })
+            const res = await campaignApi.listCreators(selectedCampaignId)
+            setCampaignCreators(res.data)
+            setIsAddCreatorOpen(false)
+            fetchCampaigns()
+        } catch {
+            alert('Erro ao adicionar criador')
+        }
+    }
+
+    const handleConfirmPayment = async () => {
         if (!creatorToPay || !selectedCampaignId) return
-        setCampaigns(prev => prev.map(c => ({
-            ...c,
-            creators: c.creators.map(cre =>
-                cre.id === creatorToPay.id
-                    ? { ...cre, status: 'pago', paidAt: new Date().toLocaleDateString('pt-BR') }
-                    : cre
-            )
-        })))
-        setCreatorToPay(null)
-    }
-
-    const handleOpenCampaign = (id: string) => {
-        setSelectedCampaignId(id)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        try {
+            await campaignApi.confirmPayout({ campaignId: selectedCampaignId, creatorId: creatorToPay.id })
+            const res = await campaignApi.listCreators(selectedCampaignId)
+            setCampaignCreators(res.data)
+            setCreatorToPay(null)
+            fetchCampaigns()
+        } catch {
+            alert('Erro ao confirmar pagamento')
+        }
     }
 
     return (
         <div style={{ paddingTop: 28, paddingBottom: 80 }}>
             <TopBar onToggleChat={onToggleChat} />
 
-            <motion.h1
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{
-                    fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 40,
-                    letterSpacing: '-1.6px', color: 'var(--fg)', margin: 0
-                }}
-            >
-                Creators
-            </motion.h1>
-
             <AnimatePresence mode="wait">
                 {!selectedCampaignId ? (
-                    <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                        <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap', marginTop: 48 }}>
+                    <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        {/* Page Header */}
+                        <PageHeader
+                            title="Creators"
+                            subtitle="Gerencie suas campanhas de parceria e comissões de criadores."
+                            actions={
+                                <Btn variant="primary" size="md" onClick={() => setIsNewCampaignOpen(true)}
+                                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}
+                                >
+                                    Nova campanha
+                                </Btn>
+                            }
+                        />
+
+                        {/* KPIs */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.1 }}
+                            style={{ display: 'flex', gap: 48, flexWrap: 'wrap', marginTop: 40 }}
+                        >
                             <KpiCard label="COMISSÕES PAGAS" value={globalKPIs.paid} prefix="R$ " decimals={0} delay={0.1} />
                             <KpiCard label="PENDENTES" value={globalKPIs.pending} prefix="R$ " decimals={0} delay={0.2} />
                             <KpiCard label="VENDAS VIA CRIADOR" value={globalKPIs.sales} decimals={0} delay={0.3} />
                             <KpiCard label="CRIADORES ATIVOS" value={globalKPIs.creators} decimals={0} delay={0.4} />
+                        </motion.div>
+
+                        <Divider margin="44px 0 28px" />
+
+                        {/* Filters + Section */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                            <SectionLabel gutterBottom={0}>Campanhas ({filteredCampaigns.length})</SectionLabel>
+                            <FilterPills
+                                options={['Todas', 'Percentual', 'Fixo']}
+                                active={statusFilter}
+                                onChange={setStatusFilter}
+                            />
                         </div>
 
-                        <div style={{ marginTop: 100 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 40 }}>
-                                <div>
-                                    <h2 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 26, fontWeight: 500, margin: 0, letterSpacing: '-0.8px' }}>Campanhas</h2>
-                                    <p style={{ color: 'rgba(var(--fg-rgb),0.4)', fontSize: 15, marginTop: 6 }}>Gerencie seus programas de parcerias.</p>
-                                </div>
-                                <motion.button
-                                    onClick={() => setIsNewCampaignOpen(true)}
-                                    whileHover={{ scale: 1.02, backgroundColor: '#1E1E1E', color: '#FFF' }}
-                                    whileTap={{ scale: 0.98 }}
-                                    style={{
-                                        padding: '12px 28px', borderRadius: 10, border: '1px solid #1E1E1E',
-                                        background: 'transparent', cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
-                                        fontSize: 15, fontWeight: 500, transition: 'all 0.2s'
-                                    }}
-                                >
-                                    Nova campanha
-                                </motion.button>
+                        {/* Campaigns Grid */}
+                        {loading ? (
+                            <LoadingRow />
+                        ) : filteredCampaigns.length === 0 ? (
+                            <EmptyState
+                                title="Nenhuma campanha ainda"
+                                description="Crie sua primeira campanha de criadores para começar."
+                                action={<Btn variant="primary" size="sm" onClick={() => setIsNewCampaignOpen(true)}>Nova campanha</Btn>}
+                            />
+                        ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+                                {filteredCampaigns.map((camp, i) => (
+                                    <CampaignCard
+                                        key={camp.id}
+                                        camp={camp}
+                                        index={i}
+                                        onClick={() => {
+                                            setSelectedCampaignId(camp.id)
+                                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                                        }}
+                                    />
+                                ))}
                             </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 32 }}>
-                                {campaigns.map((camp, i) => {
-                                    const rev = camp.creators.reduce((a, c) => a + c.revenue, 0)
-                                    const com = camp.creators.reduce((a, c) => a + c.commission, 0)
-                                    const sales = camp.creators.reduce((a, c) => a + c.sales, 0)
-                                    const roi = com > 0 ? (rev / com).toFixed(1) : '—'
-
-                                    return (
-                                        <motion.div
-                                            key={camp.id}
-                                            onClick={() => handleOpenCampaign(camp.id)}
-                                            initial={{ opacity: 0, scale: 0.98 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            transition={{ duration: 0.4, delay: i * 0.08 }}
-                                            whileHover={{ y: -8, boxShadow: '0 12px 40px rgba(0,0,0,0.06)', borderColor: 'rgba(var(--fg-rgb),0.1)' }}
-                                            style={{
-                                                padding: 36,
-                                                borderRadius: 20,
-                                                border: '1px solid rgba(var(--fg-rgb),0.06)',
-                                                background: 'var(--surface-glass)',
-                                                backdropFilter: 'blur(10px)',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: 28,
-                                                cursor: 'pointer',
-                                                transition: 'border-color 0.2s, box-shadow 0.2s'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <div>
-                                                    <h3 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 500, margin: 0, letterSpacing: '-0.5px', color: 'var(--fg)' }}>{camp.name}</h3>
-                                                    <p style={{ fontSize: 14, color: 'rgba(var(--fg-rgb),0.4)', marginTop: 6 }}>{camp.product}</p>
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <span style={{ fontSize: 10, fontFamily: "'Geist Mono', monospace", color: 'rgba(var(--fg-rgb),0.3)', fontWeight: 600 }}>ROI</span>
-                                                    <p style={{ fontSize: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 600, margin: 0, color: 'var(--fg)' }}>{roi}x</p>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, padding: '24px 0', borderTop: '1px solid rgba(var(--fg-rgb),0.04)', borderBottom: '1px solid rgba(var(--fg-rgb),0.04)' }}>
-                                                <div>
-                                                    <SectionLabel>COMISSÃO</SectionLabel>
-                                                    <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>{camp.commissionType === 'percentual' ? `${camp.commissionValue}%` : `R$ ${camp.commissionValue}`}</p>
-                                                </div>
-                                                <div>
-                                                    <SectionLabel>VENDAS</SectionLabel>
-                                                    <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>{sales}</p>
-                                                </div>
-                                                <div>
-                                                    <SectionLabel>TOTAL PAGO</SectionLabel>
-                                                    <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>R$ {camp.creators.filter(c => c.status === 'pago').reduce((a, c) => a + c.commission, 0).toLocaleString('pt-BR')}</p>
-                                                </div>
-                                                <div>
-                                                    <SectionLabel>PRAZO</SectionLabel>
-                                                    <p style={{ fontSize: 16, fontWeight: 500, margin: 0 }}>{new Date(camp.endDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase()}</p>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ display: 'flex', gap: 4 }}>
-                                                    {camp.creators.slice(0, 3).map((cre, idx) => (
-                                                        <div key={cre.id} style={{
-                                                            width: 32, height: 32, borderRadius: 10,
-                                                            background: 'var(--inv)', color: 'var(--on-inv)',
-                                                            border: '2px solid var(--surface)', marginLeft: idx > 0 ? -12 : 0,
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            fontSize: 12, fontWeight: 600,
-                                                            boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
-                                                        }}>
-                                                            {cre.name[0]}
-                                                        </div>
-                                                    ))}
-                                                    {camp.creators.length > 3 && (
-                                                        <div style={{
-                                                            width: 32, height: 32, borderRadius: 10,
-                                                            background: 'rgba(var(--fg-rgb),0.05)', color: 'rgba(var(--fg-rgb),0.4)',
-                                                            border: '2px solid var(--surface)', marginLeft: -12,
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                            fontSize: 11, fontWeight: 700
-                                                        }}>
-                                                            +{camp.creators.length - 3}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <p style={{ fontSize: 12, color: 'rgba(var(--fg-rgb),0.3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{camp.creators.length} criadores</p>
-                                            </div>
-                                        </motion.div>
-                                    )
-                                })}
-                            </div>
-                        </div>
+                        )}
                     </motion.div>
                 ) : (
                     <CampaignDetails
                         key="details"
-                        campaign={selectedCampaign!}
+                        campaign={{ ...selectedCampaign!, creators: campaignCreators }}
                         onBack={() => setSelectedCampaignId(null)}
                         onAddCreator={() => setIsAddCreatorOpen(true)}
                         onPayCreator={setCreatorToPay}
@@ -648,15 +563,9 @@ export default function Criadores({ onToggleChat }: { onToggleChat?: () => void 
 
             {/* Modals */}
             <AnimatePresence>
-                {isNewCampaignOpen && (
-                    <NewCampaignModal onClose={() => setIsNewCampaignOpen(false)} onCreate={handleCreateCampaign} />
-                )}
-                {isAddCreatorOpen && (
-                    <AddCreatorModal onClose={() => setIsAddCreatorOpen(false)} onAdd={handleAddCreator} />
-                )}
-                {creatorToPay && (
-                    <PaymentConfirmModal creator={creatorToPay} onClose={() => setCreatorToPay(null)} onConfirm={handleConfirmPayment} />
-                )}
+                {isNewCampaignOpen && <NewCampaignModal onClose={() => setIsNewCampaignOpen(false)} onCreate={handleCreateCampaign} />}
+                {isAddCreatorOpen && <AddCreatorModal onClose={() => setIsAddCreatorOpen(false)} onAdd={handleAddCreator} />}
+                {creatorToPay && <PaymentConfirmModal creator={creatorToPay} onClose={() => setCreatorToPay(null)} onConfirm={handleConfirmPayment} />}
             </AnimatePresence>
         </div>
     )

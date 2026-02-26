@@ -1,6 +1,10 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 
+/**
+ * Lists all customers for the authenticated profile
+ * @route GET /api/data/customers
+ */
 export async function listCustomers(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
 
@@ -11,15 +15,28 @@ export async function listCustomers(req: Request, res: Response) {
     try {
         const { data, error } = await supabase
             .from('customers')
-            .select('*')
+            .select(`
+                id,
+                email,
+                name,
+                phone,
+                total_ltv,
+                acquisition_channel,
+                rfm_score,
+                churn_probability,
+                last_purchase_at,
+                cac,
+                created_at
+            `)
             .eq('profile_id', profileId)
-            .order('last_purchase_at', { ascending: false });
+            .order('total_ltv', { ascending: false })
+            .limit(500);
 
         if (error) throw error;
 
-        res.status(200).json(data);
+        res.status(200).json(data || []);
     } catch (error: any) {
-        console.error('List Customers Error:', error);
+        console.error('[CustomersController] listCustomers error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 }

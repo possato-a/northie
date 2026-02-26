@@ -9,7 +9,12 @@ import dashboardRoutes from './routes/dashboard.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import integrationRoutes from './routes/integration.routes.js';
 import dataRoutes from './routes/data.routes.js';
+import campaignRoutes from './routes/campaign.routes.js';
 import { startTokenRefreshJob } from './jobs/token-refresh.job.js';
+import { startAdsSyncJob } from './jobs/ads-sync.job.js';
+import { startRfmCalcJob } from './jobs/rfm-calc.job.js';
+import { webhookQueue } from './lib/webhook-queue.js';
+import { startAlertsJob } from './jobs/alerts.job.js';
 
 dotenv.config();
 
@@ -29,6 +34,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/data', dataRoutes);
+app.use('/api/campaigns', campaignRoutes);
 
 // Basic Route
 app.get('/api/health', (req, res) => {
@@ -40,6 +46,10 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
         console.log(`Northie Backend running on port ${PORT}`);
         startTokenRefreshJob();
+        startAdsSyncJob();
+        startRfmCalcJob();
+        webhookQueue.recoverPending();
+        startAlertsJob();
     });
 }
 

@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import Sidebar, { type Page } from './components/Sidebar'
-import Dashboard from './components/Dashboard'
+import Sidebar, { type Page } from './components/layout/Sidebar'
+import Dashboard from './pages/Dashboard'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
 import Canais from './pages/Canais'
 import Criadores from './pages/Criadores'
 import AppStore from './pages/AppStore'
-import ChatSidebar from './components/ChatSidebar'
+import Configuracoes from './pages/Configuracoes'
+import ChatSidebar from './components/layout/ChatSidebar'
 import Login from './pages/Login'
 import { supabase } from './lib/supabase'
 import { Session } from '@supabase/supabase-js'
@@ -55,6 +56,7 @@ export default function App() {
       case 'canais': return 'Canais'
       case 'creators': return 'Criadores'
       case 'app-store': return 'App Store'
+      case 'configuracoes': return 'Configurações'
       default: return 'Início'
     }
   }, [activePage])
@@ -123,7 +125,8 @@ export default function App() {
               user={session?.user}
             />
           )}
-          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'app-store' && (
+          {activePage === 'configuracoes' && <Configuracoes />}
+          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
             <motion.div
               key={activePage}
               initial={{ opacity: 0, y: 10 }}

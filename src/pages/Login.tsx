@@ -22,32 +22,32 @@ function EyeIcon({ open }: { open: boolean }) {
     )
 }
 
-// ── Shared styles ─────────────────────────────────────────────────────────────
-
-const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontFamily: "'Geist Mono', monospace",
-    fontSize: 10,
-    color: 'rgba(var(--fg-rgb), 0.32)',
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    marginBottom: 7,
-}
+// ── Shared Input Styles ────────────────────────────────────────────────────────
 
 function getInputStyle(focused: boolean): React.CSSProperties {
     return {
         width: '100%',
-        padding: '12px 16px',
-        background: focused ? 'rgba(var(--fg-rgb), 0.08)' : 'rgba(var(--fg-rgb), 0.05)',
-        border: focused ? '1px solid rgba(var(--fg-rgb), 0.3)' : '1px solid rgba(var(--fg-rgb), 0.08)',
-        borderRadius: 7,
-        color: 'var(--fg)',
-        fontFamily: "'Poppins', sans-serif",
-        fontSize: 14,
+        padding: '9px 12px',
+        background: 'var(--color-bg-primary)',
+        border: `1px solid ${focused ? 'var(--color-primary)' : 'var(--color-border)'}`,
+        borderRadius: 'var(--radius-md)',
+        color: 'var(--color-text-primary)',
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--text-base)',
         outline: 'none',
         boxSizing: 'border-box' as const,
-        transition: 'border-color 0.2s, background 0.2s',
+        boxShadow: focused ? '0 0 0 2px var(--color-primary-light)' : 'none',
+        transition: 'border-color var(--transition-base), box-shadow var(--transition-base)',
     }
+}
+
+const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontFamily: 'var(--font-sans)',
+    fontSize: 'var(--text-sm)',
+    fontWeight: 500,
+    color: 'var(--color-text-secondary)',
+    marginBottom: 6,
 }
 
 function PasswordInput({
@@ -70,19 +70,19 @@ function PasswordInput({
                 onFocus={onFocus}
                 onBlur={onBlur}
                 placeholder={placeholder ?? '••••••••'}
-                style={{ ...getInputStyle(focused), paddingRight: 42 }}
+                style={{ ...getInputStyle(focused), paddingRight: 40 }}
             />
             <button
                 type="button"
                 onClick={() => setShow(v => !v)}
                 style={{
-                    position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)',
+                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'rgba(var(--fg-rgb), 0.22)', padding: 0, display: 'flex',
-                    transition: 'color 0.15s',
+                    color: 'var(--color-text-tertiary)', padding: 0, display: 'flex',
+                    transition: 'color var(--transition-base)',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.55)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.22)')}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
             >
                 <EyeIcon open={show} />
             </button>
@@ -98,14 +98,13 @@ function ImagePanel() {
         <div style={{
             flex: '0 0 55%',
             position: 'relative',
-            background: isDark ? '#000' : 'var(--bg)',
+            background: isDark ? '#000' : 'var(--color-bg-secondary)',
             overflow: 'hidden',
-            borderRight: '1px solid rgba(var(--fg-rgb), 0.1)',
+            borderRight: '1px solid var(--color-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
         }}>
-            {/* Bússola — ocupa o painel inteiro com espaço para o glass */}
             <motion.img
                 src={isDark ? "/northie-bussola-dark.png" : "/bussola-northie.png"}
                 alt="Bússola Northie"
@@ -123,7 +122,7 @@ function ImagePanel() {
                 }}
             />
 
-            {/* Glass card — tagline */}
+            {/* Glass card */}
             <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -137,17 +136,17 @@ function ImagePanel() {
                     background: 'var(--surface-glass)',
                     backdropFilter: 'blur(22px) saturate(1.6)',
                     WebkitBackdropFilter: 'blur(22px) saturate(1.6)',
-                    border: '1px solid rgba(var(--fg-rgb), 0.12)',
-                    borderRadius: 14,
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-xl)',
                     padding: '20px 26px',
-                    boxShadow: '0 2px 24px rgba(0,0,0,0.05)',
+                    boxShadow: 'var(--shadow-md)',
                 }}
             >
                 <p style={{
-                    fontFamily: "'Poppins', sans-serif",
+                    fontFamily: 'var(--font-display)',
                     fontSize: 17,
                     fontWeight: 400,
-                    color: 'rgba(var(--fg-rgb), 0.82)',
+                    color: 'var(--color-text-primary)',
                     letterSpacing: '-0.3px',
                     lineHeight: 1.5,
                     margin: '0 0 10px',
@@ -155,10 +154,10 @@ function ImagePanel() {
                     Dados que revelam,<br />decisões que constroem.
                 </p>
                 <p style={{
-                    fontFamily: "'Geist Mono', monospace",
-                    fontSize: 10,
-                    color: 'rgba(var(--fg-rgb), 0.38)',
-                    letterSpacing: '0.1em',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-tertiary)',
+                    letterSpacing: '0.08em',
                     margin: 0,
                     textTransform: 'uppercase',
                 }}>
@@ -183,27 +182,31 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
         setLoading(true)
         setError(null)
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        })
+        let attempts = 0
 
-        if (error) {
-            setError(error.message)
-            setLoading(false)
-        } else {
-            onLogin()
+        const attemptLogin = async (): Promise<void> => {
+            const { error } = await supabase.auth.signInWithPassword({ email, password })
+            if (error) {
+                const isRetryable = error.status === 0 ||
+                    error.message.toLowerCase().includes('fetch') ||
+                    error.message.toLowerCase().includes('network')
+
+                if (isRetryable && attempts < 3) {
+                    attempts++
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempts))
+                    return attemptLogin()
+                }
+                setError(error.message)
+                setLoading(false)
+            } else {
+                onLogin()
+            }
         }
-    }
 
-    const panelStyle: React.CSSProperties = {
-        flex: '0 0 45%',
-        background: 'var(--surface)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '52px 60px',
-        overflowY: 'auto',
+        try { await attemptLogin() } catch {
+            setError('Erro inesperado na conexão.')
+            setLoading(false)
+        }
     }
 
     return (
@@ -213,24 +216,53 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
-            style={panelStyle}
+            style={{
+                flex: '0 0 45%',
+                background: 'var(--color-bg-primary)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                padding: '52px 56px',
+                overflowY: 'auto',
+            }}
         >
             {/* Logo */}
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.05 }}
-                style={{ fontFamily: "'Lora', serif", fontSize: 18, color: 'rgba(var(--fg-rgb), 0.78)', marginBottom: 52 }}
+                style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 20,
+                    fontWeight: 400,
+                    color: 'var(--color-text-primary)',
+                    marginBottom: 'var(--space-12)',
+                    letterSpacing: '-0.5px',
+                }}
             >
                 Northie
             </motion.div>
 
             {/* Heading */}
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 30, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-1.1px', margin: '0 0 8px', lineHeight: 1.1 }}>
+                <h1 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 28,
+                    fontWeight: 400,
+                    color: 'var(--color-text-primary)',
+                    letterSpacing: '-0.8px',
+                    margin: '0 0 6px',
+                    lineHeight: 1.15,
+                }}>
                     Bem-vindo de volta
                 </h1>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.32)', margin: '0 0 40px', lineHeight: 1.6 }}>
+                <p style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-base)',
+                    color: 'var(--color-text-secondary)',
+                    margin: '0 0 var(--space-8)',
+                    lineHeight: 1.55,
+                }}>
                     Entre com seus dados para acessar o painel.
                 </p>
             </motion.div>
@@ -241,29 +273,38 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.18 }}
                 onSubmit={handleLogin}
-                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
             >
                 {error && (
-                    <div style={{ padding: 12, borderRadius: 6, background: 'rgba(255,0,0,0.05)', color: '#ff4d4d', fontSize: 13, fontFamily: "'Poppins', sans-serif" }}>
+                    <div style={{
+                        padding: 'var(--space-3)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--priority-high-bg)',
+                        color: 'var(--priority-high)',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        border: '1px solid rgba(224,62,62,0.2)',
+                    }}>
                         {error}
                     </div>
                 )}
+
                 <div>
-                    <label style={labelStyle}>Email *</label>
+                    <label style={labelStyle}>Email</label>
                     <input
                         type="email"
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         onFocus={() => setFocused('email')}
                         onBlur={() => setFocused(null)}
-                        placeholder="ex: voce@empresa.com"
+                        placeholder="voce@empresa.com"
                         style={getInputStyle(focused === 'email')}
                         required
                     />
                 </div>
 
                 <div>
-                    <label style={labelStyle}>Senha *</label>
+                    <label style={labelStyle}>Senha</label>
                     <PasswordInput
                         value={password}
                         onChange={setPassword}
@@ -273,8 +314,13 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                     />
                 </div>
 
-                <div style={{ textAlign: 'right', marginTop: -4 }}>
-                    <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.25)', textDecoration: 'underline', textUnderlineOffset: 3, padding: 0 }}>
+                <div style={{ textAlign: 'right', marginTop: -8 }}>
+                    <button type="button" style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                        color: 'var(--color-text-tertiary)',
+                        textDecoration: 'underline', textUnderlineOffset: 3, padding: 0,
+                    }}>
                         Esqueceu a senha?
                     </button>
                 </div>
@@ -282,32 +328,44 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 <motion.button
                     type="submit"
                     disabled={loading}
-                    whileHover={loading ? {} : { opacity: 0.88 }}
-                    whileTap={loading ? {} : { scale: 0.982 }}
-                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: loading ? 'default' : 'pointer', marginTop: 6, letterSpacing: '-0.1px', opacity: loading ? 0.7 : 1 }}
+                    whileHover={loading ? {} : { opacity: 0.9 }}
+                    whileTap={loading ? {} : { scale: 0.985 }}
+                    style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: loading ? 'var(--color-border)' : 'var(--color-primary)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 'var(--radius-md)',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-base)',
+                        fontWeight: 500,
+                        cursor: loading ? 'default' : 'pointer',
+                        marginTop: 4,
+                        letterSpacing: '-0.1px',
+                        transition: 'background var(--transition-base)',
+                    }}
                 >
                     {loading ? 'Entrando...' : 'Entrar'}
                 </motion.button>
             </motion.form>
 
             {/* Footer */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }} style={{ marginTop: 36, textAlign: 'center' }}>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.2)', margin: 0 }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }} style={{ marginTop: 'var(--space-8)', textAlign: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
                     Não tem conta?{' '}
                     <button
                         onClick={onSwitchToSignup}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.5)', fontWeight: 600, padding: 0, transition: 'color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.75)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.5)')}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                            color: 'var(--color-primary)', fontWeight: 500, padding: 0,
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-primary-hover)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-primary)')}
                     >
                         Criar conta
                     </button>
-                </p>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.11)', margin: '28px 0 0', lineHeight: 1.65 }}>
-                    Ao entrar, você concorda com nossos{' '}
-                    <span style={{ textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: 2 }}>Termos de Uso</span>
-                    {' '}e{' '}
-                    <span style={{ textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: 2 }}>Política de Privacidade</span>.
                 </p>
             </motion.div>
         </motion.div>
@@ -329,7 +387,6 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
             setError('As senhas não coincidem')
             return
         }
-
         setLoading(true)
         setError(null)
 
@@ -337,9 +394,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
             email,
             password,
             options: {
-                data: {
-                    full_name: name
-                },
+                data: { full_name: name },
                 emailRedirectTo: window.location.origin
             }
         })
@@ -349,19 +404,9 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
             setLoading(false)
         } else {
             setLoading(false)
-            alert('Conta criada com sucesso! Verifique seu email para confirmar o cadastro.')
+            alert('Conta criada! Verifique seu email para confirmar o cadastro.')
             onSwitchToLogin()
         }
-    }
-
-    const panelStyle: React.CSSProperties = {
-        flex: '0 0 45%',
-        background: 'var(--surface)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: '52px 60px',
-        overflowY: 'auto',
     }
 
     return (
@@ -371,129 +416,136 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -24 }}
             transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
-            style={panelStyle}
+            style={{
+                flex: '0 0 45%',
+                background: 'var(--color-bg-primary)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                padding: '52px 56px',
+                overflowY: 'auto',
+            }}
         >
-            {/* Logo */}
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.05 }}
-                style={{ fontFamily: "'Lora', serif", fontSize: 18, color: 'rgba(var(--fg-rgb), 0.78)', marginBottom: 44 }}
+                style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 20,
+                    fontWeight: 400,
+                    color: 'var(--color-text-primary)',
+                    marginBottom: 'var(--space-10)',
+                    letterSpacing: '-0.5px',
+                }}
             >
                 Northie
             </motion.div>
 
-            {/* Heading */}
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
-                <h1 style={{ fontFamily: "'Poppins', sans-serif", fontSize: 30, fontWeight: 400, color: 'var(--fg)', letterSpacing: '-1.1px', margin: '0 0 8px', lineHeight: 1.1 }}>
+                <h1 style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 28,
+                    fontWeight: 400,
+                    color: 'var(--color-text-primary)',
+                    letterSpacing: '-0.8px',
+                    margin: '0 0 6px',
+                    lineHeight: 1.15,
+                }}>
                     Criar sua conta
                 </h1>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.32)', margin: '0 0 32px', lineHeight: 1.6 }}>
+                <p style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-base)',
+                    color: 'var(--color-text-secondary)',
+                    margin: '0 0 var(--space-6)',
+                    lineHeight: 1.55,
+                }}>
                     Junte-se à Northie e transforme dados em decisões.
                 </p>
             </motion.div>
 
-            {/* Form */}
             <motion.form
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.18 }}
                 onSubmit={handleSignup}
-                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
             >
                 {error && (
-                    <div style={{ padding: 12, borderRadius: 6, background: 'rgba(255,0,0,0.05)', color: '#ff4d4d', fontSize: 13, fontFamily: "'Poppins', sans-serif" }}>
+                    <div style={{
+                        padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
+                        background: 'var(--priority-high-bg)', color: 'var(--priority-high)',
+                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                        border: '1px solid rgba(224,62,62,0.2)',
+                    }}>
                         {error}
                     </div>
                 )}
-                {/* Nome */}
+
                 <div>
-                    <label style={labelStyle}>Nome completo *</label>
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        onFocus={() => setFocused('name')}
-                        onBlur={() => setFocused(null)}
-                        placeholder="Ex: Lucas Montano"
-                        style={getInputStyle(focused === 'name')}
-                        required
+                    <label style={labelStyle}>Nome completo</label>
+                    <input type="text" value={name} onChange={e => setName(e.target.value)}
+                        onFocus={() => setFocused('name')} onBlur={() => setFocused(null)}
+                        placeholder="Lucas Montano" style={getInputStyle(focused === 'name')} required
                     />
                 </div>
 
-                {/* Email */}
                 <div>
-                    <label style={labelStyle}>Email *</label>
-                    <input
-                        type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        onFocus={() => setFocused('email')}
-                        onBlur={() => setFocused(null)}
-                        placeholder="ex: voce@empresa.com"
-                        style={getInputStyle(focused === 'email')}
-                        required
+                    <label style={labelStyle}>Email</label>
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                        onFocus={() => setFocused('email')} onBlur={() => setFocused(null)}
+                        placeholder="voce@empresa.com" style={getInputStyle(focused === 'email')} required
                     />
                 </div>
 
-                {/* Senha + Confirmar — lado a lado, como na referência */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
-                        <label style={labelStyle}>Senha *</label>
-                        <PasswordInput
-                            value={password}
-                            onChange={setPassword}
-                            focused={focused === 'password'}
-                            onFocus={() => setFocused('password')}
-                            onBlur={() => setFocused(null)}
-                        />
+                        <label style={labelStyle}>Senha</label>
+                        <PasswordInput value={password} onChange={setPassword}
+                            focused={focused === 'password'} onFocus={() => setFocused('password')} onBlur={() => setFocused(null)} />
                     </div>
                     <div>
-                        <label style={labelStyle}>Confirmar *</label>
-                        <PasswordInput
-                            value={confirm}
-                            onChange={setConfirm}
-                            focused={focused === 'confirm'}
-                            onFocus={() => setFocused('confirm')}
-                            onBlur={() => setFocused(null)}
-                        />
+                        <label style={labelStyle}>Confirmar</label>
+                        <PasswordInput value={confirm} onChange={setConfirm}
+                            focused={focused === 'confirm'} onFocus={() => setFocused('confirm')} onBlur={() => setFocused(null)} />
                     </div>
                 </div>
 
-                {/* Helper text — igual à referência */}
-                <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.18)', margin: '0', lineHeight: 1.6 }}>
+                <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
+                    color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6,
+                }}>
                     Mínimo 8 caracteres, incluindo um número e um caractere especial.
                 </p>
 
                 <motion.button
-                    type="submit"
-                    disabled={loading}
-                    whileHover={loading ? {} : { opacity: 0.88 }}
-                    whileTap={loading ? {} : { scale: 0.982 }}
-                    style={{ width: '100%', padding: '14px', background: 'var(--inv)', color: 'var(--on-inv)', border: 'none', borderRadius: 8, fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 500, cursor: loading ? 'default' : 'pointer', marginTop: 8, letterSpacing: '-0.1px', opacity: loading ? 0.7 : 1 }}
+                    type="submit" disabled={loading}
+                    whileHover={loading ? {} : { opacity: 0.9 }} whileTap={loading ? {} : { scale: 0.985 }}
+                    style={{
+                        width: '100%', padding: '10px',
+                        background: loading ? 'var(--color-border)' : 'var(--color-primary)',
+                        color: 'white', border: 'none', borderRadius: 'var(--radius-md)',
+                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500,
+                        cursor: loading ? 'default' : 'pointer', marginTop: 4,
+                        transition: 'background var(--transition-base)',
+                    }}
                 >
                     {loading ? 'Criando conta...' : 'Criar conta'}
                 </motion.button>
             </motion.form>
 
-            {/* Footer */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }} style={{ marginTop: 32, textAlign: 'center' }}>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.2)', margin: 0 }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }}
+                style={{ marginTop: 'var(--space-6)', textAlign: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
                     Já tem conta?{' '}
-                    <button
-                        onClick={onSwitchToLogin}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.5)', fontWeight: 600, padding: 0, transition: 'color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.75)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(var(--fg-rgb), 0.5)')}
-                    >
+                    <button onClick={onSwitchToLogin} style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                        color: 'var(--color-primary)', fontWeight: 500, padding: 0,
+                    }}>
                         Entrar
                     </button>
-                </p>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.11)', margin: '24px 0 0', lineHeight: 1.65 }}>
-                    Ao criar sua conta, você concorda com nossos{' '}
-                    <span style={{ textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: 2 }}>Termos de Uso</span>
-                    {' '}e{' '}
-                    <span style={{ textDecoration: 'underline', cursor: 'pointer', textUnderlineOffset: 2 }}>Política de Privacidade</span>.
                 </p>
             </motion.div>
         </motion.div>
@@ -506,26 +558,13 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     const [view, setView] = useState<AuthView>('login')
 
     return (
-        <div style={{
-            width: '100vw',
-            height: '100vh',
-            display: 'flex',
-            overflow: 'hidden',
-        }}>
+        <div style={{ width: '100vw', height: '100vh', display: 'flex', overflow: 'hidden' }}>
             <ImagePanel />
-
             <AnimatePresence mode="wait">
                 {view === 'login' ? (
-                    <LoginForm
-                        key="login"
-                        onLogin={onLogin}
-                        onSwitchToSignup={() => setView('signup')}
-                    />
+                    <LoginForm key="login" onLogin={onLogin} onSwitchToSignup={() => setView('signup')} />
                 ) : (
-                    <SignupForm
-                        key="signup"
-                        onSwitchToLogin={() => setView('login')}
-                    />
+                    <SignupForm key="signup" onSwitchToLogin={() => setView('login')} />
                 )}
             </AnimatePresence>
         </div>

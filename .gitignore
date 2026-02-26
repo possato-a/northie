@@ -30,3 +30,13 @@ yarn-error.log*
 Thumbs.db
 .vercel
 .env*.local
+
+# TypeScript compiled output (backend)
+server/src/**/*.d.ts
+server/src/**/*.d.ts.map
+server/src/**/*.js.map
+server/src/**/*.js
+server/node_modules/
+
+# Debug / test logs
+server/*.txt

@@ -102,6 +102,16 @@ export async function handleCallback(req: Request, res: Response) {
                 }
             });
             tokens = longLivedRes.data;
+        } else if (platform === 'google') {
+            const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/google`;
+            const tokenRes = await axios.post(`https://oauth2.googleapis.com/token`, {
+                client_id: process.env.GOOGLE_CLIENT_ID,
+                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                redirect_uri: redirectUri,
+                grant_type: 'authorization_code',
+                code: code as string
+            });
+            tokens = tokenRes.data;
         }
 
         if (tokens.access_token) {
@@ -149,5 +159,32 @@ export async function handleCallback(req: Request, res: Response) {
                 <small style="color: #636E72;">Por favor, tente fechar esta janela e clicar no link de conexão novamente.</small>
             </div>
         `);
+    }
+}
+
+/**
+ * Deactivates an existing integration
+ */
+export async function disconnectPlatform(req: Request, res: Response) {
+    const { platform } = req.params;
+    const profileId = req.headers['x-profile-id'] as string;
+
+    if (!platform || !profileId) {
+        return res.status(400).json({ error: 'Missing platform or x-profile-id header' });
+    }
+
+    try {
+        const { error } = await supabase
+            .from('integrations')
+            .update({ status: 'inactive' })
+            .eq('profile_id', profileId)
+            .eq('platform', (platform as string) === 'meta-ads' ? 'meta' : (platform as string).replace('-ads', ''));
+
+        if (error) throw error;
+
+        res.status(200).json({ message: `Successfully disconnected ${platform}` });
+    } catch (error: any) {
+        console.error('[IntegrationController] Disconnect Error:', error);
+        res.status(500).json({ error: 'Failed to disconnect integration' });
     }
 }

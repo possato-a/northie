@@ -1,313 +1,118 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { KpiCard } from '../components/KpiCard'
-import TopBar from '../components/TopBar'
-import DatePicker from '../components/DatePicker'
-import { dataApi } from '../lib/api'
-import { useEffect } from 'react'
+import { KpiCard } from '../components/ui/KpiCard'
+import TopBar from '../components/layout/TopBar'
+import DatePicker from '../components/ui/DatePicker'
+import { dashboardApi, dataApi } from '../lib/api'
+import { fmtBR } from '../lib/utils'
+import type { Transaction, TransactionStatus } from '../types'
+import {
+  PageHeader, SectionLabel, TH, Divider,
+  Btn, Input, EmptyState, NotionRow
+} from '../components/ui/shared'
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-type Status = 'Pago' | 'Pendente' | 'Reembolsado'
-type Channel = 'Meta Ads' | 'Google Ads' | 'Google Orgânico' | 'Email' | 'Direto'
-type Method = 'Pix' | 'Cartão' | 'Boleto'
-
-interface Transaction {
-  id: string; date: string; client: string
-  product: string; value: number
-  method: Method; status: Status; channel: Channel
+// ── Status & Method Tags ──────────────────────────────────────────────────────
+function StatusTag({ status }: { status: TransactionStatus }) {
+  const cls = status === 'Pago' ? 'tag-complete' : status === 'Pendente' ? 'tag-planning' : 'tag-neutral'
+  return <span className={`tag ${cls}`}>{status}</span>
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function fmtBR(v: number) {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-const STATUS_STYLE: Record<Status, React.CSSProperties> = {
-  Pago: { background: 'rgba(var(--fg-rgb), 0.08)', color: 'var(--fg)' },
-  Pendente: { border: '1px solid rgba(var(--fg-rgb), 0.18)', color: 'rgba(var(--fg-rgb), 0.6)' },
-  Reembolsado: { background: 'rgba(var(--fg-rgb), 0.04)', color: 'rgba(var(--fg-rgb), 0.38)' },
-}
-
-function StatusBadge({ status }: { status: Status }) {
-  return (
-    <span style={{
-      fontFamily: "'Geist Mono', monospace",
-      fontSize: 11, letterSpacing: '0.02em',
-      padding: '4px 8px', borderRadius: 3,
-      whiteSpace: 'nowrap',
-      ...STATUS_STYLE[status],
-    }}>
-      {status}
-    </span>
-  )
-}
-
-function MethodBadge({ method }: { method: Method }) {
-  return (
-    <span style={{
-      fontFamily: "'Geist Mono', monospace",
-      fontSize: 11, color: 'rgba(var(--fg-rgb), 0.5)',
-      padding: '3px 7px',
-      border: '1px solid rgba(var(--fg-rgb), 0.1)',
-      borderRadius: 3, whiteSpace: 'nowrap',
-    }}>
-      {method}
-    </span>
-  )
-}
-
-// ── Section label ─────────────────────────────────────────────────────────────
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p style={{
-      fontFamily: "'Geist Mono', 'Courier New', monospace",
-      fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)',
-      letterSpacing: '0.06em', marginBottom: 20,
-    }}>
-      {children}
-    </p>
-  )
-}
-
-// ── Table header cell ─────────────────────────────────────────────────────────
-function TH({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
-  return (
-    <span style={{
-      fontFamily: "'Geist Mono', monospace",
-      fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)',
-      letterSpacing: '0.04em', textAlign: align,
-    }}>
-      {children}
-    </span>
-  )
-}
-
-// ── Transaction list ──────────────────────────────────────────────────────────
-const STATUS_FILTERS: Array<Status | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'Reembolsado']
-const CHANNELS: Array<Channel | 'Todos'> = ['Todos', 'Meta Ads', 'Google Ads', 'Google Orgânico', 'Email', 'Direto']
+// ── Transaction List ──────────────────────────────────────────────────────────
+const STATUS_FILTERS: Array<TransactionStatus | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'Reembolsado']
 
 function TransactionList({ transactions, loading }: { transactions: Transaction[], loading: boolean }) {
-  const [statusFilter, setStatusFilter] = useState<Status | 'Todos'>('Todos')
-  const [channelFilter, setChannelFilter] = useState<Channel | 'Todos'>('Todos')
-  const [channelOpen, setChannelOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<TransactionStatus | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => transactions.filter(t => {
     if (statusFilter !== 'Todos' && t.status !== statusFilter) return false
-    if (channelFilter !== 'Todos' && t.channel !== channelFilter) return false
     if (search && !t.client.toLowerCase().includes(search.toLowerCase()) &&
       !t.product.toLowerCase().includes(search.toLowerCase())) return false
     return true
-  }), [statusFilter, channelFilter, search])
+  }), [statusFilter, search])
 
   return (
     <div>
-      <SectionLabel>TRANSAÇÕES</SectionLabel>
-
-      {/* Filter row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {/* Status tabs */}
-        <div style={{ display: 'flex', gap: 4 }}>
-          {STATUS_FILTERS.map(s => (
-            <motion.button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              whileTap={{ scale: 0.97 }}
-              style={{
-                fontFamily: "'Poppins', sans-serif",
-                fontSize: 13, letterSpacing: '-0.3px',
-                padding: '5px 12px', borderRadius: 3, border: 'none',
-                cursor: 'pointer',
-                background: statusFilter === s ? 'rgba(var(--fg-rgb), 0.09)' : 'transparent',
-                color: statusFilter === s ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.5)',
-                transition: 'background 0.15s, color 0.15s',
-              }}
-            >
-              {s}
-            </motion.button>
-          ))}
-        </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Channel dropdown */}
-        <div style={{ position: 'relative' }}>
-          <motion.button
-            onClick={() => setChannelOpen(o => !o)}
-            whileTap={{ scale: 0.97 }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontFamily: "'Poppins', sans-serif",
-              fontSize: 13, letterSpacing: '-0.3px',
-              padding: '5px 12px', borderRadius: 3,
-              border: '1px solid rgba(var(--fg-rgb), 0.13)',
-              background: 'transparent', cursor: 'pointer',
-              color: channelFilter !== 'Todos' ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.55)',
-            }}
-          >
-            {channelFilter === 'Todos' ? 'Canal' : channelFilter}
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </motion.button>
-          <AnimatePresence>
-            {channelOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-                  background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.14)',
-                  borderRadius: 4, padding: '6px 0', zIndex: 200,
-                  minWidth: 160, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.07)',
-                }}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <SectionLabel gutterBottom={0}>Transações ({filtered.length})</SectionLabel>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {STATUS_FILTERS.map(s => (
+              <Btn
+                key={s}
+                variant={statusFilter === s ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setStatusFilter(s)}
               >
-                {CHANNELS.map(c => (
-                  <motion.button
-                    key={c}
-                    onClick={() => { setChannelFilter(c); setChannelOpen(false) }}
-                    whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '8px 14px', background: 'none', border: 'none',
-                      cursor: 'pointer', fontFamily: "'Poppins', sans-serif",
-                      fontSize: 13, letterSpacing: '-0.3px',
-                      color: channelFilter === c ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)',
-                      fontWeight: channelFilter === c ? 500 : 400,
-                    }}
-                  >
-                    {c}
-                  </motion.button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Inline search */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          border: '1px solid rgba(var(--fg-rgb), 0.13)', borderRadius: 3,
-          padding: '5px 10px', height: 32,
-        }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ opacity: 0.35, flexShrink: 0 }}>
-            <circle cx="5" cy="5" r="4" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" />
-            <line x1="8.5" y1="8.5" x2="11" y2="11" style={{ stroke: 'var(--fg)' }} strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-          <input
+                {s}
+              </Btn>
+            ))}
+          </div>
+          <Input
+            placeholder="Filtrar..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar..."
-            style={{
-              border: 'none', background: 'transparent', outline: 'none',
-              fontFamily: "'Poppins', sans-serif",
-              fontSize: 13, letterSpacing: '-0.3px',
-              color: 'var(--fg)', width: 90,
-            }}
+            style={{ width: 140 }}
+            icon={<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>}
           />
         </div>
       </div>
 
-      {/* Table header */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '52px 1fr 1fr 80px 72px 90px',
-        gap: '0 12px',
+        gridTemplateColumns: '1fr 1fr 80px 72px 90px',
+        gap: '0 16px',
         paddingBottom: 10,
-        borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)',
+        borderBottom: '1px solid var(--color-border)',
         marginBottom: 2,
       }}>
-        <TH>DATA</TH>
-        <TH>CLIENTE</TH>
-        <TH>PRODUTO</TH>
-        <TH align="right">VALOR</TH>
-        <TH>MÉTODO</TH>
-        <TH>STATUS</TH>
+        <TH>Cliente</TH>
+        <TH>Produto</TH>
+        <TH align="right">Valor</TH>
+        <TH>Método</TH>
+        <TH>Status</TH>
       </div>
 
-      {/* Rows */}
       <AnimatePresence mode="popLayout">
         {loading ? (
-          <motion.p key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
-            Carregando transações...
-          </motion.p>
+          <div style={{ padding: 40, textAlign: 'center' }}><p style={{ color: 'var(--color-text-tertiary)' }}>Carregando...</p></div>
         ) : filtered.length === 0 ? (
-          <motion.p
-            key="empty"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              fontFamily: "'Poppins', sans-serif",
-              fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)',
-              padding: '24px 0', textAlign: 'center',
-            }}
-          >
-            Nenhuma transação encontrada
-          </motion.p>
-        ) : filtered.map((t, i) => (
-          <motion.div
+          <EmptyState title="Nenhuma transação" description="Tente ajustar os filtros ou pesquisar outro termo." />
+        ) : filtered.map((t) => (
+          <NotionRow
             key={t.id}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.25, delay: i * 0.03, ease: [0.25, 0.1, 0.25, 1] }}
             style={{
               display: 'grid',
-              gridTemplateColumns: '52px 1fr 1fr 80px 72px 90px',
-              gap: '0 12px',
-              alignItems: 'center',
-              padding: '13px 0',
-              borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)',
+              gridTemplateColumns: '1fr 1fr 80px 72px 90px',
+              gap: '0 16px',
+              borderBottom: '1px solid var(--color-border)'
             }}
           >
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.45)' }}>
-              {t.date}
-            </span>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-md)', fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.client}
             </span>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t.product}
             </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', textAlign: 'right' }}>
               R$ {fmtBR(t.value)}
             </span>
-            <MethodBadge method={t.method} />
-            <StatusBadge status={t.status} />
-          </motion.div>
+            <span className="tag tag-neutral">{t.method}</span>
+            <StatusTag status={t.status} />
+          </NotionRow>
         ))}
       </AnimatePresence>
-
-      {filtered.length > 0 && (
-        <p style={{
-          fontFamily: "'Geist Mono', monospace",
-          fontSize: 11, color: 'rgba(var(--fg-rgb), 0.35)',
-          marginTop: 14,
-        }}>
-          {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
-        </p>
-      )}
     </div>
   )
 }
 
-// ── Product revenue table ─────────────────────────────────────────────────────
+// ── Product Revenue ───────────────────────────────────────────────────────────
 function ProductRevenue({ transactions }: { transactions: Transaction[] }) {
   const products = useMemo(() => {
-    const map = new Map<string, { qty: number; revenue: number; avgTicket: number; margin: number }>()
+    const map = new Map<string, { qty: number; revenue: number }>()
     transactions.forEach(t => {
-      const prev = map.get(t.product) || { qty: 0, revenue: 0, avgTicket: 0, margin: 70 }
-      map.set(t.product, {
-        qty: prev.qty + 1,
-        revenue: prev.revenue + t.value,
-        avgTicket: (prev.revenue + t.value) / (prev.qty + 1),
-        margin: 70
-      })
+      const prev = map.get(t.product) || { qty: 0, revenue: 0 }
+      map.set(t.product, { qty: prev.qty + 1, revenue: prev.revenue + t.value })
     })
     return Array.from(map.entries()).map(([name, stats]) => ({ name, ...stats }))
   }, [transactions])
@@ -316,93 +121,55 @@ function ProductRevenue({ transactions }: { transactions: Transaction[] }) {
 
   return (
     <div>
-      <SectionLabel>RECEITA POR PRODUTO</SectionLabel>
-
-      {/* Header */}
+      <SectionLabel>Receita por Produto</SectionLabel>
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 44px 90px 90px 72px',
+        gridTemplateColumns: '1fr 44px 90px',
         gap: '0 12px',
         paddingBottom: 10,
-        borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)',
+        borderBottom: '1px solid var(--color-border)',
         marginBottom: 2,
       }}>
-        <TH>PRODUTO</TH>
-        <TH align="right">QTD</TH>
-        <TH align="right">RECEITA</TH>
-        <TH align="right">TICKET MÉD.</TH>
-        <TH align="right">MARGEM %</TH>
+        <TH>Produto</TH>
+        <TH align="right">Qtd</TH>
+        <TH align="right">Receita</TH>
       </div>
 
       {products.map((p, i) => (
-        <motion.div
-          key={p.name}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: i * 0.07 + 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-        >
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 44px 90px 90px 72px',
-            gap: '0 12px',
-            alignItems: 'center',
-            padding: '13px 0',
-            borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)',
-          }}>
-            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)' }}>
-              {p.name}
-            </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.55)', textAlign: 'right' }}>
-              {p.qty}
-            </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>
-              R$ {fmtBR(p.revenue)}
-            </span>
-            <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.65)', textAlign: 'right' }}>
-              R$ {fmtBR(p.avgTicket)}
-            </span>
-            <span style={{
-              fontFamily: "'Geist Mono', monospace",
-              fontSize: 12,
-              color: p.margin > 70 ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.45)',
-              textAlign: 'right',
-              fontWeight: p.margin > 70 ? 500 : 400
-            }}>
-              {p.margin}%
-            </span>
+        <div key={p.name} style={{ padding: '12px 0', borderBottom: '1px solid var(--color-border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 44px 90px', gap: '0 12px', marginBottom: 8 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{p.name}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', textAlign: 'right' }}>{p.qty}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>R$ {fmtBR(p.revenue)}</span>
           </div>
-
-          {/* Proportion bar */}
-          <motion.div
-            style={{ height: 2, background: 'rgba(var(--fg-rgb), 0.06)', borderRadius: 99, marginBottom: 2 }}
-          >
+          <div style={{ height: 3, background: 'var(--color-bg-secondary)', borderRadius: 4 }}>
             <motion.div
-              style={{ height: '100%', background: 'rgba(var(--fg-rgb), 0.35)', borderRadius: 99 }}
+              style={{ height: '100%', background: 'var(--color-primary)', borderRadius: 4 }}
               initial={{ width: 0 }}
               animate={{ width: `${(p.revenue / maxRevenue) * 100}%` }}
-              transition={{ duration: 0.8, delay: i * 0.08 + 0.35, ease: [0.4, 0, 0.2, 1] }}
+              transition={{ duration: 1, delay: i * 0.1 }}
             />
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       ))}
     </div>
   )
 }
 
-// ── Checkout settings ─────────────────────────────────────────────────────────
-
-// ── Page ──────────────────────────────────────────────────────────────────────
-export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => void; user?: any }) {
-  // Mock check for integrations
-  const hasIntegrations = true
-  const [realTransactions, setRealTransactions] = useState<Transaction[]>([])
+// ── Page Component ────────────────────────────────────────────────────────────
+export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; user?: any }) {
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    dataApi.getTransactions().then(res => {
-      const mapped = res.data.map((t: any) => ({
+    Promise.all([
+      dataApi.getTransactions(),
+      dashboardApi.getStats()
+    ]).then(([txRes, statsRes]) => {
+      const mapped = txRes.data.map((t: any) => ({
         id: t.id,
-        date: new Date(t.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        date: new Date(t.created_at).toLocaleDateString('pt-BR'),
         client: t.customer_name || 'Desconhecido',
         product: t.product_name || 'Produto Northie',
         value: Number(t.amount_net),
@@ -410,125 +177,34 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
         status: t.status === 'approved' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Reembolsado',
         channel: t.acquisition_channel || 'Direto'
       }))
-      setRealTransactions(mapped)
+      setTransactions(mapped)
+      setStats(statsRes.data)
     }).finally(() => setLoading(false))
   }, [])
-
-  const kpis = useMemo(() => {
-    const faturamento = realTransactions.filter(t => t.status === 'Pago').reduce((sum, t) => sum + t.value, 0)
-    const tickets = realTransactions.filter(t => t.status === 'Pago').map(t => t.value)
-    const avgTicket = tickets.length > 0 ? faturamento / tickets.length : 0
-    return {
-      faturamento,
-      transacoes: realTransactions.length,
-      avgTicket,
-      conversion: 3.2, // Still mock
-      reembolsos: realTransactions.filter(t => t.status === 'Reembolsado').reduce((sum, t) => sum + t.value, 0)
-    }
-  }, [realTransactions])
 
   return (
     <div style={{ paddingTop: 28, paddingBottom: 80 }}>
       <TopBar onToggleChat={onToggleChat} />
 
-      <motion.h1
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{
-          fontFamily: "'Poppins', sans-serif",
-          fontWeight: 400, fontSize: 40,
-          letterSpacing: '-1.6px', color: 'var(--fg)',
-          lineHeight: 1, margin: 0,
-        }}
-      >
-        Vendas {user ? `- ${user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0]}` : ''}
-      </motion.h1>
+      <PageHeader
+        title="Vendas"
+        subtitle="Analise cada transação e o desempenho de seus produtos em tempo real."
+        actions={<DatePicker />}
+      />
 
-      {!hasIntegrations ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            marginTop: 80,
-            display: 'flex', flexDirection: 'column', alignItems: 'center',
-            gap: 24, textAlign: 'center'
-          }}
-        >
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: 'rgba(var(--fg-rgb), 0.03)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'rgba(var(--fg-rgb), 0.2)'
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M13 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V9L13 2Z" />
-              <path d="M13 2V9H20" />
-            </svg>
-          </div>
-          <p style={{
-            fontFamily: "'Poppins', sans-serif",
-            fontSize: 16, color: 'rgba(var(--fg-rgb), 0.6)',
-            maxWidth: 320, lineHeight: 1.5
-          }}>
-            Conecte suas plataformas de venda na App Store para visualizar suas transações aqui.
-          </p>
-          <motion.button
-            whileHover={{ backgroundColor: 'var(--inv)', color: 'var(--on-inv)' }}
-            whileTap={{ scale: 0.98 }}
-            style={{
-              padding: '12px 24px',
-              borderRadius: 6,
-              border: '1px solid var(--fg)',
-              background: 'transparent',
-              color: 'var(--fg)',
-              fontFamily: "'Poppins', sans-serif",
-              fontSize: 14, fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            Ir para App Store
-          </motion.button>
-        </motion.div>
-      ) : (
-        <>
-          {/* KPIs */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
-          >
-            <DatePicker />
-            <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
-              <KpiCard label="FATURAMENTO" value={kpis.faturamento} prefix="R$ " decimals={0} delay={0.1} />
-              <KpiCard label="TRANSAÇÕES" value={kpis.transacoes} decimals={0} delay={0.18} />
-              <KpiCard label="TICKET MÉDIO" value={kpis.avgTicket} prefix="R$ " decimals={2} delay={0.26} />
-              <KpiCard label="TAXA DE CONVERSÃO" value={kpis.conversion} suffix="%" decimals={1} delay={0.34} />
-              <KpiCard label="REEMBOLSOS" value={kpis.reembolsos} prefix="R$ " decimals={0} delay={0.42} />
-            </div>
-          </motion.div>
+      <div style={{ display: 'flex', gap: 48, marginTop: 40, flexWrap: 'wrap' }}>
+        <KpiCard label="FATURAMENTO" value={stats?.total_revenue || 0} prefix="R$ " decimals={0} delay={0.1} />
+        <KpiCard label="TRANSAÇÕES" value={transactions.length} decimals={0} delay={0.2} />
+        <KpiCard label="TICKET MÉDIO" value={stats?.average_ticket || 0} prefix="R$ " decimals={2} delay={0.3} />
+        <KpiCard label="TAXA CONVERSÃO" value={3.2} suffix="%" decimals={1} delay={0.4} />
+      </div>
 
-          {/* Divider */}
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.5 }}
-            style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 52, marginBottom: 48 }}
-          />
+      <Divider margin="48px 0" />
 
-          {/* Transactions + Products */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-            style={{ display: 'grid', gridTemplateColumns: '1.35fr 1fr', gap: 56 }}
-          >
-            <TransactionList transactions={realTransactions} loading={loading} />
-            <ProductRevenue transactions={realTransactions} />
-          </motion.div>
-        </>
-      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 64 }}>
+        <TransactionList transactions={transactions} loading={loading} />
+        <ProductRevenue transactions={transactions} />
+      </div>
     </div>
   )
 }

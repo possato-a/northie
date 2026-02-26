@@ -1,14 +1,7 @@
 import { supabase } from '../lib/supabase.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import axios from 'axios';
-
-export interface OAuthTokens {
-    access_token: string;
-    refresh_token?: string;
-    expires_in?: number;
-    token_type?: string;
-    scope?: string;
-}
+import type { OAuthTokens } from '../types/index.js';
 
 /**
  * Core service to manage external platform integrations (Meta, Google, etc.)
@@ -28,7 +21,8 @@ export class IntegrationService {
 
             case 'google':
                 const clientId = process.env.GOOGLE_CLIENT_ID;
-                return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${profileId}`;
+                const googleRedirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/google`;
+                return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${profileId}&prompt=consent`;
 
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
