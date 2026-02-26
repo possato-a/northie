@@ -223,7 +223,7 @@ export async function triggerSync(req: Request, res: Response) {
 
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
-    const days: number = Number(req.body?.days) || 2;
+    const days: number = req.body?.days !== undefined ? Number(req.body.days) : 2;
 
     try {
         if (platform === 'meta') {
