@@ -327,14 +327,16 @@ async function syncMetaAds(
 // ── Exports públicos ──────────────────────────────────────────────────────────
 
 /**
- * Backfill completo: puxar TODO o histórico da conta (date_preset=maximum).
- * Chamado manualmente via "Sincronizar agora".
+ * Backfill Meta Ads.
+ * - days=0 ou undefined: busca TODO o histórico (date_preset=maximum) — lento
+ * - days=N: busca apenas os últimos N dias — mais rápido, usado no "Sincronizar agora"
  */
-export async function backfillMetaAds(profileId: string, _days?: number): Promise<void> {
-    console.log(`[AdsSync] Meta full backfill started for profile ${profileId}`);
-    // dateRange = null → date_preset=maximum na API
-    await syncMetaAds(profileId, null);
-    console.log(`[AdsSync] Meta full backfill complete for profile ${profileId}`);
+export async function backfillMetaAds(profileId: string, days?: number): Promise<void> {
+    const useFull = !days || days <= 0;
+    const dateRange = useFull ? null : { since: daysAgo(days), until: today() };
+    console.log(`[AdsSync] Meta backfill started for profile ${profileId} — ${useFull ? 'FULL HISTORY' : `last ${days} days`}`);
+    await syncMetaAds(profileId, dateRange);
+    console.log(`[AdsSync] Meta backfill complete for profile ${profileId}`);
 }
 
 // ── Google Ads Sync ───────────────────────────────────────────────────────────
