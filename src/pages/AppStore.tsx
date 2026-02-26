@@ -353,12 +353,15 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         }
     }
 
-    const handleSync = async (pluginId: string) => {
+    const handleSync = async (pluginId: string, days = 30) => {
         const platform = pluginId === 'meta-ads' ? 'meta' : pluginId.replace('-ads', '')
-        setSyncingPlatform(pluginId)
+        setSyncingPlatform(days === 0 ? `${pluginId}-full` : pluginId)
         try {
-            await integrationApi.sync(platform, 30)
-            alert(`Sincronização concluída! Os dados dos últimos 30 dias já estão disponíveis.`)
+            await integrationApi.sync(platform, days)
+            const msg = days === 0
+                ? 'Histórico completo sincronizado!'
+                : `Sincronização concluída! Os dados dos últimos ${days} dias já estão disponíveis.`
+            alert(msg)
         } catch {
             alert('Falha ao iniciar sincronização. Tente novamente.')
         } finally {
@@ -398,8 +401,10 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         onBack={() => setSelectedPlugin(null)}
                         onInstall={() => handleInstall(currentSelectedPlugin.id)}
                         onDisconnect={() => handleDisconnect(currentSelectedPlugin.id)}
-                        onSync={() => handleSync(currentSelectedPlugin.id)}
+                        onSync={() => handleSync(currentSelectedPlugin.id, 30)}
+                        onSyncFull={() => handleSync(currentSelectedPlugin.id, 0)}
                         isSyncing={syncingPlatform === currentSelectedPlugin.id}
+                        isSyncingFull={syncingPlatform === `${currentSelectedPlugin.id}-full`}
                     />
                 ) : (
                     <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -460,16 +465,19 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     )
 }
 
-function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, isSyncing }: {
+function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFull, isSyncing, isSyncingFull }: {
     plugin: Plugin
     onBack: () => void
     onInstall: () => void
     onDisconnect: () => void
     onSync: () => void
+    onSyncFull: () => void
     isSyncing: boolean
+    isSyncingFull: boolean
 }) {
     const isConnected = plugin.status === 'Conectado'
     const supportsSync = ['meta-ads', 'google-ads'].includes(plugin.id)
+    const anySyncing = isSyncing || isSyncingFull
 
     return (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
@@ -489,11 +497,18 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, isSyncing
                             {isConnected ? 'Conectado' : plugin.status}
                         </Btn>
                         {isConnected && supportsSync && (
-                            <Btn variant="ghost" size="md" onClick={onSync} disabled={isSyncing}
-                                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>}
-                            >
-                                {isSyncing ? 'Sincronizando...' : 'Sincronizar agora'}
-                            </Btn>
+                            <>
+                                <Btn variant="ghost" size="md" onClick={onSync} disabled={anySyncing}
+                                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>}
+                                >
+                                    {isSyncing ? 'Sincronizando...' : 'Últ. 30 dias'}
+                                </Btn>
+                                <Btn variant="ghost" size="md" onClick={onSyncFull} disabled={anySyncing}
+                                    icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.81"/></svg>}
+                                >
+                                    {isSyncingFull ? 'Sincronizando...' : 'Histórico completo'}
+                                </Btn>
+                            </>
                         )}
                         {isConnected && (
                             <Btn variant="danger" size="md" onClick={onDisconnect}>
