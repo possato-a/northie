@@ -359,7 +359,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         try {
             await integrationApi.sync(platform, days)
             const msg = days === 0
-                ? 'Histórico completo sincronizado!'
+                ? 'Histórico do último ano sincronizado!'
                 : `Sincronização concluída! Os dados dos últimos ${days} dias já estão disponíveis.`
             alert(msg)
         } catch {

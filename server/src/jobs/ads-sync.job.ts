@@ -340,13 +340,13 @@ async function syncMetaAds(
 
 /**
  * Backfill Meta Ads.
- * - days=0 ou undefined: busca TODO o histórico (date_preset=maximum) — lento
- * - days=N: busca apenas os últimos N dias — mais rápido, usado no "Sincronizar agora"
+ * - days=0 ou undefined: busca últimos 365 dias (1 ano de histórico)
+ * - days=N: busca apenas os últimos N dias
  */
 export async function backfillMetaAds(profileId: string, days?: number): Promise<void> {
-    const useFull = !days || days <= 0;
-    const dateRange = useFull ? null : { since: daysAgo(days), until: today() };
-    console.log(`[AdsSync] Meta backfill started for profile ${profileId} — ${useFull ? 'FULL HISTORY' : `last ${days} days`}`);
+    const effectiveDays = (!days || days <= 0) ? 365 : days;
+    const dateRange = { since: daysAgo(effectiveDays), until: today() };
+    console.log(`[AdsSync] Meta backfill started for profile ${profileId} — last ${effectiveDays} days`);
     await syncMetaAds(profileId, dateRange);
     console.log(`[AdsSync] Meta backfill complete for profile ${profileId}`);
 }
