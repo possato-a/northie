@@ -124,37 +124,45 @@ async function fetchMetaInsights(
 
 // ── Meta Ads — upsert helpers ─────────────────────────────────────────────────
 
-async function upsertAdCampaign(p: AdCampaignPayload): Promise<void> {
-    const { error } = await supabase.from('ad_campaigns').upsert(
-        {
-            profile_id: p.profileId,
-            platform: p.platform,
-            account_id: p.accountId,
-            account_name: p.accountName,
-            campaign_id: p.campaignId,
-            campaign_name: p.campaignName,
-            adset_id: p.adsetId,
-            adset_name: p.adsetName,
-            ad_id: p.adId,
-            ad_name: p.adName,
-            level: p.level,
-            status: p.status,
-            date: p.date,
-            spend_brl: p.spendBrl,
-            impressions: p.impressions,
-            reach: p.reach,
-            clicks: p.clicks,
-            ctr: p.ctr,
-            cpc_brl: p.cpcBrl,
-            cpm_brl: p.cpmBrl,
-            frequency: p.frequency,
-            synced_at: new Date().toISOString(),
-        },
-        { onConflict: 'profile_id,platform,level,campaign_id,adset_id,ad_id,date' }
-    );
-    if (error) {
-        console.error('[AdsSync] upsertAdCampaign error:', error);
-        throw error;
+async function upsertAdCampaigns(rows: AdCampaignPayload[]): Promise<void> {
+    if (rows.length === 0) return;
+    const syncedAt = new Date().toISOString();
+    const records = rows.map(p => ({
+        profile_id: p.profileId,
+        platform: p.platform,
+        account_id: p.accountId,
+        account_name: p.accountName,
+        campaign_id: p.campaignId,
+        campaign_name: p.campaignName,
+        adset_id: p.adsetId,
+        adset_name: p.adsetName,
+        ad_id: p.adId,
+        ad_name: p.adName,
+        level: p.level,
+        status: p.status,
+        date: p.date,
+        spend_brl: p.spendBrl,
+        impressions: p.impressions,
+        reach: p.reach,
+        clicks: p.clicks,
+        ctr: p.ctr,
+        cpc_brl: p.cpcBrl,
+        cpm_brl: p.cpmBrl,
+        frequency: p.frequency,
+        synced_at: syncedAt,
+    }));
+
+    // Upsert in chunks of 500 to avoid Supabase request size limits
+    const CHUNK = 500;
+    for (let i = 0; i < records.length; i += CHUNK) {
+        const chunk = records.slice(i, i + CHUNK);
+        const { error } = await supabase
+            .from('ad_campaigns')
+            .upsert(chunk, { onConflict: 'profile_id,platform,level,campaign_id,adset_id,ad_id,date' });
+        if (error) {
+            console.error('[AdsSync] upsertAdCampaigns error:', error);
+            throw error;
+        }
     }
 }
 
@@ -169,24 +177,26 @@ interface AdMetricPayload {
     accountName: string;
 }
 
-async function upsertAdMetric(payload: AdMetricPayload): Promise<void> {
-    const { error } = await supabase.from('ad_metrics').upsert(
-        {
-            profile_id: payload.profileId,
-            platform: payload.platform,
-            date: payload.date,
-            spend_brl: payload.spendBrl,
-            spend_original: payload.spendBrl,
-            impressions: payload.impressions,
-            clicks: payload.clicks,
-            account_id: payload.accountId,
-            account_name: payload.accountName,
-            synced_at: new Date().toISOString(),
-        },
-        { onConflict: 'profile_id,platform,date,account_id' }
-    );
+async function upsertAdMetrics(payloads: AdMetricPayload[]): Promise<void> {
+    if (payloads.length === 0) return;
+    const syncedAt = new Date().toISOString();
+    const records = payloads.map(p => ({
+        profile_id: p.profileId,
+        platform: p.platform,
+        date: p.date,
+        spend_brl: p.spendBrl,
+        spend_original: p.spendBrl,
+        impressions: p.impressions,
+        clicks: p.clicks,
+        account_id: p.accountId,
+        account_name: p.accountName,
+        synced_at: syncedAt,
+    }));
+    const { error } = await supabase
+        .from('ad_metrics')
+        .upsert(records, { onConflict: 'profile_id,platform,date,account_id' });
     if (error) {
-        console.error('[AdsSync] upsertAdMetric error:', error);
+        console.error('[AdsSync] upsertAdMetrics error:', error);
         throw error;
     }
 }
@@ -195,7 +205,8 @@ async function upsertAdMetric(payload: AdMetricPayload): Promise<void> {
 
 /**
  * Sincroniza todos os níveis (campaign, adset, ad) para um ad account.
- * Se dateRange for null, busca o histórico completo da conta (date_preset=maximum).
+ * Faz upsert em batch para minimizar latência — o número de requests ao Supabase
+ * é proporcional ao número de níveis, não ao número de rows.
  */
 async function syncMetaAccount(
     profileId: string,
@@ -210,35 +221,36 @@ async function syncMetaAccount(
             const rows = await fetchMetaInsights(account.id, accessToken, level, dateRange);
             console.log(`[AdsSync] Meta: ${rows.length} rows at ${level} level for ${account.name}`);
 
-            for (const row of rows) {
-                await upsertAdCampaign({
-                    profileId,
-                    platform: 'meta',
-                    accountId: account.id,
-                    accountName: account.name,
-                    campaignId: row.campaign_id,
-                    campaignName: row.campaign_name,
-                    adsetId: row.adset_id || '',
-                    adsetName: row.adset_name || '',
-                    adId: row.ad_id || '',
-                    adName: row.ad_name || '',
-                    level,
-                    status: row.effective_status || '',
-                    date: row.date_start,
-                    spendBrl: parseFloat(row.spend || '0'),
-                    impressions: parseInt(row.impressions || '0', 10),
-                    reach: parseInt(row.reach || '0', 10),
-                    clicks: parseInt(row.clicks || '0', 10),
-                    ctr: parseFloat(row.ctr || '0'),
-                    cpcBrl: parseFloat(row.cpc || '0'),
-                    cpmBrl: parseFloat(row.cpm || '0'),
-                    frequency: parseFloat(row.frequency || '0'),
-                });
-            }
+            // Build batch payload
+            const batch: AdCampaignPayload[] = rows.map(row => ({
+                profileId,
+                platform: 'meta',
+                accountId: account.id,
+                accountName: account.name,
+                campaignId: row.campaign_id,
+                campaignName: row.campaign_name,
+                adsetId: row.adset_id || '',
+                adsetName: row.adset_name || '',
+                adId: row.ad_id || '',
+                adName: row.ad_name || '',
+                level,
+                status: row.effective_status || '',
+                date: row.date_start,
+                spendBrl: parseFloat(row.spend || '0'),
+                impressions: parseInt(row.impressions || '0', 10),
+                reach: parseInt(row.reach || '0', 10),
+                clicks: parseInt(row.clicks || '0', 10),
+                ctr: parseFloat(row.ctr || '0'),
+                cpcBrl: parseFloat(row.cpc || '0'),
+                cpmBrl: parseFloat(row.cpm || '0'),
+                frequency: parseFloat(row.frequency || '0'),
+            }));
 
-            // Também manter ad_metrics com totais de conta (para séries temporais)
+            // Single batch upsert — much faster than N sequential upserts
+            await upsertAdCampaigns(batch);
+
+            // Maintain ad_metrics time-series totals (backward compat)
             if (level === 'campaign') {
-                // Agregar por data para ad_metrics
                 const byDate: Record<string, { spend: number; impressions: number; clicks: number }> = {};
                 for (const row of rows) {
                     const d = row.date_start;
@@ -247,18 +259,17 @@ async function syncMetaAccount(
                     byDate[d]!.impressions += parseInt(row.impressions || '0', 10);
                     byDate[d]!.clicks += parseInt(row.clicks || '0', 10);
                 }
-                for (const [date, m] of Object.entries(byDate)) {
-                    await upsertAdMetric({
-                        profileId,
-                        platform: 'meta',
-                        date,
-                        spendBrl: m.spend,
-                        impressions: m.impressions,
-                        clicks: m.clicks,
-                        accountId: account.id,
-                        accountName: account.name,
-                    });
-                }
+                const metricsBatch: AdMetricPayload[] = Object.entries(byDate).map(([date, m]) => ({
+                    profileId,
+                    platform: 'meta',
+                    date,
+                    spendBrl: m.spend,
+                    impressions: m.impressions,
+                    clicks: m.clicks,
+                    accountId: account.id,
+                    accountName: account.name,
+                }));
+                await upsertAdMetrics(metricsBatch);
             }
         } catch (err: any) {
             console.error(
@@ -408,18 +419,16 @@ async function syncGoogleAds(profileId: string): Promise<void> {
                 }
             }
 
-            for (const [date, m] of Object.entries(daily)) {
-                await upsertAdMetric({
-                    profileId,
-                    platform: 'google',
-                    date,
-                    spendBrl: m.spend,
-                    impressions: m.impressions,
-                    clicks: m.clicks,
-                    accountId: customerId,
-                    accountName: `Google Ads #${customerId}`,
-                });
-            }
+            await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
+                profileId,
+                platform: 'google',
+                date,
+                spendBrl: m.spend,
+                impressions: m.impressions,
+                clicks: m.clicks,
+                accountId: customerId,
+                accountName: `Google Ads #${customerId}`,
+            })));
 
             console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
         } catch (err: any) {
