@@ -28,10 +28,11 @@ function daysAgo(n: number): string {
 
 // ── Meta Ads — campos e tipos ──────────────────────────────────────────────────
 
+// Note: effective_status is NOT a valid insights field — it belongs to the
+// campaign/adset/ad objects, not the insights endpoint. Omit it here.
 const META_INSIGHT_FIELDS =
     'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,' +
-    'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,date_start,' +
-    'effective_status';
+    'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,date_start';
 
 interface MetaInsightRow {
     campaign_id: string;
