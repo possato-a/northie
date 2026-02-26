@@ -10,26 +10,27 @@ export async function listCampaigns(req: Request, res: Response) {
     try {
         const { data, error } = await supabase
             .from('campaigns')
-            .select(`
-                *,
-                commission_total:commissions(amount.sum()),
-                sales_count:transactions(count)
-            `)
+            .select('*')
             .eq('profile_id', profileId)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        // Fetch creator count for each campaign
+        // Fetch aggregated stats for each campaign
         const campaignsWithCreators = await Promise.all(data.map(async (camp: any) => {
-            const { count } = await supabase
-                .from('campaign_creators')
-                .select('*', { count: 'exact', head: true })
-                .eq('campaign_id', camp.id);
+            const [{ count: creatorsCount }, { data: commissions }, { count: salesCount }] = await Promise.all([
+                supabase.from('campaign_creators').select('*', { count: 'exact', head: true }).eq('campaign_id', camp.id),
+                supabase.from('commissions').select('amount').eq('campaign_id', camp.id),
+                supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('campaign_id', camp.id).eq('status', 'approved'),
+            ]);
+
+            const commissionTotal = commissions?.reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0;
 
             return {
                 ...camp,
-                creators_count: count || 0
+                creators_count: creatorsCount || 0,
+                commission_total: commissionTotal,
+                sales_count: salesCount || 0,
             };
         }));
 

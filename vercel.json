@@ -8,7 +8,7 @@
     ],
     "functions": {
         "api/main.ts": {
-            "maxDuration": 300
+            "maxDuration": 60
         }
     }
 }
