@@ -303,6 +303,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 const { platform } = event.data
                 const id = platform === 'meta' ? 'meta-ads' : `${platform}-ads`
                 setInstalledPlugins(prev => [...new Set([...prev, id])])
+                // Trigger sync automatically after OAuth completes
+                handleSync(id)
             }
         }
         window.addEventListener('message', handleMessage)
@@ -356,7 +358,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         setSyncingPlatform(pluginId)
         try {
             await integrationApi.sync(platform, 30)
-            alert(`Sincronização dos últimos 30 dias iniciada para ${pluginId}. Os dados aparecerão em instantes.`)
+            alert(`Sincronização concluída! Os dados dos últimos 30 dias já estão disponíveis.`)
         } catch {
             alert('Falha ao iniciar sincronização. Tente novamente.')
         } finally {

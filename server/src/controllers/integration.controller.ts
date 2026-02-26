@@ -117,13 +117,6 @@ export async function handleCallback(req: Request, res: Response) {
 
         if (tokens.access_token) {
             await IntegrationService.saveIntegration(profileId as string, platform as string, tokens);
-
-            // Dispara backfill dos últimos 30 dias em background (não bloqueia o redirect)
-            if (platform === 'meta') {
-                backfillMetaAds(profileId as string, 30).catch(err =>
-                    console.error('[IntegrationController] Backfill Meta error:', err.message)
-                );
-            }
         }
 
         res.send(`
@@ -234,22 +227,19 @@ export async function triggerSync(req: Request, res: Response) {
 
     try {
         if (platform === 'meta') {
-            // Run in background — respond immediately
-            backfillMetaAds(profileId, days).catch(err =>
-                console.error('[IntegrationController] triggerSync Meta error:', err.message)
-            );
-            return res.status(202).json({ message: `Meta Ads sync started for last ${days} days.` });
+            // Run synchronously — Vercel kills background tasks after response
+            await backfillMetaAds(profileId, days);
+            return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
         }
 
         if (platform === 'all') {
-            runAdsSyncForAllProfiles().catch(err =>
-                console.error('[IntegrationController] triggerSync all error:', err.message)
-            );
-            return res.status(202).json({ message: 'Full sync started for all active integrations.' });
+            await runAdsSyncForAllProfiles();
+            return res.status(200).json({ message: 'Full sync completed for all active integrations.' });
         }
 
         return res.status(400).json({ error: `Sync not supported for platform: ${platform}` });
     } catch (error: any) {
-        res.status(500).json({ error: 'Failed to trigger sync' });
+        console.error('[IntegrationController] triggerSync error:', error.message);
+        res.status(500).json({ error: 'Failed to trigger sync', detail: error.message });
     }
 }
