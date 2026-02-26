@@ -49,7 +49,7 @@ export default function RevenueChart() {
     const max = Math.max(...amounts) * 1.05
     const range = max - min
 
-    const xAt = (i: number) => PAD.left + (i / (data.length - 1)) * CW
+    const xAt = (i: number) => data.length === 1 ? PAD.left + CW / 2 : PAD.left + (i / (data.length - 1)) * CW
     const yAt = (v: number) => PAD.top + CH - ((v - min) / (max - min)) * CH
 
     const pts = data.map((d, i) => ({ x: xAt(i), y: yAt(d.amount) }))

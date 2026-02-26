@@ -271,7 +271,7 @@ async function upsertAdMetric(payload: AdMetricPayload): Promise<void> {
             account_name: payload.accountName,
             synced_at: new Date().toISOString(),
         },
-        { onConflict: 'profile_id, platform, date, account_id' }
+        { onConflict: 'profile_id,platform,date,account_id' }
     );
 
     if (error) {
