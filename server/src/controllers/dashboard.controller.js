@@ -47,62 +47,66 @@ export async function getAttributionStats(req, res) {
         return res.status(400).json({ error: 'Missing x-profile-id header' });
     }
     try {
-        // Query customers grouped by acquisition_channel
-        // Since Supabase doesn't support easy GROUP BY in JS yet for sums, we do it in memory or via RPC
-        // For MVP, we'll fetch and reduce
-        const { data: sales, error: sError } = await supabase
+        // Primary source: ad_campaigns aggregated by platform (has real spend + conversions from Meta/Google APIs)
+        const { data: campaigns, error: cError } = await supabase
+            .from('ad_campaigns')
+            .select('platform, spend_brl, purchase_value, purchases, leads')
+            .eq('profile_id', profileId)
+            .eq('level', 'campaign');
+        if (cError)
+            throw cError;
+        // Secondary source: customers attributed via pixel/webhook (populated once Northie pixel is active)
+        const { data: customers, error: sError } = await supabase
             .from('customers')
             .select('acquisition_channel, total_ltv')
             .eq('profile_id', profileId);
         if (sError)
             throw sError;
-        // Fetch ad metrics for spend
-        const { data: metrics, error: mError } = await supabase
-            .from('ad_metrics')
-            .select('platform, spend_brl')
-            .eq('profile_id', profileId);
-        if (mError)
-            throw mError;
+        // channelStats keyed by display channel name
         const channelStats = {};
-        // Process revenue
-        sales.forEach(sale => {
-            const channel = sale.acquisition_channel || 'desconhecido';
-            const revenue = Number(sale.total_ltv) || 0;
-            if (!channelStats[channel]) {
-                channelStats[channel] = { revenue: 0, count: 0, spend: 0 };
-            }
-            channelStats[channel].revenue += revenue;
-            channelStats[channel].count += 1;
-        });
-        // Process spend
-        metrics?.forEach(m => {
-            // Map table 'platform' name to acquisition_channel enum if needed
-            // Table uses 'meta', 'google', but enum uses 'meta_ads', 'google_ads'
-            let channel = m.platform;
-            if (channel === 'meta')
-                channel = 'meta_ads';
-            if (channel === 'google')
-                channel = 'google_ads';
-            if (!channelStats[channel]) {
-                channelStats[channel] = { revenue: 0, count: 0, spend: 0 };
-            }
-            channelStats[channel].spend += Number(m.spend_brl);
-        });
-        // Format for charts
+        const ensureChannel = (ch) => {
+            if (!channelStats[ch])
+                channelStats[ch] = { spend: 0, revenue: 0, purchases: 0, ltv_sum: 0, customers: 0 };
+        };
+        // Aggregate ad_campaigns by platform → canonical channel name
+        for (const row of campaigns || []) {
+            const ch = row.platform === 'meta' ? 'Meta Ads' : row.platform === 'google' ? 'Google Ads' : row.platform;
+            ensureChannel(ch);
+            const entry = channelStats[ch];
+            entry.spend += Number(row.spend_brl || 0);
+            entry.revenue += Number(row.purchase_value || 0);
+            entry.purchases += Number(row.purchases || 0);
+        }
+        // Merge pixel/webhook attribution (secondary — enriches customers & LTV once pixel is active)
+        for (const c of customers || []) {
+            const raw = (c.acquisition_channel || 'desconhecido').toLowerCase();
+            // Normalize to same channel names used above
+            const ch = raw.includes('meta') ? 'Meta Ads'
+                : raw.includes('google') ? 'Google Ads'
+                    : raw === 'desconhecido' ? 'Direto / Outros'
+                        : (c.acquisition_channel || 'Direto / Outros');
+            ensureChannel(ch);
+            const entry = channelStats[ch];
+            entry.ltv_sum += Number(c.total_ltv || 0);
+            entry.customers += 1;
+            // Revenue from ad_campaigns (purchase_value) is the primary signal; customer LTV is used for LTV metric only
+        }
         const formattedData = Object.entries(channelStats).map(([name, stats]) => {
             const roas = stats.spend > 0 ? stats.revenue / stats.spend : 0;
-            const cac = stats.count > 0 ? stats.spend / stats.count : 0;
-            const ltv = stats.count > 0 ? stats.revenue / stats.count : 0;
+            const cac = stats.purchases > 0 ? stats.spend / stats.purchases : 0;
+            const ltv = stats.customers > 0 ? stats.ltv_sum / stats.customers : 0;
             return {
                 channel: name,
                 revenue: Number(stats.revenue.toFixed(2)),
                 spend: Number(stats.spend.toFixed(2)),
-                customers: stats.count,
+                purchases: stats.purchases,
+                customers: stats.customers,
                 roas: Number(roas.toFixed(2)),
                 cac: Number(cac.toFixed(2)),
-                ltv: Number(ltv.toFixed(2))
+                ltv: Number(ltv.toFixed(2)),
             };
-        });
+        }).filter(d => d.spend > 0 || d.revenue > 0 || d.customers > 0)
+            .sort((a, b) => b.spend - a.spend);
         res.status(200).json(formattedData);
     }
     catch (error) {
@@ -300,13 +304,16 @@ export async function getChannelTrends(req, res) {
     try {
         const fifteenDaysAgo = new Date();
         fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-        // Get spend metrics
-        const { data: metrics } = await supabase
-            .from('ad_metrics')
-            .select('platform, spend_brl, date')
+        const since = fifteenDaysAgo.toISOString().split('T')[0];
+        // Primary source: ad_campaigns has daily spend + purchase_value + purchases per platform
+        const { data: campaigns } = await supabase
+            .from('ad_campaigns')
+            .select('platform, spend_brl, purchase_value, purchases, date')
             .eq('profile_id', profileId)
-            .gte('date', fifteenDaysAgo.toISOString().split('T')[0]);
-        // Get revenue from transactions (attributed)
+            .eq('level', 'campaign')
+            .gte('date', since);
+        // Secondary source: transactions attributed via pixel/webhook (enriches when pixel is active)
+        // Kept here so future pixel revenue contributes to ROAS automatically
         const { data: txs } = await supabase
             .from('transactions')
             .select('platform, amount_net, created_at')
@@ -314,21 +321,27 @@ export async function getChannelTrends(req, res) {
             .eq('status', 'approved')
             .gte('created_at', fifteenDaysAgo.toISOString());
         const trends = {};
-        // Initialize last 15 days for each platform
         ['meta', 'google'].forEach(p => {
             trends[p] = { roas: [], cac: [] };
             for (let i = 0; i < 15; i++) {
                 const d = new Date();
                 d.setDate(d.getDate() - (14 - i));
                 const dateStr = d.toISOString().split('T')[0];
-                // Calculate ROAS/CAC for this day/platform
-                const daySpend = metrics?.filter(m => m.platform === p && m.date === dateStr)
-                    .reduce((sum, m) => sum + Number(m.spend_brl), 0) || 0;
-                const dayRev = txs?.filter(t => t.platform === p && t.created_at.startsWith(dateStr))
-                    .reduce((sum, t) => sum + Number(t.amount_net), 0) || 0;
-                const daySales = txs?.filter(t => t.platform === p && t.created_at.startsWith(dateStr)).length || 0;
-                const roas = daySpend > 0 ? dayRev / daySpend : 0;
-                const cac = daySales > 0 ? daySpend / daySales : 0;
+                // Spend and ad-attributed revenue from ad_campaigns API data
+                const dayRows = (campaigns || []).filter(r => r.platform === p && r.date === dateStr);
+                const daySpend = dayRows.reduce((s, r) => s + Number(r.spend_brl || 0), 0);
+                const dayAdRevenue = dayRows.reduce((s, r) => s + Number(r.purchase_value || 0), 0);
+                const dayAdPurchases = dayRows.reduce((s, r) => s + Number(r.purchases || 0), 0);
+                // Pixel/webhook attributed revenue (secondary — added once pixel is active)
+                const dayTxRevenue = (txs || [])
+                    .filter(t => t.platform === p && t.created_at.startsWith(dateStr))
+                    .reduce((s, t) => s + Number(t.amount_net), 0);
+                // Use ad_campaigns revenue as primary; add pixel revenue only if ad_campaigns has none for that day
+                const dayRevenue = dayAdRevenue > 0 ? dayAdRevenue : dayTxRevenue;
+                const dayPurchases = dayAdPurchases > 0 ? dayAdPurchases
+                    : (txs || []).filter(t => t.platform === p && t.created_at.startsWith(dateStr)).length;
+                const roas = daySpend > 0 ? dayRevenue / daySpend : 0;
+                const cac = dayPurchases > 0 ? daySpend / dayPurchases : 0;
                 trends[p].roas.push(Number(roas.toFixed(2)));
                 trends[p].cac.push(Number(cac.toFixed(2)));
             }

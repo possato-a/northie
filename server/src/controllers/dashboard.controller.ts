@@ -85,9 +85,10 @@ export async function getAttributionStats(req: Request, res: Response) {
         for (const row of campaigns || []) {
             const ch = row.platform === 'meta' ? 'Meta Ads' : row.platform === 'google' ? 'Google Ads' : row.platform;
             ensureChannel(ch);
-            channelStats[ch].spend += Number(row.spend_brl || 0);
-            channelStats[ch].revenue += Number(row.purchase_value || 0);
-            channelStats[ch].purchases += Number(row.purchases || 0);
+            const entry = channelStats[ch]!;
+            entry.spend += Number(row.spend_brl || 0);
+            entry.revenue += Number(row.purchase_value || 0);
+            entry.purchases += Number(row.purchases || 0);
         }
 
         // Merge pixel/webhook attribution (secondary — enriches customers & LTV once pixel is active)
@@ -97,11 +98,11 @@ export async function getAttributionStats(req: Request, res: Response) {
             const ch = raw.includes('meta') ? 'Meta Ads'
                 : raw.includes('google') ? 'Google Ads'
                 : raw === 'desconhecido' ? 'Direto / Outros'
-                : c.acquisition_channel;
+                : (c.acquisition_channel || 'Direto / Outros');
             ensureChannel(ch);
-            channelStats[ch].ltv_sum += Number(c.total_ltv || 0);
-            channelStats[ch].customers += 1;
-            // If pixel is active and customer LTV > 0, it augments revenue (avoid double-counting with ad_campaigns)
+            const entry = channelStats[ch]!;
+            entry.ltv_sum += Number(c.total_ltv || 0);
+            entry.customers += 1;
             // Revenue from ad_campaigns (purchase_value) is the primary signal; customer LTV is used for LTV metric only
         }
 
