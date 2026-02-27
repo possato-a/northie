@@ -283,13 +283,13 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 setProfileId(user.id) // ensure header is set before request
                 const { data } = await integrationApi.getStatus()
                 if (Array.isArray(data)) {
+                    const platformMap: Record<string, string> = {
+                        meta: 'meta-ads',
+                        google: 'google-ads',
+                    }
                     const platforms = data
                         .filter((item: { status: string }) => item.status === 'active')
-                        .map((item: { platform: string }) => {
-                            if (item.platform === 'meta') return 'meta-ads'
-                            if (item.platform === 'google') return 'google-ads'
-                            return item.platform
-                        })
+                        .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
                     setInstalledPlugins(platforms)
                 }
             } catch (err) {
@@ -319,10 +319,16 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.type === 'NORTHIE_OAUTH_SUCCESS') {
                 const { platform } = event.data
-                const id = platform === 'meta' ? 'meta-ads' : `${platform}-ads`
+                // Map platform name → pluginId
+                const pluginIdMap: Record<string, string> = {
+                    meta: 'meta-ads',
+                    google: 'google-ads',
+                    hotmart: 'hotmart',
+                }
+                const id = pluginIdMap[platform] ?? `${platform}-ads`
                 setInstalledPlugins(prev => [...new Set([...prev, id])])
-                // Trigger sync automatically after OAuth completes
-                handleSync(id)
+                // Trigger 30-day sync automatically after OAuth completes
+                handleSync(id, 30)
             }
         }
         window.addEventListener('message', handleMessage)
@@ -348,22 +354,26 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }, [activeCategory, searchQuery, currentPlugins])
 
     const handleInstall = (pluginId: string) => {
-        if (pluginId === 'meta-ads' || pluginId === 'google-ads') {
-            const platform = pluginId === 'meta-ads' ? 'meta' : 'google'
+        // Plataformas com fluxo OAuth (popup)
+        const oauthPlatforms: Record<string, string> = {
+            'meta-ads': 'meta',
+            'google-ads': 'google',
+            'hotmart': 'hotmart',
+        }
+
+        if (pluginId in oauthPlatforms) {
+            const platform = oauthPlatforms[pluginId]!
             const width = 600
             const height = 700
             const left = window.screen.width / 2 - width / 2
             const top = window.screen.height / 2 - height / 2
-
-            const profileId = user?.id
             const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://northie.vercel.app'
-
             window.open(
-                `${baseUrl}/api/integrations/connect/${platform}?profileId=${profileId}`,
+                `${baseUrl}/api/integrations/connect/${platform}?profileId=${user?.id}`,
                 `Northie${platform}Auth`,
                 `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
             )
-        } else if (['stripe', 'hotmart', 'shopify'].includes(pluginId)) {
+        } else if (['stripe', 'shopify', 'kiwify'].includes(pluginId)) {
             const plugin = PLUGINS.find(p => p.id === pluginId)
             if (plugin) setWebhookOpen(plugin)
         } else {

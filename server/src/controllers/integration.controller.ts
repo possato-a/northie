@@ -3,6 +3,7 @@ import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
 import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
+import { backfillHotmart } from '../jobs/hotmart-sync.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -119,6 +120,21 @@ export async function handleCallback(req: Request, res: Response) {
                 grant_type: 'authorization_code',
                 code: code as string
             });
+            tokens = tokenRes.data;
+        } else if (platform === 'hotmart') {
+            const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/hotmart`;
+            const credentials = Buffer.from(
+                `${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`
+            ).toString('base64');
+            const tokenRes = await axios.post(
+                'https://api-sec-vlc.hotmart.com/security/oauth/token',
+                new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    code: code as string,
+                    redirect_uri: redirectUri,
+                }),
+                { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+            );
             tokens = tokenRes.data;
         }
 
@@ -262,6 +278,14 @@ export async function triggerSync(req: Request, res: Response) {
             // Run synchronously — Vercel kills background tasks after response
             await backfillMetaAds(profileId, days);
             return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
+        }
+
+        if (platform === 'hotmart') {
+            const result = await backfillHotmart(profileId, days);
+            return res.status(200).json({
+                message: `Hotmart sync completed for last ${days} days.`,
+                ...result,
+            });
         }
 
         if (platform === 'all') {

@@ -65,6 +65,10 @@ export class IntegrationService {
                 const googleRedirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/google`;
                 return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
 
+            case 'hotmart':
+                const hotmartClientId = process.env.HOTMART_CLIENT_ID;
+                return `https://api-sec-vlc.hotmart.com/security/oauth/authorize?client_id=${hotmartClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=all&state=${encodeURIComponent(state)}`;
+
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
         }
@@ -225,6 +229,49 @@ export class IntegrationService {
                     .update({ status: 'inactive' })
                     .eq('profile_id', profileId)
                     .eq('platform', 'google');
+                throw error;
+            }
+        }
+
+        // ── Hotmart ───────────────────────────────────────────────────────────
+        if (platform === 'hotmart') {
+            if (!tokens.refresh_token) {
+                throw new Error(`[IntegrationService] No refresh_token for Hotmart / ${profileId}`);
+            }
+            if (!this.isNearExpiry(tokens, 10 * 60 * 1000)) {
+                console.log(`[IntegrationService] Hotmart token still valid for profile ${profileId}, skipping.`);
+                return tokens;
+            }
+
+            console.log(`[IntegrationService] Refreshing Hotmart token for profile ${profileId}.`);
+            try {
+                const credentials = Buffer.from(
+                    `${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`
+                ).toString('base64');
+                const res = await axios.post(
+                    'https://api-sec-vlc.hotmart.com/security/oauth/token',
+                    new URLSearchParams({
+                        grant_type: 'refresh_token',
+                        refresh_token: tokens.refresh_token,
+                    }),
+                    { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+                );
+                const { expires_at: _drop, ...rest } = tokens;
+                const newTokens: OAuthTokens = {
+                    ...rest,
+                    access_token: res.data.access_token,
+                    expires_in: res.data.expires_in,
+                    refresh_token: res.data.refresh_token ?? tokens.refresh_token,
+                };
+                await this.saveIntegration(profileId, platform, newTokens);
+                return newTokens;
+            } catch (error: any) {
+                console.error(`[IntegrationService] Hotmart refresh failed for ${profileId}:`, error.response?.data ?? error.message);
+                await supabase
+                    .from('integrations')
+                    .update({ status: 'inactive' })
+                    .eq('profile_id', profileId)
+                    .eq('platform', 'hotmart');
                 throw error;
             }
         }
