@@ -2,6 +2,7 @@ import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
 import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
+import { backfillHotmart } from '../jobs/hotmart-sync.job.js';
 /**
  * Redirects the user to the platform's OAuth consent screen
  */
@@ -23,11 +24,18 @@ export async function connectPlatform(req, res) {
  * Handles the OAuth callback from the external platform
  */
 export async function handleCallback(req, res) {
-    console.log('[IntegrationController] Full Query Params:', JSON.stringify(req.query, null, 2));
     const { platform } = req.params;
-    const { code, state: profileId } = req.query;
-    if (!code || !profileId) {
-        return res.status(400).json({ error: 'OAuth failed: Missing code or state (profileId)' });
+    const { code, state } = req.query;
+    if (!code || !state) {
+        return res.status(400).json({ error: 'OAuth failed: Missing code or state' });
+    }
+    let profileId;
+    try {
+        profileId = IntegrationService.validateOAuthState(state);
+    }
+    catch (stateErr) {
+        console.warn(`[IntegrationController] Invalid OAuth state for ${platform}: ${stateErr.message}`);
+        return res.status(400).json({ error: `OAuth state invalid: ${stateErr.message}` });
     }
     try {
         console.log(`[IntegrationController] Processing callback for ${platform} - Profile: ${profileId}`);
@@ -99,9 +107,20 @@ export async function handleCallback(req, res) {
             });
             tokens = tokenRes.data;
         }
+        else if (platform === 'hotmart') {
+            const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/hotmart`;
+            const credentials = Buffer.from(`${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`).toString('base64');
+            const tokenRes = await axios.post('https://api-sec-vlc.hotmart.com/security/oauth/token', new URLSearchParams({
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: redirectUri,
+            }), { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
+            tokens = tokenRes.data;
+        }
         if (tokens.access_token) {
             await IntegrationService.saveIntegration(profileId, platform, tokens);
         }
+        const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.send(`
             <html>
                 <head><title>Conectando Northie...</title></head>
@@ -113,6 +132,7 @@ export async function handleCallback(req, res) {
                     <script>
                         (function() {
                             const platform = '${platform}';
+                            const targetOrigin = '${frontendOrigin}';
                             function closeWindow() {
                                 window.close();
                                 // Fallback: se window.close() for bloqueado pelo browser
@@ -123,7 +143,7 @@ export async function handleCallback(req, res) {
                                     window.opener.postMessage({
                                         type: 'NORTHIE_OAUTH_SUCCESS',
                                         platform: platform
-                                    }, '*');
+                                    }, targetOrigin);
                                     // Aguarda o postMessage ser processado antes de fechar
                                     setTimeout(closeWindow, 500);
                                 } catch (e) {
@@ -230,6 +250,13 @@ export async function triggerSync(req, res) {
             // Run synchronously — Vercel kills background tasks after response
             await backfillMetaAds(profileId, days);
             return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
+        }
+        if (platform === 'hotmart') {
+            const result = await backfillHotmart(profileId, days);
+            return res.status(200).json({
+                message: `Hotmart sync completed for last ${days} days.`,
+                ...result,
+            });
         }
         if (platform === 'all') {
             await runAdsSyncForAllProfiles();
