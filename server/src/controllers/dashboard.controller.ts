@@ -400,12 +400,12 @@ export async function getChannelTrends(req: Request, res: Response) {
  */
 export async function getAdCampaigns(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
-    const days = Number(req.query.days ?? 30);
+    const days = Number(req.query.days ?? 365);
 
     try {
         let query = supabase
             .from('ad_campaigns')
-            .select('campaign_id, campaign_name, platform, account_name, status, date, spend_brl, impressions, reach, clicks, ctr, cpc_brl, cpm_brl, frequency')
+            .select('campaign_id, campaign_name, platform, account_name, objective, status, date, spend_brl, impressions, reach, clicks, frequency, purchases, purchase_value, leads, link_clicks, landing_page_views, video_views')
             .eq('profile_id', profileId)
             .eq('level', 'campaign')
             .order('date', { ascending: false });
@@ -428,16 +428,13 @@ export async function getAdCampaigns(req: Request, res: Response) {
                     campaign_name: row.campaign_name,
                     platform: row.platform,
                     account_name: row.account_name,
+                    objective: row.objective,
                     status: row.status,
-                    spend_brl: 0,
-                    impressions: 0,
-                    reach: 0,
-                    clicks: 0,
-                    ctr: 0,
-                    cpc_brl: 0,
-                    cpm_brl: 0,
-                    frequency: 0,
-                    days_count: 0,
+                    spend_brl: 0, impressions: 0, reach: 0, clicks: 0,
+                    // frequency: weighted average (sum impressions*freq / total impressions)
+                    freq_impressions_sum: 0,
+                    purchases: 0, purchase_value: 0, leads: 0,
+                    link_clicks: 0, landing_page_views: 0, video_views: 0,
                 };
             }
             const c = map[row.campaign_id];
@@ -445,19 +442,51 @@ export async function getAdCampaigns(req: Request, res: Response) {
             c.impressions += Number(row.impressions);
             c.reach += Number(row.reach);
             c.clicks += Number(row.clicks);
-            c.days_count += 1;
-            // Keep latest status
+            c.freq_impressions_sum += Number(row.frequency) * Number(row.impressions);
+            c.purchases += Number(row.purchases || 0);
+            c.purchase_value += Number(row.purchase_value || 0);
+            c.leads += Number(row.leads || 0);
+            c.link_clicks += Number(row.link_clicks || 0);
+            c.landing_page_views += Number(row.landing_page_views || 0);
+            c.video_views += Number(row.video_views || 0);
             if (row.status) c.status = row.status;
+            if (row.objective) c.objective = row.objective;
         }
 
-        // Recalculate derived metrics from aggregates
-        const result = Object.values(map).map((c: any) => ({
-            ...c,
-            ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0,
-            cpc_brl: c.clicks > 0 ? Number((c.spend_brl / c.clicks).toFixed(2)) : 0,
-            cpm_brl: c.impressions > 0 ? Number((c.spend_brl / c.impressions * 1000).toFixed(2)) : 0,
-            spend_brl: Number(c.spend_brl.toFixed(2)),
-        })).sort((a, b) => b.spend_brl - a.spend_brl);
+        // Recalculate derived metrics
+        const result = Object.values(map).map((c: any) => {
+            const frequency = c.impressions > 0 ? Number((c.freq_impressions_sum / c.impressions).toFixed(2)) : 0;
+            const results = c.purchases > 0 ? c.purchases : c.leads > 0 ? c.leads : c.link_clicks;
+            const result_type = c.purchases > 0 ? 'purchase' : c.leads > 0 ? 'lead' : 'link_click';
+            const cost_per_result = results > 0 ? Number((c.spend_brl / results).toFixed(2)) : 0;
+            const roas = c.purchase_value > 0 && c.spend_brl > 0 ? Number((c.purchase_value / c.spend_brl).toFixed(2)) : 0;
+            return {
+                campaign_id: c.campaign_id,
+                campaign_name: c.campaign_name,
+                platform: c.platform,
+                account_name: c.account_name,
+                objective: c.objective,
+                status: c.status,
+                spend_brl: Number(c.spend_brl.toFixed(2)),
+                impressions: c.impressions,
+                reach: c.reach,
+                clicks: c.clicks,
+                ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0,
+                cpc_brl: c.clicks > 0 ? Number((c.spend_brl / c.clicks).toFixed(2)) : 0,
+                cpm_brl: c.impressions > 0 ? Number((c.spend_brl / c.impressions * 1000).toFixed(2)) : 0,
+                frequency,
+                purchases: c.purchases,
+                purchase_value: Number(c.purchase_value.toFixed(2)),
+                leads: c.leads,
+                link_clicks: c.link_clicks,
+                landing_page_views: c.landing_page_views,
+                video_views: c.video_views,
+                results,
+                result_type,
+                cost_per_result,
+                roas,
+            };
+        }).sort((a, b) => b.spend_brl - a.spend_brl);
 
         res.status(200).json(result);
     } catch (error: any) {
@@ -473,12 +502,12 @@ export async function getAdCampaigns(req: Request, res: Response) {
 export async function getAdCampaignDetail(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     const { campaignId } = req.params;
-    const days = Number(req.query.days ?? 30);
+    const days = Number(req.query.days ?? 365);
 
     try {
         let query = supabase
             .from('ad_campaigns')
-            .select('campaign_id, adset_id, adset_name, ad_id, ad_name, platform, level, status, date, spend_brl, impressions, reach, clicks, ctr, cpc_brl, cpm_brl, frequency')
+            .select('campaign_id, adset_id, adset_name, ad_id, ad_name, platform, level, status, date, spend_brl, impressions, reach, clicks, frequency, purchases, purchase_value, leads, link_clicks, landing_page_views, video_views')
             .eq('profile_id', profileId)
             .eq('campaign_id', campaignId)
             .in('level', ['adset', 'ad'])
@@ -493,56 +522,52 @@ export async function getAdCampaignDetail(req: Request, res: Response) {
         const { data, error } = await query;
         if (error) throw error;
 
-        // Aggregate adsets
         const adsets: Record<string, any> = {};
         const ads: Record<string, any> = {};
 
+        const initItem = (base: any) => ({ ...base, spend_brl: 0, impressions: 0, reach: 0, clicks: 0, freq_impressions_sum: 0, purchases: 0, purchase_value: 0, leads: 0, link_clicks: 0, landing_page_views: 0, video_views: 0 });
+        const accumulate = (a: any, row: any) => {
+            a.spend_brl += Number(row.spend_brl);
+            a.impressions += Number(row.impressions);
+            a.reach += Number(row.reach);
+            a.clicks += Number(row.clicks);
+            a.freq_impressions_sum += Number(row.frequency) * Number(row.impressions);
+            a.purchases += Number(row.purchases || 0);
+            a.purchase_value += Number(row.purchase_value || 0);
+            a.leads += Number(row.leads || 0);
+            a.link_clicks += Number(row.link_clicks || 0);
+            a.landing_page_views += Number(row.landing_page_views || 0);
+            a.video_views += Number(row.video_views || 0);
+            if (row.status) a.status = row.status;
+        };
+
         for (const row of data || []) {
             if (row.level === 'adset' && row.adset_id) {
-                if (!adsets[row.adset_id]) {
-                    adsets[row.adset_id] = {
-                        adset_id: row.adset_id,
-                        adset_name: row.adset_name,
-                        campaign_id: row.campaign_id,
-                        status: row.status,
-                        spend_brl: 0, impressions: 0, reach: 0, clicks: 0,
-                    };
-                }
-                const a = adsets[row.adset_id];
-                a.spend_brl += Number(row.spend_brl);
-                a.impressions += Number(row.impressions);
-                a.reach += Number(row.reach);
-                a.clicks += Number(row.clicks);
-                if (row.status) a.status = row.status;
+                if (!adsets[row.adset_id]) adsets[row.adset_id] = initItem({ adset_id: row.adset_id, adset_name: row.adset_name, campaign_id: row.campaign_id, status: row.status });
+                accumulate(adsets[row.adset_id], row);
             }
-
             if (row.level === 'ad' && row.ad_id) {
-                if (!ads[row.ad_id]) {
-                    ads[row.ad_id] = {
-                        ad_id: row.ad_id,
-                        ad_name: row.ad_name,
-                        adset_id: row.adset_id,
-                        campaign_id: row.campaign_id,
-                        status: row.status,
-                        spend_brl: 0, impressions: 0, reach: 0, clicks: 0,
-                    };
-                }
-                const a = ads[row.ad_id];
-                a.spend_brl += Number(row.spend_brl);
-                a.impressions += Number(row.impressions);
-                a.reach += Number(row.reach);
-                a.clicks += Number(row.clicks);
-                if (row.status) a.status = row.status;
+                if (!ads[row.ad_id]) ads[row.ad_id] = initItem({ ad_id: row.ad_id, ad_name: row.ad_name, adset_id: row.adset_id, campaign_id: row.campaign_id, status: row.status });
+                accumulate(ads[row.ad_id], row);
             }
         }
 
-        const finalize = (item: any) => ({
-            ...item,
-            spend_brl: Number(item.spend_brl.toFixed(2)),
-            ctr: item.impressions > 0 ? Number(((item.clicks / item.impressions) * 100).toFixed(2)) : 0,
-            cpc_brl: item.clicks > 0 ? Number((item.spend_brl / item.clicks).toFixed(2)) : 0,
-            cpm_brl: item.impressions > 0 ? Number((item.spend_brl / item.impressions * 1000).toFixed(2)) : 0,
-        });
+        const finalize = (item: any) => {
+            const frequency = item.impressions > 0 ? Number((item.freq_impressions_sum / item.impressions).toFixed(2)) : 0;
+            const results = item.purchases > 0 ? item.purchases : item.leads > 0 ? item.leads : item.link_clicks;
+            const cost_per_result = results > 0 ? Number((item.spend_brl / results).toFixed(2)) : 0;
+            const roas = item.purchase_value > 0 && item.spend_brl > 0 ? Number((item.purchase_value / item.spend_brl).toFixed(2)) : 0;
+            return {
+                ...item,
+                spend_brl: Number(item.spend_brl.toFixed(2)),
+                purchase_value: Number(item.purchase_value.toFixed(2)),
+                ctr: item.impressions > 0 ? Number(((item.clicks / item.impressions) * 100).toFixed(2)) : 0,
+                cpc_brl: item.clicks > 0 ? Number((item.spend_brl / item.clicks).toFixed(2)) : 0,
+                cpm_brl: item.impressions > 0 ? Number((item.spend_brl / item.impressions * 1000).toFixed(2)) : 0,
+                frequency, results, cost_per_result, roas,
+                freq_impressions_sum: undefined,
+            };
+        };
 
         res.status(200).json({
             adsets: Object.values(adsets).map(finalize).sort((a, b) => b.spend_brl - a.spend_brl),

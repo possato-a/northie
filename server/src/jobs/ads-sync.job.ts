@@ -30,9 +30,13 @@ function daysAgo(n: number): string {
 
 // Note: effective_status is NOT a valid insights field — it belongs to the
 // campaign/adset/ad objects, not the insights endpoint. Omit it here.
+// actions and action_values return conversions breakdown (leads, purchases, etc.)
 const META_INSIGHT_FIELDS =
     'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,' +
-    'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,date_start';
+    'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,date_start,' +
+    'actions,action_values,video_p25_watched_actions';
+
+interface MetaAction { action_type: string; value: string; }
 
 interface MetaInsightRow {
     campaign_id: string;
@@ -51,6 +55,14 @@ interface MetaInsightRow {
     frequency?: string;
     date_start: string;
     effective_status?: string;
+    actions?: MetaAction[];
+    action_values?: MetaAction[];
+    video_p25_watched_actions?: MetaAction[];
+}
+
+/** Extrai o valor numérico de um tipo de action nos arrays da Meta */
+function getAction(arr: MetaAction[] | undefined, type: string): number {
+    return parseFloat(arr?.find(a => a.action_type === type)?.value || '0');
 }
 
 interface AdCampaignPayload {
@@ -66,6 +78,7 @@ interface AdCampaignPayload {
     adName: string;
     level: 'campaign' | 'adset' | 'ad';
     status: string;
+    objective?: string;
     date: string;
     spendBrl: number;
     impressions: number;
@@ -75,6 +88,12 @@ interface AdCampaignPayload {
     cpcBrl: number;
     cpmBrl: number;
     frequency: number;
+    purchases: number;
+    purchaseValue: number;
+    leads: number;
+    linkClicks: number;
+    landingPageViews: number;
+    videoViews: number;
 }
 
 // ── Meta Ads — fetch de status dos objetos ────────────────────────────────────
@@ -183,6 +202,7 @@ async function upsertAdCampaigns(rows: AdCampaignPayload[]): Promise<void> {
         ad_name: p.adName,
         level: p.level,
         status: p.status,
+        objective: p.objective,
         date: p.date,
         spend_brl: p.spendBrl,
         impressions: p.impressions,
@@ -192,6 +212,12 @@ async function upsertAdCampaigns(rows: AdCampaignPayload[]): Promise<void> {
         cpc_brl: p.cpcBrl,
         cpm_brl: p.cpmBrl,
         frequency: p.frequency,
+        purchases: p.purchases,
+        purchase_value: p.purchaseValue,
+        leads: p.leads,
+        link_clicks: p.linkClicks,
+        landing_page_views: p.landingPageViews,
+        video_views: p.videoViews,
         synced_at: syncedAt,
     }));
 
@@ -259,16 +285,32 @@ async function syncMetaAccount(
 ): Promise<void> {
     const levels: Array<'campaign' | 'adset' | 'ad'> = ['campaign', 'adset', 'ad'];
 
+    // Busca objetivos das campanhas uma única vez (só existe no nível campaign)
+    const objectiveMap = new Map<string, string>();
+    try {
+        let url: string | null = `https://graph.facebook.com/v18.0/${account.id}/campaigns`;
+        const objParams = { access_token: accessToken, fields: 'id,objective', limit: 500 };
+        while (url) {
+            const res = await axios.get(url, { params: url.includes('?') ? undefined : objParams });
+            for (const c of res.data?.data || []) {
+                if (c.id && c.objective) objectiveMap.set(c.id, c.objective);
+            }
+            const next = res.data?.paging?.next;
+            url = next && next !== url ? next : null;
+        }
+    } catch (e: any) {
+        console.error('[AdsSync] Meta: failed to fetch campaign objectives:', e.message);
+    }
+
     for (const level of levels) {
         try {
-            // Busca status dos objetos e insights em paralelo para economizar tempo
+            // Busca status dos objetos e insights em paralelo
             const [rows, statusMap] = await Promise.all([
                 fetchMetaInsights(account.id, accessToken, level, dateRange),
                 fetchMetaObjectStatuses(account.id, accessToken, level),
             ]);
             console.log(`[AdsSync] Meta: ${rows.length} rows at ${level} level for ${account.name} (${statusMap.size} statuses)`);
 
-            // Seleciona o ID correto do objeto para lookup no statusMap
             const getObjectId = (row: MetaInsightRow): string => {
                 if (level === 'campaign') return row.campaign_id;
                 if (level === 'adset') return row.adset_id || '';
@@ -289,6 +331,7 @@ async function syncMetaAccount(
                 adName: row.ad_name || '',
                 level,
                 status: statusMap.get(getObjectId(row)) || '',
+                objective: objectiveMap.get(row.campaign_id),
                 date: row.date_start,
                 spendBrl: parseFloat(row.spend || '0'),
                 impressions: parseInt(row.impressions || '0', 10),
@@ -298,6 +341,13 @@ async function syncMetaAccount(
                 cpcBrl: parseFloat(row.cpc || '0'),
                 cpmBrl: parseFloat(row.cpm || '0'),
                 frequency: parseFloat(row.frequency || '0'),
+                // Conversões: extraídas do array actions/action_values
+                purchases: Math.round(getAction(row.actions, 'purchase') + getAction(row.actions, 'offsite_conversion.fb_pixel_purchase')),
+                purchaseValue: getAction(row.action_values, 'purchase') + getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase'),
+                leads: Math.round(getAction(row.actions, 'lead') + getAction(row.actions, 'offsite_conversion.fb_pixel_lead')),
+                linkClicks: Math.round(getAction(row.actions, 'link_click')),
+                landingPageViews: Math.round(getAction(row.actions, 'landing_page_view')),
+                videoViews: Math.round(getAction(row.video_p25_watched_actions, 'video_view')),
             }));
 
             // Single batch upsert — much faster than N sequential upserts
