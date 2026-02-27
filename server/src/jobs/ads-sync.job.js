@@ -7,46 +7,94 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
+/** Arredonda um valor monetário para 2 casas decimais (evita float bruto do Meta) */
+function round2(n) {
+    return Math.round(n * 100) / 100;
+}
 /**
  * Executa uma chamada HTTP com retry automático em caso de rate limit (429)
  * ou erros transitórios (5xx). Usa backoff exponencial com jitter.
- * @param {() => Promise<any>} fn - função que faz a chamada axios
- * @param {number} maxRetries - máximo de tentativas (default 4)
- * @returns resultado da chamada bem-sucedida
  */
 async function withRetry(fn, maxRetries = 4) {
     let lastError;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             return await fn();
-        } catch (err) {
+        }
+        catch (err) {
             lastError = err;
             const status = err.response?.status;
             const fbCode = err.response?.data?.error?.code;
-
-            // Não retry em erros de autenticação (token inválido)
-            if (status === 401 || status === 403 || fbCode === 190) {
+            if (status === 401 || status === 403 || fbCode === 190)
                 throw err;
-            }
-
-            // Retry em rate limit (429) ou erros de servidor (5xx)
             const isRetryable = status === 429 || (status >= 500 && status < 600) || !status;
-            if (!isRetryable || attempt === maxRetries) {
+            if (!isRetryable || attempt === maxRetries)
                 throw err;
-            }
-
-            // Backoff exponencial: 2s, 4s, 8s, 16s + jitter aleatório
             const baseDelay = Math.pow(2, attempt + 1) * 1000;
             const jitter = Math.random() * 1000;
-            const delay = baseDelay + jitter;
-            console.warn(`[AdsSync] Retry ${attempt + 1}/${maxRetries} após ${Math.round(delay / 1000)}s (status ${status ?? 'network error'})`);
-            await new Promise(r => setTimeout(r, delay));
+            console.warn(`[AdsSync] Retry ${attempt + 1}/${maxRetries} após ${Math.round((baseDelay + jitter) / 1000)}s (status ${status ?? 'network error'})`);
+            await new Promise(r => setTimeout(r, baseDelay + jitter));
         }
     }
     throw lastError;
 }
-
+// ── Sync log helpers ──────────────────────────────────────────────────────────
+async function startSyncLog(profileId, platform) {
+    const { data, error } = await supabase
+        .from('sync_logs')
+        .insert({ profile_id: profileId, platform, started_at: new Date().toISOString(), status: 'running' })
+        .select('id')
+        .single();
+    if (error) {
+        console.warn('[AdsSync] Failed to create sync_log entry:', error.message);
+        return null;
+    }
+    return data?.id ?? null;
+}
+async function finishSyncLog(logId, rowsUpserted, errorMessage) {
+    if (!logId)
+        return;
+    await supabase
+        .from('sync_logs')
+        .update({
+        finished_at: new Date().toISOString(),
+        status: errorMessage ? 'error' : 'success',
+        rows_upserted: rowsUpserted,
+        error_message: errorMessage ?? null,
+    })
+        .eq('id', logId);
+}
+// ── Mutex helpers ─────────────────────────────────────────────────────────────
+/**
+ * Tenta adquirir o mutex de sync para uma integração.
+ * Retorna true se adquiriu (pode prosseguir), false se já está em andamento.
+ * Syncs travados há mais de 30 minutos são considerados mortos e liberados.
+ */
+async function acquireSyncMutex(profileId, platform) {
+    const STALE_MINUTES = 30;
+    const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60 * 1000).toISOString();
+    // Tenta atualizar apenas se is_syncing=false OU sync_started_at antigo (stale)
+    const { data, error } = await supabase
+        .from('integrations')
+        .update({ is_syncing: true, sync_started_at: new Date().toISOString() })
+        .eq('profile_id', profileId)
+        .eq('platform', platform)
+        .or(`is_syncing.eq.false,sync_started_at.lt.${staleThreshold}`)
+        .select('id')
+        .single();
+    if (error || !data) {
+        console.warn(`[AdsSync] ${platform}/${profileId}: já existe sync em andamento, pulando.`);
+        return false;
+    }
+    return true;
+}
+async function releaseSyncMutex(profileId, platform) {
+    await supabase
+        .from('integrations')
+        .update({ is_syncing: false, sync_started_at: null })
+        .eq('profile_id', profileId)
+        .eq('platform', platform);
+}
 function today() {
     return new Date().toISOString().split('T')[0];
 }
@@ -94,7 +142,7 @@ async function fetchMetaObjectStatuses(accountId, accessToken, level) {
     while (url !== null) {
         const currentUrl = url;
         const reqParams = currentUrl.includes('?') ? undefined : params;
-        const res = await withRetry(() => axios.get(currentUrl, { params: reqParams }));
+        const res = await axios.get(currentUrl, { params: reqParams });
         for (const obj of res.data?.data || []) {
             if (obj['id'] && obj['effective_status']) {
                 statusMap.set(obj['id'], obj['effective_status']);
@@ -130,7 +178,7 @@ async function fetchMetaInsights(accountId, accessToken, level, dateRange) {
     while (url !== null) {
         const currentUrl = url;
         const reqParams = currentUrl.includes('?') ? undefined : params;
-        const res = await withRetry(() => axios.get(currentUrl, { params: reqParams }));
+        const res = await axios.get(currentUrl, { params: reqParams });
         const data = res.data?.data || [];
         rows.push(...data);
         // Paginação via cursor
@@ -228,7 +276,7 @@ async function syncMetaAccount(profileId, account, accessToken, dateRange) {
         while (url !== null) {
             const currentUrl = url;
             const reqParams = currentUrl.includes('?') ? undefined : objParams;
-            const res = await withRetry(() => axios.get(currentUrl, { params: reqParams }));
+            const res = await axios.get(currentUrl, { params: reqParams });
             for (const c of res.data?.data || []) {
                 if (c['id'] && c['objective'])
                     objectiveMap.set(c['id'], c['objective']);
@@ -271,17 +319,17 @@ async function syncMetaAccount(profileId, account, accessToken, dateRange) {
                 status: statusMap.get(getObjectId(row)) || '',
                 ...(objectiveMap.has(row.campaign_id) ? { objective: objectiveMap.get(row.campaign_id) } : {}),
                 date: row.date_start,
-                spendBrl: parseFloat(row.spend || '0'),
+                spendBrl: round2(parseFloat(row.spend || '0')),
                 impressions: parseInt(row.impressions || '0', 10),
                 reach: parseInt(row.reach || '0', 10),
                 clicks: parseInt(row.clicks || '0', 10),
-                ctr: parseFloat(row.ctr || '0'),
-                cpcBrl: parseFloat(row.cpc || '0'),
-                cpmBrl: parseFloat(row.cpm || '0'),
-                frequency: parseFloat(row.frequency || '0'),
+                ctr: round2(parseFloat(row.ctr || '0')),
+                cpcBrl: round2(parseFloat(row.cpc || '0')),
+                cpmBrl: round2(parseFloat(row.cpm || '0')),
+                frequency: round2(parseFloat(row.frequency || '0')),
                 // Conversões: extraídas do array actions/action_values
                 purchases: Math.round(getAction(row.actions, 'offsite_conversion.fb_pixel_purchase')),
-                purchaseValue: getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase'),
+                purchaseValue: round2(getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase')),
                 leads: Math.round(getAction(row.actions, 'offsite_conversion.fb_pixel_lead')),
                 linkClicks: Math.round(getAction(row.actions, 'link_click')),
                 landingPageViews: Math.round(getAction(row.actions, 'landing_page_view')),
@@ -319,53 +367,78 @@ async function syncMetaAccount(profileId, account, accessToken, dateRange) {
     }
 }
 async function syncMetaAds(profileId, dateRange = { since: yesterday(), until: today() }) {
-    const tokens = await IntegrationService.getIntegration(profileId, 'meta');
-    if (!tokens?.access_token) {
-        console.log(`[AdsSync] Meta: no token for profile ${profileId}, skipping.`);
+    // Mutex: evita execuções paralelas
+    const acquired = await acquireSyncMutex(profileId, 'meta');
+    if (!acquired)
         return;
-    }
-    let accessToken = tokens.access_token;
-    if (IntegrationService.isNearExpiry(tokens)) {
-        try {
-            const refreshed = await IntegrationService.refreshTokens(profileId, 'meta');
-            accessToken = refreshed.access_token;
-        }
-        catch {
-            console.error(`[AdsSync] Meta: token renewal failed for profile ${profileId}, aborting sync.`);
+    const logId = await startSyncLog(profileId, 'meta');
+    let totalRows = 0;
+    try {
+        const tokens = await IntegrationService.getIntegration(profileId, 'meta');
+        if (!tokens?.access_token) {
+            console.log(`[AdsSync] Meta: no token for profile ${profileId}, skipping.`);
+            await finishSyncLog(logId, 0, 'No access token');
             return;
         }
-    }
-    // Listar ad accounts
-    let accountsRes;
-    try {
-        accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
-            params: { access_token: accessToken, fields: 'id,name', limit: 50 },
-        }));
+        let accessToken = tokens.access_token;
+        if (IntegrationService.isNearExpiry(tokens)) {
+            try {
+                const refreshed = await IntegrationService.refreshTokens(profileId, 'meta');
+                accessToken = refreshed.access_token;
+            }
+            catch {
+                const msg = `Token renewal failed for profile ${profileId}`;
+                console.error(`[AdsSync] Meta: ${msg}`);
+                await finishSyncLog(logId, 0, msg);
+                return;
+            }
+        }
+        // Listar ad accounts
+        let accountsRes;
+        try {
+            accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
+                params: { access_token: accessToken, fields: 'id,name', limit: 50 },
+            }));
+        }
+        catch (err) {
+            const fbError = err.response?.data?.error;
+            if (fbError?.code === 190) {
+                console.error(`[AdsSync] Meta: invalid/expired token for profile ${profileId} — marking inactive.`);
+                await supabase
+                    .from('integrations')
+                    .update({ status: 'inactive' })
+                    .eq('profile_id', profileId)
+                    .eq('platform', 'meta');
+                await finishSyncLog(logId, 0, 'Token expired (code 190)');
+            }
+            else {
+                const msg = fbError?.message ?? err.message;
+                console.error(`[AdsSync] Meta: failed to list ad accounts for ${profileId}:`, msg);
+                await finishSyncLog(logId, 0, msg);
+            }
+            return;
+        }
+        const accounts = accountsRes.data?.data || [];
+        if (accounts.length === 0) {
+            console.log(`[AdsSync] Meta: no ad accounts found for profile ${profileId}`);
+            await finishSyncLog(logId, 0);
+            return;
+        }
+        for (const account of accounts) {
+            await syncMetaAccount(profileId, account, accessToken, dateRange);
+            // Conta rows como referência; o número exato vem do upsert interno
+            totalRows += 1;
+        }
+        console.log(`[AdsSync] Meta: sync complete for profile ${profileId}`);
+        await finishSyncLog(logId, totalRows);
     }
     catch (err) {
-        const fbError = err.response?.data?.error;
-        if (fbError?.code === 190) {
-            console.error(`[AdsSync] Meta: invalid/expired token for profile ${profileId} — marking inactive.`);
-            await supabase
-                .from('integrations')
-                .update({ status: 'inactive' })
-                .eq('profile_id', profileId)
-                .eq('platform', 'meta');
-        }
-        else {
-            console.error(`[AdsSync] Meta: failed to list ad accounts for ${profileId}:`, fbError ?? err.message);
-        }
-        return;
+        console.error(`[AdsSync] Meta: unhandled error for ${profileId}:`, err.message);
+        await finishSyncLog(logId, totalRows, err.message);
     }
-    const accounts = accountsRes.data?.data || [];
-    if (accounts.length === 0) {
-        console.log(`[AdsSync] Meta: no ad accounts found for profile ${profileId}`);
-        return;
+    finally {
+        await releaseSyncMutex(profileId, 'meta');
     }
-    for (const account of accounts) {
-        await syncMetaAccount(profileId, account, accessToken, dateRange);
-    }
-    console.log(`[AdsSync] Meta: sync complete for profile ${profileId}`);
 }
 // ── Exports públicos ──────────────────────────────────────────────────────────
 /**
@@ -382,75 +455,102 @@ export async function backfillMetaAds(profileId, days) {
 }
 // ── Google Ads Sync ───────────────────────────────────────────────────────────
 async function syncGoogleAds(profileId) {
-    const tokens = await IntegrationService.getIntegration(profileId, 'google');
-    if (!tokens?.access_token) {
-        console.log(`[AdsSync] Google: no token for profile ${profileId}, skipping.`);
+    // Mutex: evita execuções paralelas
+    const acquired = await acquireSyncMutex(profileId, 'google');
+    if (!acquired)
         return;
-    }
-    const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-    if (!developerToken) {
-        console.warn('[AdsSync] Google: GOOGLE_ADS_DEVELOPER_TOKEN not set, skipping.');
-        return;
-    }
-    const { data: integrationRow } = await supabase
-        .from('integrations')
-        .select('google_customer_ids')
-        .eq('profile_id', profileId)
-        .eq('platform', 'google')
-        .single();
-    const customerIds = integrationRow?.google_customer_ids || [];
-    if (customerIds.length === 0) {
-        console.log(`[AdsSync] Google: no customer_ids for profile ${profileId}, skipping.`);
-        return;
-    }
-    for (const customerId of customerIds) {
-        try {
-            const query = `
+    const logId = await startSyncLog(profileId, 'google');
+    let totalRows = 0;
+    try {
+        const tokens = await IntegrationService.getIntegration(profileId, 'google');
+        if (!tokens?.access_token) {
+            console.log(`[AdsSync] Google: no token for profile ${profileId}, skipping.`);
+            await finishSyncLog(logId, 0, 'No access token');
+            return;
+        }
+        const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+        if (!developerToken) {
+            console.warn('[AdsSync] Google: GOOGLE_ADS_DEVELOPER_TOKEN not set, skipping.');
+            await finishSyncLog(logId, 0, 'GOOGLE_ADS_DEVELOPER_TOKEN not set');
+            return;
+        }
+        const { data: integrationRow } = await supabase
+            .from('integrations')
+            .select('google_customer_ids')
+            .eq('profile_id', profileId)
+            .eq('platform', 'google')
+            .single();
+        const customerIds = integrationRow?.google_customer_ids || [];
+        if (customerIds.length === 0) {
+            console.log(`[AdsSync] Google: no customer_ids for profile ${profileId}, skipping.`);
+            await finishSyncLog(logId, 0, 'No customer IDs configured');
+            return;
+        }
+        for (const customerId of customerIds) {
+            try {
+                const query = `
                 SELECT
+                    campaign.id,
+                    campaign.name,
                     segments.date,
                     metrics.cost_micros,
                     metrics.impressions,
-                    metrics.clicks
+                    metrics.clicks,
+                    metrics.conversions,
+                    metrics.conversions_value
                 FROM campaign
                 WHERE segments.date BETWEEN '${yesterday()}' AND '${today()}'
                   AND campaign.status = 'ENABLED'
             `;
-            const reportRes = await axios.post(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`, { query }, {
-                headers: {
-                    Authorization: `Bearer ${tokens.access_token}`,
-                    'developer-token': developerToken,
-                    'Content-Type': 'application/json',
-                },
-            });
-            const batches = reportRes.data || [];
-            const daily = {};
-            for (const batch of batches) {
-                for (const result of batch.results || []) {
-                    const date = result.segments?.date;
-                    const costMicros = parseInt(result.metrics?.costMicros || '0', 10);
-                    const spendBrl = costMicros / 1_000_000;
-                    if (!daily[date])
-                        daily[date] = { spend: 0, impressions: 0, clicks: 0 };
-                    daily[date].spend += spendBrl;
-                    daily[date].impressions += parseInt(result.metrics?.impressions || '0', 10);
-                    daily[date].clicks += parseInt(result.metrics?.clicks || '0', 10);
+                const reportRes = await axios.post(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`, { query }, {
+                    headers: {
+                        Authorization: `Bearer ${tokens.access_token}`,
+                        'developer-token': developerToken,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                const batches = reportRes.data || [];
+                const daily = {};
+                for (const batch of batches) {
+                    for (const result of batch.results || []) {
+                        const date = result.segments?.date;
+                        const costMicros = parseInt(result.metrics?.costMicros || '0', 10);
+                        const spendBrl = Math.round((costMicros / 1_000_000) * 100) / 100;
+                        if (!daily[date])
+                            daily[date] = { spend: 0, impressions: 0, clicks: 0, purchases: 0, purchaseValue: 0 };
+                        daily[date].spend += spendBrl;
+                        daily[date].impressions += parseInt(result.metrics?.impressions || '0', 10);
+                        daily[date].clicks += parseInt(result.metrics?.clicks || '0', 10);
+                        daily[date].purchases += Math.round(parseFloat(result.metrics?.conversions || '0'));
+                        daily[date].purchaseValue += Math.round(parseFloat(result.metrics?.conversionsValue || '0') * 100) / 100;
+                    }
                 }
+                await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
+                    profileId,
+                    platform: 'google',
+                    date,
+                    spendBrl: m.spend,
+                    impressions: m.impressions,
+                    clicks: m.clicks,
+                    accountId: customerId,
+                    accountName: `Google Ads #${customerId}`,
+                })));
+                totalRows += Object.keys(daily).length;
+                console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
             }
-            await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
-                profileId,
-                platform: 'google',
-                date,
-                spendBrl: m.spend,
-                impressions: m.impressions,
-                clicks: m.clicks,
-                accountId: customerId,
-                accountName: `Google Ads #${customerId}`,
-            })));
-            console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
+            catch (err) {
+                console.error(`[AdsSync] Google: error for ${customerId}:`, err.response?.data || err.message);
+            }
         }
-        catch (err) {
-            console.error(`[AdsSync] Google: error for ${customerId}:`, err.response?.data || err.message);
-        }
+        console.log(`[AdsSync] Google: sync complete for profile ${profileId}`);
+        await finishSyncLog(logId, totalRows);
+    }
+    catch (err) {
+        console.error(`[AdsSync] Google: unhandled error for ${profileId}:`, err.message);
+        await finishSyncLog(logId, totalRows, err.message);
+    }
+    finally {
+        await releaseSyncMutex(profileId, 'google');
     }
 }
 // ── Main runner ───────────────────────────────────────────────────────────────
