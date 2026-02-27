@@ -454,12 +454,21 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
         fetchCampaigns()
     }, [periodDays])
 
-    const totals = useMemo(() =>
-        performance.reduce((acc: any, curr: any) => ({ spend: acc.spend + curr.spend, revenue: acc.revenue + curr.revenue, customers: acc.customers + curr.customers }), { spend: 0, revenue: 0, customers: 0 }),
-        [performance]
-    )
+    const totals = useMemo(() => {
+        const fromCampaigns = campaigns.reduce(
+            (acc: any, c: any) => ({
+                spend: acc.spend + (c.spend_brl || 0),
+                revenue: acc.revenue + (c.purchase_value || 0),
+                purchases: acc.purchases + (c.purchases || 0),
+            }),
+            { spend: 0, revenue: 0, purchases: 0 }
+        )
+        // fallback to attribution data for customers count
+        const customers = performance.reduce((acc: any, curr: any) => acc + curr.customers, 0)
+        return { ...fromCampaigns, customers }
+    }, [campaigns, performance])
     const avgRoas = totals.spend > 0 ? totals.revenue / totals.spend : 0
-    const avgCac = totals.customers > 0 ? totals.spend / totals.customers : 0
+    const avgCac = totals.purchases > 0 ? totals.spend / totals.purchases : 0
 
     return (
         <div style={{ paddingTop: 28, paddingBottom: 80 }}>
@@ -474,7 +483,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 <KpiCard label="GASTO TOTAL ADS" value={totals.spend} prefix="R$ " decimals={0} delay={0.15} />
                 <KpiCard label="RECEITA ATRIBUÍDA" value={totals.revenue} prefix="R$ " decimals={0} delay={0.25} />
                 <KpiCard label="ROAS MÉDIO" value={avgRoas} suffix="x" decimals={2} delay={0.35} />
-                <KpiCard label="CAC MÉDIO" value={avgCac} prefix="R$ " decimals={1} delay={0.45} />
+                <KpiCard label="CUSTO POR COMPRA" value={avgCac} prefix="R$ " decimals={1} delay={0.45} />
                 <KpiCard label="CANAIS ATIVOS" value={performance.length} decimals={0} delay={0.55} />
             </motion.div>
 

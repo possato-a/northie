@@ -346,9 +346,9 @@ async function syncMetaAccount(
                 cpmBrl: parseFloat(row.cpm || '0'),
                 frequency: parseFloat(row.frequency || '0'),
                 // Conversões: extraídas do array actions/action_values
-                purchases: Math.round(getAction(row.actions, 'purchase') + getAction(row.actions, 'offsite_conversion.fb_pixel_purchase')),
-                purchaseValue: getAction(row.action_values, 'purchase') + getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase'),
-                leads: Math.round(getAction(row.actions, 'lead') + getAction(row.actions, 'offsite_conversion.fb_pixel_lead')),
+                purchases: Math.round(getAction(row.actions, 'offsite_conversion.fb_pixel_purchase')),
+                purchaseValue: getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase'),
+                leads: Math.round(getAction(row.actions, 'offsite_conversion.fb_pixel_lead')),
                 linkClicks: Math.round(getAction(row.actions, 'link_click')),
                 landingPageViews: Math.round(getAction(row.actions, 'landing_page_view')),
                 videoViews: Math.round(getAction(row.video_p25_watched_actions, 'video_view')),
