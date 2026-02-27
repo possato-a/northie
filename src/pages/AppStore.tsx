@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
-import { integrationApi } from '../lib/api'
+import { integrationApi, setProfileId } from '../lib/api'
 import {
     PageHeader, SectionLabel,
     Btn, Modal, EmptyState, FilterPills, Input
@@ -277,8 +277,10 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [webhookOpen, setWebhookOpen] = useState<Plugin | null>(null)
 
     useEffect(() => {
+        if (!user?.id) return
         const fetchIntegrations = async () => {
             try {
+                setProfileId(user.id) // ensure header is set before request
                 const { data } = await integrationApi.getStatus()
                 if (Array.isArray(data)) {
                     const platforms = data
@@ -290,11 +292,11 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         })
                     setInstalledPlugins(platforms)
                 }
-            } catch {
-                // silently ignore — user may not be logged in yet
+            } catch (err) {
+                console.error('[AppStore] fetchIntegrations error:', err)
             }
         }
-        if (user?.id) fetchIntegrations()
+        fetchIntegrations()
     }, [user?.id])
 
     const handleSync = useCallback(async (pluginId: string, days = 30) => {
