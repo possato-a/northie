@@ -16,18 +16,14 @@ import { startAdsSyncJob } from './jobs/ads-sync.job.js';
 import { startRfmCalcJob } from './jobs/rfm-calc.job.js';
 import { webhookQueue } from './lib/webhook-queue.js';
 import { startAlertsJob } from './jobs/alerts.job.js';
-
 dotenv.config();
-
 const app = express();
 const PORT = process.env.PORT || 3001;
-
 // Middlewares
 app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
-
 // Routes
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/pixel', pixelRoutes);
@@ -37,13 +33,10 @@ app.use('/api/integrations', integrationRoutes);
 app.use('/api/cron', cronRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/campaigns', campaignRoutes);
-
 // Basic Route
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'northie-backend' });
 });
-
-
 // Start server only if not in Vercel (Production)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
@@ -55,5 +48,5 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         startAlertsJob();
     });
 }
-
 export default app;
+//# sourceMappingURL=index.js.map

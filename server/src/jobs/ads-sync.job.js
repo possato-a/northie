@@ -3,193 +3,106 @@
  * Sincroniza métricas de anúncios do Meta Ads (e futuramente Google Ads)
  * nos níveis campanha, conjunto e anúncio para as tabelas ad_metrics e ad_campaigns.
  */
-
 import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function today(): string {
-    return new Date().toISOString().split('T')[0]!;
+function today() {
+    return new Date().toISOString().split('T')[0];
 }
-
-function yesterday(): string {
+function yesterday() {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split('T')[0]!;
+    return d.toISOString().split('T')[0];
 }
-
-function daysAgo(n: number): string {
+function daysAgo(n) {
     const d = new Date();
     d.setDate(d.getDate() - n);
-    return d.toISOString().split('T')[0]!;
+    return d.toISOString().split('T')[0];
 }
-
 // ── Meta Ads — campos e tipos ──────────────────────────────────────────────────
-
 // Note: effective_status is NOT a valid insights field — it belongs to the
 // campaign/adset/ad objects, not the insights endpoint. Omit it here.
 // actions and action_values return conversions breakdown (leads, purchases, etc.)
-const META_INSIGHT_FIELDS =
-    'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,' +
+const META_INSIGHT_FIELDS = 'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,' +
     'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,date_start,' +
     'actions,action_values,video_p25_watched_actions';
-
-interface MetaAction { action_type: string; value: string; }
-
-interface MetaInsightRow {
-    campaign_id: string;
-    campaign_name: string;
-    adset_id?: string;
-    adset_name?: string;
-    ad_id?: string;
-    ad_name?: string;
-    spend: string;
-    impressions: string;
-    reach?: string;
-    clicks: string;
-    ctr?: string;
-    cpc?: string;
-    cpm?: string;
-    frequency?: string;
-    date_start: string;
-    effective_status?: string;
-    actions?: MetaAction[];
-    action_values?: MetaAction[];
-    video_p25_watched_actions?: MetaAction[];
-}
-
 /** Extrai o valor numérico de um tipo de action nos arrays da Meta */
-function getAction(arr: MetaAction[] | undefined, type: string): number {
+function getAction(arr, type) {
     return parseFloat(arr?.find(a => a.action_type === type)?.value || '0');
 }
-
-interface AdCampaignPayload {
-    profileId: string;
-    platform: 'meta' | 'google';
-    accountId: string;
-    accountName: string;
-    campaignId: string;
-    campaignName: string;
-    adsetId: string;
-    adsetName: string;
-    adId: string;
-    adName: string;
-    level: 'campaign' | 'adset' | 'ad';
-    status: string;
-    objective?: string;
-    date: string;
-    spendBrl: number;
-    impressions: number;
-    reach: number;
-    clicks: number;
-    ctr: number;
-    cpcBrl: number;
-    cpmBrl: number;
-    frequency: number;
-    purchases: number;
-    purchaseValue: number;
-    leads: number;
-    linkClicks: number;
-    landingPageViews: number;
-    videoViews: number;
-}
-
 // ── Meta Ads — fetch de status dos objetos ────────────────────────────────────
-
 /**
  * Busca o effective_status de todos os objetos de um nível (campaigns/adsets/ads)
  * para um ad account. Retorna um Map de id → effective_status.
  * effective_status é um campo dos objetos, não de insights — precisa de endpoint separado.
  */
-async function fetchMetaObjectStatuses(
-    accountId: string,
-    accessToken: string,
-    level: 'campaign' | 'adset' | 'ad',
-): Promise<Map<string, string>> {
+async function fetchMetaObjectStatuses(accountId, accessToken, level) {
     const endpointMap = {
         campaign: 'campaigns',
         adset: 'adsets',
         ad: 'ads',
-    } as const;
+    };
     const idField = level === 'campaign' ? 'id' : level === 'adset' ? 'id' : 'id';
-
-    const statusMap = new Map<string, string>();
-    let url: string | null =
-        `https://graph.facebook.com/v18.0/${accountId}/${endpointMap[level]}`;
-    const params: Record<string, any> = {
+    const statusMap = new Map();
+    let url = `https://graph.facebook.com/v18.0/${accountId}/${endpointMap[level]}`;
+    const params = {
         access_token: accessToken,
         fields: 'id,effective_status',
         limit: 500,
     };
-
     while (url !== null) {
-        const currentUrl: string = url;
-        const reqParams: Record<string, any> | undefined = currentUrl.includes('?') ? undefined : params;
-        const res = await axios.get<{ data: any[]; paging?: { next?: string } }>(currentUrl, { params: reqParams });
+        const currentUrl = url;
+        const reqParams = currentUrl.includes('?') ? undefined : params;
+        const res = await axios.get(currentUrl, { params: reqParams });
         for (const obj of res.data?.data || []) {
             if (obj['id'] && obj['effective_status']) {
-                statusMap.set(obj['id'] as string, obj['effective_status'] as string);
+                statusMap.set(obj['id'], obj['effective_status']);
             }
         }
         const next = res.data?.paging?.next;
         url = (next && next !== currentUrl) ? next : null;
     }
-
     return statusMap;
 }
-
 // ── Meta Ads — fetch de insights por nível ────────────────────────────────────
-
 /**
  * Busca insights paginados de um ad account em um nível específico.
  * Retorna todos os registros (segue paginação automática).
  */
-async function fetchMetaInsights(
-    accountId: string,
-    accessToken: string,
-    level: 'campaign' | 'adset' | 'ad',
-    dateRange: { since: string; until: string } | null,
-): Promise<MetaInsightRow[]> {
-    const params: Record<string, any> = {
+async function fetchMetaInsights(accountId, accessToken, level, dateRange) {
+    const params = {
         access_token: accessToken,
         fields: META_INSIGHT_FIELDS,
         time_increment: 1,
         level,
         limit: 500,
     };
-
     if (dateRange) {
         params.time_range = JSON.stringify(dateRange);
-    } else {
+    }
+    else {
         // Sem dateRange = histórico completo da conta
         params.date_preset = 'maximum';
     }
-
-    const rows: MetaInsightRow[] = [];
-    let url: string | null =
-        `https://graph.facebook.com/v18.0/${accountId}/insights`;
-
+    const rows = [];
+    let url = `https://graph.facebook.com/v18.0/${accountId}/insights`;
     while (url !== null) {
-        const currentUrl: string = url;
-        const reqParams: Record<string, any> | undefined = currentUrl.includes('?') ? undefined : params;
-        const res = await axios.get<{ data: MetaInsightRow[]; paging?: { next?: string } }>(currentUrl, { params: reqParams });
-        const data: MetaInsightRow[] = res.data?.data || [];
+        const currentUrl = url;
+        const reqParams = currentUrl.includes('?') ? undefined : params;
+        const res = await axios.get(currentUrl, { params: reqParams });
+        const data = res.data?.data || [];
         rows.push(...data);
-
         // Paginação via cursor
         const next = res.data?.paging?.next;
         url = (next && next !== currentUrl) ? next : null;
     }
-
     return rows;
 }
-
 // ── Meta Ads — upsert helpers ─────────────────────────────────────────────────
-
-async function upsertAdCampaigns(rows: AdCampaignPayload[]): Promise<void> {
-    if (rows.length === 0) return;
+async function upsertAdCampaigns(rows) {
+    if (rows.length === 0)
+        return;
     const syncedAt = new Date().toISOString();
     const records = rows.map(p => ({
         profile_id: p.profileId,
@@ -222,7 +135,6 @@ async function upsertAdCampaigns(rows: AdCampaignPayload[]): Promise<void> {
         video_views: p.videoViews,
         synced_at: syncedAt,
     }));
-
     // Upsert in chunks of 500 to avoid Supabase request size limits
     const CHUNK = 500;
     for (let i = 0; i < records.length; i += CHUNK) {
@@ -236,20 +148,9 @@ async function upsertAdCampaigns(rows: AdCampaignPayload[]): Promise<void> {
         }
     }
 }
-
-interface AdMetricPayload {
-    profileId: string;
-    platform: 'meta' | 'google';
-    date: string;
-    spendBrl: number;
-    impressions: number;
-    clicks: number;
-    accountId: string;
-    accountName: string;
-}
-
-async function upsertAdMetrics(payloads: AdMetricPayload[]): Promise<void> {
-    if (payloads.length === 0) return;
+async function upsertAdMetrics(payloads) {
+    if (payloads.length === 0)
+        return;
     const syncedAt = new Date().toISOString();
     const records = payloads.map(p => ({
         profile_id: p.profileId,
@@ -271,41 +172,34 @@ async function upsertAdMetrics(payloads: AdMetricPayload[]): Promise<void> {
         throw error;
     }
 }
-
 // ── Meta Ads — sync principal ─────────────────────────────────────────────────
-
 /**
  * Sincroniza todos os níveis (campaign, adset, ad) para um ad account.
  * Faz upsert em batch para minimizar latência — o número de requests ao Supabase
  * é proporcional ao número de níveis, não ao número de rows.
  */
-async function syncMetaAccount(
-    profileId: string,
-    account: { id: string; name: string },
-    accessToken: string,
-    dateRange: { since: string; until: string } | null,
-): Promise<void> {
-    const levels: Array<'campaign' | 'adset' | 'ad'> = ['campaign', 'adset', 'ad'];
-
+async function syncMetaAccount(profileId, account, accessToken, dateRange) {
+    const levels = ['campaign', 'adset', 'ad'];
     // Busca objetivos das campanhas uma única vez (só existe no nível campaign)
-    const objectiveMap = new Map<string, string>();
+    const objectiveMap = new Map();
     try {
-        let url: string | null = `https://graph.facebook.com/v18.0/${account.id}/campaigns`;
+        let url = `https://graph.facebook.com/v18.0/${account.id}/campaigns`;
         const objParams = { access_token: accessToken, fields: 'id,objective', limit: 500 };
         while (url !== null) {
-            const currentUrl: string = url;
-            const reqParams: Record<string, any> | undefined = currentUrl.includes('?') ? undefined : objParams;
-            const res = await axios.get<{ data: any[]; paging?: { next?: string } }>(currentUrl, { params: reqParams });
+            const currentUrl = url;
+            const reqParams = currentUrl.includes('?') ? undefined : objParams;
+            const res = await axios.get(currentUrl, { params: reqParams });
             for (const c of res.data?.data || []) {
-                if (c['id'] && c['objective']) objectiveMap.set(c['id'] as string, c['objective'] as string);
+                if (c['id'] && c['objective'])
+                    objectiveMap.set(c['id'], c['objective']);
             }
             const next = res.data?.paging?.next;
             url = (next && next !== currentUrl) ? next : null;
         }
-    } catch (e: any) {
+    }
+    catch (e) {
         console.error('[AdsSync] Meta: failed to fetch campaign objectives:', e.message);
     }
-
     for (const level of levels) {
         try {
             // Busca status dos objetos e insights em paralelo
@@ -314,15 +208,15 @@ async function syncMetaAccount(
                 fetchMetaObjectStatuses(account.id, accessToken, level),
             ]);
             console.log(`[AdsSync] Meta: ${rows.length} rows at ${level} level for ${account.name} (${statusMap.size} statuses)`);
-
-            const getObjectId = (row: MetaInsightRow): string => {
-                if (level === 'campaign') return row.campaign_id;
-                if (level === 'adset') return row.adset_id || '';
+            const getObjectId = (row) => {
+                if (level === 'campaign')
+                    return row.campaign_id;
+                if (level === 'adset')
+                    return row.adset_id || '';
                 return row.ad_id || '';
             };
-
             // Build batch payload
-            const batch: AdCampaignPayload[] = rows.map(row => ({
+            const batch = rows.map(row => ({
                 profileId,
                 platform: 'meta',
                 accountId: account.id,
@@ -335,7 +229,7 @@ async function syncMetaAccount(
                 adName: row.ad_name || '',
                 level,
                 status: statusMap.get(getObjectId(row)) || '',
-                ...(objectiveMap.has(row.campaign_id) ? { objective: objectiveMap.get(row.campaign_id)! } : {}),
+                ...(objectiveMap.has(row.campaign_id) ? { objective: objectiveMap.get(row.campaign_id) } : {}),
                 date: row.date_start,
                 spendBrl: parseFloat(row.spend || '0'),
                 impressions: parseInt(row.impressions || '0', 10),
@@ -353,21 +247,20 @@ async function syncMetaAccount(
                 landingPageViews: Math.round(getAction(row.actions, 'landing_page_view')),
                 videoViews: Math.round(getAction(row.video_p25_watched_actions, 'video_view')),
             }));
-
             // Single batch upsert — much faster than N sequential upserts
             await upsertAdCampaigns(batch);
-
             // Maintain ad_metrics time-series totals (backward compat)
             if (level === 'campaign') {
-                const byDate: Record<string, { spend: number; impressions: number; clicks: number }> = {};
+                const byDate = {};
                 for (const row of rows) {
                     const d = row.date_start;
-                    if (!byDate[d]) byDate[d] = { spend: 0, impressions: 0, clicks: 0 };
-                    byDate[d]!.spend += parseFloat(row.spend || '0');
-                    byDate[d]!.impressions += parseInt(row.impressions || '0', 10);
-                    byDate[d]!.clicks += parseInt(row.clicks || '0', 10);
+                    if (!byDate[d])
+                        byDate[d] = { spend: 0, impressions: 0, clicks: 0 };
+                    byDate[d].spend += parseFloat(row.spend || '0');
+                    byDate[d].impressions += parseInt(row.impressions || '0', 10);
+                    byDate[d].clicks += parseInt(row.clicks || '0', 10);
                 }
-                const metricsBatch: AdMetricPayload[] = Object.entries(byDate).map(([date, m]) => ({
+                const metricsBatch = Object.entries(byDate).map(([date, m]) => ({
                     profileId,
                     platform: 'meta',
                     date,
@@ -379,43 +272,37 @@ async function syncMetaAccount(
                 }));
                 await upsertAdMetrics(metricsBatch);
             }
-        } catch (err: any) {
-            console.error(
-                `[AdsSync] Meta: error at ${level} level for account ${account.id}:`,
-                err.response?.data || err.message
-            );
+        }
+        catch (err) {
+            console.error(`[AdsSync] Meta: error at ${level} level for account ${account.id}:`, err.response?.data || err.message);
         }
     }
 }
-
-async function syncMetaAds(
-    profileId: string,
-    dateRange: { since: string; until: string } | null = { since: yesterday(), until: today() },
-): Promise<void> {
+async function syncMetaAds(profileId, dateRange = { since: yesterday(), until: today() }) {
     const tokens = await IntegrationService.getIntegration(profileId, 'meta');
     if (!tokens?.access_token) {
         console.log(`[AdsSync] Meta: no token for profile ${profileId}, skipping.`);
         return;
     }
-
     let accessToken = tokens.access_token;
     if (IntegrationService.isNearExpiry(tokens)) {
         try {
             const refreshed = await IntegrationService.refreshTokens(profileId, 'meta');
             accessToken = refreshed.access_token;
-        } catch {
+        }
+        catch {
             console.error(`[AdsSync] Meta: token renewal failed for profile ${profileId}, aborting sync.`);
             return;
         }
     }
-
     // Listar ad accounts
     let accountsRes;
     try {
         accountsRes = await axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
             params: { access_token: accessToken, fields: 'id,name', limit: 50 },
         });
-    } catch (err: any) {
+    }
+    catch (err) {
         const fbError = err.response?.data?.error;
         if (fbError?.code === 190) {
             console.error(`[AdsSync] Meta: invalid/expired token for profile ${profileId} — marking inactive.`);
@@ -424,68 +311,58 @@ async function syncMetaAds(
                 .update({ status: 'inactive' })
                 .eq('profile_id', profileId)
                 .eq('platform', 'meta');
-        } else {
+        }
+        else {
             console.error(`[AdsSync] Meta: failed to list ad accounts for ${profileId}:`, fbError ?? err.message);
         }
         return;
     }
-
-    const accounts: Array<{ id: string; name: string }> = accountsRes.data?.data || [];
+    const accounts = accountsRes.data?.data || [];
     if (accounts.length === 0) {
         console.log(`[AdsSync] Meta: no ad accounts found for profile ${profileId}`);
         return;
     }
-
     for (const account of accounts) {
         await syncMetaAccount(profileId, account, accessToken, dateRange);
     }
-
     console.log(`[AdsSync] Meta: sync complete for profile ${profileId}`);
 }
-
 // ── Exports públicos ──────────────────────────────────────────────────────────
-
 /**
  * Backfill Meta Ads.
  * - days=0 ou undefined: busca últimos 365 dias (1 ano de histórico)
  * - days=N: busca apenas os últimos N dias
  */
-export async function backfillMetaAds(profileId: string, days?: number): Promise<void> {
+export async function backfillMetaAds(profileId, days) {
     const effectiveDays = (!days || days <= 0) ? 365 : days;
     const dateRange = { since: daysAgo(effectiveDays), until: today() };
     console.log(`[AdsSync] Meta backfill started for profile ${profileId} — last ${effectiveDays} days`);
     await syncMetaAds(profileId, dateRange);
     console.log(`[AdsSync] Meta backfill complete for profile ${profileId}`);
 }
-
 // ── Google Ads Sync ───────────────────────────────────────────────────────────
-
-async function syncGoogleAds(profileId: string): Promise<void> {
+async function syncGoogleAds(profileId) {
     const tokens = await IntegrationService.getIntegration(profileId, 'google');
     if (!tokens?.access_token) {
         console.log(`[AdsSync] Google: no token for profile ${profileId}, skipping.`);
         return;
     }
-
     const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
     if (!developerToken) {
         console.warn('[AdsSync] Google: GOOGLE_ADS_DEVELOPER_TOKEN not set, skipping.');
         return;
     }
-
     const { data: integrationRow } = await supabase
         .from('integrations')
         .select('google_customer_ids')
         .eq('profile_id', profileId)
         .eq('platform', 'google')
         .single();
-
-    const customerIds: string[] = (integrationRow as any)?.google_customer_ids || [];
+    const customerIds = integrationRow?.google_customer_ids || [];
     if (customerIds.length === 0) {
         console.log(`[AdsSync] Google: no customer_ids for profile ${profileId}, skipping.`);
         return;
     }
-
     for (const customerId of customerIds) {
         try {
             const query = `
@@ -498,35 +375,27 @@ async function syncGoogleAds(profileId: string): Promise<void> {
                 WHERE segments.date BETWEEN '${yesterday()}' AND '${today()}'
                   AND campaign.status = 'ENABLED'
             `;
-
-            const reportRes = await axios.post(
-                `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
-                { query },
-                {
-                    headers: {
-                        Authorization: `Bearer ${tokens.access_token}`,
-                        'developer-token': developerToken,
-                        'Content-Type': 'application/json',
-                    },
-                }
-            );
-
-            const batches: any[] = reportRes.data || [];
-            const daily: Record<string, { spend: number; impressions: number; clicks: number }> = {};
-
+            const reportRes = await axios.post(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`, { query }, {
+                headers: {
+                    Authorization: `Bearer ${tokens.access_token}`,
+                    'developer-token': developerToken,
+                    'Content-Type': 'application/json',
+                },
+            });
+            const batches = reportRes.data || [];
+            const daily = {};
             for (const batch of batches) {
                 for (const result of batch.results || []) {
-                    const date: string = result.segments?.date;
+                    const date = result.segments?.date;
                     const costMicros = parseInt(result.metrics?.costMicros || '0', 10);
                     const spendBrl = costMicros / 1_000_000;
-
-                    if (!daily[date]) daily[date] = { spend: 0, impressions: 0, clicks: 0 };
-                    daily[date]!.spend += spendBrl;
-                    daily[date]!.impressions += parseInt(result.metrics?.impressions || '0', 10);
-                    daily[date]!.clicks += parseInt(result.metrics?.clicks || '0', 10);
+                    if (!daily[date])
+                        daily[date] = { spend: 0, impressions: 0, clicks: 0 };
+                    daily[date].spend += spendBrl;
+                    daily[date].impressions += parseInt(result.metrics?.impressions || '0', 10);
+                    daily[date].clicks += parseInt(result.metrics?.clicks || '0', 10);
                 }
             }
-
             await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
                 profileId,
                 platform: 'google',
@@ -537,54 +406,45 @@ async function syncGoogleAds(profileId: string): Promise<void> {
                 accountId: customerId,
                 accountName: `Google Ads #${customerId}`,
             })));
-
             console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
-        } catch (err: any) {
+        }
+        catch (err) {
             console.error(`[AdsSync] Google: error for ${customerId}:`, err.response?.data || err.message);
         }
     }
 }
-
 // ── Main runner ───────────────────────────────────────────────────────────────
-
-async function runAdsSyncForAllProfiles(): Promise<void> {
+async function runAdsSyncForAllProfiles() {
     console.log('[AdsSync] Starting full sync cycle...');
-
     const { data: integrations, error } = await supabase
         .from('integrations')
         .select('profile_id, platform')
         .eq('status', 'active')
         .in('platform', ['meta', 'google']);
-
     if (error) {
         console.error('[AdsSync] Failed to fetch integrations:', error);
         return;
     }
-
     for (const integration of integrations || []) {
         try {
             if (integration.platform === 'meta') {
                 await syncMetaAds(integration.profile_id);
-            } else if (integration.platform === 'google') {
+            }
+            else if (integration.platform === 'google') {
                 await syncGoogleAds(integration.profile_id);
             }
-        } catch (err: any) {
-            console.error(
-                `[AdsSync] Unhandled error for ${integration.platform} / ${integration.profile_id}:`,
-                err.message
-            );
+        }
+        catch (err) {
+            console.error(`[AdsSync] Unhandled error for ${integration.platform} / ${integration.profile_id}:`, err.message);
         }
     }
-
     console.log('[AdsSync] Sync cycle complete.');
 }
-
 // ── Job starter ───────────────────────────────────────────────────────────────
-
-export function startAdsSyncJob(): void {
+export function startAdsSyncJob() {
     console.log('[AdsSync] Job registered — will run every 6 hours.');
     runAdsSyncForAllProfiles();
     setInterval(runAdsSyncForAllProfiles, 6 * 60 * 60 * 1000);
 }
-
 export { runAdsSyncForAllProfiles };
+//# sourceMappingURL=ads-sync.job.js.map
