@@ -77,6 +77,48 @@ interface AdCampaignPayload {
     frequency: number;
 }
 
+// ── Meta Ads — fetch de status dos objetos ────────────────────────────────────
+
+/**
+ * Busca o effective_status de todos os objetos de um nível (campaigns/adsets/ads)
+ * para um ad account. Retorna um Map de id → effective_status.
+ * effective_status é um campo dos objetos, não de insights — precisa de endpoint separado.
+ */
+async function fetchMetaObjectStatuses(
+    accountId: string,
+    accessToken: string,
+    level: 'campaign' | 'adset' | 'ad',
+): Promise<Map<string, string>> {
+    const endpointMap = {
+        campaign: 'campaigns',
+        adset: 'adsets',
+        ad: 'ads',
+    } as const;
+    const idField = level === 'campaign' ? 'id' : level === 'adset' ? 'id' : 'id';
+
+    const statusMap = new Map<string, string>();
+    let url: string | null =
+        `https://graph.facebook.com/v18.0/${accountId}/${endpointMap[level]}`;
+    const params: Record<string, any> = {
+        access_token: accessToken,
+        fields: 'id,effective_status',
+        limit: 500,
+    };
+
+    while (url) {
+        const res = await axios.get(url, { params: url.includes('?') ? undefined : params });
+        for (const obj of res.data?.data || []) {
+            if (obj[idField] && obj.effective_status) {
+                statusMap.set(obj[idField], obj.effective_status);
+            }
+        }
+        const next = res.data?.paging?.next;
+        url = next && next !== url ? next : null;
+    }
+
+    return statusMap;
+}
+
 // ── Meta Ads — fetch de insights por nível ────────────────────────────────────
 
 /**
@@ -219,8 +261,19 @@ async function syncMetaAccount(
 
     for (const level of levels) {
         try {
-            const rows = await fetchMetaInsights(account.id, accessToken, level, dateRange);
-            console.log(`[AdsSync] Meta: ${rows.length} rows at ${level} level for ${account.name}`);
+            // Busca status dos objetos e insights em paralelo para economizar tempo
+            const [rows, statusMap] = await Promise.all([
+                fetchMetaInsights(account.id, accessToken, level, dateRange),
+                fetchMetaObjectStatuses(account.id, accessToken, level),
+            ]);
+            console.log(`[AdsSync] Meta: ${rows.length} rows at ${level} level for ${account.name} (${statusMap.size} statuses)`);
+
+            // Seleciona o ID correto do objeto para lookup no statusMap
+            const getObjectId = (row: MetaInsightRow): string => {
+                if (level === 'campaign') return row.campaign_id;
+                if (level === 'adset') return row.adset_id || '';
+                return row.ad_id || '';
+            };
 
             // Build batch payload
             const batch: AdCampaignPayload[] = rows.map(row => ({
@@ -235,7 +288,7 @@ async function syncMetaAccount(
                 adId: row.ad_id || '',
                 adName: row.ad_name || '',
                 level,
-                status: row.effective_status || '',
+                status: statusMap.get(getObjectId(row)) || '',
                 date: row.date_start,
                 spendBrl: parseFloat(row.spend || '0'),
                 impressions: parseInt(row.impressions || '0', 10),

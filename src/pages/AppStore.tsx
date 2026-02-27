@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import { integrationApi } from '../lib/api'
@@ -297,6 +297,22 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         if (user?.id) fetchIntegrations()
     }, [user?.id])
 
+    const handleSync = useCallback(async (pluginId: string, days = 30) => {
+        const platform = pluginId === 'meta-ads' ? 'meta' : pluginId.replace('-ads', '')
+        setSyncingPlatform(days === 0 ? `${pluginId}-full` : pluginId)
+        try {
+            await integrationApi.sync(platform, days)
+            const msg = days === 0
+                ? 'Histórico do último ano sincronizado!'
+                : `Sincronização concluída! Os dados dos últimos ${days} dias já estão disponíveis.`
+            alert(msg)
+        } catch {
+            alert('Falha ao iniciar sincronização. Tente novamente.')
+        } finally {
+            setSyncingPlatform(null)
+        }
+    }, [])
+
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.type === 'NORTHIE_OAUTH_SUCCESS') {
@@ -309,7 +325,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         }
         window.addEventListener('message', handleMessage)
         return () => window.removeEventListener('message', handleMessage)
-    }, [])
+    }, [handleSync])
 
     const categories: Category[] = ['Todos', 'Integrações', 'Marketing', 'Pagamentos', 'Fiscal', 'Em breve']
 
@@ -350,22 +366,6 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             if (plugin) setWebhookOpen(plugin)
         } else {
             alert('Esta integração estará disponível em breve.')
-        }
-    }
-
-    const handleSync = async (pluginId: string, days = 30) => {
-        const platform = pluginId === 'meta-ads' ? 'meta' : pluginId.replace('-ads', '')
-        setSyncingPlatform(days === 0 ? `${pluginId}-full` : pluginId)
-        try {
-            await integrationApi.sync(platform, days)
-            const msg = days === 0
-                ? 'Histórico do último ano sincronizado!'
-                : `Sincronização concluída! Os dados dos últimos ${days} dias já estão disponíveis.`
-            alert(msg)
-        } catch {
-            alert('Falha ao iniciar sincronização. Tente novamente.')
-        } finally {
-            setSyncingPlatform(null)
         }
     }
 

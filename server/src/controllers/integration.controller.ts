@@ -130,22 +130,26 @@ export async function handleCallback(req: Request, res: Response) {
                     <script>
                         (function() {
                             const platform = '${platform}';
+                            function closeWindow() {
+                                window.close();
+                                // Fallback: se window.close() for bloqueado pelo browser
+                                setTimeout(() => window.close(), 300);
+                            }
                             if (window.opener) {
                                 try {
-                                    window.opener.postMessage({ 
-                                        type: 'NORTHIE_OAUTH_SUCCESS', 
-                                        platform: platform 
+                                    window.opener.postMessage({
+                                        type: 'NORTHIE_OAUTH_SUCCESS',
+                                        platform: platform
                                     }, '*');
+                                    // Aguarda o postMessage ser processado antes de fechar
+                                    setTimeout(closeWindow, 500);
                                 } catch (e) {
                                     console.error('Failed to postMessage:', e);
+                                    setTimeout(closeWindow, 500);
                                 }
+                            } else {
+                                setTimeout(closeWindow, 500);
                             }
-                            
-                            // Multiple closure attempts for maximum reliability
-                            setTimeout(() => window.close(), 10);
-                            setTimeout(() => window.close(), 100);
-                            setTimeout(() => window.close(), 500);
-                            window.close();
                         })();
                     </script>
                 </body>
