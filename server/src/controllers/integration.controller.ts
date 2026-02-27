@@ -217,6 +217,25 @@ export async function getIntegrationStatus(req: Request, res: Response) {
 }
 
 /**
+ * Cron endpoint — called by Vercel Cron every 6h.
+ * GET /api/integrations/cron/sync
+ * Protected by CRON_SECRET env var.
+ */
+export async function cronSync(req: Request, res: Response) {
+    const secret = req.headers['authorization'];
+    if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        await runAdsSyncForAllProfiles();
+        return res.status(200).json({ message: 'Cron sync completed.' });
+    } catch (error: any) {
+        console.error('[cronSync] error:', error.message);
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+/**
  * Triggers an immediate ad metrics sync for a specific platform.
  * POST /api/integrations/sync/:platform
  * Accepts optional body: { days: number } to backfill N days (default: 2).

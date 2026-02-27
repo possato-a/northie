@@ -10,5 +10,11 @@
         "api/main.ts": {
             "maxDuration": 60
         }
-    }
+    },
+    "crons": [
+        {
+            "path": "/api/integrations/cron/sync",
+            "schedule": "0 */6 * * *"
+        }
+    ]
 }

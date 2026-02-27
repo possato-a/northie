@@ -33,4 +33,10 @@ router.post('/disconnect/:platform', IntegrationController.disconnectPlatform);
  */
 router.post('/sync/:platform', IntegrationController.triggerSync);
 
+/**
+ * @route GET /api/integrations/cron/sync
+ * @desc Called by Vercel Cron every 6h. Protected by CRON_SECRET.
+ */
+router.get('/cron/sync', IntegrationController.cronSync);
+
 export default router;
