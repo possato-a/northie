@@ -277,7 +277,7 @@ function CampaignRow({ camp, days, onOpenDrawer }: { camp: any; days: number; on
     const [loadingDetail, setLoadingDetail] = useState(false)
     const [expandedAdsets, setExpandedAdsets] = useState<Set<string>>(new Set())
 
-    const toggle = async (e: React.MouseEvent) => {
+    const toggle = async () => {
         // Expandir/colapsar filhos na linha
         if (!expanded && !detail) {
             setLoadingDetail(true)
