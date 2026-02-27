@@ -27,17 +27,23 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      const [statsRes] = await Promise.all([
+      const [statsRes, campaignsRes] = await Promise.all([
         dashboardApi.getStats(),
+        dashboardApi.getAdCampaigns(30),
         dashboardApi.getChart()
       ])
 
       const data = statsRes.data
+      const campaigns: any[] = campaignsRes.data || []
+      const totalSpend = campaigns.reduce((s, c) => s + (c.spend_brl || 0), 0)
+      const totalPurchaseValue = campaigns.reduce((s, c) => s + (c.purchase_value || 0), 0)
+      const roas = totalSpend > 0 ? totalPurchaseValue / totalSpend : 0
+
       setStats({
         faturamento: data.total_revenue || 0,
         ticketMedio: data.average_ticket || 0,
         pedidos: data.total_customers || 0,
-        roi: 0
+        roi: roas
       })
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
@@ -79,7 +85,7 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
           <KpiCard label="FATURAMENTO" value={stats?.faturamento || 0} prefix="R$ " decimals={0} delay={0.15} />
           <KpiCard label="TICKET MÉDIO" value={stats?.ticketMedio || 0} prefix="R$ " decimals={2} delay={0.25} />
           <KpiCard label="PEDIDOS" value={stats?.pedidos || 0} decimals={0} delay={0.35} />
-          <KpiCard label="ROI MÉDIO" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />
+          <KpiCard label="ROAS (30d)" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />
         </div>
       </motion.div>
 

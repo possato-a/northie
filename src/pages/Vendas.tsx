@@ -165,8 +165,9 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
   useEffect(() => {
     Promise.all([
       dataApi.getTransactions(),
-      dashboardApi.getStats()
-    ]).then(([txRes, statsRes]) => {
+      dashboardApi.getStats(),
+      dashboardApi.getAdCampaigns(30)
+    ]).then(([txRes, statsRes, campaignsRes]) => {
       const mapped = txRes.data.map((t: any) => ({
         id: t.id,
         date: new Date(t.created_at).toLocaleDateString('pt-BR'),
@@ -178,7 +179,13 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
         channel: t.acquisition_channel || 'Direto'
       }))
       setTransactions(mapped)
-      setStats(statsRes.data)
+
+      const campaigns: any[] = campaignsRes.data || []
+      const totalLeads = campaigns.reduce((s, c) => s + (c.leads || 0), 0)
+      const totalPurchases = campaigns.reduce((s, c) => s + (c.purchases || 0), 0)
+      const convRate = totalLeads > 0 ? (totalPurchases / totalLeads) * 100 : null
+
+      setStats({ ...statsRes.data, convRate })
     }).finally(() => setLoading(false))
   }, [])
 
@@ -196,7 +203,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
         <KpiCard label="FATURAMENTO" value={stats?.total_revenue || 0} prefix="R$ " decimals={0} delay={0.1} />
         <KpiCard label="TRANSAÇÕES" value={transactions.length} decimals={0} delay={0.2} />
         <KpiCard label="TICKET MÉDIO" value={stats?.average_ticket || 0} prefix="R$ " decimals={2} delay={0.3} />
-        <KpiCard label="TAXA CONVERSÃO" value={3.2} suffix="%" decimals={1} delay={0.4} />
+        <KpiCard label="TAXA CONVERSÃO" value={stats?.convRate ?? 0} suffix="%" decimals={1} delay={0.4} />
       </div>
 
       <Divider margin="48px 0" />
