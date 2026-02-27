@@ -14,9 +14,8 @@ export async function connectPlatform(req, res) {
     }
     try {
         const authUrl = IntegrationService.getAuthorizationUrl(platform, profileId);
-        // Use writeHead to bypass Express/Node.js strict header validation on Location URLs
-        res.writeHead(302, { Location: authUrl });
-        res.end();
+        // Return URL as JSON — frontend opens popup directly to avoid Node.js header validation issues
+        res.json({ authUrl });
     }
     catch (error) {
         res.status(400).json({ error: error.message });

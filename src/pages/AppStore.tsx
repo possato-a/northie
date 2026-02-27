@@ -368,11 +368,16 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             const left = window.screen.width / 2 - width / 2
             const top = window.screen.height / 2 - height / 2
             const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://northie.vercel.app'
-            window.open(
-                `${baseUrl}/api/integrations/connect/${platform}?profileId=${user?.id}`,
-                `Northie${platform}Auth`,
-                `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-            )
+            // Fetch the authUrl from backend (avoids Node.js header validation issues with redirect)
+            fetch(`${baseUrl}/api/integrations/connect/${platform}?profileId=${user?.id}`)
+                .then(r => r.json())
+                .then(({ authUrl }) => {
+                    window.open(
+                        authUrl,
+                        `Northie${platform}Auth`,
+                        `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+                    )
+                })
         } else if (['stripe', 'shopify', 'kiwify'].includes(pluginId)) {
             const plugin = PLUGINS.find(p => p.id === pluginId)
             if (plugin) setWebhookOpen(plugin)
