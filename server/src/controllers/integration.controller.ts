@@ -27,12 +27,19 @@ export async function connectPlatform(req: Request, res: Response) {
  * Handles the OAuth callback from the external platform
  */
 export async function handleCallback(req: Request, res: Response) {
-    console.log('[IntegrationController] Full Query Params:', JSON.stringify(req.query, null, 2));
     const { platform } = req.params;
-    const { code, state: profileId } = req.query;
+    const { code, state } = req.query;
 
-    if (!code || !profileId) {
-        return res.status(400).json({ error: 'OAuth failed: Missing code or state (profileId)' });
+    if (!code || !state) {
+        return res.status(400).json({ error: 'OAuth failed: Missing code or state' });
+    }
+
+    let profileId: string;
+    try {
+        profileId = IntegrationService.validateOAuthState(state as string);
+    } catch (stateErr: any) {
+        console.warn(`[IntegrationController] Invalid OAuth state for ${platform}: ${stateErr.message}`);
+        return res.status(400).json({ error: `OAuth state invalid: ${stateErr.message}` });
     }
 
     try {
@@ -45,7 +52,7 @@ export async function handleCallback(req: Request, res: Response) {
             console.log(`[IntegrationController] Profile ${profileId} not found, attempting to auto-create...`);
 
             // Get user info from Supabase Auth (requires service role key on backend)
-            const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(profileId as string);
+            const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(profileId);
 
             if (authError || !user) {
                 console.error('[IntegrationController] Failed to fetch user from Auth:', authError);
@@ -116,9 +123,10 @@ export async function handleCallback(req: Request, res: Response) {
         }
 
         if (tokens.access_token) {
-            await IntegrationService.saveIntegration(profileId as string, platform as string, tokens);
+            await IntegrationService.saveIntegration(profileId, platform as string, tokens);
         }
 
+        const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.send(`
             <html>
                 <head><title>Conectando Northie...</title></head>
@@ -130,6 +138,7 @@ export async function handleCallback(req: Request, res: Response) {
                     <script>
                         (function() {
                             const platform = '${platform}';
+                            const targetOrigin = '${frontendOrigin}';
                             function closeWindow() {
                                 window.close();
                                 // Fallback: se window.close() for bloqueado pelo browser
@@ -140,7 +149,7 @@ export async function handleCallback(req: Request, res: Response) {
                                     window.opener.postMessage({
                                         type: 'NORTHIE_OAUTH_SUCCESS',
                                         platform: platform
-                                    }, '*');
+                                    }, targetOrigin);
                                     // Aguarda o postMessage ser processado antes de fechar
                                     setTimeout(closeWindow, 500);
                                 } catch (e) {

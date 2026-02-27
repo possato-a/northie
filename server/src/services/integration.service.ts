@@ -1,7 +1,20 @@
 import { supabase } from '../lib/supabase.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
 import axios from 'axios';
+import crypto from 'crypto';
 import type { OAuthTokens } from '../types/index.js';
+
+// ─── OAuth CSRF helpers ────────────────────────────────────────────────────
+// The `state` parameter encodes: <profileId>.<timestamp>.<hmac>
+// The HMAC is computed over "profileId:timestamp" using OAUTH_STATE_SECRET.
+// Tokens expire after 10 minutes to limit replay window.
+
+const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.CRON_SECRET || '';
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function hmacState(profileId: string, ts: number): string {
+    return crypto.createHmac('sha256', OAUTH_STATE_SECRET).update(`${profileId}:${ts}`).digest('hex');
+}
 
 /**
  * Core service to manage external platform integrations (Meta, Google, etc.)
@@ -9,20 +22,48 @@ import type { OAuthTokens } from '../types/index.js';
 export class IntegrationService {
 
     /**
+     * Generates a signed CSRF-safe state token: "<profileId>.<ts>.<hmac>"
+     */
+    static generateOAuthState(profileId: string): string {
+        const ts = Date.now();
+        const sig = hmacState(profileId, ts);
+        return `${profileId}.${ts}.${sig}`;
+    }
+
+    /**
+     * Validates the state token and returns the embedded profileId,
+     * or throws if tampered / expired.
+     */
+    static validateOAuthState(state: string): string {
+        const parts = state.split('.');
+        if (parts.length < 3) throw new Error('Invalid OAuth state format');
+        const sig = parts.pop()!;
+        const ts = Number(parts.pop()!);
+        const profileId = parts.join('.'); // handle UUIDs with dots (none, but safe)
+        if (Date.now() - ts > STATE_TTL_MS) throw new Error('OAuth state expired');
+        const expected = hmacState(profileId, ts);
+        if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
+            throw new Error('OAuth state signature invalid');
+        }
+        return profileId;
+    }
+
+    /**
      * Generates the OAuth authorization URL for a specific platform
      */
     static getAuthorizationUrl(platform: string, profileId: string): string {
         const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/${platform}`;
+        const state = this.generateOAuthState(profileId);
 
         switch (platform) {
             case 'meta':
                 const appId = process.env.META_APP_ID;
-                return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=ads_read,business_management&state=${profileId}`;
+                return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=ads_read,business_management&state=${encodeURIComponent(state)}`;
 
             case 'google':
                 const clientId = process.env.GOOGLE_CLIENT_ID;
                 const googleRedirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/google`;
-                return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${profileId}&prompt=consent`;
+                return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
 
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
