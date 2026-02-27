@@ -15,10 +15,13 @@ function fmtBR(v: number) {
 const CHANNEL_COLORS: Record<string, string> = {
   'instagram': 'var(--accent-purple)',
   'google': 'var(--color-primary)',
+  'google ads': 'var(--color-primary)',
   'facebook': 'var(--status-in-progress)',
+  'meta ads': 'var(--status-in-progress)',
   'youtube': 'var(--accent-red)',
   'email': 'var(--accent-green)',
   'desconhecido': 'var(--color-text-tertiary)',
+  'direto / outros': 'var(--color-text-tertiary)',
 }
 
 export default function ChannelChart() {
@@ -65,7 +68,7 @@ export default function ChannelChart() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         {channels.map((ch, i) => {
           const pct = totalRevenue > 0 ? (ch.revenue / totalRevenue) * 100 : 0
-          const color = CHANNEL_COLORS[ch.channel.toLowerCase()] || 'var(--color-text-tertiary)'
+          const color = CHANNEL_COLORS[ch.channel.toLowerCase()] || CHANNEL_COLORS[ch.channel] || 'var(--color-text-tertiary)'
 
           return (
             <motion.div
