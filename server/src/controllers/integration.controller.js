@@ -110,12 +110,13 @@ export async function handleCallback(req, res) {
         }
         else if (platform === 'hotmart') {
             const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/hotmart`;
-            const credentials = Buffer.from(`${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`).toString('base64');
-            const tokenRes = await axios.post('https://api-sec-vlc.hotmart.com/security/oauth/token', new URLSearchParams({
+            const tokenRes = await axios.post('https://api-hotmart.com/oauth/token', {
                 grant_type: 'authorization_code',
+                client_id: process.env.HOTMART_CLIENT_ID,
+                client_secret: process.env.HOTMART_CLIENT_SECRET,
                 code: code,
                 redirect_uri: redirectUri,
-            }), { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
+            });
             tokens = tokenRes.data;
         }
         if (tokens.access_token) {
