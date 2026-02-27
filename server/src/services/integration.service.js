@@ -58,7 +58,7 @@ export class IntegrationService {
                 return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
             case 'hotmart':
                 const hotmartClientId = process.env.HOTMART_CLIENT_ID;
-                return `https://api-sec-vlc.hotmart.com/security/oauth/authorize?client_id=${hotmartClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=all&state=${encodeURIComponent(state)}`;
+                return `https://api-sec-vlc.hotmart.com/security/oauth/authorize?client_id=${hotmartClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(state)}`;
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
         }
