@@ -7,6 +7,46 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Executa uma chamada HTTP com retry automático em caso de rate limit (429)
+ * ou erros transitórios (5xx). Usa backoff exponencial com jitter.
+ * @param {() => Promise<any>} fn - função que faz a chamada axios
+ * @param {number} maxRetries - máximo de tentativas (default 4)
+ * @returns resultado da chamada bem-sucedida
+ */
+async function withRetry(fn, maxRetries = 4) {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            const status = err.response?.status;
+            const fbCode = err.response?.data?.error?.code;
+
+            // Não retry em erros de autenticação (token inválido)
+            if (status === 401 || status === 403 || fbCode === 190) {
+                throw err;
+            }
+
+            // Retry em rate limit (429) ou erros de servidor (5xx)
+            const isRetryable = status === 429 || (status >= 500 && status < 600) || !status;
+            if (!isRetryable || attempt === maxRetries) {
+                throw err;
+            }
+
+            // Backoff exponencial: 2s, 4s, 8s, 16s + jitter aleatório
+            const baseDelay = Math.pow(2, attempt + 1) * 1000;
+            const jitter = Math.random() * 1000;
+            const delay = baseDelay + jitter;
+            console.warn(`[AdsSync] Retry ${attempt + 1}/${maxRetries} após ${Math.round(delay / 1000)}s (status ${status ?? 'network error'})`);
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+    throw lastError;
+}
+
 function today() {
     return new Date().toISOString().split('T')[0];
 }
@@ -54,7 +94,7 @@ async function fetchMetaObjectStatuses(accountId, accessToken, level) {
     while (url !== null) {
         const currentUrl = url;
         const reqParams = currentUrl.includes('?') ? undefined : params;
-        const res = await axios.get(currentUrl, { params: reqParams });
+        const res = await withRetry(() => axios.get(currentUrl, { params: reqParams }));
         for (const obj of res.data?.data || []) {
             if (obj['id'] && obj['effective_status']) {
                 statusMap.set(obj['id'], obj['effective_status']);
@@ -90,7 +130,7 @@ async function fetchMetaInsights(accountId, accessToken, level, dateRange) {
     while (url !== null) {
         const currentUrl = url;
         const reqParams = currentUrl.includes('?') ? undefined : params;
-        const res = await axios.get(currentUrl, { params: reqParams });
+        const res = await withRetry(() => axios.get(currentUrl, { params: reqParams }));
         const data = res.data?.data || [];
         rows.push(...data);
         // Paginação via cursor
@@ -188,7 +228,7 @@ async function syncMetaAccount(profileId, account, accessToken, dateRange) {
         while (url !== null) {
             const currentUrl = url;
             const reqParams = currentUrl.includes('?') ? undefined : objParams;
-            const res = await axios.get(currentUrl, { params: reqParams });
+            const res = await withRetry(() => axios.get(currentUrl, { params: reqParams }));
             for (const c of res.data?.data || []) {
                 if (c['id'] && c['objective'])
                     objectiveMap.set(c['id'], c['objective']);
@@ -240,9 +280,9 @@ async function syncMetaAccount(profileId, account, accessToken, dateRange) {
                 cpmBrl: parseFloat(row.cpm || '0'),
                 frequency: parseFloat(row.frequency || '0'),
                 // Conversões: extraídas do array actions/action_values
-                purchases: Math.round(getAction(row.actions, 'purchase') + getAction(row.actions, 'offsite_conversion.fb_pixel_purchase')),
-                purchaseValue: getAction(row.action_values, 'purchase') + getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase'),
-                leads: Math.round(getAction(row.actions, 'lead') + getAction(row.actions, 'offsite_conversion.fb_pixel_lead')),
+                purchases: Math.round(getAction(row.actions, 'offsite_conversion.fb_pixel_purchase')),
+                purchaseValue: getAction(row.action_values, 'offsite_conversion.fb_pixel_purchase'),
+                leads: Math.round(getAction(row.actions, 'offsite_conversion.fb_pixel_lead')),
                 linkClicks: Math.round(getAction(row.actions, 'link_click')),
                 landingPageViews: Math.round(getAction(row.actions, 'landing_page_view')),
                 videoViews: Math.round(getAction(row.video_p25_watched_actions, 'video_view')),
@@ -298,9 +338,9 @@ async function syncMetaAds(profileId, dateRange = { since: yesterday(), until: t
     // Listar ad accounts
     let accountsRes;
     try {
-        accountsRes = await axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
+        accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
             params: { access_token: accessToken, fields: 'id,name', limit: 50 },
-        });
+        }));
     }
     catch (err) {
         const fbError = err.response?.data?.error;
