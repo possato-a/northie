@@ -8,6 +8,7 @@ import pixelRoutes from './routes/pixel.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import integrationRoutes from './routes/integration.routes.js';
+import cronRoutes from './routes/cron.routes.js';
 import dataRoutes from './routes/data.routes.js';
 import campaignRoutes from './routes/campaign.routes.js';
 import { startTokenRefreshJob } from './jobs/token-refresh.job.js';
@@ -33,6 +34,7 @@ app.use('/api/pixel', pixelRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/integrations', integrationRoutes);
+app.use('/api/cron', cronRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/campaigns', campaignRoutes);
 
