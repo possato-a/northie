@@ -253,14 +253,35 @@ function DailyTrendChart({ trends }: { trends: Record<string, { roas: number[]; 
 
 // ── Visualization 3: Conversion Funnel ────────────────────────────────────────
 
-function ConversionFunnel({ channelPerf }: { channelPerf: any[] }) {
-    // Aggregate funnel across all channels
-    const totals = useMemo(() => channelPerf.reduce((acc, ch) => ({
-        impressions: acc.impressions + (ch.impressions || 0),
-        clicks: acc.clicks + (ch.clicks || 0),
-        landing_page_views: acc.landing_page_views + (ch.landing_page_views || 0),
-        purchases: acc.purchases + (ch.purchases || 0),
-    }), { impressions: 0, clicks: 0, landing_page_views: 0, purchases: 0 }), [channelPerf])
+function ConversionFunnel({ channelPerf, campaigns }: { channelPerf: any[]; campaigns?: any[] }) {
+    const [selectedCampaign, setSelectedCampaign] = useState<string>('all')
+
+    // If campaigns provided, build per-campaign funnel; else aggregate channels
+    const totals = useMemo(() => {
+        if (campaigns && campaigns.length > 0 && selectedCampaign !== 'all') {
+            const camp = campaigns.find(c => c.campaign_id === selectedCampaign)
+            if (camp) return {
+                impressions: camp.impressions || 0,
+                clicks: camp.clicks || 0,
+                landing_page_views: camp.landing_page_views || 0,
+                purchases: camp.purchases || 0,
+            }
+        }
+        if (campaigns && campaigns.length > 0 && selectedCampaign === 'all') {
+            return campaigns.reduce((acc, c) => ({
+                impressions: acc.impressions + (c.impressions || 0),
+                clicks: acc.clicks + (c.clicks || 0),
+                landing_page_views: acc.landing_page_views + (c.landing_page_views || 0),
+                purchases: acc.purchases + (c.purchases || 0),
+            }), { impressions: 0, clicks: 0, landing_page_views: 0, purchases: 0 })
+        }
+        return channelPerf.reduce((acc, ch) => ({
+            impressions: acc.impressions + (ch.impressions || 0),
+            clicks: acc.clicks + (ch.clicks || 0),
+            landing_page_views: acc.landing_page_views + (ch.landing_page_views || 0),
+            purchases: acc.purchases + (ch.purchases || 0),
+        }), { impressions: 0, clicks: 0, landing_page_views: 0, purchases: 0 })
+    }, [channelPerf, campaigns, selectedCampaign])
 
     const steps = [
         { label: 'Impressões', value: totals.impressions, fmt: (v: number) => fmtBR(v) },
@@ -276,6 +297,26 @@ function ConversionFunnel({ channelPerf }: { channelPerf: any[] }) {
     const maxVal = steps[0]?.value || 1
 
     return (
+        <div>
+            {/* Campaign filter dropdown — only shown when campaigns prop passed */}
+            {campaigns && campaigns.length > 1 && (
+                <div style={{ marginBottom: 16 }}>
+                    <select
+                        value={selectedCampaign}
+                        onChange={e => setSelectedCampaign(e.target.value)}
+                        style={{
+                            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+                            background: 'var(--color-bg-tertiary)', border: '1px solid var(--color-border)',
+                            borderRadius: 6, padding: '4px 8px', cursor: 'pointer', outline: 'none', width: '100%',
+                        }}
+                    >
+                        <option value="all">Todas as campanhas</option>
+                        {campaigns.filter(c => c.impressions > 0).map(c => (
+                            <option key={c.campaign_id} value={c.campaign_id}>{c.campaign_name}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {steps.map((step, i) => {
                 const pct = (step.value / maxVal) * 100
@@ -309,6 +350,7 @@ function ConversionFunnel({ channelPerf }: { channelPerf: any[] }) {
                     </motion.div>
                 )
             })}
+        </div>
         </div>
     )
 }
@@ -927,85 +969,36 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                 <KpiCard label="IMPRESSÕES" value={totals.impressions} decimals={0} delay={0.6} />
             </motion.div>
 
-            <Divider margin="52px 0 48px" />
-
-            {/* ── Seção 2: Performance por Canal (tabela comparativa) ── */}
-            <div>
-                <SectionLabel>Performance por Canal</SectionLabel>
-                {loading ? (
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>Carregando...</p>
-                ) : channelPerf.length === 0 ? (
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>Nenhum dado no período.</p>
-                ) : (
-                    <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px,1fr) 100px 120px 80px 90px 90px 80px 90px 64px', gap: '0 16px', paddingBottom: 10, borderBottom: '1px solid var(--color-border)', marginBottom: 2 }}>
-                            <TH>Canal</TH>
-                            <TH align="right">Gasto</TH>
-                            <TH align="right">Receita Atr.</TH>
-                            <TH align="right">ROAS</TH>
-                            <TH align="right">Compras</TH>
-                            <TH align="right">Custo/Compra</TH>
-                            <TH align="right">Leads</TH>
-                            <TH align="right">Impressões</TH>
-                            <TH align="right">CTR</TH>
-                        </div>
-                        {channelPerf.map((ch, i) => (
-                            <motion.div
-                                key={ch.channel}
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3, delay: i * 0.06 + 0.1 }}
-                                className="notion-row"
-                                style={{ display: 'grid', gridTemplateColumns: 'minmax(120px,1fr) 100px 120px 80px 90px 90px 80px 90px 64px', gap: '0 16px', alignItems: 'center' }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: getChannelColor(ch.channel), flexShrink: 0 }} />
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>{ch.channel}</span>
-                                </div>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>R$ {fmtBR(ch.spend)}</span>
-                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 500, textAlign: 'right' }}>
-                                    {ch.revenue > 0 ? `R$ ${fmtBR(ch.revenue)}` : '—'}
-                                </span>
-                                {ch.roas > 0 ? (
-                                    <div style={{ textAlign: 'right' }}>
-                                        <span className={ch.roas >= 3 ? 'tag tag-complete' : ch.roas >= 1 ? 'tag tag-planning' : 'tag tag-critical'} style={{ fontFamily: 'var(--font-mono)' }}>
-                                            {ch.roas.toFixed(2)}x
-                                        </span>
-                                    </div>
-                                ) : <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', textAlign: 'right' }}>—</span>}
-                                <MetricCell value={ch.purchases} format="num" />
-                                <MetricCell value={ch.cac} format="brl" />
-                                <MetricCell value={ch.leads} format="num" />
-                                <MetricCell value={ch.impressions} format="num" />
-                                <MetricCell value={ch.ctr} format="pct" />
-                            </motion.div>
-                        ))}
-                    </>
-                )}
-            </div>
-
-            {/* ── Seção 3: Visualizações (2x2 grid) ── */}
+            {/* ── Seção 2: Visualizações (2x2 grid) ── */}
             {!loading && rawCampaigns.length > 0 && (
                 <>
                     <Divider margin="52px 0 48px" />
-                    <SectionLabel>Visualizações</SectionLabel>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
-                        {/* Card 1: Distribuição de Gasto */}
-                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 20, marginTop: 0 }}>Distribuição de Gasto</p>
+                        {/* Card 1: Distribuição de Gasto — big visual bars */}
+                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px 28px' }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 0 }}>Distribuição de Gasto</p>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-2xl)', fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-1px', margin: '0 0 24px' }}>
+                                R$ {fmtBR(totals.spend)}
+                            </p>
                             <SpendDistribution channelPerf={channelPerf} totalSpend={totals.spend} />
                         </div>
 
                         {/* Card 2: Trend Diário */}
-                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 20, marginTop: 0 }}>Tendência Diária (15d)</p>
+                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px 28px' }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 0 }}>Tendência Diária</p>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-2xl)', fontWeight: 500, color: avgRoas >= 1 ? 'var(--status-complete)' : 'var(--status-critical)', letterSpacing: '-1px', margin: '0 0 24px' }}>
+                                {avgRoas > 0 ? `${avgRoas.toFixed(2)}x ROAS` : '—'}
+                            </p>
                             <DailyTrendChart trends={trends} />
                         </div>
 
-                        {/* Card 3: Funil de Conversão */}
-                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 20, marginTop: 0 }}>Funil de Conversão</p>
+                        {/* Card 3: Funil de Conversão — global overview */}
+                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px 28px' }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 0 }}>Funil de Conversão</p>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-2xl)', fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-1px', margin: '0 0 24px' }}>
+                                {totals.purchases > 0 ? `${totals.purchases.toLocaleString('pt-BR')} compras` : totals.impressions > 0 ? `${fmtBR(totals.impressions)} imp.` : '—'}
+                            </p>
                             <ConversionFunnel channelPerf={channelPerf.map(ch => ({
                                 ...ch,
                                 landing_page_views: rawCampaigns
@@ -1014,19 +1007,28 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                             }))} />
                         </div>
 
-                        {/* Card 4: Scatter ROAS vs CAC */}
-                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 20, marginTop: 0 }}>ROAS vs Gasto por Campanha</p>
+                        {/* Card 4: Scatter ROAS vs Gasto */}
+                        <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px 28px' }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, marginTop: 0 }}>ROAS vs Gasto por Campanha</p>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-2xl)', fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-1px', margin: '0 0 24px' }}>
+                                {rawCampaigns.filter(c => c.spend_brl > 0).length} campanhas
+                            </p>
                             <CampaignScatterPlot campaigns={rawCampaigns} />
                         </div>
                     </div>
                 </>
             )}
 
-            {/* ── Seção 4: Análise por Canal (tabs) ── */}
-            <Divider margin="52px 0 0" />
-            <div style={{ marginTop: 48 }}>
-                <SectionLabel gutterBottom={16}>Análise por Canal</SectionLabel>
+            {/* ── Seção 3: Análise por Canal (tabs) ── */}
+            <div style={{ marginTop: 72, paddingTop: 56, borderTop: '2px solid var(--color-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 24 }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', fontWeight: 400, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.5px' }}>
+                        Análise por Canal
+                    </h2>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
+                        Métricas detalhadas e campanhas por canal de aquisição
+                    </span>
+                </div>
                 <TabBar tabs={channelTabs} active={activeChannelTab} onChange={setActiveChannelTab} />
 
                 <AnimatePresence mode="wait">
@@ -1089,10 +1091,13 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                                     <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
                                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16, marginTop: 0 }}>Funil de Conversão</p>
                                         {activeCh ? (
-                                            <ConversionFunnel channelPerf={[{
-                                                ...activeCh,
-                                                landing_page_views: tabCampaigns.reduce((s: number, c: any) => s + (c.landing_page_views || 0), 0)
-                                            }]} />
+                                            <ConversionFunnel
+                                                channelPerf={[{
+                                                    ...activeCh,
+                                                    landing_page_views: tabCampaigns.reduce((s: number, c: any) => s + (c.landing_page_views || 0), 0)
+                                                }]}
+                                                campaigns={tabCampaigns}
+                                            />
                                         ) : <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>Sem dados.</p>}
                                     </div>
                                     <div style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '20px 24px' }}>
