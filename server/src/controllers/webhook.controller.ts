@@ -4,6 +4,27 @@ import { webhookQueue } from '../lib/webhook-queue.js';
 import { validateWebhookPayload } from '../lib/webhook-schemas.js';
 
 /**
+ * Verifica o token de autenticação de plataformas que usam segredo estático.
+ * Retorna true se válido (ou se a plataforma não requer verificação).
+ */
+function verifyPlatformToken(platform: string, req: Request): boolean {
+    if (platform === 'hotmart') {
+        const expected = process.env.HOTMART_WEBHOOK_TOKEN;
+        if (!expected) {
+            // Token não configurado — loga aviso mas não bloqueia (evita quebrar em dev)
+            console.warn('[Webhook] HOTMART_WEBHOOK_TOKEN não configurado — pulando verificação');
+            return true;
+        }
+        const received = req.headers['x-hotmart-hottok'] as string | undefined;
+        if (!received || received !== expected) {
+            console.warn('[Webhook] Hotmart: token inválido ou ausente');
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
  * Handles incoming webhooks by persisting raw data and triggering normalization.
  * Valida o payload antes de persistir — rejeita com 400 se inválido.
  */
@@ -20,7 +41,12 @@ export async function handleWebhook(req: Request, res: Response) {
         return res.status(400).json({ error: 'Missing or invalid x-profile-id header' });
     }
 
-    // 1. Validar estrutura do payload antes de qualquer persistência
+    // 1. Verificar autenticidade da plataforma (token/assinatura)
+    if (!verifyPlatformToken(platform, req)) {
+        return res.status(401).json({ error: 'Unauthorized: invalid platform token' });
+    }
+
+    // 2. Validar estrutura do payload antes de qualquer persistência
     const validation = validateWebhookPayload(platform, payload);
     if (!validation.success) {
         console.warn(`[Webhook] Invalid payload for ${platform}:`, validation.errors);
@@ -28,7 +54,7 @@ export async function handleWebhook(req: Request, res: Response) {
     }
 
     try {
-        // 2. Persist raw data for safety (Audit Trail)
+        // 3. Persist raw data for safety (Audit Trail)
         const { data: rawData, error: rawError } = await supabase
             .from('platforms_data_raw')
             .insert({
@@ -42,10 +68,10 @@ export async function handleWebhook(req: Request, res: Response) {
 
         if (rawError) throw rawError;
 
-        // 3. Respond immediately to the platform (webhook requirement)
+        // 4. Respond immediately to the platform (webhook requirement)
         res.status(200).json({ status: 'received', id: rawData.id });
 
-        // 4. Enfileira normalização com retry automático e backoff exponencial
+        // 5. Enfileira normalização com retry automático e backoff exponencial
         webhookQueue.enqueue(rawData.id, platform, payload, profileId as string);
 
     } catch (error: any) {

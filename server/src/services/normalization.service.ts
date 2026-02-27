@@ -49,20 +49,50 @@ async function handleStripeNormalization(payload: any, profileId: string) {
     }
 }
 
+// Eventos Hotmart que representam cancelamento/falha (sem impacto financeiro positivo)
+const HOTMART_CANCELLED_EVENTS = new Set([
+    'PURCHASE_CANCELED',
+    'PURCHASE_EXPIRED',
+    'PURCHASE_DENIED',
+    'PURCHASE_PROTEST',
+    'PURCHASE_CHARGEBACK',
+]);
+
 async function handleHotmartNormalization(payload: any, profileId: string) {
-    if (payload.event === 'PURCHASE_APPROVED') {
-        const { data } = payload;
-        const email = data.buyer.email;
-        const amount = data.purchase.full_price.value;
-        const transactionId = data.purchase.transaction;
+    const { event, data } = payload;
+    const transactionId: string = data.purchase.transaction;
 
-        // Hotmart can send attribution in multiple fields depending on setup
-        const visitorId = data.purchase.src || data.purchase.hsrc || data.hsrc || data.src;
+    // ── Venda aprovada ────────────────────────────────────────────────────────
+    if (event === 'PURCHASE_APPROVED') {
+        const email: string = data.buyer.email;
+        const amount: number = data.purchase.full_price.value;
+        // Hotmart envia visitorId em múltiplos campos dependendo da configuração
+        const visitorId: string | undefined =
+            data.purchase.src || data.purchase.hsrc || data.hsrc || data.src || undefined;
 
-        console.log(`[Hotmart] Normalizing sale for ${email}. VisitorId found: ${visitorId}`);
-
+        console.log(`[Hotmart] PURCHASE_APPROVED for ${email}. VisitorId: ${visitorId ?? 'none'}`);
         await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId);
+        return;
     }
+
+    // ── Reembolso ─────────────────────────────────────────────────────────────
+    if (event === 'PURCHASE_REFUNDED') {
+        const amount: number = data.purchase.full_price.value;
+        const email: string = data.buyer.email;
+        console.log(`[Hotmart] PURCHASE_REFUNDED tx=${transactionId} amount=${amount}`);
+        await syncRefund(profileId, email, transactionId, amount);
+        return;
+    }
+
+    // ── Cancelamentos / falhas ────────────────────────────────────────────────
+    if (HOTMART_CANCELLED_EVENTS.has(event)) {
+        console.log(`[Hotmart] ${event} tx=${transactionId} — marcando como cancelled`);
+        await syncCancellation(profileId, transactionId);
+        return;
+    }
+
+    // Outros eventos (PURCHASE_COMPLETE, PURCHASE_DELAYED, etc.) — sem ação
+    console.log(`[Hotmart] Evento ignorado: ${event}`);
 }
 
 async function handleKiwifyNormalization(payload: any, profileId: string) {
@@ -96,6 +126,68 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
     console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
 
     await syncTransaction(profileId, email, 'shopify', transactionId, amount, visitorId);
+}
+
+/**
+ * Marca uma transação como reembolsada e reverte o LTV do cliente.
+ */
+async function syncRefund(profileId: string, email: string, externalId: string, amount: number) {
+    // Busca a transação original pelo external_id
+    const { data: tx } = await supabase
+        .from('transactions')
+        .select('id, customer_id, amount_gross')
+        .eq('profile_id', profileId)
+        .eq('external_id', externalId)
+        .single();
+
+    if (!tx) {
+        console.warn(`[Hotmart] Reembolso tx=${externalId} não encontrado no banco — ignorando`);
+        return;
+    }
+
+    // Atualiza status da transação
+    await supabase
+        .from('transactions')
+        .update({ status: 'refunded' })
+        .eq('id', tx.id);
+
+    // Reverte LTV do cliente
+    const { data: customer } = await supabase
+        .from('customers')
+        .select('total_ltv')
+        .eq('id', tx.customer_id)
+        .single();
+
+    if (customer) {
+        const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - amount);
+        await supabase
+            .from('customers')
+            .update({ total_ltv: newLtv })
+            .eq('id', tx.customer_id);
+        console.log(`[Hotmart] Reembolso aplicado: tx=${externalId}, novo LTV=${newLtv}`);
+    }
+
+    // Cancela a comissão pendente associada (não pagar comissão de venda reembolsada)
+    await supabase
+        .from('commissions')
+        .update({ status: 'cancelled' })
+        .eq('transaction_id', tx.id)
+        .eq('status', 'pending');
+}
+
+/**
+ * Marca uma transação como cancelada (sem reverter LTV pois nunca foi aprovada).
+ */
+async function syncCancellation(profileId: string, externalId: string) {
+    const { error } = await supabase
+        .from('transactions')
+        .update({ status: 'cancelled' })
+        .eq('profile_id', profileId)
+        .eq('external_id', externalId);
+
+    if (error) {
+        console.warn(`[Hotmart] Falha ao cancelar tx=${externalId}:`, error.message);
+    }
 }
 
 type AcquisitionChannel = 'meta_ads' | 'google_ads' | 'organico' | 'email' | 'direto' | 'afiliado' | 'desconhecido';

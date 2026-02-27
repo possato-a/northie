@@ -30,21 +30,31 @@ export const StripeCheckoutSessionSchema = z.object({
 });
 
 // ── Hotmart ───────────────────────────────────────────────────────────────────
+// O Hotmart envia múltiplos tipos de evento com estruturas ligeiramente diferentes.
+// Validamos a estrutura mínima comum e deixamos o normalizador tratar cada event type.
 
 export const HotmartWebhookSchema = z.object({
     event: z.string(),
     data: z.object({
         buyer: z.object({
             email: z.string().email(),
+            name: z.string().optional(),
         }),
         purchase: z.object({
             transaction: z.string(),
             full_price: z.object({
-                value: z.number().positive(),
+                // Reembolsos podem ter value=0; usamos .nonnegative() em vez de .positive()
+                value: z.number().nonnegative(),
+                currency_value: z.string().optional(),
             }),
+            status: z.string().optional(),
             src: z.string().optional(),
             hsrc: z.string().optional(),
         }),
+        product: z.object({
+            id: z.number().optional(),
+            name: z.string().optional(),
+        }).optional(),
         hsrc: z.string().optional(),
         src: z.string().optional(),
     }),
