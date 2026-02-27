@@ -57,6 +57,7 @@ async function fetchAllHotmartSales(
     let pageToken: string | undefined = undefined;
 
     do {
+        console.log(`[HotmartSync] Fetching page with token: ${pageToken ?? 'none'} (Period: ${new Date(startDateMs!).toISOString()} to ${new Date(endDateMs!).toISOString()})`);
         const params: Record<string, any> = {
             max_results: 50,
             ...(startDateMs !== undefined && { start_date: startDateMs }),
@@ -64,22 +65,33 @@ async function fetchAllHotmartSales(
             ...(pageToken && { page_token: pageToken }),
         };
 
-        const res = await axios.get<HotmartSalesResponse>(
-            `${HOTMART_API_BASE}/payments/api/v1/sales/history`,
-            {
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-                params,
-            }
-        );
+        try {
+            const res = await axios.get<HotmartSalesResponse>(
+                `${HOTMART_API_BASE}/payments/api/v1/sales/history`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    params,
+                }
+            );
 
-        const items = res.data?.items ?? [];
-        all.push(...items);
+            const items = res.data?.items ?? [];
+            all.push(...items);
 
-        pageToken = res.data?.page_info?.next_page_token;
-        console.log(`[HotmartSync] Fetched ${items.length} sales (total so far: ${all.length}, next_page_token: ${pageToken ?? 'none'})`);
+            pageToken = res.data?.page_info?.next_page_token;
+            console.log(`[HotmartSync] Page success: returned ${items.length} items. Total so far: ${all.length}`);
+        } catch (err: any) {
+            console.error(`[HotmartSync] API Request Failed:`, {
+                status: err.response?.status,
+                data: err.response?.data,
+                message: err.message,
+                url: err.config?.url,
+                params: err.config?.params
+            });
+            throw err;
+        }
     } while (pageToken);
 
     return all;
@@ -90,7 +102,7 @@ async function fetchAllHotmartSales(
  * Reutiliza o mesmo pipeline do webhook para consistência.
  */
 async function processSale(profileId: string, sale: HotmartSale): Promise<void> {
-    const { transaction, buyer_email, amount, transaction_status } = sale;
+    const { transaction, buyer_email, buyer_name, amount, transaction_status } = sale;
 
     // ── Venda aprovada ────────────────────────────────────────────────────────
     if (APPROVED_STATUSES.has(transaction_status)) {
@@ -108,7 +120,12 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
         const { data: customer, error: custError } = await supabase
             .from('customers')
             .upsert(
-                { profile_id: profileId, email: buyer_email, acquisition_channel: 'desconhecido' },
+                {
+                    profile_id: profileId,
+                    email: buyer_email,
+                    name: buyer_name,
+                    acquisition_channel: 'Hotmart'
+                },
                 { onConflict: 'profile_id, email' }
             )
             .select('id, total_ltv')
@@ -128,10 +145,10 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             amount_gross: amount,
             amount_net: amount,
             status: 'approved',
+            acquisition_channel: 'Hotmart'
         });
 
         if (txError) {
-            // Ignora conflito de unique constraint (já processado por webhook)
             if (txError.code === '23505') return;
             console.error(`[HotmartSync] Transaction insert failed for ${transaction}:`, txError.message);
             return;
@@ -141,7 +158,7 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
         const newLtv = (Number(customer.total_ltv) || 0) + amount;
         await supabase
             .from('customers')
-            .update({ total_ltv: newLtv, last_purchase_at: new Date().toISOString() })
+            .update({ total_ltv: newLtv, last_purchase_at: new Date(sale.purchase_date).toISOString() })
             .eq('id', customer.id);
 
         return;

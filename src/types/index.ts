@@ -84,7 +84,7 @@ export interface TopCustomer {
 
 export type ClientStatus = 'Lucrativo' | 'Payback' | 'Risco'
 export type RFMSegment = 'Champions' | 'Em Risco' | 'Novos Promissores' | 'Inativos'
-export type AcquisitionChannel = 'Meta Ads' | 'Google Ads' | 'Google Orgânico' | 'Email' | 'Direto'
+export type AcquisitionChannel = 'Meta Ads' | 'Google Ads' | 'Hotmart' | 'Google Orgânico' | 'Email' | 'Direto'
 
 export interface ClientUI {
     id: string

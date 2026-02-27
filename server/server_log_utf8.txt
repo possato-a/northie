@@ -1,3 +1,0 @@
-﻿[dotenv@17.3.1] injecting env (5) from .env -- tip: ÔÜÖ´©Å  specify custom .env file path with { path: '/custom/path/.env' }
-[dotenv@17.3.1] injecting env (0) from .env -- tip: ÔÜí´©Å secrets for agents: https://dotenvx.com/as2
-Northie Backend running on port 3001

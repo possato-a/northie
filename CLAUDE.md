@@ -52,8 +52,27 @@ git push          # Dispara build automático na Vercel (branch main)
 
 ```
 src/
-  components/       # Componentes reutilizáveis (KpiCard, ChatSidebar, Sidebar)
-  pages/            # Páginas completas (Vendas, Clientes, Dashboard)
-  icons.tsx         # Repositório de ícones SVG
-  App.tsx           # Orquestrador de estado e layout
+  components/
+    charts/           # Gráficos reutilizáveis (RevenueChart, SalesHeatmap, ChannelChart)
+    layout/           # Estrutura global (Sidebar, TopBar, ChatSidebar)
+    ui/               # Elementos de UI reutilizáveis (KpiCard, DatePicker, TopClients)
+  pages/              # Páginas completas (Dashboard, Vendas, Clientes, Canais, Criadores, AppStore, Login)
+  lib/                # Utilitários (api.ts → axios client, supabase.ts → auth client)
+  types/              # Tipos TypeScript compartilhados (index.ts)
+  icons.tsx           # Repositório de ícones SVG
+  App.tsx             # Orquestrador de estado e layout
+  main.tsx            # Entry point React
+
+server/src/
+  controllers/        # Handlers de requisição HTTP (um por domínio)
+  routes/             # Definição de rotas Express (um por domínio)
+  services/           # Lógica de negócio (ai, integration, normalization)
+  lib/                # Clientes de infraestrutura (supabase.ts)
+  utils/              # Utilitários (encryption, pixel-snippet)
+  jobs/               # Cron jobs (token-refresh)
+  types/              # Tipos TypeScript compartilhados do backend (index.ts)
+  index.ts            # Entry point Express
+
+supabase/
+  migrations/         # SQL migrations versionadas
 ```

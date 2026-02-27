@@ -14,7 +14,7 @@ import type { ClientUI, ClientStatus, AcquisitionChannel, RFMSegment } from '../
 // ── Filter Constants ───────────────────────────────────────────────────────────
 
 const STATUS_FILTERS: Array<ClientStatus | 'Todos'> = ['Todos', 'Lucrativo', 'Payback', 'Risco']
-const CHANNELS: Array<AcquisitionChannel | 'Todos'> = ['Todos', 'Meta Ads', 'Google Ads', 'Google Orgânico', 'Email', 'Direto']
+const CHANNELS: Array<AcquisitionChannel | 'Todos'> = ['Todos', 'Meta Ads', 'Google Ads', 'Hotmart', 'Google Orgânico', 'Email', 'Direto']
 const SEGMENTS: Array<RFMSegment | 'Todos'> = ['Todos', 'Champions', 'Em Risco', 'Novos Promissores', 'Inativos']
 const PAGE_SIZE = 6
 

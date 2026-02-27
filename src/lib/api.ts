@@ -22,8 +22,8 @@ export const dashboardApi = {
     getRetention: () => api.get('/dashboard/retention'),
     getTopCustomers: () => api.get('/dashboard/top-customers'),
     getChannelTrends: () => api.get('/dashboard/channel-trends'),
-    getAdCampaigns: (days = 30) => api.get('/dashboard/ad-campaigns', { params: { days } }),
-    getAdCampaignDetail: (campaignId: string, days = 30) => api.get(`/dashboard/ad-campaigns/${campaignId}`, { params: { days } }),
+    getAdCampaigns: (days = 365) => api.get('/dashboard/ad-campaigns', { params: { days } }),
+    getAdCampaignDetail: (campaignId: string, days = 365) => api.get(`/dashboard/ad-campaigns/${campaignId}`, { params: { days } }),
 };
 
 export const integrationApi = {

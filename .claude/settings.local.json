@@ -6,7 +6,24 @@
       "Bash(cd /c/Users/Possato/Documents/northie && npm install 2>&1)",
       "Bash(cd /c/Users/Possato/Documents/northie && npx tsc --noEmit 2>&1)",
       "Bash(cd:*)",
-      "Bash(cd /c/Users/Possato/Documents/northie && npm run build 2>&1)"
+      "Bash(cd /c/Users/Possato/Documents/northie && npm run build 2>&1)",
+      "Bash(npm run build)",
+      "Bash(npm install zod --save)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__get_advisors",
+      "Bash(git add server/src/controllers/integration.controller.ts server/src/routes/integration.routes.ts vercel.json)",
+      "Bash(npx vercel logs northie-ovklu5whg-franciscopossatoamaral-gmailcoms-projects.vercel.app --limit 20)",
+      "Bash(npx vercel inspect northie-ovklu5whg-franciscopossatoamaral-gmailcoms-projects.vercel.app --logs)",
+      "Bash(npx vercel inspect northie-ovklu5whg-franciscopossatoamaral-gmailcoms-projects.vercel.app)",
+      "Bash(npx vercel inspect northie-ovklu5whg-franciscopossatoamaral-gmailcoms-projects.vercel.app --json)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\(''routes'', d.get\\(''config'', {}\\).get\\(''routes'', []\\)\\), indent=2\\)\\)\")",
+      "Bash(curl -s \"https://northie.vercel.app/api/integrations/status\" -H \"x-profile-id: 5ffb35c4-34f5-4247-925a-10639b08096a\" -H \"X-Forwarded-For: test\" -v)",
+      "Bash(npx tsx -e \":*)",
+      "Bash(git add -f server/src/controllers/integration.controller.js server/src/controllers/dashboard.controller.js server/src/jobs/ads-sync.job.js server/src/routes/integration.routes.js server/src/routes/cron.routes.js server/src/index.js)",
+      "Bash(git add -f server/src/routes/cron.routes.ts)",
+      "Bash(npx tsx src/scripts/backfill-meta.ts)",
+      "Bash(git add src/pages/Canais.tsx server/src/jobs/ads-sync.job.ts server/src/scripts/backfill-meta.ts)",
+      "Bash(git push)"
     ]
   }
 }

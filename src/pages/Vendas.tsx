@@ -171,7 +171,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
       const mapped = txRes.data.map((t: any) => ({
         id: t.id,
         date: new Date(t.created_at).toLocaleDateString('pt-BR'),
-        client: t.customer_name || 'Desconhecido',
+        client: t.customers?.name || t.customer_name || 'Desconhecido',
         product: t.product_name || 'Produto Northie',
         value: Number(t.amount_net),
         method: t.payment_method || 'Cartão',

@@ -18,8 +18,10 @@ export async function connectPlatform(req: Request, res: Response) {
 
     try {
         const authUrl = IntegrationService.getAuthorizationUrl(platform as string, profileId as string);
-        res.redirect(authUrl);
+        console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
+        res.json({ authUrl });
     } catch (error: any) {
+        console.error(`[IntegrationController] Error generating Auth URL for ${platform}:`, error.message);
         res.status(400).json({ error: error.message });
     }
 }
@@ -28,8 +30,9 @@ export async function connectPlatform(req: Request, res: Response) {
  * Handles the OAuth callback from the external platform
  */
 export async function handleCallback(req: Request, res: Response) {
-    const { platform } = req.params;
+    const { platform: rawPlatform } = req.params;
     const { code, state } = req.query;
+    const platform = String(rawPlatform || '').toLowerCase().trim();
 
     if (!code || !state) {
         return res.status(400).json({ error: 'OAuth failed: Missing code or state' });
@@ -40,7 +43,14 @@ export async function handleCallback(req: Request, res: Response) {
         profileId = IntegrationService.validateOAuthState(state as string);
     } catch (stateErr: any) {
         console.warn(`[IntegrationController] Invalid OAuth state for ${platform}: ${stateErr.message}`);
-        return res.status(400).json({ error: `OAuth state invalid: ${stateErr.message}` });
+        return res.status(400).send(`
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #fab1a0; background: #fff5f5; color: #d63031; border-radius: 8px;">
+                <h3>Sessão Expirada ou Inválida</h3>
+                <p>O link de conexão expirou (limite de 10 min) ou é inválido.</p>
+                <p style="font-size: 12px; color: #636E72;">Erro: ${stateErr.message}</p>
+                <small style="color: #636E72;">Por favor, tente fechar esta janela e clicar no link de conexão novamente.</small>
+            </div>
+        `);
     }
 
     try {
@@ -90,8 +100,8 @@ export async function handleCallback(req: Request, res: Response) {
         let tokens: any = {};
 
         if (platform === 'meta') {
-            const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/meta`;
-            const tokenRes = await axios.get(`https://graph.facebook.com/v18.0/oauth/access_token`, {
+            const redirectUri = IntegrationService.getRedirectUri('meta');
+            const tokenRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
                 params: {
                     client_id: process.env.META_APP_ID,
                     client_secret: process.env.META_APP_SECRET,
@@ -102,7 +112,7 @@ export async function handleCallback(req: Request, res: Response) {
 
             tokens = tokenRes.data;
             // Exchange for a long-lived token (usually 60 days)
-            const longLivedRes = await axios.get(`https://graph.facebook.com/v18.0/oauth/access_token`, {
+            const longLivedRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
                 params: {
                     grant_type: 'fb_exchange_token',
                     client_id: process.env.META_APP_ID,
@@ -112,8 +122,8 @@ export async function handleCallback(req: Request, res: Response) {
             });
             tokens = longLivedRes.data;
         } else if (platform === 'google') {
-            const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/google`;
-            const tokenRes = await axios.post(`https://oauth2.googleapis.com/token`, {
+            const redirectUri = IntegrationService.getRedirectUri('google');
+            const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
                 client_id: process.env.GOOGLE_CLIENT_ID,
                 client_secret: process.env.GOOGLE_CLIENT_SECRET,
                 redirect_uri: redirectUri,
@@ -122,24 +132,47 @@ export async function handleCallback(req: Request, res: Response) {
             });
             tokens = tokenRes.data;
         } else if (platform === 'hotmart') {
-            const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/hotmart`;
-            const credentials = Buffer.from(
-                `${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`
-            ).toString('base64');
-            const tokenRes = await axios.post(
-                'https://api-sec-vlc.hotmart.com/security/oauth/token',
-                new URLSearchParams({
-                    grant_type: 'authorization_code',
-                    code: code as string,
-                    redirect_uri: redirectUri,
-                }),
-                { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
-            );
-            tokens = tokenRes.data;
+            const redirectUri = IntegrationService.getRedirectUri('hotmart');
+            const clientId = (process.env.HOTMART_CLIENT_ID || '').trim();
+            const clientSecret = (process.env.HOTMART_CLIENT_SECRET || '').trim();
+
+            if (!clientId || !clientSecret) {
+                throw new Error('Credenciais Hotmart (Client ID/Secret) não encontradas no Vercel.');
+            }
+
+            const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+            try {
+                const tokenRes = await axios.post(
+                    'https://api-sec-vlc.hotmart.com/security/oauth/token',
+                    new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code: code as string,
+                        redirect_uri: redirectUri,
+                    }),
+                    {
+                        headers: {
+                            Authorization: `Basic ${credentials}`,
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'Accept': 'application/json'
+                        }
+                    }
+                );
+                tokens = tokenRes.data;
+            } catch (hotError: any) {
+                const errorData = hotError.response?.data;
+                const errorStatus = hotError.response?.status;
+                const errorMsg = errorData?.error_description || errorData?.error || hotError.message;
+                throw new Error(`Hotmart API Error (${errorStatus}): ${errorMsg} | RedirectURI: ${redirectUri}`);
+            }
+        } else {
+            throw new Error(`Plataforma não suportada: ${platform}`);
         }
 
         if (tokens.access_token) {
             await IntegrationService.saveIntegration(profileId, platform as string, tokens);
+        } else {
+            throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
 
         const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -157,7 +190,6 @@ export async function handleCallback(req: Request, res: Response) {
                             const targetOrigin = '${frontendOrigin}';
                             function closeWindow() {
                                 window.close();
-                                // Fallback: se window.close() for bloqueado pelo browser
                                 setTimeout(() => window.close(), 300);
                             }
                             if (window.opener) {
@@ -166,7 +198,6 @@ export async function handleCallback(req: Request, res: Response) {
                                         type: 'NORTHIE_OAUTH_SUCCESS',
                                         platform: platform
                                     }, targetOrigin);
-                                    // Aguarda o postMessage ser processado antes de fechar
                                     setTimeout(closeWindow, 500);
                                 } catch (e) {
                                     console.error('Failed to postMessage:', e);
@@ -181,12 +212,21 @@ export async function handleCallback(req: Request, res: Response) {
             </html>
         `);
     } catch (error: any) {
-        console.error('[IntegrationController] Error during exchange:', error.response?.data || error.message);
-        res.status(500).send(`
+        console.error(`[IntegrationController] Error during exchange for ${platform}:`, error.response?.data || error.message);
+
+        const status = error.response?.status || 500;
+        const details = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+
+        res.status(status).send(`
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #fab1a0; background: #fff5f5; color: #d63031; border-radius: 8px;">
-                <h3>Erro na Integração</h3>
-                <p>${error.message}</p>
-                <small style="color: #636E72;">Por favor, tente fechar esta janela e clicar no link de conexão novamente.</small>
+                <h3>Erro Crítico na Integração</h3>
+                <p>Ocorreu um erro ao processar a resposta de <b>${platform}</b>.</p>
+                <div style="background: #fdf2f2; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 10px 0; border: 1px solid #f9d6d6;">
+                    <b>Mensagem:</b> ${error.message}<br>
+                    <b>Status:</b> ${status}<br>
+                    <b>Detalhes:</b> ${details}
+                </div>
+                <small style="color: #636E72;">Por favor, feche esta janela e tente novamente. Se o erro persistir, informe ao suporte.</small>
             </div>
         `);
     }
@@ -204,11 +244,12 @@ export async function disconnectPlatform(req: Request, res: Response) {
     }
 
     try {
+        const platformName = (platform as string) === 'meta-ads' ? 'meta' : (platform as string).replace('-ads', '');
         const { error } = await supabase
             .from('integrations')
             .update({ status: 'inactive' })
             .eq('profile_id', profileId)
-            .eq('platform', (platform as string) === 'meta-ads' ? 'meta' : (platform as string).replace('-ads', ''));
+            .eq('platform', platformName);
 
         if (error) throw error;
 
@@ -237,14 +278,13 @@ export async function getIntegrationStatus(req: Request, res: Response) {
 
         res.status(200).json(data ?? []);
     } catch (error: any) {
+        console.error('[IntegrationController] getIntegrationStatus Error:', error);
         res.status(500).json({ error: 'Failed to fetch integration status' });
     }
 }
 
 /**
- * Cron endpoint — called by Vercel Cron every 6h.
- * GET /api/integrations/cron/sync
- * Protected by CRON_SECRET env var.
+ * Cron endpoint
  */
 export async function cronSync(req: Request, res: Response) {
     const secret = req.headers['authorization'];
@@ -261,12 +301,11 @@ export async function cronSync(req: Request, res: Response) {
 }
 
 /**
- * Triggers an immediate ad metrics sync for a specific platform.
- * POST /api/integrations/sync/:platform
- * Accepts optional body: { days: number } to backfill N days (default: 2).
+ * Triggers an immediate ad metrics sync
  */
 export async function triggerSync(req: Request, res: Response) {
-    const { platform } = req.params;
+    const { platform: rawPlatform } = req.params;
+    const platform = String(rawPlatform || '').toLowerCase().trim();
     const profileId = req.headers['x-profile-id'] as string;
 
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
@@ -274,8 +313,9 @@ export async function triggerSync(req: Request, res: Response) {
     const days: number = req.body?.days !== undefined ? Number(req.body.days) : 2;
 
     try {
+        console.log(`[IntegrationController] triggerSync started for ${platform} (Profile: ${profileId}, Days: ${days})`);
+
         if (platform === 'meta') {
-            // Run synchronously — Vercel kills background tasks after response
             await backfillMetaAds(profileId, days);
             return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
         }
@@ -295,7 +335,12 @@ export async function triggerSync(req: Request, res: Response) {
 
         return res.status(400).json({ error: `Sync not supported for platform: ${platform}` });
     } catch (error: any) {
-        console.error('[IntegrationController] triggerSync error:', error.message);
-        res.status(500).json({ error: 'Failed to trigger sync', detail: error.message });
+        const errorMsg = error.response?.data?.error_description || error.response?.data?.error || error.message;
+        console.error(`[IntegrationController] triggerSync error for ${platform}:`, errorMsg);
+        res.status(500).json({
+            error: 'Failed to trigger sync',
+            message: errorMsg,
+            platform: platform
+        });
     }
 }

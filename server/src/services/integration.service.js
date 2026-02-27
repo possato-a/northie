@@ -43,10 +43,18 @@ export class IntegrationService {
         return profileId;
     }
     /**
+     * Centralized helper to build the redirect URI for OAuth callbacks.
+     * Prevents issues with trailing slashes in BACKEND_URL.
+     */
+    static getRedirectUri(platform) {
+        const baseUrl = (process.env.BACKEND_URL || 'http://localhost:3001').replace(/\/+$/, '');
+        return `${baseUrl}/api/integrations/callback/${platform}`;
+    }
+    /**
      * Generates the OAuth authorization URL for a specific platform
      */
     static getAuthorizationUrl(platform, profileId) {
-        const redirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/${platform}`;
+        const redirectUri = this.getRedirectUri(platform);
         const state = this.generateOAuthState(profileId);
         switch (platform) {
             case 'meta':
@@ -54,7 +62,7 @@ export class IntegrationService {
                 return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=ads_read,business_management&state=${encodeURIComponent(state)}`;
             case 'google':
                 const clientId = process.env.GOOGLE_CLIENT_ID;
-                const googleRedirectUri = `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/integrations/callback/google`;
+                const googleRedirectUri = this.getRedirectUri('google');
                 return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
             case 'hotmart':
                 const hotmartClientId = process.env.HOTMART_CLIENT_ID;
