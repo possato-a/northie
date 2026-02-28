@@ -321,23 +321,18 @@ export async function triggerSync(req: Request, res: Response) {
         }
 
         if (platform === 'hotmart') {
-            // Validate token BEFORE sending 202 so we can return a proper error if disconnected
-            const tokens = await IntegrationService.getIntegration(profileId, 'hotmart');
-            if (!tokens?.access_token) {
+            // Verify integration exists (user has connected Hotmart)
+            const integration = await IntegrationService.getIntegration(profileId, 'hotmart');
+            if (!integration) {
                 return res.status(401).json({ error: 'Hotmart não conectado. Reconecte a integração.' });
             }
-            // Pre-refresh token if near expiry — this can throw 401 if refresh_token is revoked
-            if (IntegrationService.isNearExpiry(tokens, 10 * 60 * 1000)) {
-                await IntegrationService.refreshTokens(profileId, 'hotmart');
-            }
-            // Token is valid — respond immediately and run sync in background
-            res.status(202).json({ message: `Hotmart sync started for last ${days} days.` });
-            backfillHotmart(profileId, days).then(result => {
-                console.log(`[IntegrationController] Hotmart sync finished for ${profileId}:`, result);
-            }).catch(err => {
-                console.error(`[IntegrationController] Hotmart sync error for ${profileId}:`, err.message);
+            // Run sync synchronously — backfillHotmart now uses client_credentials token
+            // so there is no OAuth expiry issue. Vercel allows up to 60s.
+            const result = await backfillHotmart(profileId, days);
+            return res.status(200).json({
+                message: `Hotmart sync completed for last ${days} days.`,
+                ...result,
             });
-            return;
         }
 
         if (platform === 'all') {

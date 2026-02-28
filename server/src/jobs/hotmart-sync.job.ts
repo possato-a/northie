@@ -10,6 +10,36 @@ import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 
 const HOTMART_API_BASE = 'https://api-hot-connect.hotmart.com';
+const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
+
+/**
+ * Obtém um access token via client_credentials.
+ * A Hotmart Connect API (vendas) exige este tipo de token —
+ * o token do fluxo authorization_code não tem permissão para essa API.
+ */
+async function getClientCredentialsToken(): Promise<string> {
+    const clientId = (process.env.HOTMART_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.HOTMART_CLIENT_SECRET || '').trim();
+    if (!clientId || !clientSecret) {
+        throw new Error('[HotmartSync] HOTMART_CLIENT_ID ou HOTMART_CLIENT_SECRET não configurados');
+    }
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    try {
+        const res = await axios.post(
+            HOTMART_AUTH_URL,
+            new URLSearchParams({ grant_type: 'client_credentials' }),
+            { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        const token = res.data?.access_token;
+        if (!token) throw new Error('Hotmart não retornou access_token via client_credentials');
+        console.log('[HotmartSync] client_credentials token obtained successfully');
+        return token;
+    } catch (err: any) {
+        const detail = JSON.stringify(err.response?.data ?? err.message);
+        console.error(`[HotmartSync] client_credentials token failed (${err.response?.status}):`, detail);
+        throw err;
+    }
+}
 
 // Status que representam vendas confirmadas (equivalente a PURCHASE_APPROVED)
 const APPROVED_STATUSES = new Set(['APPROVED', 'COMPLETE']);
@@ -220,22 +250,21 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
 
     console.log(`[HotmartSync] Starting backfill for profile ${profileId} — last ${effectiveDays} days`);
 
-    // Busca e valida token
-    const tokens = await IntegrationService.getIntegration(profileId, 'hotmart');
-    if (!tokens?.access_token) {
-        throw new Error(`[HotmartSync] No Hotmart tokens for profile ${profileId}`);
+    // Verifica se a integração existe (apenas para confirmar que o usuário autorizou)
+    const integration = await IntegrationService.getIntegration(profileId, 'hotmart');
+    if (!integration) {
+        throw new Error(`[HotmartSync] No Hotmart integration for profile ${profileId}`);
     }
 
-    // Renova token se necessário (10min buffer — Hotmart usa tokens de ~1h)
-    let accessToken = tokens.access_token;
-    if (IntegrationService.isNearExpiry(tokens, 10 * 60 * 1000)) {
-        try {
-            const refreshed = await IntegrationService.refreshTokens(profileId, 'hotmart');
-            accessToken = refreshed.access_token;
-        } catch (e: any) {
-            console.error(`[HotmartSync] Token refresh failed for ${profileId}:`, e.message);
-            throw e;
-        }
+    // Usa client_credentials para obter token de serviço — a Hotmart Connect API
+    // (api-hot-connect.hotmart.com) exige este tipo de token para acesso aos dados de vendas.
+    // O token do fluxo authorization_code serve apenas para confirmar a identidade do usuário.
+    let accessToken: string;
+    try {
+        accessToken = await getClientCredentialsToken();
+    } catch (e: any) {
+        console.error(`[HotmartSync] Failed to get service token for ${profileId}:`, e.message);
+        throw e;
     }
 
     // Busca todas as vendas no período
@@ -243,7 +272,7 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
     try {
         sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
     } catch (e: any) {
-        console.error(`[HotmartSync] Failed to fetch sales for ${profileId}:`, e.response?.data ?? e.message);
+        console.error(`[HotmartSync] Failed to fetch sales for ${profileId}:`, JSON.stringify(e.response?.data ?? e.message));
         throw e;
     }
 
