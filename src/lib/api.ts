@@ -6,6 +6,7 @@ const API_BASE_URL = window.location.hostname === 'localhost'
 
 const api = axios.create({
     baseURL: API_BASE_URL,
+    timeout: 15000, // 15s — sync now returns 202 immediately, so this is enough
 });
 
 // Helper to set profile ID in headers for all requests

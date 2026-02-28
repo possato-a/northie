@@ -305,11 +305,16 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         try {
             await integrationApi.sync(platform, days)
             const msg = days === 0
-                ? 'Histórico do último ano sincronizado!'
-                : `Sincronização concluída! Os dados dos últimos ${days} dias já estão disponíveis.`
+                ? 'Sincronização iniciada! O histórico completo será importado em alguns instantes.'
+                : `Sincronização iniciada! Os dados dos últimos ${days} dias serão importados em breve.`
             alert(msg)
-        } catch {
-            alert('Falha ao iniciar sincronização. Tente novamente.')
+        } catch (err: any) {
+            const isTimeout = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
+            if (isTimeout) {
+                alert('A sincronização foi iniciada, mas demorou para confirmar. Os dados serão importados em breve.')
+            } else {
+                alert('Falha ao iniciar sincronização. Tente novamente.')
+            }
         } finally {
             setSyncingPlatform(null)
         }

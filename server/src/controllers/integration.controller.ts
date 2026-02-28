@@ -321,11 +321,14 @@ export async function triggerSync(req: Request, res: Response) {
         }
 
         if (platform === 'hotmart') {
-            const result = await backfillHotmart(profileId, days);
-            return res.status(200).json({
-                message: `Hotmart sync completed for last ${days} days.`,
-                ...result,
+            // Respond immediately — sync runs in background to avoid Vercel 60s timeout
+            res.status(202).json({ message: `Hotmart sync started for last ${days} days.` });
+            backfillHotmart(profileId, days).then(result => {
+                console.log(`[IntegrationController] Hotmart sync finished for ${profileId}:`, result);
+            }).catch(err => {
+                console.error(`[IntegrationController] Hotmart sync error for ${profileId}:`, err.message);
             });
+            return;
         }
 
         if (platform === 'all') {
