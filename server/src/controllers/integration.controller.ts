@@ -342,11 +342,15 @@ export async function triggerSync(req: Request, res: Response) {
 
         return res.status(400).json({ error: `Sync not supported for platform: ${platform}` });
     } catch (error: any) {
-        const errorMsg = error.response?.data?.error_description || error.response?.data?.error || error.message;
-        console.error(`[IntegrationController] triggerSync error for ${platform}:`, errorMsg);
-        res.status(500).json({
+        const hotmartBody = error.response?.data;
+        const errorMsg = hotmartBody?.error_description || hotmartBody?.error || error.message;
+        const httpStatus = error.response?.status;
+        console.error(`[IntegrationController] triggerSync error for ${platform} (HTTP ${httpStatus}):`, JSON.stringify(hotmartBody ?? error.message));
+        return res.status(500).json({
             error: 'Failed to trigger sync',
             message: errorMsg,
+            hotmart_error: hotmartBody ?? null,
+            http_status: httpStatus ?? null,
             platform: platform
         });
     }
