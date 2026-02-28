@@ -309,8 +309,11 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 : `Sincronização iniciada! Os dados dos últimos ${days} dias serão importados em breve.`
             alert(msg)
         } catch (err: any) {
+            const status = err?.response?.status
             const isTimeout = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
-            if (isTimeout) {
+            if (status === 401) {
+                alert('Sessão da Hotmart expirada. Desconecte e reconecte a integração para sincronizar.')
+            } else if (isTimeout) {
                 alert('A sincronização foi iniciada, mas demorou para confirmar. Os dados serão importados em breve.')
             } else {
                 alert('Falha ao iniciar sincronização. Tente novamente.')

@@ -321,7 +321,16 @@ export async function triggerSync(req: Request, res: Response) {
         }
 
         if (platform === 'hotmart') {
-            // Respond immediately — sync runs in background to avoid Vercel 60s timeout
+            // Validate token BEFORE sending 202 so we can return a proper error if disconnected
+            const tokens = await IntegrationService.getIntegration(profileId, 'hotmart');
+            if (!tokens?.access_token) {
+                return res.status(401).json({ error: 'Hotmart não conectado. Reconecte a integração.' });
+            }
+            // Pre-refresh token if near expiry — this can throw 401 if refresh_token is revoked
+            if (IntegrationService.isNearExpiry(tokens, 10 * 60 * 1000)) {
+                await IntegrationService.refreshTokens(profileId, 'hotmart');
+            }
+            // Token is valid — respond immediately and run sync in background
             res.status(202).json({ message: `Hotmart sync started for last ${days} days.` });
             backfillHotmart(profileId, days).then(result => {
                 console.log(`[IntegrationController] Hotmart sync finished for ${profileId}:`, result);
