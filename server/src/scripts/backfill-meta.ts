@@ -1,8 +1,16 @@
 /**
  * Standalone backfill script — run with:
- *   npx tsx src/scripts/backfill-meta.ts
+ *   npx tsx src/scripts/backfill-meta.ts <profileId> [days]
  *
- * Populates ad_campaigns and ad_metrics with the last 365 days of Meta Ads data.
+ * Populates ad_campaigns and ad_metrics with Meta Ads data.
+ *
+ * Arguments:
+ *   profileId  (required) — UUID do perfil a ser populado
+ *   days       (optional) — número de dias para backfill (padrão: 365)
+ *
+ * Examples:
+ *   npx tsx src/scripts/backfill-meta.ts 5ffb35c4-34f5-4247-925a-10639b08096a
+ *   npx tsx src/scripts/backfill-meta.ts 5ffb35c4-34f5-4247-925a-10639b08096a 90
  */
 
 import dotenv from 'dotenv';
@@ -15,13 +23,25 @@ dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
 import { backfillMetaAds } from '../jobs/ads-sync.job.js';
 
-const PROFILE_ID = '5ffb35c4-34f5-4247-925a-10639b08096a';
-const DAYS = 365;
+const [profileId, daysArg] = process.argv.slice(2);
 
-console.log(`\n🚀 Starting Meta Ads backfill for profile ${PROFILE_ID} — last ${DAYS} days\n`);
+if (!profileId) {
+    console.error('\n❌ profileId is required.');
+    console.error('   Usage: npx tsx src/scripts/backfill-meta.ts <profileId> [days]\n');
+    process.exit(1);
+}
+
+const days = daysArg ? parseInt(daysArg, 10) : 365;
+
+if (isNaN(days) || days <= 0) {
+    console.error(`\n❌ Invalid days value: "${daysArg}". Must be a positive integer.\n`);
+    process.exit(1);
+}
+
+console.log(`\n🚀 Starting Meta Ads backfill for profile ${profileId} — last ${days} days\n`);
 
 try {
-    await backfillMetaAds(PROFILE_ID, DAYS);
+    await backfillMetaAds(profileId, days);
     console.log('\n✅ Backfill complete!');
 } catch (err: any) {
     console.error('\n❌ Backfill failed:', err.message);
