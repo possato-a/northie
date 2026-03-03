@@ -31,6 +31,12 @@ Thumbs.db
 .vercel
 .env*.local
 
+# TypeScript build info
+*.tsbuildinfo
+
+# Temporary files
+temp_*.json
+
 # TypeScript compiled output (backend)
 server/src/**/*.d.ts
 server/src/**/*.d.ts.map
