@@ -384,6 +384,14 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
                     .eq('external_id', sale.transaction);
 
                 (after.count ?? 0) > (before.count ?? 0) ? synced++ : skipped++;
+
+                // Audit trail — persiste payload bruto (best-effort, não bloqueia o sync)
+                supabase
+                    .from('platforms_data_raw')
+                    .insert({ profile_id: profileId, platform: 'hotmart', payload: sale, processed: true })
+                    .then(({ error }) => {
+                        if (error) console.warn(`[HotmartSync] platforms_data_raw insert failed for ${sale.transaction}:`, error.message);
+                    });
             } catch (e: any) {
                 console.error(`[HotmartSync] Error processing sale ${sale.transaction}:`, e.message);
                 errors++;
