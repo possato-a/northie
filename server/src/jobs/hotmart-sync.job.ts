@@ -328,6 +328,15 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
         throw new Error(`[HotmartSync] No Hotmart integration for profile ${profileId}`);
     }
 
+    // Renova token OAuth do usuário se próximo do vencimento.
+    // O sync usa client_credentials para buscar dados, mas mantemos o token
+    // do usuário atualizado para que a integração permaneça ativa e auditável.
+    // Se o refresh falhar, o IntegrationService marca como inactive e lança erro.
+    if (IntegrationService.isNearExpiry(integration)) {
+        console.log(`[HotmartSync] OAuth token near expiry for profile ${profileId} — refreshing before sync`);
+        await IntegrationService.refreshTokens(profileId, 'hotmart');
+    }
+
     // Mutex: evita execuções paralelas
     const acquired = await acquireSyncMutex(profileId);
     if (!acquired) return { synced: 0, skipped: 0, errors: 0 };
