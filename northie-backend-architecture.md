@@ -1,146 +1,673 @@
-# Northie: Backend Architecture & Master Strategy
-
-Este documento consolida todas as definições técnicas e decisões de arquitetura para o ecossistema de inteligência do Northie, conforme discutido.
-
----
-
-## 1. Core Architecture: O Motor de Dados
-
-O backend do Northie foi projetado para ser o "Juiz da Verdade" do founder, centralizando dados fragmentados em um esquema único e normalizado.
-
-### Ingestão Híbrida
-- **OAuth-First (One-Click Setup):** Fluxo simplificado para Meta Ads, Google Ads e Stripe. O backend gerencia o ciclo de vida dos tokens (Exchange & Auto-refresh) de forma silenciosa.
-- **Webhooks de Tempo Real:** Endpoints dedicados para Gateways (Hotmart, Kiwify) para capturar vendas, reembolsos e assinaturas no segundo em que acontecem.
-- **Cron Jobs (Polling):** Sincronização periódica para métricas de Ads e backfill de dados históricos.
-
-### Camada de Normalização (The Northie Schema)
-Todos os dados brutos são traduzidos para objetos padronizados (Vendas, Clientes, Ads), garantindo que a IA lide sempre com a mesma estrutura de dados, independente da fonte original.
+# Northie: Backend Architecture & Development Guide
+> Documento de referência para desenvolvimento contínuo. Reflete o produto v10.
+> Última atualização: Março 2026
 
 ---
 
-## 2. Confiabilidade e Atribuição (The Source of Truth)
+## 0. Contexto do Pivot
 
-Para garantir que o Northie seja mais confiável que os painéis das próprias plataformas:
+O produto original era um analytics tool com IA conversacional em cima. O produto atual é **infraestrutura financeira para founders digitais**, composta por quatro produtos interdependentes:
 
-### Rastreabilidade de Ponta a Ponta
-1. **Northie Pixel:** Script leve que gera um ID único de visitante e captura UTMs/GCLID/FBCLID.
-2. **Metadata Pass-through:** O Pixel injeta automaticamente o ID da visita nos campos de "metadata" ou "src" do checkout.
-3. **Reconciliação:** O backend cruza o Webhook de pagamento com o ID de visita original para atribuir a venda à campanha real.
+| Produto | O que faz | Dependências técnicas |
+|---|---|---|
+| **Northie Growth** | Detecta correlações entre fontes e executa ações com aprovação do founder | Todas as integrações + cohort de LTV |
+| **Northie Card** | Cartão com limite baseado nos dados reais do negócio | Histórico mínimo de dados + parceiro financeiro (Fase 2) |
+| **Northie Raise** | Data room auditado com métricas conectadas às fontes | Growth ativo + permissões por investidor |
+| **Northie Valuation** | Valuation mensal calculado automaticamente com benchmark | Dados acumulados de múltiplos profiles (Fase 3) |
 
-### Dados Retroativos vs. Atuais
-- **Certeza Financeira:** Puxamos 100% do histórico financeiro via API. O LTV da base de clientes é sempre real desde o início.
-- **Certeza de Origem:** Atribuição determinística começa a partir da instalação do Pixel. O passado utiliza atribuição estimada via API das plataformas.
-
----
-
-## 3. Camada de Inteligência (Claude Integration)
-
-A IA atua como uma camada de execução estratégica integrada aos dados.
-
-### Ask Northie (Contextual Reading)
-- O backend atua como um **Orquestrador**, filtrando os dados normalizados e entregando contexto limpo para o **Claude Sonnet 4** (queries padrão) e **Claude Opus 4** (análises profundas e forecasting).
-- **Vector Database:** Memória de longo prazo para as discussões e objetivos estratégicos do founder.
-
-### Autonomia de Execução (Function Calling)
-- O Claude possui "ferramentas" técnicas (ex: `pausar_campanha`, `ajustar_budget`).
-- **Flow:** IA decide -> Backend valida tokens -> Chamada via API do Meta -> Registro de log e notificação.
+O backend existe para servir esses quatro produtos. Não é um fim em si mesmo.
 
 ---
 
-## 4. Robustez e Infraestrutura Invisível
+## 1. O Que Já Existe (Estado Atual)
 
-- **Escudo de API:** Fila de processamento (Broker) para respeitar Rate Limits e garantir 100% de recebimento de webhooks.
-- **Conversão de Moeda:** Motor de câmbio para converter gastos em USD (Ads) para faturamento em BRL.
-- **Vigilante Proativo:** Notificações via WhatsApp/Push para anomalias ou erros de integração.
-- **Segurança & LGPD:** Criptografia de dados sensíveis (PII) e anonimização de payloads para a IA.
+### 1.1 Pipeline de Ingestão — Sólido, manter
 
----
+**OAuth + Token Management**
+- Fluxo OAuth completo para Meta Ads, Google Ads e Hotmart
+- Token storage encriptado (AES-256-CBC) na tabela `integrations`
+- Auto-refresh com mutex para evitar execuções paralelas
+- Estado do token: `isNearExpiry()` com buffer configurável por plataforma
 
-## 5. Estrutura de Dados (Supabase / PostgreSQL)
+**Webhooks**
+- Endpoint genérico `POST /api/webhooks/:platform`
+- Validação de schema via Zod antes de persistir (rejeita payload malformado com 400)
+- Fila em memória com retry exponencial e recovery de itens pendentes no boot
+- Handlers normalizadores para: Stripe, Hotmart, Kiwify, Shopify
 
-Para suportar a inteligência e a escala do Northie, utilizaremos o PostgreSQL com a extensão `pgvector`. Abaixo, as tabelas core:
+**Cron Jobs**
+- `ads-sync.job.ts`: Sincroniza Meta Ads nos três níveis (campaign/adset/ad) com upsert em batch. Roda a cada 6h.
+- `hotmart-sync.job.ts`: Backfill de vendas via client_credentials. Idempotente via `external_id`.
+- `rfm-calc.job.ts`: Calcula RFM score, CAC e churn_probability para todos os customers. Roda a cada 24h.
+- `alerts.job.ts`: Detecta anomalias (ROAS drop, churn alto, receita zerada, spike orgânico). Roda a cada 1h.
+- `token-refresh.job.ts`: Verifica e renova tokens OAuth a cada 30min.
 
-### Core Tables
-- **`profiles`**: Dados do founder, configurações do workspace, chaves de segurança e o campo `business_type` (`saas`, `ecommerce`, `infoprodutor_perpetuo`, `infoprodutor_lancamento`).
-- **`integrations`**: Armazena tokens OAuth (encriptados), status da conexão e metadados de cada plataforma (Meta, Google, Hotmart, etc).
-- **`platforms_data_raw`**: Buffer para armazenar os JSONs brutos recebidos via Webhook/Polling antes da normalização (segurança contra perda de dados).
+**Northie Pixel**
+- `POST /api/pixel/event`: Captura UTMs, GCLID, FBCLID e visitor_id
+- Snippet JS gerado pelo `pixel-snippet.ts` para embed nos sites dos clientes
+- Atribuição last-click via `visits` table cruzada com `northie_attribution_id` nas transações
 
-### Business Intelligence (Normalized)
-- **`transactions`**: O coração financeiro. Campos: `id`, `user_id`, `customer_id`, `platform`, `amount_gross`, `amount_net`, `fee_platform`, `status`, `created_at`, `northie_attribution_id`, `campaign_id`.
-- **`ad_metrics`**: Performance de tráfego. Campos: `id`, `campaign_id`, `platform`, `spend_brl`, `spend_original`, `impressions`, `clicks`, `date`.
-- **`customers`**: Base única consolidada por e-mail/documento. Campos: `id`, `email`, `total_ltv`, `acquisition_channel` (`meta_ads`, `google_ads`, `organico`, `email`, `direto`, `afiliado`, `desconhecido`), `acquisition_campaign_id`, `rfm_score`, `churn_probability`, `last_purchase_at`.
+**Normalização**
+- Schema unificado: todas as plataformas resultam nos mesmos objetos (`transactions`, `customers`)
+- Atribuição de campanha e criador via trigger no PostgreSQL (`resolve_creator_attribution`)
+- LTV atualizado em tempo real a cada transação aprovada
+- Reembolsos e cancelamentos revertem LTV automaticamente
 
-### Northie Campaigns & Tracking
-- **`campaigns`**: Metadados de campanhas de criadores/canais. Campos: `id`, `name`, `type` (affiliate, internal), `status`, `commission_rate`.
-- **`affiliate_links`**: Links únicos por criador. Campos: `id`, `campaign_id`, `creator_id`, `slug`, `target_url`.
-- **`affiliate_clicks`**: Log de cliques. Campos: `id`, `link_id`, `visitor_id`, `ip`, `user_agent`, `created_at`.
+### 1.2 Dashboard API — Sólido, manter
 
-### Attribution & IA
-- **`visits`**: Log de acessos capturados pelo Northie Pixel (UTMs, Click IDs, `affiliate_id`).
-- **`ai_chat_history`**: Histórico de mensagens do "Ask Northie".
-- **`embeddings`**: (Utilizando `pgvector`) Vetores das conversas e insights para busca semântica e memória de longo prazo da IA.
+Endpoints existentes em `/api/dashboard/`:
+- `GET /stats` — Revenue total, customer count, AOV
+- `GET /attribution` — ROAS, CAC, LTV por canal (Meta Ads + Google Ads)
+- `GET /growth` — Comparação 30d vs 30d anterior
+- `GET /chart` — Série temporal de receita (15 dias)
+- `GET /heatmap` — Intensidade de vendas no ano (mapa de calor)
+- `GET /retention` — Cohort de retenção por mês de aquisição (30/60/90/180d)
+- `GET /top-customers` — Top 10 por LTV
+- `GET /channel-trends` — ROAS e CAC diários por plataforma (15 dias)
+- `GET /ad-campaigns` — Campanhas agregadas com métricas calculadas
+- `GET /ad-campaigns/:campaignId` — Drill-down em adsets e ads
 
----
+### 1.3 Estrutura de Dados Existente
 
-## 6. Northie Campaigns & Fluxo de Atribuição
-
-O sistema de atribuição para criadores garante que o ROI seja calculado com base no valor real gerado, não apenas cliques.
-
-1.  **Geração do Link:** O criador gera um link via Northie App que contém um `affiliate_id` único.
-2.  **Captura (Pixel):** Quando o visitante clica, o **Northie Pixel** no destino identifica o parâmetro, registra um `affiliate_click` e armazena o `affiliate_id` no localStorage/Cookie do navegador, associado ao `visitor_id`.
-3.  **Pass-through de Checkout:** No momento da compra, o Pixel injeta o `visitor_id` ou `affiliate_id` nos metadados do gateway (ex: campo `src` na Hotmart ou `metadata` no Stripe).
-4.  **Reconciliação:** Ao receber o Webhook de venda, o backend busca se há um `affiliate_id` vinculado àquele `visitor_id`. Se sim, a transação é marcada com o `campaign_id` correspondente.
-
----
-
-## 7. Audience Sync & Processamento em Fila
-
-Sincronização automática de segmentos para Meta Audiences sem intervenções manuais.
-
--   **Pipeline Técnico:**
-    1.  **Segmentação:** O backend isola a lista de IDs/Emails baseada em filtros (ex: "Champions").
-    2.  **Preparação:** Os dados (Email, Telefone) são normalizados e convertidos para **SHA-256** localmente no backend (requisito de privacidade do Meta).
-    3.  **Job Enqueue:** O payload é enviado para uma fila (Redis/BullMQ).
-    4.  **Upload:** Workers processam a fila, realizando chamadas segmentadas (`batch`) para a API do Meta Audiences, tratando erros de rede e evitando timeout.
-
----
-
-## 8. Estratégia de Rate Limiting e Resiliência
-
-Para evitar bloqueios e perda de dados em APIs externas com limites distintos.
-
-| Plataforma | Estratégia de Rate Limit |
-| :--- | :--- |
-| **Meta/Google Ads** | Janela deslizante (Sliding Window). Consultas de volume são persistidas em cache e os workers respeitam o multiplicador de custo por token da API. |
-| **Hotmart/Kiwify** | **Webhook-First**. Fila de prioridade máxima. Se o webhook falhar, o backend aguarda e reprocessa. O polling de segurança roda apenas off-peak. |
-| **Geral** | Implementação de **Exponential Backoff** em todas as filas de integração. |
-
-### Job de Reconciliação & Integridade (The Safety Net)
-Para mitigar o risco de falhas em webhooks de terceiros (Hotmart, Kiwify, Stripe), o backend executa um ciclo de verificação redundante:
-1.  **Auditoria Diária:** Um Cron Job roda em horários de baixo tráfego comparando o `count()` e a `sum(amount_net)` das transações no dashboard da plataforma (via API de relatórios) com os dados locais na tabela `transactions`.
-2.  **Detecção de Gap:** Se houver discrepância (ex: $1.000,00 na Hotmart vs $950,00 no Northie), o sistema identifica os IDs de transação ausentes.
-3.  **Backfill Automático:** O Northie dispara uma requisição de detalhamento para a API da plataforma para cada ID ausente e insere os dados normalizados, garantindo a integridade do LTV.
-4.  **Alerta de Drift:** Caso o formato do payload da API mude e o backfill falhe, um alerta de prioridade máxima é disparado para o time técnico (Vigilante Proativo).
+```
+profiles               — workspace do founder
+integrations           — tokens OAuth encriptados por plataforma
+platforms_data_raw     — buffer de webhooks brutos (audit trail)
+transactions           — core financeiro (todas as vendas normalizadas)
+customers              — base unificada com LTV, RFM, churn_probability, CAC
+campaigns              — campanhas de criadores/afiliados
+creators               — perfis de criadores
+campaign_creators      — vínculo campanha ↔ criador
+commissions            — comissões geradas por venda atribuída
+affiliate_links        — links com slug único por criador
+visits                 — log do pixel (UTMs, click IDs, visitor_id)
+ad_metrics             — spend/impressions/clicks diários por plataforma
+ad_campaigns           — métricas nos três níveis (campaign/adset/ad) com granularidade diária
+ai_chat_history        — histórico de mensagens do Ask Northie
+alerts                 — alertas gerados pelos jobs
+sync_logs              — log de execução de cada sync com status e rows
+```
 
 ---
 
-## 9. Lógica de Cálculo de Métricas
+## 2. O Que Precisa Ser Construído
 
-| Métrica | Fórmula / Lógica | Tabelas/Campos | Frequência |
-| :--- | :--- | :--- | :--- |
-| **LTV** | $\sum \text{amount\_net}$ de transações aprovadas por cliente. | `transactions.amount_net` | Tempo real (Webhook) |
-| **CAC** | $\frac{\sum \text{spend\_brl}}{\text{Novos Clientes Adquiridos}}$ no período e canal. | `ad_metrics.spend_brl`, `customers` | Diário |
-| **Margem de Contr.** | $\text{LTV} - \text{CAC} - \text{Taxas de Plataforma}$. | `transactions.amount_net`, `integrations.config` | Tempo real |
-| **Status Lucrativo** | `Lucrativo` se $\text{LTV} > (\text{CAC} + \text{Taxas})$; Senão `Payback`. | `customers`, `transactions` | Pós-compra |
-| **RFM Score** | Pontuação 1-5 para Recência (dias desde última compra), Frequência (contagem) e Valor (Total LTV). | `customers`, `transactions` | Diário (Madrugada) |
-| **Churn Prob.** | Modelos por `business_type`:<br>1. **SaaS**: Baseado no status da assinatura e engajamento.<br>2. **E-com/Perpétuo**: 1.5x o intervalo médio de compra do segmento.<br>3. **Lançamento**: Desativado por padrão (manual com janela custom). | `profiles.business_type`, `customers.last_purchase_at` | Semanal |
-| **ROAS** | $\frac{\text{Receita Atribuída ao Canal}}{\text{Gasto do Canal}}$. | `transactions`, `ad_metrics` | Diário |
-| **CAC Social** | $\frac{\text{Custo da Comunidade}}{\text{Novas Vendas via Community Flow}}$. | `profiles.community_cost`, `transactions` | Mensal |
-| **ROI Criador** | $\frac{\text{Receita Campanha (Incl. Upsell)}}{\text{Comissões Pagas}}$. | `transactions`, `campaigns` | Semanal |
-| **Forecast** | $\text{Base Atual} \times \text{Average Order Value} \times \text{Rebuy Rate}$ histórica filtrada por cohort. Nota: Pré-calculado para resposta imediata; variações com parâmetros customizados (ex: +30% budget) em tempo real. | `transactions`, `customers` | Diário (Madrugada) + On-demand |
+### 2.1 Northie Growth — O produto central, Fase 1
+
+O Growth é o diferencial técnico: **cruzar pelo menos duas fontes de dados para gerar uma recomendação que nenhuma plataforma isolada consegue fazer**. A IA não executa — ela recomenda. O founder aprova. O backend executa.
+
+**Tabelas novas necessárias:**
+
+```sql
+-- Recomendações geradas pelo engine de correlação
+CREATE TABLE growth_actions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    type            TEXT NOT NULL,  -- 'reactivation', 'campaign_pause', 'audience_sync', 'budget_reallocation', 'upsell'
+    status          TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'approved', 'rejected', 'executed', 'failed'
+    title           TEXT NOT NULL,
+    rationale       TEXT NOT NULL,  -- Explicação do cruzamento que gerou a ação
+    data_sources    TEXT[] NOT NULL, -- Ex: ['ad_campaigns', 'transactions'] — quais fontes foram cruzadas
+    payload         JSONB NOT NULL,  -- Parâmetros da ação (campaign_id, audience_size, etc.)
+    impact_estimate JSONB,          -- Estimativa de impacto (revenue, clientes reativados, etc.)
+    approved_at     TIMESTAMP WITH TIME ZONE,
+    executed_at     TIMESTAMP WITH TIME ZONE,
+    error_message   TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE INDEX idx_growth_actions_profile_status ON growth_actions(profile_id, status, created_at DESC);
+```
+
+**Serviço novo: `growth-engine.service.ts`**
+
+Responsável por rodar as correlações e gerar `growth_actions` com status `pending`. Deve ser chamado pelo `growth-engine.job.ts` a cada 24h e sob demanda via API.
+
+Correlações a implementar (em ordem de prioridade):
+
+```
+1. ROAS alto + LTV baixo → recomendar pausa de campanha
+   Fontes: ad_campaigns (ROAS) × transactions cohort por campaign_id (LTV médio 90d)
+   Threshold: ROAS > 3x AND LTV médio dos clientes da campanha < LTV médio geral * 0.7
+
+2. Clientes Champions sem compra recente → recomendar reativação
+   Fontes: customers (rfm_score) × transactions (last_purchase_at)
+   Threshold: rfm_score LIKE '5%' AND last_purchase_at < NOW() - INTERVAL '60 days'
+
+3. Canal com melhor LTV/CAC → recomendar realocação de budget
+   Fontes: ad_campaigns (spend) × customers (total_ltv, acquisition_channel)
+   Lógica: comparar LTV médio por canal, recomendar shift de budget do pior pro melhor
+
+4. Clientes no momento de recompra do cohort → recomendar upsell
+   Fontes: customers (cohort) × transactions (padrão de frequência do cohort)
+   Lógica: identificar intervalo médio de recompra do cohort e notificar próximos a chegar nele
+```
+
+**Serviço de execução: `growth-executor.service.ts`**
+
+Executado apenas após aprovação do founder. Implementações por tipo:
+
+```typescript
+// campaign_pause: chama Meta Ads API para pausar campanha
+// audience_sync: exporta segmento de customers como Custom Audience no Meta
+// reactivation: dispara via integração de email/whatsapp (a definir)
+// budget_reallocation: ajusta budget via Meta Ads API
+// upsell: dispara via integração de email (a definir)
+```
+
+**Rotas novas:**
+```
+GET  /api/growth/actions          — lista ações pendentes e histórico
+POST /api/growth/actions/:id/approve  — founder aprova → executor roda
+POST /api/growth/actions/:id/reject   — founder rejeita
+GET  /api/growth/actions/:id      — detalhes de uma ação (fontes, payload, impacto)
+```
+
+**Evolução do `ai.service.ts`**
+
+O Claude precisa de function calling real para o Growth funcionar. Hoje o system prompt é genérico. Precisa:
+
+1. Trocar `claude-3-haiku` por `claude-sonnet-4-20250514` (Sonnet 4 como padrão)
+2. Adicionar tools para o Claude chamar ao analisar dados:
+   - `get_campaign_ltv_analysis(campaign_id)` — cruza ad_campaigns com transactions
+   - `get_reactivation_candidates()` — retorna Champions sem compra recente
+   - `get_channel_comparison()` — LTV/CAC por canal
+
+3. O resultado do function calling gera um `growth_action` com `pending` — não executa direto
+
+### 2.2 Northie Raise — Fase 1
+
+O Raise é um data room auditado. Tecnicamente: um conjunto de endpoints públicos com autenticação por token + log de acesso.
+
+**Tabelas novas necessárias:**
+
+```sql
+-- Links de acesso para investidores
+CREATE TABLE raise_access_links (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    investor_name   TEXT NOT NULL,
+    investor_email  TEXT,
+    token           TEXT UNIQUE NOT NULL,  -- UUID gerado, usado na URL
+    permissions     JSONB NOT NULL DEFAULT '{"mrr": true, "ltv": true, "cac": true, "cohort": true, "churn": true}',
+    expires_at      TIMESTAMP WITH TIME ZONE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+-- Log de cada acesso ao data room
+CREATE TABLE raise_access_log (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    link_id         UUID REFERENCES raise_access_links(id) ON DELETE CASCADE NOT NULL,
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    accessed_at     TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+    duration_seconds INTEGER,
+    sections_viewed TEXT[],  -- quais seções o investidor visualizou
+    ip              TEXT,
+    user_agent      TEXT
+);
+
+CREATE INDEX idx_raise_access_log_link ON raise_access_log(link_id, accessed_at DESC);
+CREATE INDEX idx_raise_access_links_token ON raise_access_links(token);
+```
+
+**Rotas novas:**
+```
+POST /api/raise/links              — criar link para investidor com permissões configuráveis
+GET  /api/raise/links              — listar links ativos
+DELETE /api/raise/links/:id        — revogar link
+GET  /api/raise/links/:id/activity — quem acessou e por quanto tempo
+
+GET  /api/raise/view/:token        — endpoint público do data room (autenticado por token)
+POST /api/raise/view/:token/ping   — frontend envia pings de tempo de sessão
+```
+
+**O endpoint `/api/raise/view/:token`** retorna apenas as métricas permitidas pelas `permissions` do link:
+- MRR/ARR calculado das transações
+- LTV médio e por canal
+- CAC por canal
+- Cohort de retenção
+- Churn probability médio
+- Northie Score (já calculado)
+
+Tudo conectado às fontes reais — não é dado digitado pelo founder.
+
+**Exportação em PDF**
+
+O Raise precisa exportar um relatório em PDF. Implementar endpoint:
+```
+POST /api/raise/links/:id/export-pdf  — gera PDF com as métricas do data room
+```
+
+### 2.3 Capital Score — Fase 1 (preparação para Fase 2)
+
+O Capital Score deve aparecer desde o primeiro dia para o usuário, mesmo sem o Card lançado. Serve como engajamento e lista de espera qualificada.
+
+**Tabela nova:**
+
+```sql
+CREATE TABLE capital_scores (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
+    score           INTEGER NOT NULL DEFAULT 0,  -- 0-1000
+    eligible_limit  DECIMAL(12, 2) DEFAULT 0,    -- valor estimado de limite
+    eligible        BOOLEAN DEFAULT false,
+    breakdown       JSONB NOT NULL DEFAULT '{}', -- detalhamento dos fatores
+    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE TABLE card_waitlist (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
+    joined_at       TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+    score_at_join   INTEGER NOT NULL,
+    notified        BOOLEAN DEFAULT false
+);
+```
+
+**Job novo: `capital-score.job.ts`**
+
+Roda mensalmente. Calcula score baseado em:
+- MRR dos últimos 3 meses (peso: 40%)
+- Taxa de churn média da base (peso: 25%)
+- LTV médio dos customers (peso: 20%)
+- Tempo de histórico na plataforma em meses (peso: 15%)
+
+Resultado: score 0-1000 e limite estimado.
+
+**Rotas novas:**
+```
+GET  /api/card/score       — retorna Capital Score atual do perfil
+POST /api/card/waitlist    — founder entra na lista de espera
+GET  /api/card/waitlist    — status na lista (posição, score atual, critérios faltantes)
+```
+
+### 2.4 Relatórios Automáticos — Feature transversal
+
+Presente em todos os produtos. O founder configura e os relatórios chegam sem precisar abrir a plataforma.
+
+**Tabelas novas:**
+
+```sql
+CREATE TABLE report_configs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    name            TEXT NOT NULL,
+    frequency       TEXT NOT NULL,  -- 'weekly', 'monthly', 'quarterly'
+    sections        TEXT[] NOT NULL, -- ['growth', 'card', 'raise', 'valuation']
+    format          TEXT NOT NULL DEFAULT 'pdf',  -- 'pdf', 'csv'
+    delivery        TEXT NOT NULL DEFAULT 'email', -- 'email', 'whatsapp'
+    active          BOOLEAN DEFAULT true,
+    next_run_at     TIMESTAMP WITH TIME ZONE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE TABLE report_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    config_id       UUID REFERENCES report_configs(id) ON DELETE CASCADE NOT NULL,
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    generated_at    TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+    file_url        TEXT,
+    status          TEXT DEFAULT 'success',
+    error_message   TEXT
+);
+```
+
+**Job novo: `reports.job.ts`**
+
+Roda a cada hora, verifica configs com `next_run_at <= NOW()`, gera o relatório e atualiza `next_run_at`.
+
+### 2.5 Northie Valuation — Fase 3
+
+Estrutura simples, depende de dados acumulados de múltiplos profiles para o benchmark.
+
+```sql
+CREATE TABLE valuation_snapshots (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    valuation_brl   DECIMAL(16, 2) NOT NULL,
+    methodology     TEXT NOT NULL,  -- 'arr_multiple', 'ltv_cac', 'revenue_multiple'
+    multiple_used   DECIMAL(6, 2),
+    arr             DECIMAL(14, 2),
+    benchmark_data  JSONB,          -- dados anônimos de profiles similares usados no benchmark
+    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE INDEX idx_valuation_profile ON valuation_snapshots(profile_id, calculated_at DESC);
+```
 
 ---
 
-## 10. Filosofia de Produto no Backend
+## 3. Evoluções Necessárias no Que Já Existe
 
-O backend não é apenas um repositório; é um motor proativo que deve antecipar a necessidade do founder e fornecer dados acionáveis via IA.
+### 3.1 `rfm-calc.job.ts` → adicionar Audience Sync
+
+Após calcular RFM, o job deve exportar automaticamente o segmento "Champions" (rfm_score LIKE '5%' ou '4%5%') como Custom Audience no Meta via API. Isso é o "Audience Sync inteligente" do produto.
+
+Adicionar ao final do `calcRfmForProfile`:
+```typescript
+// Se o perfil tem integração Meta ativa, sincronizar Champions como Custom Audience
+await syncChampionsToMetaAudience(profileId);
+```
+
+### 3.2 `alerts.job.ts` → adicionar correlações de Growth
+
+Os alertas atuais são simples (ROAS caiu, churn alto). Adicionar:
+
+```typescript
+// ROAS alto com LTV baixo — o insight central do produto
+async function checkRoasLtvMismatch(profileId: string): Promise<void>
+// Canal orgânico crescendo sem investimento correspondente
+async function checkOrganicGrowthOpportunity(profileId: string): Promise<void>
+// Cohort de clientes chegando no momento de recompra
+async function checkRepurchaseWindow(profileId: string): Promise<void>
+```
+
+### 3.3 `ai.service.ts` → trocar modelo e adicionar function calling
+
+```typescript
+// Antes
+model: 'claude-3-haiku-20240307'
+
+// Depois
+model: 'claude-sonnet-4-20250514'
+```
+
+Adicionar tools para o Claude usar ao responder perguntas de growth:
+
+```typescript
+const tools = [
+  {
+    name: 'get_campaign_ltv_analysis',
+    description: 'Retorna análise de LTV dos clientes adquiridos por uma campanha específica',
+    input_schema: { type: 'object', properties: { campaign_id: { type: 'string' } } }
+  },
+  {
+    name: 'get_reactivation_candidates',
+    description: 'Lista clientes Champions com alta probabilidade de reativação',
+    input_schema: { type: 'object', properties: { limit: { type: 'number' } } }
+  },
+  {
+    name: 'create_growth_action',
+    description: 'Cria uma ação de growth pendente de aprovação do founder',
+    input_schema: { /* type, payload, rationale */ }
+  }
+]
+```
+
+### 3.4 `normalization.service.ts` → adicionar campo `acquisition_channel` normalizado
+
+Atualmente o Hotmart sync grava `acquisition_channel: 'Hotmart'` mas o enum do banco espera `'desconhecido'` para plataformas sem atribuição UTM. Padronizar:
+
+```typescript
+// hotmart-sync.job.ts linha ~85
+acquisition_channel: 'desconhecido'  // Hotmart é a plataforma, não o canal de aquisição
+```
+
+O canal real só é determinado pelo Pixel + UTMs. Sem Pixel, fica `desconhecido`.
+
+---
+
+## 4. Decisões de Arquitetura
+
+### Princípio central: o backend valida, não executa autonomamente
+
+Toda ação do Growth passa por:
+```
+Engine detecta correlação → gera growth_action (pending) → founder aprova → executor roda → log
+```
+
+O Claude pode chamar `create_growth_action` via function calling, mas nunca chama diretamente a API do Meta ou dispara comunicações. A aprovação do founder é obrigatória.
+
+### Contexto da IA por produto
+
+Cada produto alimenta o contexto do Claude de forma diferente:
+- **Growth**: dados de correlação entre fontes
+- **Raise**: métricas auditadas para apresentar ao investidor
+- **Card**: histórico financeiro para underwriting
+- **Valuation**: benchmark anônimo de profiles similares
+
+O `ai.service.ts` deve receber um `product_context` como parâmetro e montar o system prompt adequado.
+
+### Lock-in por histórico
+
+O moat do produto é o histórico acumulado. Cada mês de dados torna as correlações mais precisas. Implicações técnicas:
+- Nunca deletar dados normalizados, apenas marcar como `status: 'cancelled'` ou `'refunded'`
+- O Capital Score e o Valuation dependem de séries temporais — a precisão aumenta com o tempo
+- O benchmark do Valuation só funciona quando há múltiplos profiles com dados suficientes (Fase 3)
+
+---
+
+## 5. Roadmap Técnico por Fase
+
+### Fase 1 — Growth + Raise (zero dependência de capital ou regulação)
+
+**Objetivo:** validar que founders pagam por inteligência contextual e execução baseada em dados.
+
+| O que construir | Arquivo/Serviço | Prioridade |
+|---|---|---|
+| `growth_actions` table + RLS | migration | P0 |
+| `growth-engine.service.ts` com correlações 1 e 2 | novo serviço | P0 |
+| `growth-engine.job.ts` (roda 24h) | novo job | P0 |
+| `growth-executor.service.ts` (campaign_pause) | novo serviço | P0 |
+| Rotas `/api/growth/*` | novo router | P0 |
+| Atualizar `ai.service.ts` com Sonnet 4 + function calling | editar existente | P0 |
+| `raise_access_links` + `raise_access_log` tables | migration | P1 |
+| Rotas `/api/raise/*` | novo router | P1 |
+| Exportação PDF do data room | novo serviço | P1 |
+| `capital_scores` + `card_waitlist` tables | migration | P1 |
+| `capital-score.job.ts` | novo job | P1 |
+| Rotas `/api/card/score` e `/api/card/waitlist` | novo router | P1 |
+| Correlações 3 e 4 no growth engine | editar serviço | P2 |
+| `growth-executor.service.ts` (audience_sync) | editar serviço | P2 |
+| `report_configs` + `reports.job.ts` | novo job | P2 |
+| Fix normalização `acquisition_channel` Hotmart | editar existente | P2 |
+
+### Fase 2 — Northie Card (requer parceiro financeiro regulado)
+
+Dependências técnicas que precisam estar prontas:
+- Capital Score calculado e histórico de pelo menos 3 meses por profile elegível
+- Lista de espera qualificada com score mínimo definido
+- Integração com QI Tech ou Celcoin para desembolso (novo domínio, fora do escopo atual)
+- Split de pagamento configurado nas integrações Hotmart/Kiwify/Stripe
+
+### Fase 3 — Northie Valuation
+
+Dependências:
+- Dados acumulados de N profiles suficientes para benchmark anônimo (volume mínimo a definir)
+- `valuation_snapshots` table
+- `valuation-calc.job.ts` com lógica de múltiplo por modelo de negócio
+
+---
+
+## 6. Schema Completo das Tabelas Novas
+
+```sql
+-- ── FASE 1: GROWTH ────────────────────────────────────────────────────────────
+
+CREATE TABLE growth_actions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    type            TEXT NOT NULL CHECK (type IN ('reactivation', 'campaign_pause', 'audience_sync', 'budget_reallocation', 'upsell')),
+    status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'executed', 'failed')),
+    title           TEXT NOT NULL,
+    rationale       TEXT NOT NULL,
+    data_sources    TEXT[] NOT NULL,
+    payload         JSONB NOT NULL,
+    impact_estimate JSONB,
+    approved_at     TIMESTAMP WITH TIME ZONE,
+    executed_at     TIMESTAMP WITH TIME ZONE,
+    error_message   TEXT,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE INDEX idx_growth_actions_profile_status ON growth_actions(profile_id, status, created_at DESC);
+
+ALTER TABLE growth_actions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "growth_actions: owner only" ON growth_actions FOR ALL USING (profile_id = auth.uid());
+
+-- ── FASE 1: RAISE ─────────────────────────────────────────────────────────────
+
+CREATE TABLE raise_access_links (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    investor_name   TEXT NOT NULL,
+    investor_email  TEXT,
+    token           TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
+    permissions     JSONB NOT NULL DEFAULT '{"mrr": true, "ltv": true, "cac": true, "cohort": true, "churn": true, "northie_score": true}',
+    expires_at      TIMESTAMP WITH TIME ZONE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE INDEX idx_raise_access_links_token ON raise_access_links(token);
+CREATE INDEX idx_raise_access_links_profile ON raise_access_links(profile_id);
+
+ALTER TABLE raise_access_links ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "raise_access_links: owner only" ON raise_access_links FOR ALL USING (profile_id = auth.uid());
+
+CREATE TABLE raise_access_log (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    link_id          UUID REFERENCES raise_access_links(id) ON DELETE CASCADE NOT NULL,
+    profile_id       UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    accessed_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+    duration_seconds INTEGER,
+    sections_viewed  TEXT[],
+    ip               TEXT,
+    user_agent       TEXT
+);
+
+CREATE INDEX idx_raise_access_log_link ON raise_access_log(link_id, accessed_at DESC);
+
+ALTER TABLE raise_access_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "raise_access_log: owner only" ON raise_access_log FOR ALL USING (profile_id = auth.uid());
+
+-- ── FASE 1: CAPITAL SCORE ─────────────────────────────────────────────────────
+
+CREATE TABLE capital_scores (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
+    score           INTEGER NOT NULL DEFAULT 0 CHECK (score BETWEEN 0 AND 1000),
+    eligible_limit  DECIMAL(12, 2) DEFAULT 0,
+    eligible        BOOLEAN DEFAULT false,
+    breakdown       JSONB NOT NULL DEFAULT '{}',
+    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+ALTER TABLE capital_scores ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "capital_scores: owner only" ON capital_scores FOR ALL USING (profile_id = auth.uid());
+
+CREATE TABLE card_waitlist (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
+    joined_at       TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+    score_at_join   INTEGER NOT NULL,
+    notified        BOOLEAN DEFAULT false
+);
+
+ALTER TABLE card_waitlist ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "card_waitlist: owner only" ON card_waitlist FOR ALL USING (profile_id = auth.uid());
+
+-- ── FEATURE TRANSVERSAL: RELATÓRIOS ──────────────────────────────────────────
+
+CREATE TABLE report_configs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    name            TEXT NOT NULL,
+    frequency       TEXT NOT NULL CHECK (frequency IN ('weekly', 'monthly', 'quarterly')),
+    sections        TEXT[] NOT NULL,
+    format          TEXT NOT NULL DEFAULT 'pdf' CHECK (format IN ('pdf', 'csv')),
+    delivery        TEXT NOT NULL DEFAULT 'email' CHECK (delivery IN ('email', 'whatsapp')),
+    active          BOOLEAN DEFAULT true,
+    next_run_at     TIMESTAMP WITH TIME ZONE,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+ALTER TABLE report_configs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "report_configs: owner only" ON report_configs FOR ALL USING (profile_id = auth.uid());
+
+CREATE TABLE report_history (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    config_id       UUID REFERENCES report_configs(id) ON DELETE CASCADE NOT NULL,
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    generated_at    TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+    file_url        TEXT,
+    status          TEXT DEFAULT 'success' CHECK (status IN ('success', 'error')),
+    error_message   TEXT
+);
+
+ALTER TABLE report_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "report_history: owner only" ON report_history FOR ALL USING (profile_id = auth.uid());
+
+-- ── FASE 3: VALUATION ─────────────────────────────────────────────────────────
+
+CREATE TABLE valuation_snapshots (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+    valuation_brl   DECIMAL(16, 2) NOT NULL,
+    methodology     TEXT NOT NULL CHECK (methodology IN ('arr_multiple', 'ltv_cac', 'revenue_multiple')),
+    multiple_used   DECIMAL(6, 2),
+    arr             DECIMAL(14, 2),
+    benchmark_data  JSONB,
+    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE INDEX idx_valuation_profile ON valuation_snapshots(profile_id, calculated_at DESC);
+
+ALTER TABLE valuation_snapshots ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "valuation_snapshots: owner only" ON valuation_snapshots FOR ALL USING (profile_id = auth.uid());
+```
+
+---
+
+## 7. Estrutura de Arquivos Alvo
+
+```
+server/src/
+├── controllers/
+│   ├── ai.controller.ts          ✅ existe — manter
+│   ├── campaign.controller.ts    ✅ existe — manter
+│   ├── customers.controller.ts   ✅ existe — manter
+│   ├── dashboard.controller.ts   ✅ existe — manter
+│   ├── growth.controller.ts      🔴 criar
+│   ├── raise.controller.ts       🔴 criar
+│   ├── card.controller.ts        🔴 criar
+│   ├── integration.controller.ts ✅ existe — manter
+│   ├── pixel.controller.ts       ✅ existe — manter
+│   ├── transactions.controller.ts ✅ existe — manter
+│   └── webhook.controller.ts     ✅ existe — manter
+├── jobs/
+│   ├── ads-sync.job.ts           ✅ existe — manter
+│   ├── alerts.job.ts             ⚠️  existe — adicionar correlações de growth
+│   ├── capital-score.job.ts      🔴 criar
+│   ├── growth-engine.job.ts      🔴 criar
+│   ├── hotmart-sync.job.ts       ⚠️  existe — fix acquisition_channel
+│   ├── reports.job.ts            🔴 criar
+│   ├── rfm-calc.job.ts           ⚠️  existe — adicionar audience sync
+│   └── token-refresh.job.ts      ✅ existe — manter
+├── routes/
+│   ├── ai.routes.ts              ✅ existe — manter
+│   ├── campaign.routes.ts        ✅ existe — manter
+│   ├── card.routes.ts            🔴 criar
+│   ├── cron.routes.ts            ✅ existe — manter
+│   ├── dashboard.routes.ts       ✅ existe — manter
+│   ├── data.routes.ts            ✅ existe — manter
+│   ├── growth.routes.ts          🔴 criar
+│   ├── integration.routes.ts     ✅ existe — manter
+│   ├── pixel.routes.ts           ✅ existe — manter
+│   ├── raise.routes.ts           🔴 criar
+│   └── webhook.routes.ts         ✅ existe — manter
+├── services/
+│   ├── ai.service.ts             ⚠️  existe — Sonnet 4 + function calling
+│   ├── capital-score.service.ts  🔴 criar
+│   ├── growth-engine.service.ts  🔴 criar
+│   ├── growth-executor.service.ts 🔴 criar
+│   ├── integration.service.ts    ✅ existe — manter
+│   ├── normalization.service.ts  ⚠️  existe — fix acquisition_channel
+│   └── raise.service.ts          🔴 criar
+├── lib/
+│   ├── supabase.ts               ✅ existe — manter
+│   ├── webhook-queue.ts          ✅ existe — manter
+│   └── webhook-schemas.ts        ✅ existe — manter
+└── index.ts                      ⚠️  existe — registrar novos routers
+```
+
+Legenda: ✅ manter como está | ⚠️ modificar | 🔴 criar do zero
