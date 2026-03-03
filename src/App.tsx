@@ -8,6 +8,9 @@ import Canais from './pages/Canais'
 import Criadores from './pages/Criadores'
 import AppStore from './pages/AppStore'
 import Configuracoes from './pages/Configuracoes'
+import Card from './pages/Card'
+import Raise from './pages/Raise'
+import Valuation from './pages/Valuation'
 import ChatSidebar from './components/layout/ChatSidebar'
 import Login from './pages/Login'
 import { supabase } from './lib/supabase'
@@ -55,6 +58,9 @@ export default function App() {
       case 'clientes': return 'Clientes'
       case 'canais': return 'Canais'
       case 'creators': return 'Criadores'
+      case 'card': return 'Northie Card'
+      case 'raise': return 'Northie Raise'
+      case 'valuation': return 'Northie Valuation'
       case 'app-store': return 'App Store'
       case 'configuracoes': return 'Configurações'
       default: return 'Início'
@@ -125,8 +131,11 @@ export default function App() {
               user={session?.user}
             />
           )}
+          {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage === 'raise' && <Raise onToggleChat={() => setChatOpen(!chatOpen)} />}
+          {activePage === 'valuation' && <Valuation onToggleChat={() => setChatOpen(!chatOpen)} />}
           {activePage === 'configuracoes' && <Configuracoes />}
-          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'raise' && activePage !== 'valuation' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
             <motion.div
               key={activePage}
               initial={{ opacity: 0, y: 10 }}

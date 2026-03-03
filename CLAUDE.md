@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Este arquivo fornece orientações completas para o Claude Code ao trabalhar no repositório da Northie. Contém produto, filosofia, arquitetura, design e convenções de código. SEMPRE mantenha esse arquivo atualizado com novos contextos sobre o produtos, novas features e possíveis pivots que o projeto vai sofrer, é indispensável a atualização dele.
+Este arquivo fornece orientações completas para o Claude Code ao trabalhar no repositório da Northie. Contém produto, filosofia, arquitetura, design e convenções de código. SEMPRE mantenha esse arquivo atualizado com novos contextos sobre o produtos, novas features e possíveis pivots que o projeto vai sofrer, é indispensável a atualização dele. Atualize sempre também os arquivos "northie-backend-architecture" - "northie-produto" quando julgar necessário e tiver mudanças que devem ser registradas neles, seja de pivot ou arquitetura.
 
 ## Agentes disponíveis
 

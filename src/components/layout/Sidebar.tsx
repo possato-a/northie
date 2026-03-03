@@ -8,6 +8,9 @@ import {
   CreatorsIcon,
   AppStoreIcon,
   SettingsIcon,
+  CardIcon,
+  RaiseIcon,
+  ValuationIcon,
 } from '../../icons'
 import { useTheme } from '../../ThemeContext'
 
@@ -16,9 +19,10 @@ export type Page =
   | 'vendas'
   | 'clientes'
   | 'canais'
-  | 'comunidade'
   | 'creators'
-  | 'finance'
+  | 'card'
+  | 'raise'
+  | 'valuation'
   | 'app-store'
   | 'configuracoes'
 
@@ -110,6 +114,12 @@ const mainNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
   { icon: <CreatorsIcon />, label: 'Creators', pageId: 'creators' },
 ]
 
+const productsNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
+  { icon: <CardIcon />, label: 'Northie Card', pageId: 'card' },
+  { icon: <RaiseIcon />, label: 'Northie Raise', pageId: 'raise' },
+  { icon: <ValuationIcon />, label: 'Valuation', pageId: 'valuation' },
+]
+
 const bottomNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
   { icon: <AppStoreIcon />, label: 'App Store', pageId: 'app-store' },
   { icon: <SettingsIcon />, label: 'Configurações', pageId: 'configuracoes' },
@@ -192,6 +202,7 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
           gap: 2,
           padding: collapsed ? '12px 6px' : '12px 10px',
           flex: 1,
+          overflowY: 'auto',
         }}
       >
         {mainNav.map((item, i) => (
@@ -202,6 +213,33 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
             onPageChange={onPageChange}
             collapsed={collapsed}
             delay={i * 0.03}
+          />
+        ))}
+
+        {/* Divisor dos produtos */}
+        <div style={{ height: 1, background: 'var(--color-border)', margin: '8px 0' }} />
+
+        {!collapsed && (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            letterSpacing: '0.12em',
+            color: 'var(--color-text-tertiary)',
+            textTransform: 'uppercase',
+            padding: '2px 10px 6px',
+          }}>
+            Produtos
+          </span>
+        )}
+
+        {productsNav.map((item, i) => (
+          <NavItem
+            key={item.pageId}
+            {...item}
+            activePage={activePage}
+            onPageChange={onPageChange}
+            collapsed={collapsed}
+            delay={(mainNav.length + i) * 0.03}
           />
         ))}
       </div>
