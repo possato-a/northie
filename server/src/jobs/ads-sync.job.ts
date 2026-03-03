@@ -578,6 +578,274 @@ export async function backfillMetaAds(profileId: string, days?: number): Promise
 
 // ── Google Ads Sync ───────────────────────────────────────────────────────────
 
+/**
+ * Executa uma query GAQL via searchStream e retorna todos os resultados achatados.
+ */
+async function fetchGoogleRows(
+    customerId: string,
+    accessToken: string,
+    developerToken: string,
+    query: string,
+): Promise<any[]> {
+    const res = await withRetry(() => axios.post(
+        `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
+        { query },
+        {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'developer-token': developerToken,
+                'Content-Type': 'application/json',
+            },
+            timeout: 30000,
+        }
+    ));
+    const batches: any[] = res.data || [];
+    const rows: any[] = [];
+    for (const batch of batches) rows.push(...(batch.results || []));
+    return rows;
+}
+
+/** Converte cost_micros em BRL com 2 casas */
+function microsToReais(micros: any): number {
+    return round2(parseInt(String(micros || '0'), 10) / 1_000_000);
+}
+
+/**
+ * Sincroniza campaign, ad_group e ad level para uma conta Google Ads específica.
+ * Equivalente ao syncMetaAccount — popula ad_campaigns (3 níveis) + ad_metrics (aggregado).
+ */
+async function syncGoogleAccount(
+    profileId: string,
+    customerId: string,
+    accessToken: string,
+    developerToken: string,
+    dateRange: { since: string; until: string },
+): Promise<number> {
+    const accountName = `Google Ads #${customerId}`;
+    let accountRows = 0;
+
+    // ── Campaign level ─────────────────────────────────────────────────────────
+    try {
+        const rows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.status,
+                campaign.advertising_channel_type,
+                segments.date,
+                metrics.cost_micros,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.conversions,
+                metrics.conversions_value
+            FROM campaign
+            WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
+              AND campaign.status != 'REMOVED'
+        `);
+
+        const batch: AdCampaignPayload[] = rows
+            .filter(r => r.segments?.date)
+            .map(r => {
+                const spendBrl = microsToReais(r.metrics?.costMicros);
+                const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
+                const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                return {
+                    profileId,
+                    platform: 'google',
+                    accountId: customerId,
+                    accountName,
+                    campaignId: String(r.campaign?.id || ''),
+                    campaignName: r.campaign?.name || '',
+                    adsetId: '',
+                    adsetName: '',
+                    adId: '',
+                    adName: '',
+                    level: 'campaign',
+                    status: r.campaign?.status || '',
+                    objective: r.campaign?.advertisingChannelType || '',
+                    date: r.segments.date,
+                    spendBrl,
+                    impressions,
+                    reach: 0,
+                    clicks,
+                    ctr: impressions > 0 ? round2(clicks / impressions * 100) : 0,
+                    cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
+                    cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
+                    frequency: 0,
+                    purchases: Math.round(parseFloat(String(r.metrics?.conversions || '0'))),
+                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
+                    leads: 0,
+                    linkClicks: clicks,
+                    landingPageViews: 0,
+                    videoViews: 0,
+                };
+            });
+
+        await upsertAdCampaigns(batch);
+
+        // Mantém ad_metrics por data (retrocompatibilidade / dashboard)
+        const byDate: Record<string, { spend: number; impressions: number; clicks: number }> = {};
+        for (const r of rows) {
+            const d: string = r.segments?.date || '';
+            if (!d) continue;
+            if (!byDate[d]) byDate[d] = { spend: 0, impressions: 0, clicks: 0 };
+            byDate[d]!.spend += parseInt(String(r.metrics?.costMicros || '0'), 10) / 1_000_000;
+            byDate[d]!.impressions += parseInt(String(r.metrics?.impressions || '0'), 10);
+            byDate[d]!.clicks += parseInt(String(r.metrics?.clicks || '0'), 10);
+        }
+        await upsertAdMetrics(Object.entries(byDate).map(([date, m]) => ({
+            profileId, platform: 'google', date,
+            spendBrl: round2(m.spend), impressions: m.impressions, clicks: m.clicks,
+            accountId: customerId, accountName,
+        })));
+
+        accountRows += rows.length;
+        console.log(`[AdsSync] Google: ${rows.length} campaign row(s) for ${customerId}`);
+    } catch (err: any) {
+        console.error(`[AdsSync] Google: campaign level error for ${customerId}:`, err.response?.data || err.message);
+        if (err.response?.status === 401) throw err;
+    }
+
+    // ── Ad Group level (equivalente a adset no Meta) ───────────────────────────
+    try {
+        const rows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+            SELECT
+                campaign.id,
+                campaign.name,
+                ad_group.id,
+                ad_group.name,
+                ad_group.status,
+                segments.date,
+                metrics.cost_micros,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.conversions,
+                metrics.conversions_value
+            FROM ad_group
+            WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
+              AND campaign.status != 'REMOVED'
+              AND ad_group.status != 'REMOVED'
+        `);
+
+        const batch: AdCampaignPayload[] = rows
+            .filter(r => r.segments?.date)
+            .map(r => {
+                const spendBrl = microsToReais(r.metrics?.costMicros);
+                const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
+                const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                return {
+                    profileId,
+                    platform: 'google',
+                    accountId: customerId,
+                    accountName,
+                    campaignId: String(r.campaign?.id || ''),
+                    campaignName: r.campaign?.name || '',
+                    adsetId: String(r.adGroup?.id || ''),
+                    adsetName: r.adGroup?.name || '',
+                    adId: '',
+                    adName: '',
+                    level: 'adset',
+                    status: r.adGroup?.status || '',
+                    objective: '',
+                    date: r.segments.date,
+                    spendBrl,
+                    impressions,
+                    reach: 0,
+                    clicks,
+                    ctr: impressions > 0 ? round2(clicks / impressions * 100) : 0,
+                    cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
+                    cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
+                    frequency: 0,
+                    purchases: Math.round(parseFloat(String(r.metrics?.conversions || '0'))),
+                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
+                    leads: 0,
+                    linkClicks: clicks,
+                    landingPageViews: 0,
+                    videoViews: 0,
+                };
+            });
+
+        await upsertAdCampaigns(batch);
+        accountRows += rows.length;
+        console.log(`[AdsSync] Google: ${rows.length} ad_group row(s) for ${customerId}`);
+    } catch (err: any) {
+        console.error(`[AdsSync] Google: ad_group level error for ${customerId}:`, err.response?.data || err.message);
+        if (err.response?.status === 401) throw err;
+    }
+
+    // ── Ad level ──────────────────────────────────────────────────────────────
+    try {
+        const rows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+            SELECT
+                campaign.id,
+                campaign.name,
+                ad_group.id,
+                ad_group.name,
+                ad_group_ad.ad.id,
+                ad_group_ad.ad.name,
+                ad_group_ad.status,
+                segments.date,
+                metrics.cost_micros,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.conversions,
+                metrics.conversions_value
+            FROM ad_group_ad
+            WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
+              AND campaign.status != 'REMOVED'
+              AND ad_group.status != 'REMOVED'
+              AND ad_group_ad.status != 'REMOVED'
+        `);
+
+        const batch: AdCampaignPayload[] = rows
+            .filter(r => r.segments?.date)
+            .map(r => {
+                const spendBrl = microsToReais(r.metrics?.costMicros);
+                const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
+                const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                return {
+                    profileId,
+                    platform: 'google',
+                    accountId: customerId,
+                    accountName,
+                    campaignId: String(r.campaign?.id || ''),
+                    campaignName: r.campaign?.name || '',
+                    adsetId: String(r.adGroup?.id || ''),
+                    adsetName: r.adGroup?.name || '',
+                    adId: String(r.adGroupAd?.ad?.id || ''),
+                    adName: r.adGroupAd?.ad?.name || '',
+                    level: 'ad',
+                    status: r.adGroupAd?.status || '',
+                    objective: '',
+                    date: r.segments.date,
+                    spendBrl,
+                    impressions,
+                    reach: 0,
+                    clicks,
+                    ctr: impressions > 0 ? round2(clicks / impressions * 100) : 0,
+                    cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
+                    cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
+                    frequency: 0,
+                    purchases: Math.round(parseFloat(String(r.metrics?.conversions || '0'))),
+                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
+                    leads: 0,
+                    linkClicks: clicks,
+                    landingPageViews: 0,
+                    videoViews: 0,
+                };
+            });
+
+        await upsertAdCampaigns(batch);
+        accountRows += rows.length;
+        console.log(`[AdsSync] Google: ${rows.length} ad row(s) for ${customerId}`);
+    } catch (err: any) {
+        console.error(`[AdsSync] Google: ad level error for ${customerId}:`, err.response?.data || err.message);
+        if (err.response?.status === 401) throw err;
+    }
+
+    return accountRows;
+}
+
 async function syncGoogleAds(
     profileId: string,
     dateRange?: { since: string; until: string }
@@ -590,7 +858,7 @@ async function syncGoogleAds(
     let totalRows = 0;
 
     try {
-        const tokens = await IntegrationService.getIntegration(profileId, 'google');
+        let tokens = await IntegrationService.getIntegration(profileId, 'google');
         if (!tokens?.access_token) {
             console.log(`[AdsSync] Google: no token for profile ${profileId}, skipping.`);
             await finishSyncLog(logId, 0, 'No access token');
@@ -602,6 +870,19 @@ async function syncGoogleAds(
             console.warn('[AdsSync] Google: GOOGLE_ADS_DEVELOPER_TOKEN not set, skipping.');
             await finishSyncLog(logId, 0, 'GOOGLE_ADS_DEVELOPER_TOKEN not set');
             return { rowsUpserted: 0 };
+        }
+
+        // Renova o token se estiver próximo de expirar (Google tokens duram 1h)
+        if (IntegrationService.isNearExpiry(tokens)) {
+            try {
+                tokens = await IntegrationService.refreshTokens(profileId, 'google');
+                console.log(`[AdsSync] Google: token refreshed for profile ${profileId}`);
+            } catch {
+                const msg = `Token renewal failed for profile ${profileId}`;
+                console.error(`[AdsSync] Google: ${msg}`);
+                await finishSyncLog(logId, 0, msg);
+                return { rowsUpserted: 0 };
+            }
         }
 
         const { data: integrationRow } = await supabase
@@ -623,74 +904,11 @@ async function syncGoogleAds(
 
         for (const customerId of customerIds) {
             try {
-                const query = `
-                    SELECT
-                        campaign.id,
-                        campaign.name,
-                        segments.date,
-                        metrics.cost_micros,
-                        metrics.impressions,
-                        metrics.clicks,
-                        metrics.conversions,
-                        metrics.conversions_value
-                    FROM campaign
-                    WHERE segments.date BETWEEN '${since}' AND '${until}'
-                      AND campaign.status != 'REMOVED'
-                `;
-
-                const reportRes = await withRetry(() => axios.post(
-                    `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
-                    { query },
-                    {
-                        headers: {
-                            Authorization: `Bearer ${tokens.access_token}`,
-                            'developer-token': developerToken,
-                            'Content-Type': 'application/json',
-                        },
-                        timeout: 30000,
-                    }
-                ));
-
-                const batches: any[] = reportRes.data || [];
-                const daily: Record<string, {
-                    spend: number; impressions: number; clicks: number;
-                    purchases: number; purchaseValue: number;
-                }> = {};
-
-                for (const batch of batches) {
-                    for (const result of batch.results || []) {
-                        const date: string = result.segments?.date;
-                        if (!date) continue;
-                        const costMicros = parseInt(result.metrics?.costMicros || '0', 10);
-                        const spendBrl = Math.round((costMicros / 1_000_000) * 100) / 100;
-
-                        if (!daily[date]) daily[date] = { spend: 0, impressions: 0, clicks: 0, purchases: 0, purchaseValue: 0 };
-                        daily[date]!.spend += spendBrl;
-                        daily[date]!.impressions += parseInt(result.metrics?.impressions || '0', 10);
-                        daily[date]!.clicks += parseInt(result.metrics?.clicks || '0', 10);
-                        daily[date]!.purchases += Math.round(parseFloat(result.metrics?.conversions || '0'));
-                        daily[date]!.purchaseValue += Math.round(parseFloat(result.metrics?.conversionsValue || '0') * 100) / 100;
-                    }
-                }
-
-                await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
-                    profileId,
-                    platform: 'google',
-                    date,
-                    spendBrl: m.spend,
-                    impressions: m.impressions,
-                    clicks: m.clicks,
-                    accountId: customerId,
-                    accountName: `Google Ads #${customerId}`,
-                })));
-
-                totalRows += Object.keys(daily).length;
-                console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
+                const rows = await syncGoogleAccount(profileId, customerId, tokens.access_token, developerToken, { since, until });
+                totalRows += rows;
             } catch (err: any) {
                 const status = err.response?.status;
-                const errData = err.response?.data;
-                console.error(`[AdsSync] Google: error for ${customerId} (HTTP ${status}):`, errData || err.message);
-
+                console.error(`[AdsSync] Google: fatal error for ${customerId} (HTTP ${status}):`, err.response?.data || err.message);
                 // Token expirado — marca integração como expired para forçar reconexão
                 if (status === 401) {
                     await supabase

@@ -205,9 +205,50 @@ if (!userAccessToken) {
 
 // ── Live API — searchStream (campanha) ────────────────────────────────────────
 
-section('7. Live API — searchStream (métricas de campanha)');
+section('7. Live API — searchStream (3 níveis: campaign, ad_group, ad)');
 
 const customerIds: string[] = (activeIntegrations?.[0] as any)?.google_customer_ids || [];
+
+async function testGoogleLevel(
+    customerId: string,
+    token: string,
+    dToken: string,
+    levelName: string,
+    query: string
+): Promise<void> {
+    try {
+        const res = await axios.post(
+            `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
+            { query },
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'developer-token': dToken,
+                    'Content-Type': 'application/json',
+                },
+                timeout: 30000,
+            }
+        );
+        const batches: any[] = res.data || [];
+        let count = 0;
+        let spendMicros = 0;
+        for (const batch of batches) {
+            for (const r of batch.results || []) {
+                count++;
+                spendMicros += parseInt(String(r.metrics?.costMicros || '0'), 10);
+            }
+        }
+        ok(`${levelName} — searchStream OK`, `${count} linha(s) | R$${(spendMicros / 1_000_000).toFixed(2)} gasto (últimos 7 dias)`);
+    } catch (err: any) {
+        const status = err.response?.status;
+        const msg = err.response?.data?.error?.message || err.message;
+        if (status === 401) {
+            fail(`${levelName} — token expirado (401)`, 'reconecte a integração Google no AppStore');
+        } else {
+            fail(`${levelName} — searchStream (HTTP ${status})`, msg);
+        }
+    }
+}
 
 if (!userAccessToken || !devToken) {
     warn('Token ou devToken indisponível', 'pulando teste de searchStream');
@@ -215,66 +256,32 @@ if (!userAccessToken || !devToken) {
     warn('google_customer_ids vazio', 'reconecte a integração para popular as contas');
 } else {
     const customerId = customerIds[0]!;
-    const today = new Date().toISOString().split('T')[0]!;
+    const dateToday = new Date().toISOString().split('T')[0]!;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!;
 
-    const query = `
-        SELECT
-            campaign.id,
-            campaign.name,
-            segments.date,
-            metrics.cost_micros,
-            metrics.impressions,
-            metrics.clicks
+    await testGoogleLevel(customerId, userAccessToken, devToken, 'Campaign level', `
+        SELECT campaign.id, campaign.name, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks
         FROM campaign
-        WHERE segments.date BETWEEN '${sevenDaysAgo}' AND '${today}'
+        WHERE segments.date BETWEEN '${sevenDaysAgo}' AND '${dateToday}'
           AND campaign.status != 'REMOVED'
-        LIMIT 10
-    `;
+    `);
 
-    try {
-        const streamRes = await axios.post(
-            `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
-            { query },
-            {
-                headers: {
-                    Authorization: `Bearer ${userAccessToken}`,
-                    'developer-token': devToken,
-                    'Content-Type': 'application/json',
-                },
-                timeout: 30000,
-            }
-        );
+    await testGoogleLevel(customerId, userAccessToken, devToken, 'Ad Group level (adset)', `
+        SELECT campaign.id, ad_group.id, ad_group.name, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks
+        FROM ad_group
+        WHERE segments.date BETWEEN '${sevenDaysAgo}' AND '${dateToday}'
+          AND campaign.status != 'REMOVED'
+          AND ad_group.status != 'REMOVED'
+    `);
 
-        const batches: any[] = streamRes.data || [];
-        let totalResults = 0;
-        let totalSpendMicros = 0;
-
-        for (const batch of batches) {
-            for (const result of batch.results || []) {
-                totalResults++;
-                totalSpendMicros += parseInt(result.metrics?.costMicros || '0', 10);
-            }
-        }
-
-        const totalSpendBrl = (totalSpendMicros / 1_000_000).toFixed(2);
-        ok(`searchStream respondeu`, `${totalResults} linha(s) | R$${totalSpendBrl} de gasto (últimos 7 dias)`);
-
-        if (batches.length > 0 && batches[0]?.results?.length > 0) {
-            const sample = batches[0].results[0];
-            console.log(`     Amostra: ${sample.campaign?.name} | ${sample.segments?.date} | R$${(parseInt(sample.metrics?.costMicros || '0') / 1_000_000).toFixed(2)}`);
-            ok('Payload tem campos esperados (campaign.name, segments.date, metrics.cost_micros)');
-        }
-    } catch (err: any) {
-        const status = err.response?.status;
-        const msg = err.response?.data?.error?.message || err.message;
-
-        if (status === 401) {
-            fail(`searchStream — token expirado (401)`, 'reconecte a integração Google no AppStore');
-        } else {
-            fail(`searchStream (HTTP ${status})`, msg);
-        }
-    }
+    await testGoogleLevel(customerId, userAccessToken, devToken, 'Ad level', `
+        SELECT campaign.id, ad_group.id, ad_group_ad.ad.id, ad_group_ad.ad.name, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks
+        FROM ad_group_ad
+        WHERE segments.date BETWEEN '${sevenDaysAgo}' AND '${dateToday}'
+          AND campaign.status != 'REMOVED'
+          AND ad_group.status != 'REMOVED'
+          AND ad_group_ad.status != 'REMOVED'
+    `);
 }
 
 // ── Dados em ad_metrics ───────────────────────────────────────────────────────

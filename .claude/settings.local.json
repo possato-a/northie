@@ -23,7 +23,8 @@
       "Bash(git add -f server/src/routes/cron.routes.ts)",
       "Bash(npx tsx src/scripts/backfill-meta.ts)",
       "Bash(git add src/pages/Canais.tsx server/src/jobs/ads-sync.job.ts server/src/scripts/backfill-meta.ts)",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(npx tsc:*)"
     ]
   }
 }
