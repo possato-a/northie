@@ -43,7 +43,7 @@ function warn(label: string, detail?: string) {
 }
 
 function section(title: string) {
-    console.log(`\n── ${title} ${'─'.repeat(50 - title.length)}`);
+    console.log(`\n── ${title} ${'─'.repeat(Math.max(2, 50 - title.length))}`);
 }
 
 // ── Testes ────────────────────────────────────────────────────────────────────
