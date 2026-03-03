@@ -229,7 +229,7 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
         const { data: customer, error: custError } = await supabase
             .from('customers')
             .upsert(
-                { profile_id: profileId, email: buyer_email, name: buyer_name, acquisition_channel: 'Hotmart' },
+                { profile_id: profileId, email: buyer_email, name: buyer_name, acquisition_channel: 'desconhecido' },
                 { onConflict: 'profile_id, email' }
             )
             .select('id, total_ltv')
@@ -248,7 +248,8 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             amount_gross: amount,
             amount_net: amount,
             status: 'approved',
-            acquisition_channel: 'Hotmart',
+            acquisition_channel: 'desconhecido',
+            created_at: new Date(sale.purchase_date).toISOString(),
         });
 
         if (txError) {
@@ -401,7 +402,7 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
  * Roda o backfill dos últimos 7 dias para todos os perfis com integração
  * Hotmart ativa. Executado a cada 6 horas pelo servidor.
  */
-async function runHotmartSyncForAllProfiles(): Promise<void> {
+export async function runHotmartSyncForAllProfiles(): Promise<void> {
     const { data: integrations, error } = await supabase
         .from('integrations')
         .select('profile_id')

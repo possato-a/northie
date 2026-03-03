@@ -3,7 +3,7 @@ import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
 import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
-import { backfillHotmart } from '../jobs/hotmart-sync.job.js';
+import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -292,7 +292,10 @@ export async function cronSync(req: Request, res: Response) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-        await runAdsSyncForAllProfiles();
+        await Promise.all([
+            runAdsSyncForAllProfiles(),
+            runHotmartSyncForAllProfiles(),
+        ]);
         return res.status(200).json({ message: 'Cron sync completed.' });
     } catch (error: any) {
         console.error('[cronSync] error:', error.message);
