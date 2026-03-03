@@ -25,15 +25,13 @@ function ScoreRing({ score, size = 56 }: { score: number; size?: number }) {
     const radius = (size - 8) / 2
     const circumference = 2 * Math.PI * radius
     const offset = circumference - (score / 100) * circumference
-    const color = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444'
-
     return (
         <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
             <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
                 <circle cx={size / 2} cy={size / 2} r={radius} fill="none"
                     stroke="var(--color-border)" strokeWidth={4} />
                 <motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-                    stroke={color} strokeWidth={4}
+                    stroke="var(--color-text-primary)" strokeWidth={4}
                     strokeDasharray={circumference}
                     initial={{ strokeDashoffset: circumference }}
                     animate={{ strokeDashoffset: offset }}
@@ -47,7 +45,7 @@ function ScoreRing({ score, size = 56 }: { score: number; size?: number }) {
                 <span style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 13, fontWeight: 600,
-                    color,
+                    color: 'var(--color-text-primary)',
                 }}>
                     {score}
                 </span>
@@ -157,7 +155,7 @@ function RoomDetailModal({ room, onClose }: { room: DataRoom; onClose: () => voi
                             <div key={perm.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <div style={{
                                     width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                                    background: perm.enabled ? '#22c55e' : 'var(--color-border)',
+                                    background: perm.enabled ? 'var(--color-text-primary)' : 'var(--color-border)',
                                 }} />
                                 <span style={{
                                     fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
@@ -395,7 +393,7 @@ export default function Raise({ onToggleChat }: PageProps) {
                                             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 + i * 0.1 }}
                                             style={{
                                                 height: '100%',
-                                                background: dim.value >= 70 ? '#22c55e' : '#f59e0b',
+                                                background: 'rgba(var(--fg-rgb), 0.65)',
                                                 borderRadius: 'var(--radius-full)',
                                             }}
                                         />

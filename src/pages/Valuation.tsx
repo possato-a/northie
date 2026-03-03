@@ -131,7 +131,7 @@ function BenchmarkBar({ percentile }: { percentile: number }) {
 }
 
 // ── Linha de métrica usada no cálculo ─────────────────────────────
-function MetricRow({ label, value, benchmark, good }: {
+function MetricRow({ label, value, benchmark }: {
     label: string; value: string; benchmark?: string; good?: boolean
 }) {
     return (
@@ -151,7 +151,7 @@ function MetricRow({ label, value, benchmark, good }: {
                 )}
                 <span style={{
                     fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)',
-                    color: good === undefined ? 'var(--color-text-primary)' : good ? '#22c55e' : '#f59e0b',
+                    color: 'var(--color-text-primary)',
                     fontWeight: 500,
                 }}>
                     {value}
@@ -254,7 +254,7 @@ export default function Valuation({ onToggleChat }: PageProps) {
                                         style={{
                                             fontFamily: 'var(--font-mono)',
                                             fontSize: 14,
-                                            color: monthlyDelta >= 0 ? '#22c55e' : '#ef4444',
+                                            color: 'var(--color-text-secondary)',
                                             fontWeight: 500,
                                         }}
                                     >

@@ -36,7 +36,6 @@ function ScoreGauge({ score, size = 180 }: { score: number; size?: number }) {
     const circumference = 2 * Math.PI * radius
     const arcLength = circumference * 0.75
     const offset = arcLength - (score / 100) * arcLength
-    const color = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444'
 
     return (
         <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
@@ -45,7 +44,7 @@ function ScoreGauge({ score, size = 180 }: { score: number; size?: number }) {
                     stroke="var(--color-border)" strokeWidth={12}
                     strokeDasharray={`${arcLength} ${circumference}`} strokeLinecap="round" />
                 <motion.circle cx={size / 2} cy={size / 2} r={radius} fill="none"
-                    stroke={color} strokeWidth={12}
+                    stroke="var(--color-text-primary)" strokeWidth={12}
                     strokeDasharray={`${arcLength} ${circumference}`} strokeLinecap="round"
                     initial={{ strokeDashoffset: arcLength }}
                     animate={{ strokeDashoffset: offset }}
@@ -53,7 +52,7 @@ function ScoreGauge({ score, size = 180 }: { score: number; size?: number }) {
             </svg>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 16 }}>
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: 44, fontWeight: 600, letterSpacing: '-2px', color, lineHeight: 1 }}>
+                    style={{ fontFamily: 'var(--font-mono)', fontSize: 44, fontWeight: 600, letterSpacing: '-2px', color: 'var(--color-text-primary)', lineHeight: 1 }}>
                     {score}
                 </motion.span>
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
@@ -81,7 +80,7 @@ function DimensionBar({ label, value, max = 25, delay = 0 }: { label: string; va
             <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                 <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
                     transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: delay + 0.2 }}
-                    style={{ height: '100%', background: pct >= 70 ? '#22c55e' : pct >= 40 ? '#f59e0b' : '#ef4444', borderRadius: 'var(--radius-full)' }} />
+                    style={{ height: '100%', background: 'rgba(var(--fg-rgb), 0.65)', borderRadius: 'var(--radius-full)' }} />
             </div>
         </motion.div>
     )
@@ -209,21 +208,20 @@ function CardVisual({ card, onToggleFreeze }: { card: NorthieCard; onToggleFreez
 // ── Barra de uso de crédito ────────────────────────────────────────
 function CreditUsageBar({ used, total }: { used: number; total: number }) {
     const pct = (used / total) * 100
-    const color = pct >= 80 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#22c55e'
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
                     Utilização do limite
                 </span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color, fontWeight: 600 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 600 }}>
                     {pct.toFixed(0)}%
                 </span>
             </div>
             <div style={{ height: 6, background: 'var(--color-border)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                 <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
                     transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-                    style={{ height: '100%', background: color, borderRadius: 'var(--radius-full)' }} />
+                    style={{ height: '100%', background: 'var(--color-text-primary)', borderRadius: 'var(--radius-full)' }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
@@ -547,7 +545,7 @@ export default function Card({ onToggleChat }: PageProps) {
                                 </div>
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>
                                     Você precisa atingir <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>70 pts</strong> para solicitar crédito. Você está a{' '}
-                                    <strong style={{ color: '#f59e0b', fontFamily: 'var(--font-mono)' }}>{70 - score.total} pts</strong> de se tornar elegível.
+                                    <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{70 - score.total} pts</strong> de se tornar elegível.
                                 </p>
                                 {/* Progresso até 70 */}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -558,7 +556,7 @@ export default function Card({ onToggleChat }: PageProps) {
                                     <div style={{ height: 6, background: 'var(--color-border)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                                         <motion.div initial={{ width: 0 }} animate={{ width: `${(score.total / 70) * 100}%` }}
                                             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-                                            style={{ height: '100%', background: '#f59e0b', borderRadius: 'var(--radius-full)' }} />
+                                            style={{ height: '100%', background: 'var(--color-text-primary)', borderRadius: 'var(--radius-full)' }} />
                                     </div>
                                 </div>
                                 <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between' }}>
@@ -593,13 +591,13 @@ export default function Card({ onToggleChat }: PageProps) {
 
                     {/* ── Estado: ELEGÍVEL ─────────────────────────── */}
                     {pageState === 'eligible' && (
-                        <div style={{ border: '1px solid #22c55e44', borderRadius: 'var(--radius-lg)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <SectionLabel gutterBottom={0}>Elegibilidade</SectionLabel>
                                 <span className="tag tag-complete">Elegível</span>
                             </div>
                             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                                Seu Capital Score atingiu <strong style={{ color: '#22c55e', fontFamily: 'var(--font-mono)' }}>{score.total}/100</strong>. Você pode solicitar crédito agora com limite de até{' '}
+                                Seu Capital Score atingiu <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>{score.total}/100</strong>. Você pode solicitar crédito agora com limite de até{' '}
                                 <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>R$ {score.max_limit_brl.toLocaleString('pt-BR')}</strong>.
                             </p>
                             <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>

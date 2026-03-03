@@ -20,6 +20,24 @@ Os agentes estão em `.claude/agents/`. Use-os automaticamente conforme o contex
 | `technical-writer` | Gerar documentação, atualizar READMEs, escrever specs |
 | `learning-guide` | Explicar conceitos, onboarding de novo contexto, ensinar padrões do projeto |
 
+### Estratégia de uso de subagentes
+
+**Sempre usar subagentes (Task tool) quando:**
+- A tarefa envolve reescrever ou modificar 2+ arquivos de página/componente simultaneamente
+- A pesquisa/exploração pode ser delegada sem travar a conversa principal
+- Trabalho é claramente independente entre arquivos (ex: 3 páginas diferentes)
+
+**Usar subagentes em paralelo:** Lançar múltiplos agents no mesmo turno (único bloco de tool calls) sempre que as tarefas não dependem umas das outras. Isso reduz o tempo total e economiza a janela de contexto principal.
+
+**Exemplo de uso correto:**
+```
+// BAD: Claude faz tudo na conversa principal
+Lê Card.tsx → reescreve → lê Raise.tsx → reescreve → lê Valuation.tsx → reescreve
+
+// GOOD: Claude delega em paralelo
+Task(Card) + Task(Raise) + Task(Valuation) → todos rodam simultaneamente
+```
+
 ---
 
 ## O que é a Northie
