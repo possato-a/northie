@@ -165,7 +165,7 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
 } else {
     try {
         const { decrypt } = await import('../utils/encryption.js');
-        const raw = activeIntegrations[0].config_encrypted;
+        const raw = activeIntegrations[0]!.config_encrypted;
         // Supabase armazena como { data: "<string_encriptada>" }
         const encryptedStr = typeof raw === 'object' && raw.data ? raw.data : raw;
         const config = JSON.parse(decrypt(encryptedStr));
