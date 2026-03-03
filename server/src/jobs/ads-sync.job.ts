@@ -578,10 +578,13 @@ export async function backfillMetaAds(profileId: string, days?: number): Promise
 
 // ── Google Ads Sync ───────────────────────────────────────────────────────────
 
-async function syncGoogleAds(profileId: string): Promise<void> {
+async function syncGoogleAds(
+    profileId: string,
+    dateRange?: { since: string; until: string }
+): Promise<{ rowsUpserted: number }> {
     // Mutex: evita execuções paralelas
     const acquired = await acquireSyncMutex(profileId, 'google');
-    if (!acquired) return;
+    if (!acquired) return { rowsUpserted: 0 };
 
     const logId = await startSyncLog(profileId, 'google');
     let totalRows = 0;
@@ -591,14 +594,14 @@ async function syncGoogleAds(profileId: string): Promise<void> {
         if (!tokens?.access_token) {
             console.log(`[AdsSync] Google: no token for profile ${profileId}, skipping.`);
             await finishSyncLog(logId, 0, 'No access token');
-            return;
+            return { rowsUpserted: 0 };
         }
 
         const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
         if (!developerToken) {
             console.warn('[AdsSync] Google: GOOGLE_ADS_DEVELOPER_TOKEN not set, skipping.');
             await finishSyncLog(logId, 0, 'GOOGLE_ADS_DEVELOPER_TOKEN not set');
-            return;
+            return { rowsUpserted: 0 };
         }
 
         const { data: integrationRow } = await supabase
@@ -612,85 +615,119 @@ async function syncGoogleAds(profileId: string): Promise<void> {
         if (customerIds.length === 0) {
             console.log(`[AdsSync] Google: no customer_ids for profile ${profileId}, skipping.`);
             await finishSyncLog(logId, 0, 'No customer IDs configured');
-            return;
+            return { rowsUpserted: 0 };
         }
 
-    for (const customerId of customerIds) {
-        try {
-            const query = `
-                SELECT
-                    campaign.id,
-                    campaign.name,
-                    segments.date,
-                    metrics.cost_micros,
-                    metrics.impressions,
-                    metrics.clicks,
-                    metrics.conversions,
-                    metrics.conversions_value
-                FROM campaign
-                WHERE segments.date BETWEEN '${yesterday()}' AND '${today()}'
-                  AND campaign.status = 'ENABLED'
-            `;
+        const since = dateRange?.since ?? yesterday();
+        const until = dateRange?.until ?? today();
 
-            const reportRes = await axios.post(
-                `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
-                { query },
-                {
-                    headers: {
-                        Authorization: `Bearer ${tokens.access_token}`,
-                        'developer-token': developerToken,
-                        'Content-Type': 'application/json',
-                    },
+        for (const customerId of customerIds) {
+            try {
+                const query = `
+                    SELECT
+                        campaign.id,
+                        campaign.name,
+                        segments.date,
+                        metrics.cost_micros,
+                        metrics.impressions,
+                        metrics.clicks,
+                        metrics.conversions,
+                        metrics.conversions_value
+                    FROM campaign
+                    WHERE segments.date BETWEEN '${since}' AND '${until}'
+                      AND campaign.status != 'REMOVED'
+                `;
+
+                const reportRes = await withRetry(() => axios.post(
+                    `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
+                    { query },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${tokens.access_token}`,
+                            'developer-token': developerToken,
+                            'Content-Type': 'application/json',
+                        },
+                        timeout: 30000,
+                    }
+                ));
+
+                const batches: any[] = reportRes.data || [];
+                const daily: Record<string, {
+                    spend: number; impressions: number; clicks: number;
+                    purchases: number; purchaseValue: number;
+                }> = {};
+
+                for (const batch of batches) {
+                    for (const result of batch.results || []) {
+                        const date: string = result.segments?.date;
+                        if (!date) continue;
+                        const costMicros = parseInt(result.metrics?.costMicros || '0', 10);
+                        const spendBrl = Math.round((costMicros / 1_000_000) * 100) / 100;
+
+                        if (!daily[date]) daily[date] = { spend: 0, impressions: 0, clicks: 0, purchases: 0, purchaseValue: 0 };
+                        daily[date]!.spend += spendBrl;
+                        daily[date]!.impressions += parseInt(result.metrics?.impressions || '0', 10);
+                        daily[date]!.clicks += parseInt(result.metrics?.clicks || '0', 10);
+                        daily[date]!.purchases += Math.round(parseFloat(result.metrics?.conversions || '0'));
+                        daily[date]!.purchaseValue += Math.round(parseFloat(result.metrics?.conversionsValue || '0') * 100) / 100;
+                    }
                 }
-            );
 
-            const batches: any[] = reportRes.data || [];
-            const daily: Record<string, {
-                spend: number; impressions: number; clicks: number;
-                purchases: number; purchaseValue: number;
-            }> = {};
+                await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
+                    profileId,
+                    platform: 'google',
+                    date,
+                    spendBrl: m.spend,
+                    impressions: m.impressions,
+                    clicks: m.clicks,
+                    accountId: customerId,
+                    accountName: `Google Ads #${customerId}`,
+                })));
 
-            for (const batch of batches) {
-                for (const result of batch.results || []) {
-                    const date: string = result.segments?.date;
-                    const costMicros = parseInt(result.metrics?.costMicros || '0', 10);
-                    const spendBrl = Math.round((costMicros / 1_000_000) * 100) / 100;
+                totalRows += Object.keys(daily).length;
+                console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
+            } catch (err: any) {
+                const status = err.response?.status;
+                const errData = err.response?.data;
+                console.error(`[AdsSync] Google: error for ${customerId} (HTTP ${status}):`, errData || err.message);
 
-                    if (!daily[date]) daily[date] = { spend: 0, impressions: 0, clicks: 0, purchases: 0, purchaseValue: 0 };
-                    daily[date]!.spend += spendBrl;
-                    daily[date]!.impressions += parseInt(result.metrics?.impressions || '0', 10);
-                    daily[date]!.clicks += parseInt(result.metrics?.clicks || '0', 10);
-                    daily[date]!.purchases += Math.round(parseFloat(result.metrics?.conversions || '0'));
-                    daily[date]!.purchaseValue += Math.round(parseFloat(result.metrics?.conversionsValue || '0') * 100) / 100;
+                // Token expirado — marca integração como expired para forçar reconexão
+                if (status === 401) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'expired' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'google');
+                    console.warn(`[AdsSync] Google: token expired for profile ${profileId}, marked as expired.`);
+                    break;
                 }
             }
-
-            await upsertAdMetrics(Object.entries(daily).map(([date, m]) => ({
-                profileId,
-                platform: 'google',
-                date,
-                spendBrl: m.spend,
-                impressions: m.impressions,
-                clicks: m.clicks,
-                accountId: customerId,
-                accountName: `Google Ads #${customerId}`,
-            })));
-
-            totalRows += Object.keys(daily).length;
-            console.log(`[AdsSync] Google: synced ${Object.keys(daily).length} day(s) for ${customerId}`);
-        } catch (err: any) {
-            console.error(`[AdsSync] Google: error for ${customerId}:`, err.response?.data || err.message);
         }
-    }
 
-        console.log(`[AdsSync] Google: sync complete for profile ${profileId}`);
+        console.log(`[AdsSync] Google: sync complete for profile ${profileId} (${totalRows} row(s))`);
         await finishSyncLog(logId, totalRows);
+        return { rowsUpserted: totalRows };
     } catch (err: any) {
         console.error(`[AdsSync] Google: unhandled error for ${profileId}:`, err.message);
         await finishSyncLog(logId, totalRows, err.message);
+        return { rowsUpserted: totalRows };
     } finally {
         await releaseSyncMutex(profileId, 'google');
     }
+}
+
+/**
+ * Backfill de métricas do Google Ads para um perfil.
+ * - days=0 ou undefined: busca os últimos 365 dias
+ * - days=N: busca os últimos N dias
+ */
+export async function backfillGoogleAds(profileId: string, days?: number): Promise<{ rowsUpserted: number }> {
+    const effectiveDays = (!days || days <= 0) ? 365 : days;
+    const dateRange = { since: daysAgo(effectiveDays), until: today() };
+    console.log(`[AdsSync] Google backfill started for profile ${profileId} — last ${effectiveDays} days`);
+    const result = await syncGoogleAds(profileId, dateRange);
+    console.log(`[AdsSync] Google backfill complete for profile ${profileId}`);
+    return result;
 }
 
 // ── Main runner ───────────────────────────────────────────────────────────────

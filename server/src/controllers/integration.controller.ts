@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
-import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
+import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 
 /**
@@ -175,6 +175,39 @@ export async function handleCallback(req: Request, res: Response) {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
 
+        // Google Ads: descobre automaticamente as contas acessíveis e salva os IDs
+        if (platform === 'google') {
+            const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+            if (devToken) {
+                try {
+                    const customersRes = await axios.get(
+                        'https://googleads.googleapis.com/v17/customers:listAccessibleCustomers',
+                        {
+                            headers: {
+                                Authorization: `Bearer ${tokens.access_token}`,
+                                'developer-token': devToken,
+                            },
+                            timeout: 10000,
+                        }
+                    );
+                    const resourceNames: string[] = customersRes.data?.resourceNames || [];
+                    const customerIds = resourceNames.map((r: string) => r.replace('customers/', ''));
+                    if (customerIds.length > 0) {
+                        await supabase
+                            .from('integrations')
+                            .update({ google_customer_ids: customerIds })
+                            .eq('profile_id', profileId)
+                            .eq('platform', 'google');
+                        console.log(`[IntegrationController] Google: discovered ${customerIds.length} customer ID(s):`, customerIds);
+                    } else {
+                        console.warn('[IntegrationController] Google: listAccessibleCustomers returned no accounts.');
+                    }
+                } catch (discoveryErr: any) {
+                    console.warn('[IntegrationController] Google: auto-discovery of customer IDs failed:', discoveryErr.response?.data || discoveryErr.message);
+                }
+            }
+        }
+
         const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.send(`
             <html>
@@ -321,6 +354,11 @@ export async function triggerSync(req: Request, res: Response) {
         if (platform === 'meta') {
             await backfillMetaAds(profileId, days);
             return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
+        }
+
+        if (platform === 'google') {
+            const result = await backfillGoogleAds(profileId, days);
+            return res.status(200).json({ message: `Google Ads sync completed for last ${days} days.`, ...result });
         }
 
         if (platform === 'hotmart') {
