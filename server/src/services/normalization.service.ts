@@ -60,18 +60,42 @@ const HOTMART_CANCELLED_EVENTS = new Set([
 
 async function handleHotmartNormalization(payload: any, profileId: string) {
     const { event, data } = payload;
-    const transactionId: string = data.purchase.transaction;
+    const transactionId: string = data.purchase?.transaction ?? data.subscription?.subscriber_code ?? '';
+
+    if (!transactionId) {
+        console.warn(`[Hotmart] Evento ${event} sem transaction ID — ignorando`);
+        return;
+    }
 
     // ── Venda aprovada ────────────────────────────────────────────────────────
     if (event === 'PURCHASE_APPROVED') {
         const email: string = data.buyer.email;
         const amount: number = data.purchase.full_price.value;
-        // Hotmart envia visitorId em múltiplos campos dependendo da configuração
+        const fee: number = data.purchase.hotmart_fee?.total?.value ?? 0;
         const visitorId: string | undefined =
             data.purchase.src || data.purchase.hsrc || data.hsrc || data.src || undefined;
 
-        console.log(`[Hotmart] PURCHASE_APPROVED for ${email}. VisitorId: ${visitorId ?? 'none'}`);
-        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId);
+        console.log(`[Hotmart] PURCHASE_APPROVED for ${email}. Fee: ${fee}. VisitorId: ${visitorId ?? 'none'}`);
+        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee);
+        return;
+    }
+
+    // ── Assinaturas ───────────────────────────────────────────────────────────
+    if (event === 'SUBSCRIPTION_ACTIVATED' || event === 'SUBSCRIPTION_REACTIVATED') {
+        const email: string = data.buyer.email;
+        const amount: number = data.purchase.full_price.value;
+        const fee: number = data.purchase.hotmart_fee?.total?.value ?? 0;
+        const visitorId: string | undefined =
+            data.purchase.src || data.purchase.hsrc || undefined;
+
+        console.log(`[Hotmart] ${event} for ${email} tx=${transactionId}. Fee: ${fee}`);
+        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee);
+        return;
+    }
+
+    if (event === 'SUBSCRIPTION_CANCELLATION') {
+        console.log(`[Hotmart] SUBSCRIPTION_CANCELLATION tx=${transactionId} — marcando como cancelled`);
+        await syncCancellation(profileId, transactionId);
         return;
     }
 
@@ -215,7 +239,8 @@ async function syncTransaction(
     platform: string,
     externalId: string,
     amount: number,
-    visitorId?: string
+    visitorId?: string,
+    feePlatform = 0,
 ) {
     // 1. Attribution Lookup (Last Click Logic)
     let channel: AcquisitionChannel = 'desconhecido';
@@ -302,6 +327,8 @@ async function syncTransaction(
 
     // 3. Insert Transaction (com campaign_id e creator_id se resolvidos)
     console.log(`[Normalization] Inserting transaction for customer ${customer.id}`);
+    const amountNet = parseFloat((amount - feePlatform).toFixed(2));
+
     const { data: transaction, error: transError } = await supabase
         .from('transactions')
         .insert({
@@ -310,7 +337,8 @@ async function syncTransaction(
             platform,
             external_id: externalId,
             amount_gross: amount,
-            amount_net: amount,
+            amount_net: amountNet,
+            fee_platform: feePlatform,
             status: 'approved',
             northie_attribution_id: visitorId,
             campaign_id: campaignId,
@@ -351,8 +379,8 @@ async function syncTransaction(
         }
     }
 
-    // 5. Update LTV
-    const newLtv = (Number(customer.total_ltv) || 0) + amount;
+    // 5. Update LTV (baseado em amount_net — o que o produtor efetivamente recebe)
+    const newLtv = (Number(customer.total_ltv) || 0) + amountNet;
     await supabase
         .from('customers')
         .update({ total_ltv: newLtv, last_purchase_at: new Date().toISOString() })
