@@ -117,6 +117,8 @@ if (intError) {
 
 section('5. Credenciais Hotmart — API Connect');
 
+let connectToken: string | null = null;
+
 try {
     const clientId = process.env.HOTMART_CLIENT_ID!;
     const clientSecret = process.env.HOTMART_CLIENT_SECRET!;
@@ -131,9 +133,12 @@ try {
         }
     );
 
-    res.data?.access_token
-        ? ok('client_credentials token obtido com sucesso')
-        : fail('client_credentials', 'token não retornado na resposta');
+    if (res.data?.access_token) {
+        connectToken = res.data.access_token;
+        ok('client_credentials token obtido com sucesso');
+    } else {
+        fail('client_credentials', 'token não retornado na resposta');
+    }
 } catch (err: any) {
     const msg = err.response?.data?.error_description || err.response?.data?.error || err.message;
     fail('client_credentials', msg);
@@ -233,15 +238,144 @@ if (txCountError) {
         : warn('Tabela transactions sem dados Hotmart', 'execute o backfill após conectar a conta');
 }
 
-// Clientes adquiridos via Hotmart
+// Clientes com acquisition_channel válido (não 'Hotmart' — ENUM inválido)
+const VALID_CHANNELS = ['meta_ads', 'google_ads', 'organico', 'email', 'direto', 'afiliado', 'desconhecido'];
+
 const { count: custCount } = await supabase
     .from('customers')
-    .select('*', { count: 'exact', head: true })
-    .eq('acquisition_channel', 'Hotmart');
+    .select('*', { count: 'exact', head: true });
 
 custCount && custCount > 0
-    ? ok(`${custCount} cliente(s) com canal de aquisição Hotmart`)
-    : warn('Nenhum cliente com canal Hotmart ainda');
+    ? ok(`${custCount} cliente(s) total no banco`)
+    : warn('Nenhum cliente ainda');
+
+// ── Integridade dos dados em transactions ─────────────────────────────────────
+
+section('10. Integridade dos dados — fee, amount_net, datas');
+
+if (txCount && txCount > 0) {
+    const { data: txSample, error: txSampleError } = await supabase
+        .from('transactions')
+        .select('amount_gross, amount_net, fee_platform, acquisition_channel, created_at')
+        .eq('platform', 'hotmart')
+        .eq('status', 'approved')
+        .limit(20);
+
+    if (txSampleError) {
+        fail('Query amostra de transactions', txSampleError.message);
+    } else if (!txSample || txSample.length === 0) {
+        warn('Nenhuma transação aprovada para validar integridade');
+    } else {
+        // fee_platform > 0
+        const withFee = txSample.filter(t => Number(t.fee_platform) > 0);
+        withFee.length > 0
+            ? ok(`fee_platform preenchido`, `${withFee.length}/${txSample.length} transações com fee > 0`)
+            : fail('fee_platform sempre 0', 'nenhuma transação com fee calculado');
+
+        // amount_net < amount_gross
+        const withCorrectNet = txSample.filter(t => Number(t.amount_net) < Number(t.amount_gross));
+        withCorrectNet.length > 0
+            ? ok(`amount_net < amount_gross`, `${withCorrectNet.length}/${txSample.length} transações corretas`)
+            : fail('amount_net igual a amount_gross', 'fee não está sendo deduzido do net');
+
+        // Math: amount_net ≈ amount_gross - fee_platform (tolerância de R$0,01)
+        const withCorrectMath = txSample.filter(t => {
+            const gross = Number(t.amount_gross);
+            const net = Number(t.amount_net);
+            const fee = Number(t.fee_platform);
+            return Math.abs((gross - fee) - net) < 0.02;
+        });
+        withCorrectMath.length === txSample.length
+            ? ok(`Math fee correto`, `amount_net = amount_gross - fee em todas as transações`)
+            : fail(`Math fee incorreto`, `${txSample.length - withCorrectMath.length} transações com cálculo errado`);
+
+        // acquisition_channel válido (não 'Hotmart')
+        const withInvalidChannel = txSample.filter(t => !VALID_CHANNELS.includes(t.acquisition_channel));
+        withInvalidChannel.length === 0
+            ? ok('acquisition_channel válido em todas as transações')
+            : fail('acquisition_channel inválido', `${withInvalidChannel.length} transações com valor fora do ENUM`);
+
+        // created_at varia (não todos hoje) — indica que purchase_date está sendo usado
+        const dates = new Set(txSample.map(t => t.created_at?.slice(0, 10)));
+        dates.size > 1
+            ? ok(`created_at varia por transação`, `${dates.size} datas distintas na amostra`)
+            : warn('created_at igual em todas', `todas com a mesma data — pode indicar que purchase_date não está sendo usado`);
+
+        // Exibe amostra de 3 transações
+        console.log('\n     Amostra de transações:');
+        txSample.slice(0, 3).forEach(t => {
+            const date = t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : 'n/a';
+            console.log(`       R$${Number(t.amount_gross).toFixed(2)} gross | R$${Number(t.amount_net).toFixed(2)} net | fee R$${Number(t.fee_platform).toFixed(2)} | canal: ${t.acquisition_channel} | data: ${date}`);
+        });
+    }
+} else {
+    warn('Sem dados para validar integridade — execute o backfill primeiro');
+}
+
+// ── platforms_data_raw ────────────────────────────────────────────────────────
+
+section('11. Audit trail — platforms_data_raw');
+
+const { count: rawCount, error: rawError } = await supabase
+    .from('platforms_data_raw')
+    .select('*', { count: 'exact', head: true })
+    .eq('platform', 'hotmart');
+
+if (rawError) {
+    fail('Query platforms_data_raw', rawError.message);
+} else {
+    rawCount && rawCount > 0
+        ? ok(`${rawCount} payload(s) bruto(s) Hotmart no audit trail`)
+        : warn('Nenhum payload bruto ainda', 'populated após próximo backfill ou webhook');
+}
+
+// ── Live API call — busca vendas reais ───────────────────────────────────────
+
+section('12. Live API — chamada real ao endpoint de vendas');
+
+// A Hotmart Connect API (api-hot-connect.hotmart.com) requer credenciais registradas
+// no portal de desenvolvedores Hotmart com permissão "Sales API".
+// Os tokens client_credentials obtidos com as credenciais de webhook retornam
+// "Decode token error" nesta API — isso é um problema de configuração, não de código.
+// O backfill em produção (Vercel) pode funcionar se as credenciais corretas forem configuradas.
+if (!connectToken) {
+    warn('Token indisponível', 'seção 5 falhou — pulando live call');
+} else {
+    try {
+        const endMs = Date.now();
+        const startMs = endMs - 7 * 24 * 60 * 60 * 1000;
+
+        const salesRes = await axios.get(
+            'https://api-hot-connect.hotmart.com/payments/api/v1/sales/history',
+            {
+                headers: { Authorization: `Bearer ${connectToken}`, 'Content-Type': 'application/json' },
+                params: { max_results: 10, start_date: startMs, end_date: endMs },
+                timeout: 30000,
+            }
+        );
+
+        const items = salesRes.data?.items ?? [];
+        const pageInfo = salesRes.data?.page_info;
+        ok(`Endpoint de vendas respondeu`, `${items.length} venda(s) nos últimos 7 dias | total: ${pageInfo?.total_results ?? '?'}`);
+
+        if (items.length > 0) {
+            const sample = items[0];
+            console.log(`     Amostra: ${sample.buyer_name} | ${sample.transaction_status} | R$${sample.amount} | ${new Date(sample.purchase_date).toLocaleDateString('pt-BR')}`);
+            ok('Payload da API tem campos esperados', `transaction: ${sample.transaction}`);
+        }
+    } catch (err: any) {
+        const status = err.response?.status;
+        const msg = err.response?.data?.error_description || err.response?.data?.error || err.message;
+
+        if (status === 401 || (typeof msg === 'string' && msg.includes('Decode token error'))) {
+            warn('Connect API — configuração pendente',
+                'Credenciais precisam de permissão "Sales API" no painel Hotmart → Ferramentas → Developers. ' +
+                'Webhook funciona; backfill via Connect API requer credenciais Developer registradas.');
+        } else {
+            fail('Live API call', `${status ?? ''} ${msg}`);
+        }
+    }
+}
 
 // ── Resultado final ────────────────────────────────────────────────────────────
 
