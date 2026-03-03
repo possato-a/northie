@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Este arquivo fornece orientações completas para o Claude Code ao trabalhar no repositório da Northie. Contém produto, filosofia, arquitetura, design e convenções de código. SEMPRE mantenha esse arquivo atualizado com novos contextos sobre o produtos, novas features e possíveis pivots que o projeto vai sofrer, é indispensável a atualização dele.
+Este arquivo fornece orientações completas para o Claude Code ao trabalhar no repositório da Northie. Contém produto, filosofia, arquitetura, design e convenções de código. SEMPRE mantenha esse arquivo atualizado com novos contextos sobre o produtos, novas features e possíveis pivots que o projeto vai sofrer, é indispensável a atualização dele. Atualize sempre também os arquivos "northie-backend-architecture" - "northie-produto" quando julgar necessário e tiver mudanças que devem ser registradas neles, seja de pivot ou arquitetura.
 
 ## Agentes disponíveis
 
@@ -19,6 +19,24 @@ Os agentes estão em `.claude/agents/`. Use-os automaticamente conforme o contex
 | `refactoring-expert` | Melhorar qualidade de código existente, reduzir débito técnico |
 | `technical-writer` | Gerar documentação, atualizar READMEs, escrever specs |
 | `learning-guide` | Explicar conceitos, onboarding de novo contexto, ensinar padrões do projeto |
+
+### Estratégia de uso de subagentes
+
+**Sempre usar subagentes (Task tool) quando:**
+- A tarefa envolve reescrever ou modificar 2+ arquivos de página/componente simultaneamente
+- A pesquisa/exploração pode ser delegada sem travar a conversa principal
+- Trabalho é claramente independente entre arquivos (ex: 3 páginas diferentes)
+
+**Usar subagentes em paralelo:** Lançar múltiplos agents no mesmo turno (único bloco de tool calls) sempre que as tarefas não dependem umas das outras. Isso reduz o tempo total e economiza a janela de contexto principal.
+
+**Exemplo de uso correto:**
+```
+// BAD: Claude faz tudo na conversa principal
+Lê Card.tsx → reescreve → lê Raise.tsx → reescreve → lê Valuation.tsx → reescreve
+
+// GOOD: Claude delega em paralelo
+Task(Card) + Task(Raise) + Task(Valuation) → todos rodam simultaneamente
+```
 
 ---
 

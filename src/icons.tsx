@@ -65,6 +65,24 @@ export const CalendarIcon = () => (
   </svg>
 )
 
+export const CardIcon = () => (
+  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M2 0C0.895431 0 0 0.895431 0 2V14C0 15.1046 0.895431 16 2 16H18C19.1046 16 20 15.1046 20 14V2C20 0.895431 19.1046 0 18 0H2ZM1.5 5V14C1.5 14.2761 1.72386 14.5 2 14.5H18C18.2761 14.5 18.5 14.2761 18.5 14V5H1.5ZM1.5 3.5V2C1.5 1.72386 1.72386 1.5 2 1.5H18C18.2761 1.5 18.5 1.72386 18.5 2V3.5H1.5ZM3.5 10C3.5 9.72386 3.72386 9.5 4 9.5H9C9.27614 9.5 9.5 9.72386 9.5 10C9.5 10.2761 9.27614 10.5 9 10.5H4C3.72386 10.5 3.5 10.2761 3.5 10ZM4 12C3.72386 12 3.5 12.2239 3.5 12.5C3.5 12.7761 3.72386 13 4 13H7C7.27614 13 7.5 12.7761 7.5 12.5C7.5 12.2239 7.27614 12 7 12H4Z" fill="currentColor" />
+  </svg>
+)
+
+export const RaiseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M10.5303 1.46967C10.2374 1.17678 9.76256 1.17678 9.46967 1.46967L5.46967 5.46967C5.17678 5.76256 5.17678 6.23744 5.46967 6.53033C5.76256 6.82322 6.23744 6.82322 6.53033 6.53033L9.25 3.81066V12.5C9.25 12.9142 9.58579 13.25 10 13.25C10.4142 13.25 10.75 12.9142 10.75 12.5V3.81066L13.4697 6.53033C13.7626 6.82322 14.2374 6.82322 14.5303 6.53033C14.8232 6.23744 14.8232 5.76256 14.5303 5.46967L10.5303 1.46967ZM2.75 12C2.75 11.5858 2.41421 11.25 2 11.25C1.58579 11.25 1.25 11.5858 1.25 12V16C1.25 17.5188 2.48122 18.75 4 18.75H16C17.5188 18.75 18.75 17.5188 18.75 16V12C18.75 11.5858 18.4142 11.25 18 11.25C17.5858 11.25 17.25 11.5858 17.25 12V16C17.25 16.6904 16.6904 17.25 16 17.25H4C3.30964 17.25 2.75 16.6904 2.75 16V12Z" fill="currentColor" />
+  </svg>
+)
+
+export const ValuationIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fillRule="evenodd" clipRule="evenodd" d="M10 1L14.5 7.5H18L10 19L2 7.5H5.5L10 1ZM10 3.64L6.87 7.5H13.13L10 3.64ZM13.75 9H6.25L10 15.93L13.75 9Z" fill="currentColor" />
+  </svg>
+)
+
 export const AskNorthieIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M9 1L10.5 6H15.5L11.5 9L13 14L9 11L5 14L6.5 9L2.5 6H7.5L9 1Z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
