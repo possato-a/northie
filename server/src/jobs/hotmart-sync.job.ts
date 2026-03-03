@@ -12,6 +12,10 @@ import { IntegrationService } from '../services/integration.service.js';
 const HOTMART_API_BASE = 'https://api-hot-connect.hotmart.com';
 const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
 
+// Taxa padrão Hotmart para produtores (9,9%). Usada no backfill pois a API
+// de histórico não retorna o breakdown de taxas — apenas o gross amount.
+const HOTMART_FEE_RATE = 0.099;
+
 // ── Retry com backoff exponencial ─────────────────────────────────────────────
 
 /**
@@ -240,13 +244,17 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             return;
         }
 
+        const fee = parseFloat((amount * HOTMART_FEE_RATE).toFixed(2));
+        const amountNet = parseFloat((amount - fee).toFixed(2));
+
         const { error: txError } = await supabase.from('transactions').insert({
             profile_id: profileId,
             customer_id: customer.id,
             platform: 'hotmart',
             external_id: transaction,
             amount_gross: amount,
-            amount_net: amount,
+            amount_net: amountNet,
+            fee_platform: fee,
             status: 'approved',
             acquisition_channel: 'desconhecido',
             created_at: new Date(sale.purchase_date).toISOString(),
@@ -258,7 +266,7 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             return;
         }
 
-        const newLtv = (Number(customer.total_ltv) || 0) + amount;
+        const newLtv = (Number(customer.total_ltv) || 0) + amountNet;
         await supabase
             .from('customers')
             .update({ total_ltv: newLtv, last_purchase_at: new Date(sale.purchase_date).toISOString() })
