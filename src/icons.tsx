@@ -90,3 +90,13 @@ export const AskNorthieIcon = () => (
     <path d="M4 11L4.5 12.5H6L5 13.5L5.5 15L4 14L2.5 15L3 13.5L2 12.5H3.5L4 11Z" fill="currentColor" />
   </svg>
 )
+
+export const GrowthIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M2 14L7 9L11 13L18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M14 6H18V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="2" cy="14" r="1.5" fill="currentColor"/>
+    <circle cx="7" cy="9" r="1.5" fill="currentColor"/>
+    <circle cx="11" cy="13" r="1.5" fill="currentColor"/>
+  </svg>
+)

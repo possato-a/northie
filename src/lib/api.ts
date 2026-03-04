@@ -48,6 +48,14 @@ export const dataApi = {
 
 export const aiApi = {
     chat: (message: string) => api.post('/ai/chat', { message }),
+    growthChat: (message: string) => api.post('/ai/growth-chat', { message }),
+};
+
+export const growthApi = {
+    listRecommendations: () => api.get('/growth/recommendations'),
+    approve: (id: string) => api.post(`/growth/recommendations/${id}/approve`),
+    dismiss: (id: string) => api.post(`/growth/recommendations/${id}/dismiss`),
+    getStatus: (id: string) => api.get(`/growth/recommendations/${id}/status`),
 };
 
 export default api;

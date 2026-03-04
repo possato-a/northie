@@ -10,4 +10,10 @@ const router = Router();
 router.post('/chat', AIController.handleChatMessage);
 router.delete('/history', AIController.clearChatHistory);
 
+/**
+ * @route POST /api/ai/growth-chat
+ * @desc Growth-specific chat with expanded context and tool use
+ */
+router.post('/growth-chat', AIController.handleGrowthChatMessage);
+
 export default router;
