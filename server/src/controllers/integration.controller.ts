@@ -5,6 +5,7 @@ import axios from 'axios';
 import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 import { backfillStripe, runStripeSyncForAllProfiles } from '../jobs/stripe-sync.job.js';
+import { runMetaLeadAttribution } from '../jobs/meta-lead-attribution.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -485,5 +486,26 @@ export async function triggerSync(req: Request, res: Response) {
             http_status: httpStatus ?? null,
             platform: platform
         });
+    }
+}
+
+/**
+ * Atribuição retroativa via Meta Lead Ads API.
+ * Cruza emails de leads do Meta com clientes da Hotmart e atualiza acquisition_channel.
+ */
+export async function metaRetroactiveAttribution(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+
+    try {
+        console.log(`[IntegrationController] metaRetroactiveAttribution started for profile ${profileId}`);
+        const result = await runMetaLeadAttribution(profileId);
+        return res.status(200).json({
+            message: 'Atribuição retroativa concluída.',
+            ...result,
+        });
+    } catch (error: any) {
+        console.error('[IntegrationController] metaRetroactiveAttribution error:', error.message);
+        return res.status(500).json({ error: error.message });
     }
 }
