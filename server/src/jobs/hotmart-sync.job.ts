@@ -171,13 +171,21 @@ interface HotmartSalesResponse {
  * Busca todas as vendas de uma conta Hotmart com paginação automática e retry.
  * Filtra por intervalo de datas (Unix ms). Se não informado, busca tudo.
  */
+interface FetchResult {
+    sales: HotmartSale[];
+    rawFirstPage: any; // diagnostic: raw API response from first page
+    httpStatus: number;
+}
+
 async function fetchAllHotmartSales(
     accessToken: string,
     startDateMs?: number,
     endDateMs?: number,
-): Promise<HotmartSale[]> {
+): Promise<FetchResult> {
     const all: HotmartSale[] = [];
     let pageToken: string | undefined = undefined;
+    let rawFirstPage: any = null;
+    let httpStatus = 0;
 
     do {
         console.log(`[HotmartSync] Fetching page with token: ${pageToken ?? 'none'}`);
@@ -202,13 +210,28 @@ async function fetchAllHotmartSales(
             )
         );
 
+        // Capture first page raw response for diagnostics
+        if (!rawFirstPage) {
+            httpStatus = res.status;
+            rawFirstPage = {
+                status: res.status,
+                keys: Object.keys(res.data || {}),
+                page_info: res.data?.page_info,
+                items_count: res.data?.items?.length ?? 0,
+                // First item sample (redacted buyer info)
+                sample_item: res.data?.items?.[0]
+                    ? { transaction: res.data.items[0].transaction, transaction_status: res.data.items[0].transaction_status, product_name: res.data.items[0].product_name, amount: res.data.items[0].amount }
+                    : null,
+            };
+        }
+
         const items = res.data?.items ?? [];
         all.push(...items);
         pageToken = res.data?.page_info?.next_page_token;
         console.log(`[HotmartSync] Page success: ${items.length} items. Total: ${all.length}`);
     } while (pageToken);
 
-    return all;
+    return { sales: all, rawFirstPage, httpStatus };
 }
 
 // ── Process sale ──────────────────────────────────────────────────────────────
@@ -375,6 +398,7 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
     let tokenRefreshed = _tokenRefreshed;
     let totalFetched = 0;
     let tokenExpiresAt = userTokens?.expires_at ? new Date(userTokens.expires_at).toISOString() : 'unknown';
+    const debugExtra: Record<string, any> = {};
 
     try {
         // Usa o token OAuth do usuário para acessar os dados da conta Hotmart dele.
@@ -391,9 +415,13 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
         }
 
         // Busca todas as vendas com retry e timeout
-        const sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
+        const fetchResult = await fetchAllHotmartSales(accessToken, startMs, endMs);
+        const sales = fetchResult.sales;
         totalFetched = sales.length;
         console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
+
+        // Store raw API response in debug
+        Object.assign(debugExtra, { api_response: fetchResult.rawFirstPage, http_status: fetchResult.httpStatus });
 
         for (const sale of sales) {
             try {
@@ -445,6 +473,7 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
             token_expires_at: tokenExpiresAt,
             total_fetched_from_api: totalFetched,
             date_range: { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() },
+            ...debugExtra,
         },
     };
 }
