@@ -27,6 +27,12 @@ router.post('/disconnect/:platform', IntegrationController.disconnectPlatform);
  */
 router.post('/sync/:platform', IntegrationController.triggerSync);
 /**
+ * @route POST /api/integrations/meta/retroactive-attribution
+ * @desc Cross-references Meta Lead Ads emails with Hotmart customers to retroactively
+ *       attribute acquisition_channel = 'meta_ads' for matched unattributed customers.
+ */
+router.post('/meta/retroactive-attribution', IntegrationController.metaRetroactiveAttribution);
+/**
  * @route GET /api/integrations/cron/sync
  * @desc Called by Vercel Cron every 6h. Protected by CRON_SECRET.
  */

@@ -108,11 +108,13 @@ function churnProbability(daysSinceLastPurchase, frequency) {
 async function calcRfmForProfile(profileId) {
     console.log(`[RFM] Calculating for profile ${profileId}...`);
     // 1. Buscar todos os customers e suas transações
-    const { data: customers, error: cErr } = await supabase
+    const { data: customersRaw, error: cErr } = await supabase
         .from('customers')
-        .select('id, acquisition_channel, created_at, last_purchase_at, total_ltv')
+        .select('id, email, acquisition_channel, created_at, last_purchase_at, total_ltv')
         .eq('profile_id', profileId);
-    if (cErr || !customers?.length) {
+    // Filtra clientes sem email (dados órfãos — NOT NULL constraint no banco)
+    const customers = (customersRaw || []).filter(c => c.email);
+    if (cErr || !customers.length) {
         console.log(`[RFM] No customers for profile ${profileId}`);
         return;
     }
@@ -131,7 +133,7 @@ async function calcRfmForProfile(profileId) {
             ? new Date(c.last_purchase_at).getTime()
             : new Date(c.created_at).getTime();
         const recencyDays = Math.floor((now - lastPurchase) / (1000 * 60 * 60 * 24));
-        return { id: c.id, acquisition_channel: c.acquisition_channel, recencyDays, frequency, monetary };
+        return { id: c.id, email: c.email, acquisition_channel: c.acquisition_channel, recencyDays, frequency, monetary };
     });
     // 3. Calcular quintis para scoring
     const recencies = customerMetrics.map(c => c.recencyDays).sort((a, b) => a - b);
@@ -153,6 +155,8 @@ async function calcRfmForProfile(profileId) {
             const churnProb = churnProbability(c.recencyDays, c.frequency);
             return {
                 id: c.id,
+                email: c.email,
+                profile_id: profileId,
                 rfm_score: rfmScore,
                 cac,
                 churn_probability: churnProb,

@@ -225,28 +225,43 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        Promise.all([
-            dataApi.getCustomers(),
-            dashboardApi.getAttribution(),
-        ]).then(([custRes, attrRes]) => {
+        const custPromise = dataApi.getCustomers().catch(() => ({ data: [] }))
+        const attrPromise = dashboardApi.getAttribution().catch(() => ({ data: [] }))
+        const txPromise = dataApi.getTransactions().catch(() => ({ data: [] }))
+
+        Promise.all([custPromise, attrPromise, txPromise]).then(([custRes, attrRes, txRes]) => {
             // Monta mapa canal → CAC a partir dos dados de Meta/Google Ads
             const cacByChannel: Record<string, number> = {}
             for (const stat of (attrRes.data || [])) {
                 const ch = (stat.channel || '').toLowerCase().replace(' ', '_')
                 if (stat.cac > 0) cacByChannel[ch] = stat.cac
             }
-            // Também indexa pelo nome completo para facilitar lookup
             for (const stat of (attrRes.data || [])) {
                 if (stat.cac > 0) cacByChannel[stat.channel] = stat.cac
             }
 
+            // Monta mapa customer_id → lista de compras (apenas aprovadas)
+            const purchasesByCustomer = new Map<string, Array<{ date: string; product: string; value: number }>>()
+            for (const tx of (txRes.data as any[])) {
+                if (tx.status !== 'approved') continue
+                const list = purchasesByCustomer.get(tx.customer_id) || []
+                list.push({
+                    date: new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }),
+                    product: tx.product_name || '—',
+                    value: Number(tx.amount_net),
+                })
+                purchasesByCustomer.set(tx.customer_id, list)
+            }
+
             const mapped = custRes.data.map((c: any) => {
                 const channel = mapChannel(c.acquisition_channel)
-                // CAC: tenta via nome display, depois via raw DB value, senão 0
                 const cac = cacByChannel[channel] || cacByChannel[c.acquisition_channel] || 0
                 const ltv = Number(c.total_ltv)
                 const margin = cac > 0 && ltv > 0 ? Math.round(((ltv - cac) / ltv) * 100) : (ltv > 0 ? 70 : 0)
                 const status: ClientStatus = ltv > cac && cac > 0 ? 'Lucrativo' : cac > 0 ? 'Payback' : (ltv > 0 ? 'Lucrativo' : 'Payback')
+                // Ordena compras da mais recente para a mais antiga
+                const purchases = (purchasesByCustomer.get(c.id) || [])
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                 return {
                     id: c.id,
                     name: c.name || c.email || 'Cliente',
@@ -258,7 +273,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                     status,
                     segment: (c.rfm_segment as RFMSegment) || 'Novos Promissores',
                     lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
-                    purchases: [],
+                    purchases,
                     churnProb: Number(c.churn_probability || 0),
                 }
             })
