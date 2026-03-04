@@ -19,6 +19,7 @@ import { startRfmCalcJob } from './jobs/rfm-calc.job.js';
 import { webhookQueue } from './lib/webhook-queue.js';
 import { startAlertsJob } from './jobs/alerts.job.js';
 import { startGrowthCorrelationsJob } from './jobs/growth-correlations.job.js';
+import { startSafetyNetJob } from './jobs/safety-net.job.js';
 import { handleStripeWebhook } from './controllers/webhook.controller.js';
 dotenv.config({ path: '.env.local' });
 const app = express();
@@ -55,6 +56,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         webhookQueue.recoverPending();
         startAlertsJob();
         startGrowthCorrelationsJob();
+        startSafetyNetJob();
     });
 }
 export default app;

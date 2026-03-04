@@ -32,25 +32,27 @@ function quintileScore(value, sorted, ascending = true) {
     return ascending ? 5 : 1;
 }
 /**
- * Mapeia rfm_score (string "RRR") para um segmento legível.
- * Segmentos baseados no modelo padrão de RFM.
+ * Mapeia rfm_score (string "RFM") para um dos 4 segmentos da Northie.
+ *
+ * Champions       — compraram recentemente, frequência alta, alto valor
+ * Em Risco        — alto valor histórico mas recência baixa (parou de comprar)
+ * Novos Promissores — recentes com poucos pedidos ainda (potencial a explorar)
+ * Inativos        — baixo score em todas as dimensões
  */
 export function rfmSegment(score) {
     const [r, f, m] = score.split('').map(Number);
     const avg = (r + f + m) / 3;
-    if (r >= 4 && f >= 4 && m >= 4)
+    // Champions: top performers — recentes, frequentes e de alto valor
+    if (r >= 4 && f >= 3 && m >= 3)
         return 'Champions';
-    if (r >= 3 && f >= 3 && avg >= 3.5)
-        return 'Loyal';
-    if (r >= 4 && f <= 2)
-        return 'Novos Promissores';
-    if (r <= 2 && f >= 3 && m >= 3)
+    // Em Risco: valioso mas sumiu (ou alto valor + sem compra recente)
+    if ((r <= 2 && m >= 3) || (r <= 2 && f >= 3))
         return 'Em Risco';
-    if (r <= 2 && f <= 2 && m >= 3)
-        return 'Não Posso Perder';
+    // Inativos: todos os scores baixos
     if (avg <= 2)
         return 'Inativos';
-    return 'Potencial';
+    // Novos Promissores: todo o resto (recentes com potencial)
+    return 'Novos Promissores';
 }
 // ── CAC calculation ───────────────────────────────────────────────────────────
 /**
@@ -158,6 +160,7 @@ async function calcRfmForProfile(profileId) {
                 email: c.email,
                 profile_id: profileId,
                 rfm_score: rfmScore,
+                rfm_segment: rfmSegment(rfmScore),
                 cac,
                 churn_probability: churnProb,
                 rfm_updated_at: new Date().toISOString(),

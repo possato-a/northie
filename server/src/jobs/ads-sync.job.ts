@@ -170,7 +170,7 @@ interface AdCampaignPayload {
     adsetName: string;
     adId: string;
     adName: string;
-    level: 'campaign' | 'adset' | 'ad';
+    level: 'campaign' | 'adset' | 'ad' | 'keyword';
     status: string;
     objective?: string;
     date: string;
@@ -898,6 +898,86 @@ async function syncGoogleAccount(
     } catch (err: any) {
         console.error(`[AdsSync] Google: ad level error for ${customerId}:`, err.response?.data || err.message);
         if (err.response?.status === 401) throw err;
+    }
+
+    // ── Keyword level (só campanhas de Search) ────────────────────────────────
+    // Keywords só existem em campanhas SEARCH — SHOPPING/PMAX usam produto feed.
+    // Armazenamos com level='keyword': adset_id=ad_group_id, ad_id=criterion_id,
+    // ad_name="texto [TIPO]" para facilitar drill-down no dashboard.
+    try {
+        const rows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.advertising_channel_type,
+                ad_group.id,
+                ad_group.name,
+                ad_group_criterion.criterion_id,
+                ad_group_criterion.keyword.text,
+                ad_group_criterion.keyword.match_type,
+                ad_group_criterion.status,
+                segments.date,
+                metrics.cost_micros,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.conversions,
+                metrics.conversions_value
+            FROM keyword_view
+            WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
+              AND campaign.status != 'REMOVED'
+              AND ad_group.status != 'REMOVED'
+              AND ad_group_criterion.status != 'REMOVED'
+              AND campaign.advertising_channel_type = 'SEARCH'
+        `, loginCustomerId);
+
+        const batch: AdCampaignPayload[] = rows
+            .filter(r => r.segments?.date && r.adGroupCriterion?.keyword?.text)
+            .map(r => {
+                const spendBrl = toReais(r.metrics?.costMicros);
+                const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
+                const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                const conversions = Math.round(parseFloat(String(r.metrics?.conversions || '0')));
+                const matchType: string = r.adGroupCriterion?.keyword?.matchType || '';
+                const kwText: string = r.adGroupCriterion?.keyword?.text || '';
+                const criterionId = String(r.adGroupCriterion?.criterionId || '');
+                return {
+                    profileId,
+                    platform: 'google',
+                    accountId: customerId,
+                    accountName,
+                    campaignId: String(r.campaign?.id || ''),
+                    campaignName: r.campaign?.name || '',
+                    adsetId: String(r.adGroup?.id || ''),
+                    adsetName: r.adGroup?.name || '',
+                    adId: criterionId,
+                    adName: matchType ? `${kwText} [${matchType}]` : kwText,
+                    level: 'keyword',
+                    status: r.adGroupCriterion?.status || '',
+                    objective: 'SEARCH',
+                    date: r.segments.date,
+                    spendBrl,
+                    impressions,
+                    reach: 0,
+                    clicks,
+                    ctr: impressions > 0 ? round2(clicks / impressions * 100) : 0,
+                    cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
+                    cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
+                    frequency: 0,
+                    purchases: conversions,
+                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
+                    leads: 0,
+                    linkClicks: clicks,
+                    landingPageViews: 0,
+                    videoViews: 0,
+                };
+            });
+
+        await upsertAdCampaigns(batch);
+        accountRows += rows.length;
+        console.log(`[AdsSync] Google: ${rows.length} keyword row(s) for ${customerId}`);
+    } catch (err: any) {
+        // Contas sem campanhas Search não têm keywords — não é erro crítico
+        console.warn(`[AdsSync] Google: keyword level skipped for ${customerId}:`, err.response?.data?.error?.message ?? err.message);
     }
 
     return accountRows;
