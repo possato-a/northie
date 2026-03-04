@@ -18,6 +18,7 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { backfillHotmart } from './hotmart-sync.job.js';
 import { backfillShopify } from './shopify-sync.job.js';
+import { backfillStripe } from './stripe-sync.job.js';
 import { IntegrationService } from '../services/integration.service.js';
 
 const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
@@ -235,6 +236,59 @@ async function reconcileShopifyProfile(profileId: string): Promise<void> {
     }
 }
 
+// ── Stripe Safety Net ─────────────────────────────────────────────────────
+
+/**
+ * Stripe não tem endpoint de count — roda backfill forçado de 30 dias.
+ * É idempotente: transações já existentes são ignoradas via external_id.
+ */
+async function reconcileStripeProfile(profileId: string): Promise<void> {
+    const DAYS = 30;
+
+    let synced = 0;
+    try {
+        const result = await backfillStripe(profileId, DAYS);
+        synced = result.synced;
+        console.log(`[SafetyNet/Stripe] Profile ${profileId}: ${synced} recuperado(s), ${result.skipped} já existiam`);
+    } catch (err: any) {
+        console.error(`[SafetyNet/Stripe] Backfill falhou para ${profileId}:`, err.message);
+        await supabase.from('sync_logs').insert({
+            profile_id: profileId, platform: 'stripe_safety_net',
+            started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
+            status: 'error', rows_upserted: 0, error_message: err.message,
+        });
+        return;
+    }
+
+    await supabase.from('sync_logs').insert({
+        profile_id: profileId, platform: 'stripe_safety_net',
+        started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
+        status: 'success', rows_upserted: synced,
+        meta: JSON.stringify({ backfillDays: DAYS, synced }),
+    });
+}
+
+async function runStripeReconciliation(): Promise<void> {
+    const { data: integrations } = await supabase
+        .from('integrations')
+        .select('profile_id')
+        .eq('platform', 'stripe')
+        .eq('status', 'active');
+
+    if (!integrations?.length) return;
+
+    console.log(`[SafetyNet/Stripe] Reconciling ${integrations.length} profile(s)...`);
+    for (const { profile_id } of integrations) {
+        try {
+            await reconcileStripeProfile(profile_id);
+        } catch (err: any) {
+            console.error(`[SafetyNet/Stripe] Unhandled error for profile ${profile_id}:`, err.message);
+        }
+    }
+}
+
+// ── Shopify reconciliation ─────────────────────────────────────────────────
+
 async function runShopifyReconciliation(): Promise<void> {
     const { data: integrations } = await supabase
         .from('integrations')
@@ -289,6 +343,7 @@ async function runSafetyNet(): Promise<void> {
     }
 
     await runShopifyReconciliation();
+    await runStripeReconciliation();
 
     console.log('[SafetyNet] Reconciliation complete.');
 }
