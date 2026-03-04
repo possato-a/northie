@@ -169,23 +169,51 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
 }
 
 /**
- * Handler para webhooks Shopify (evento orders/paid).
+ * Handler para webhooks Shopify.
+ * Topics suportados: orders/paid, customers/create, customers/update.
  * O visitorId é injetado via note_attributes pelo pixel Northie no checkout.
  */
 async function handleShopifyNormalization(payload: any, profileId: string) {
-    if (payload.financial_status !== 'paid') return;
+    const topic: string = payload._topic ?? '';
 
-    const email: string = payload.email;
-    const amount: number = parseFloat(payload.total_price);
-    const transactionId: string = String(payload.id);
+    // ── orders/paid ──────────────────────────────────────────────────────────
+    if (topic === 'orders/paid' || (!topic && payload.financial_status === 'paid')) {
+        if (payload.financial_status !== 'paid') return;
 
-    // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
-    const noteAttrs: Array<{ name: string; value: string }> = payload.note_attributes || [];
-    const visitorId = noteAttrs.find((a: any) => a.name === 'northie_vid')?.value;
+        const email: string = payload.email || payload.customer?.email;
+        if (!email) {
+            console.warn('[Shopify] orders/paid sem email — ignorando');
+            return;
+        }
+        const amount: number = parseFloat(payload.total_price);
+        const transactionId: string = String(payload.id);
 
-    console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
+        // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
+        const noteAttrs: Array<{ name: string; value: string }> = payload.note_attributes || [];
+        const visitorId = noteAttrs.find((a: any) => a.name === 'northie_vid')?.value;
 
-    await syncTransaction(profileId, email, 'shopify', transactionId, amount, visitorId);
+        console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
+        await syncTransaction(profileId, email, 'shopify', transactionId, amount, visitorId);
+        return;
+    }
+
+    // ── customers/create | customers/update ──────────────────────────────────
+    if (topic === 'customers/create' || topic === 'customers/update') {
+        const email: string = payload.email;
+        if (!email) return;
+        const name = [payload.first_name, payload.last_name].filter(Boolean).join(' ') || undefined;
+        const { error } = await supabase
+            .from('customers')
+            .upsert(
+                { profile_id: profileId, email, ...(name ? { name } : {}) },
+                { onConflict: 'profile_id,email', ignoreDuplicates: false }
+            );
+        if (error) console.error(`[Shopify] Customer upsert error for ${email}:`, error.message);
+        else console.log(`[Shopify] Customer synced via ${topic}: ${email}`);
+        return;
+    }
+
+    console.log(`[Shopify] Topic ignorado: ${topic}`);
 }
 
 /**

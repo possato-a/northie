@@ -19,6 +19,13 @@ router.post('/stripe', express.raw({ type: 'application/json' }), WebhookControl
 router.post('/hotmart/:profileId', WebhookController.handleHotmartWebhook);
 
 /**
+ * @route POST /api/webhooks/shopify/:profileId
+ * @desc Shopify webhook com profileId na URL — raw body para verificação HMAC.
+ * Deve vir antes de /:platform para não ser capturado pelo handler genérico.
+ */
+router.post('/shopify/:profileId', express.raw({ type: 'application/json' }), WebhookController.handleShopifyWebhook);
+
+/**
  * @route POST /api/webhooks/:platform
  * @desc Generic endpoint to receive webhooks from any platform
  */

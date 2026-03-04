@@ -64,7 +64,7 @@ export class IntegrationService {
     /**
      * Generates the OAuth authorization URL for a specific platform
      */
-    static getAuthorizationUrl(platform: string, profileId: string): string {
+    static getAuthorizationUrl(platform: string, profileId: string, options?: Record<string, any>): string {
         const redirectUri = this.getRedirectUri(platform);
         const state = this.generateOAuthState(profileId);
 
@@ -88,6 +88,18 @@ export class IntegrationService {
                     `response_type=code&client_id=${process.env.STRIPE_CLIENT_ID}` +
                     `&scope=read_write&state=${encodeURIComponent(state)}` +
                     `&redirect_uri=${encodeURIComponent(this.getRedirectUri('stripe'))}`;
+
+            case 'shopify': {
+                const shop = options?.shop as string | undefined;
+                if (!shop) throw new Error('Parâmetro shop obrigatório para Shopify');
+                const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
+                const shopifyRedirectUri = this.getRedirectUri('shopify');
+                return `https://${shopDomain}/admin/oauth/authorize`
+                    + `?client_id=${process.env.SHOPIFY_API_KEY}`
+                    + `&scope=read_orders,read_customers,read_products,read_checkouts`
+                    + `&redirect_uri=${encodeURIComponent(shopifyRedirectUri)}`
+                    + `&state=${encodeURIComponent(state)}`;
+            }
 
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
@@ -300,6 +312,13 @@ export class IntegrationService {
         if (platform === 'stripe') {
             // Stripe Connect Standard tokens don't expire — nothing to refresh.
             console.log(`[IntegrationService] Stripe token is permanent for profile ${profileId}, skipping refresh.`);
+            return tokens;
+        }
+
+        // ── Shopify ───────────────────────────────────────────────────────────
+        if (platform === 'shopify') {
+            // Shopify access tokens are permanent — no expiry, no refresh needed.
+            console.log(`[IntegrationService] Shopify token is permanent for profile ${profileId}, skipping refresh.`);
             return tokens;
         }
 

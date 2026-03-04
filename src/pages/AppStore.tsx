@@ -279,6 +279,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [pluginMeta, setPluginMeta] = useState<Record<string, { connectedAccounts?: number }>>({})
     const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null)
     const [webhookOpen, setWebhookOpen] = useState<Plugin | null>(null)
+    const [shopifyDomain, setShopifyDomain] = useState('')
 
     useEffect(() => {
         if (!user?.id) return
@@ -359,6 +360,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                     meta: 'meta-ads',
                     google: 'google-ads',
                     hotmart: 'hotmart',
+                    shopify: 'shopify',
                 }
                 const id = pluginIdMap[platform] ?? `${platform}-ads`
                 setInstalledPlugins(prev => [...new Set([...prev, id])])
@@ -399,17 +401,29 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             'meta-ads': 'meta',
             'google-ads': 'google',
             'hotmart': 'hotmart',
+            'shopify': 'shopify',
         }
 
         if (pluginId in oauthPlatforms) {
             const platform = oauthPlatforms[pluginId]!
+
+            // Shopify requer o domínio da loja antes de iniciar o OAuth
+            if (pluginId === 'shopify') {
+                const shop = shopifyDomain.trim()
+                if (!shop) {
+                    alert('Informe o domínio da sua loja Shopify antes de conectar.\nEx: minhaloja.myshopify.com')
+                    return
+                }
+            }
+
             const width = 600
             const height = 700
             const left = window.screen.width / 2 - width / 2
             const top = window.screen.height / 2 - height / 2
             // Use relative URL in production, absolute only in localhost (backend runs on port 3001)
             const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
-            fetch(`${apiBase}/api/integrations/connect/${platform}?profileId=${user?.id}`)
+            const shopParam = pluginId === 'shopify' ? `&shop=${encodeURIComponent(shopifyDomain.trim())}` : ''
+            fetch(`${apiBase}/api/integrations/connect/${platform}?profileId=${user?.id}${shopParam}`)
                 .then(r => {
                     if (!r.ok) throw new Error(`Server error: ${r.status}`)
                     return r.json()
@@ -426,7 +440,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                     console.error('[AppStore] Erro ao iniciar OAuth:', err)
                     alert('Não foi possível conectar. Verifique sua conexão e tente novamente.')
                 })
-        } else if (['stripe', 'shopify'].includes(pluginId)) {
+        } else if (pluginId === 'stripe') {
             const plugin = PLUGINS.find(p => p.id === pluginId)
             if (plugin) setWebhookOpen(plugin)
         } else {
@@ -471,6 +485,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         isSyncing={syncingPlatform === currentSelectedPlugin.id}
                         isSyncingFull={syncingPlatform === `${currentSelectedPlugin.id}-full`}
                         userId={user?.id}
+                        shopifyDomain={shopifyDomain}
+                        onShopifyDomainChange={setShopifyDomain}
                     />
                 ) : (
                     <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -531,7 +547,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     )
 }
 
-function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFull, isSyncing, isSyncingFull, userId }: {
+function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFull, isSyncing, isSyncingFull, userId, shopifyDomain, onShopifyDomainChange }: {
     plugin: Plugin
     onBack: () => void
     onInstall: () => void
@@ -541,15 +557,20 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
     isSyncing: boolean
     isSyncingFull: boolean
     userId?: string
+    shopifyDomain?: string
+    onShopifyDomainChange?: (v: string) => void
 }) {
     const isConnected = plugin.status === 'Conectado'
     const isExpired = plugin.status === 'Expirado'
-    const supportsSync = ['meta-ads', 'google-ads', 'hotmart'].includes(plugin.id)
+    const supportsSync = ['meta-ads', 'google-ads', 'hotmart', 'shopify'].includes(plugin.id)
     const anySyncing = isSyncing || isSyncingFull
     const [copied, setCopied] = useState(false)
+    const [copiedShopify, setCopiedShopify] = useState(false)
     const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const copyShopifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     const webhookUrl = userId ? `${window.location.origin}/api/webhooks/hotmart/${userId}` : null
+    const shopifyWebhookUrl = userId ? `${window.location.origin}/api/webhooks/shopify/${userId}` : null
 
     const handleCopy = () => {
         if (!webhookUrl) return
@@ -557,6 +578,14 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
         setCopied(true)
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
         copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
+    }
+
+    const handleCopyShopify = () => {
+        if (!shopifyWebhookUrl) return
+        navigator.clipboard.writeText(shopifyWebhookUrl)
+        setCopiedShopify(true)
+        if (copyShopifyTimeoutRef.current) clearTimeout(copyShopifyTimeoutRef.current)
+        copyShopifyTimeoutRef.current = setTimeout(() => setCopiedShopify(false), 2000)
     }
 
     return (
@@ -661,6 +690,73 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                 </li>
                             ))}
                         </ul>
+
+                        {plugin.id === 'shopify' && !isConnected && !isExpired && (
+                            <div style={{ marginTop: 40 }}>
+                                <SectionLabel gutterBottom={12}>Domínio da sua loja</SectionLabel>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+                                    Informe o endereço da sua loja Shopify para iniciar a conexão.
+                                </p>
+                                <Input
+                                    type="text"
+                                    placeholder="minhaloja.myshopify.com"
+                                    value={shopifyDomain ?? ''}
+                                    onChange={e => onShopifyDomainChange?.(e.target.value)}
+                                    style={{ maxWidth: 360 }}
+                                />
+                            </div>
+                        )}
+
+                        {plugin.id === 'shopify' && isConnected && shopifyWebhookUrl && (
+                            <div style={{ marginTop: 40 }}>
+                                <SectionLabel gutterBottom={12}>Webhook (opcional)</SectionLabel>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+                                    Para receber pedidos em tempo real, adicione esta URL como webhook na sua loja em <strong>Configurações → Notificações → Webhooks</strong>.
+                                </p>
+                                <div style={{
+                                    background: 'var(--color-bg-secondary)', padding: '16px 20px',
+                                    borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)',
+                                    display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12
+                                }}>
+                                    <code style={{
+                                        flex: 1, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)',
+                                        color: 'var(--color-text-primary)', overflow: 'hidden',
+                                        textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0
+                                    }}>
+                                        {shopifyWebhookUrl}
+                                    </code>
+                                    <motion.button
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleCopyShopify}
+                                        style={{
+                                            flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                                            border: `1px solid ${copiedShopify ? 'var(--color-success, #22c55e)' : 'var(--color-border)'}`,
+                                            background: copiedShopify ? 'rgba(34,197,94,0.08)' : 'var(--color-bg-primary)',
+                                            color: copiedShopify ? 'var(--color-success, #22c55e)' : 'var(--color-text-secondary)',
+                                            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
+                                            fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
+                                            letterSpacing: '0.04em', textTransform: 'uppercase'
+                                        }}
+                                    >
+                                        {copiedShopify ? (
+                                            <>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                Copiado
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                                Copiar
+                                            </>
+                                        )}
+                                    </motion.button>
+                                </div>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
+                                    Evento recomendado: <strong>Pedido pago</strong> (orders/paid)
+                                </p>
+                            </div>
+                        )}
 
                         {plugin.id === 'hotmart' && isConnected && webhookUrl && (
                             <div style={{ marginTop: 40 }}>

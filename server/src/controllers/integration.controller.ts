@@ -5,6 +5,7 @@ import axios from 'axios';
 import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 import { backfillStripe, runStripeSyncForAllProfiles } from '../jobs/stripe-sync.job.js';
+import { backfillShopify, runShopifySyncForAllProfiles } from '../jobs/shopify-sync.job.js';
 import { runMetaLeadAttribution } from '../jobs/meta-lead-attribution.job.js';
 import { runRfmForAllProfiles } from '../jobs/rfm-calc.job.js';
 import { runSafetyNet } from '../jobs/safety-net.job.js';
@@ -21,7 +22,11 @@ export async function connectPlatform(req: Request, res: Response) {
     }
 
     try {
-        const authUrl = IntegrationService.getAuthorizationUrl(platform as string, profileId as string);
+        const shop = req.query.shop as string | undefined;
+        if (platform === 'shopify' && !shop) {
+            return res.status(400).json({ error: 'Parâmetro shop obrigatório para Shopify' });
+        }
+        const authUrl = IntegrationService.getAuthorizationUrl(platform as string, profileId as string, shop ? { shop } : undefined);
         console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
         res.json({ authUrl });
     } catch (error: any) {
@@ -197,6 +202,19 @@ export async function handleCallback(req: Request, res: Response) {
                 scope: tokenRes.data.scope,
                 livemode: tokenRes.data.livemode,
             };
+        } else if (platform === 'shopify') {
+            const shop = req.query.shop as string;
+            if (!shop) throw new Error('Parâmetro shop ausente no callback Shopify');
+            const tokenRes = await axios.post(`https://${shop}/admin/oauth/access_token`, {
+                client_id: process.env.SHOPIFY_API_KEY,
+                client_secret: process.env.SHOPIFY_API_SECRET,
+                code: code as string,
+            });
+            tokens = {
+                access_token: tokenRes.data.access_token,
+                scope: tokenRes.data.scope,
+                shop_domain: shop,
+            };
         } else {
             throw new Error(`Plataforma não suportada: ${platform}`);
         }
@@ -205,6 +223,18 @@ export async function handleCallback(req: Request, res: Response) {
             await IntegrationService.saveIntegration(profileId, platform as string, tokens);
         } else {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
+        }
+
+        // Shopify: salva o shop_domain e dispara backfill
+        if (platform === 'shopify') {
+            const shop = req.query.shop as string;
+            if (shop) {
+                await supabase
+                    .from('integrations')
+                    .update({ shopify_shop_domain: shop })
+                    .eq('profile_id', profileId)
+                    .eq('platform', 'shopify');
+            }
         }
 
         // Google Ads: descobre automaticamente as contas acessíveis e salva os IDs
@@ -411,6 +441,7 @@ export async function cronSync(req: Request, res: Response) {
             runAdsSyncForAllProfiles(),
             runHotmartSyncForAllProfiles(),
             runStripeSyncForAllProfiles(),
+            runShopifySyncForAllProfiles(),
         ]);
 
         // Fase 2: jobs analíticos (após sync para ter dados frescos)
@@ -474,6 +505,18 @@ export async function triggerSync(req: Request, res: Response) {
             const result = await backfillStripe(profileId, days);
             return res.status(200).json({
                 message: `Stripe sync completed for last ${days} days.`,
+                ...result,
+            });
+        }
+
+        if (platform === 'shopify') {
+            const integration = await IntegrationService.getIntegration(profileId, 'shopify');
+            if (!integration) {
+                return res.status(401).json({ error: 'Shopify não conectado. Reconecte a integração.' });
+            }
+            const result = await backfillShopify(profileId, days);
+            return res.status(200).json({
+                message: `Shopify sync completed for last ${days} days.`,
                 ...result,
             });
         }
