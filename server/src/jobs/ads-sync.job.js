@@ -466,7 +466,7 @@ async function fetchGoogleRows(customerId, accessToken, developerToken, query, l
     if (loginCustomerId && loginCustomerId !== customerId) {
         headers['login-customer-id'] = loginCustomerId;
     }
-    const res = await withRetry(() => axios.post(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`, { query }, { headers, timeout: 30000 }));
+    const res = await withRetry(() => axios.post(`https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`, { query }, { headers, timeout: 30000 }));
     const batches = res.data || [];
     const rows = [];
     for (const batch of batches)

@@ -210,7 +210,7 @@ export async function handleCallback(req: Request, res: Response) {
             if (devToken) {
                 try {
                     const customersRes = await axios.get(
-                        'https://googleads.googleapis.com/v17/customers:listAccessibleCustomers',
+                        'https://googleads.googleapis.com/v20/customers:listAccessibleCustomers',
                         {
                             headers: {
                                 Authorization: `Bearer ${tokens.access_token}`,
@@ -228,7 +228,7 @@ export async function handleCallback(req: Request, res: Response) {
                     for (const cid of allIds) {
                         try {
                             const checkRes = await axios.post(
-                                `https://googleads.googleapis.com/v17/customers/${cid}/googleAds:searchStream`,
+                                `https://googleads.googleapis.com/v20/customers/${cid}/googleAds:searchStream`,
                                 { query: 'SELECT customer.id, customer.manager FROM customer' },
                                 {
                                     headers: {

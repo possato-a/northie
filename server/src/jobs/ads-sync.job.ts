@@ -597,7 +597,7 @@ async function fetchGoogleRows(
         headers['login-customer-id'] = loginCustomerId;
     }
     const res = await withRetry(() => axios.post(
-        `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
+        `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`,
         { query },
         { headers, timeout: 30000 }
     ));
