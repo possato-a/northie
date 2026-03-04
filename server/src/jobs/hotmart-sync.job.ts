@@ -332,7 +332,7 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
  * - days=0 ou undefined: busca os últimos 365 dias
  * - days=N: busca os últimos N dias
  */
-export async function backfillHotmart(profileId: string, days?: number): Promise<{ synced: number; skipped: number; errors: number }> {
+export async function backfillHotmart(profileId: string, days?: number): Promise<{ synced: number; skipped: number; errors: number; debug?: any }> {
     const effectiveDays = (!days || days <= 0) ? 365 : days;
     const endMs = Date.now();
     const startMs = endMs - effectiveDays * 24 * 60 * 60 * 1000;
@@ -348,9 +348,11 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
     // conecta sua própria conta Hotmart e o token dá acesso aos dados dela.
     // Se o refresh falhar, o IntegrationService marca como inactive e lança erro.
     let userTokens = integration;
+    let _tokenRefreshed = false;
     if (IntegrationService.isNearExpiry(integration)) {
         console.log(`[HotmartSync] OAuth token near expiry for profile ${profileId} — refreshing before sync`);
         userTokens = await IntegrationService.refreshTokens(profileId, 'hotmart');
+        _tokenRefreshed = true;
     }
 
     // Mutex: evita execuções paralelas
@@ -365,6 +367,10 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
     let synced = 0;
     let skipped = 0;
     let errors = 0;
+    let tokenSource = 'unknown';
+    let tokenRefreshed = _tokenRefreshed;
+    let totalFetched = 0;
+    let tokenExpiresAt = userTokens?.expires_at ? new Date(userTokens.expires_at).toISOString() : 'unknown';
 
     try {
         // Usa o token OAuth do usuário para acessar os dados da conta Hotmart dele.
@@ -372,14 +378,17 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
         let accessToken: string;
         if (userTokens?.access_token) {
             accessToken = userTokens.access_token;
-            console.log(`[HotmartSync] Using user OAuth token for profile ${profileId}`);
+            tokenSource = 'user_oauth';
+            console.log(`[HotmartSync] Using user OAuth token for profile ${profileId} (expires: ${tokenExpiresAt})`);
         } else {
             accessToken = await getClientCredentialsToken();
+            tokenSource = 'client_credentials';
             console.log(`[HotmartSync] Fallback to client_credentials for profile ${profileId}`);
         }
 
         // Busca todas as vendas com retry e timeout
         const sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
+        totalFetched = sales.length;
         console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
 
         for (const sale of sales) {
@@ -424,7 +433,16 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
         await releaseSyncMutex(profileId);
     }
 
-    return { synced, skipped, errors };
+    return {
+        synced, skipped, errors,
+        debug: {
+            token_source: tokenSource,
+            token_refreshed: tokenRefreshed,
+            token_expires_at: tokenExpiresAt,
+            total_fetched_from_api: totalFetched,
+            date_range: { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() },
+        },
+    };
 }
 
 // ── Cron job ──────────────────────────────────────────────────────────────────
