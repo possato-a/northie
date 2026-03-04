@@ -10,7 +10,7 @@ interface PageProps {
 }
 
 // ── tipos ─────────────────────────────────────────────────────────
-type CardPageState = 'not_eligible' | 'eligible' | 'active'
+type CardPageState = 'not_eligible' | 'eligible' | 'pending_review' | 'active'
 
 interface NorthieCard {
     id: string
@@ -247,8 +247,8 @@ const PURPOSES = [
 ]
 const TERMS = [6, 12, 18, 24]
 
-function CreditRequestModal({ maxLimit, onClose, onConfirm }: {
-    maxLimit: number; onClose: () => void; onConfirm: (amount: number, purposes: string[], term: number) => void
+function CreditRequestModal({ maxLimit, onClose, onConfirm, loading }: {
+    maxLimit: number; onClose: () => void; onConfirm: (amount: number, purposes: string[], term: number) => void; loading?: boolean
 }) {
     const [step, setStep] = useState<1 | 2 | 3>(1)
     const [amount, setAmount] = useState(Math.round(maxLimit * 0.5 / 1000) * 1000)
@@ -396,9 +396,9 @@ function CreditRequestModal({ maxLimit, onClose, onConfirm }: {
                         </p>
 
                         <div style={{ display: 'flex', gap: 10 }}>
-                            <Btn variant="ghost" onClick={() => setStep(2)}>← Voltar</Btn>
-                            <Btn variant="primary" fullWidth onClick={() => onConfirm(amount, purposes, term)}>
-                                Solicitar crédito
+                            <Btn variant="ghost" onClick={() => setStep(2)} disabled={loading}>← Voltar</Btn>
+                            <Btn variant="primary" fullWidth onClick={() => onConfirm(amount, purposes, term)} disabled={loading}>
+                                {loading ? 'Enviando...' : 'Solicitar crédito'}
                             </Btn>
                         </div>
                     </motion.div>
@@ -411,6 +411,7 @@ function CreditRequestModal({ maxLimit, onClose, onConfirm }: {
 // ─────────────────────────────────────────────────────────────────
 export default function Card({ onToggleChat }: PageProps) {
     const [showRequestModal, setShowRequestModal] = useState(false)
+    const [submittingRequest, setSubmittingRequest] = useState(false)
     const [cards, setCards] = useState<NorthieCard[]>([])
     const [pageState, setPageState] = useState<CardPageState>('not_eligible')
     const [scoreData, setScoreData] = useState<{
@@ -427,6 +428,7 @@ export default function Card({ onToggleChat }: PageProps) {
     })
 
     useEffect(() => {
+        // Score + histórico em paralelo
         api.get('/card/score').then(r => {
             const d = r.data
             const total = d.score ?? 0
@@ -441,14 +443,25 @@ export default function Card({ onToggleChat }: PageProps) {
                 max_limit_brl: limitBrl,
                 snapshot_month: d.snapshot_month ?? '',
             })
-            // Derive page state — no active card support yet (card issuance not built)
-            setPageState(total >= 70 ? 'eligible' : 'not_eligible')
             setCredit(prev => ({ ...prev, approved_limit: limitBrl }))
+
+            // Consulta o estado da aplicação para sobrepor pageState
+            api.get('/card/application').then(ar => {
+                const app = ar.data
+                if (app?.status === 'active') {
+                    setPageState('active')
+                } else if (app?.status === 'pending_review' || app?.status === 'approved') {
+                    setPageState('pending_review')
+                } else {
+                    setPageState(total >= 70 ? 'eligible' : 'not_eligible')
+                }
+            }).catch(() => {
+                setPageState(total >= 70 ? 'eligible' : 'not_eligible')
+            })
         }).catch(console.error)
 
         api.get('/card/history').then(r => {
             const rows: { snapshot_month: string; score: number }[] = r.data ?? []
-            // snapshot_month format from DB is YYYY-MM-DD, convert to short month label
             const mapped = rows.slice().reverse().map(row => ({
                 m: new Date(row.snapshot_month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short' }),
                 s: row.score,
@@ -463,9 +476,21 @@ export default function Card({ onToggleChat }: PageProps) {
     const handleToggleFreeze = (id: string) =>
         setCards(prev => prev.map(c => c.id === id ? { ...c, frozen: !c.frozen } : c))
 
-    const handleConfirmCredit = (_amount: number, _purposes: string[], _term: number) => {
-        setShowRequestModal(false)
-        // TODO: chamar API do backend Card
+    const handleConfirmCredit = async (amount: number, purposes: string[], term: number) => {
+        setSubmittingRequest(true)
+        try {
+            await api.post('/card/request', {
+                requested_limit_brl: amount,
+                purposes,
+                term_months: term,
+            })
+            setPageState('pending_review')
+            setShowRequestModal(false)
+        } catch (err) {
+            console.error('[Card] Erro ao solicitar crédito:', err)
+        } finally {
+            setSubmittingRequest(false)
+        }
     }
 
     // KPIs dinâmicos por estado
@@ -606,6 +631,31 @@ export default function Card({ onToggleChat }: PageProps) {
                         </>
                     )}
 
+                    {/* ── Estado: EM ANÁLISE ───────────────────────── */}
+                    {pageState === 'pending_review' && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+                            style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <SectionLabel gutterBottom={0}>Solicitação enviada</SectionLabel>
+                                <span className="tag tag-planning">Em análise</span>
+                            </div>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                                Sua solicitação de crédito foi recebida. Nossa equipe está avaliando com base no seu histórico financeiro e Capital Score. Você será notificado assim que houver uma atualização.
+                            </p>
+                            <div style={{ background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                                    <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                                </svg>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                                    Prazo de análise: até 2 dias úteis
+                                </span>
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* ── Estado: ELEGÍVEL ─────────────────────────── */}
                     {pageState === 'eligible' && (
                         <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -722,6 +772,7 @@ export default function Card({ onToggleChat }: PageProps) {
                         maxLimit={score.max_limit_brl}
                         onClose={() => setShowRequestModal(false)}
                         onConfirm={handleConfirmCredit}
+                        loading={submittingRequest}
                     />
                 )}
             </AnimatePresence>
