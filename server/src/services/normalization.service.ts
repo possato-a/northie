@@ -95,8 +95,14 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
         const visitorId: string | undefined =
             data.purchase.src || data.purchase.hsrc || data.hsrc || data.src || undefined;
 
-        console.log(`[Hotmart] PURCHASE_APPROVED for ${email}. Fee: ${fee}. VisitorId: ${visitorId ?? 'none'}`);
-        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee);
+        const productName: string | undefined = data.product?.name;
+        const paymentMethod: string | undefined = mapPaymentType(data.purchase?.payment?.type) ?? undefined;
+        const buyerName: string | undefined = data.buyer?.name;
+
+        console.log(`[Hotmart] PURCHASE_APPROVED for ${email}. Fee: ${fee}. VisitorId: ${visitorId ?? 'none'}. Product: ${productName}`);
+        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee, {
+            productName, paymentMethod: paymentMethod ?? undefined, customerName: buyerName,
+        });
         return;
     }
 
@@ -109,7 +115,9 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
             data.purchase.src || data.purchase.hsrc || undefined;
 
         console.log(`[Hotmart] SUBSCRIPTION_ACTIVATED for ${email} tx=${transactionId}. Fee: ${fee}`);
-        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee);
+        await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee, {
+            productName: data.product?.name, paymentMethod: mapPaymentType(data.purchase?.payment?.type) ?? undefined, customerName: data.buyer?.name,
+        });
         return;
     }
 
@@ -128,7 +136,9 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
         const fee: number = data.purchase.hotmart_fee?.total?.value ?? 0;
 
         console.log(`[Hotmart] SUBSCRIPTION_REACTIVATED for ${email} tx=${purchaseTxId}. Fee: ${fee}`);
-        await syncTransaction(profileId, email, 'hotmart', purchaseTxId, amount, undefined, fee);
+        await syncTransaction(profileId, email, 'hotmart', purchaseTxId, amount, undefined, fee, {
+            productName: data.product?.name, paymentMethod: mapPaymentType(data.purchase?.payment?.type) ?? undefined, customerName: data.buyer?.name,
+        });
         return;
     }
 
@@ -261,9 +271,30 @@ function mapUtmToChannel(utmSource?: string): AcquisitionChannel {
 }
 
 /**
+ * Maps Hotmart payment types to display-friendly names.
+ */
+function mapPaymentType(type?: string): string | null {
+    if (!type) return null;
+    const t = type.toUpperCase();
+    if (t.includes('PIX')) return 'Pix';
+    if (t.includes('BILLET') || t.includes('BOLETO')) return 'Boleto';
+    if (t.includes('CREDIT') || t.includes('DEBIT') || t.includes('CARD')) return 'Cartão';
+    return type;
+}
+
+interface TransactionExtra {
+    productName?: string | undefined;
+    paymentMethod?: string | undefined;
+    customerName?: string | undefined;
+}
+
+/**
  * Helper to upsert customer and insert transaction with Attribution Logic.
  * Resolve canal (utm_source), campanha e criador a partir do visitor_id.
  * Gera comissão automaticamente quando uma venda de criador é detectada.
+ *
+ * First-touch attribution: acquisition_channel is only set on the customer's
+ * first purchase. Subsequent purchases preserve the original channel.
  */
 async function syncTransaction(
     profileId: string,
@@ -273,6 +304,7 @@ async function syncTransaction(
     amount: number,
     visitorId?: string,
     feePlatform = 0,
+    extra?: TransactionExtra,
 ) {
     // 1. Attribution Lookup (Last Click Logic)
     let channel: AcquisitionChannel = 'desconhecido';
@@ -340,14 +372,25 @@ async function syncTransaction(
         console.log('[Attribution] No matching visit found.');
     }
 
-    // 2. Upsert Customer
+    // 2. Upsert Customer (first-touch attribution — preserve original channel)
+    const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('id, total_ltv')
+        .eq('profile_id', profileId)
+        .eq('email', email)
+        .single();
+
+    const isNewCustomer = !existingCustomer;
+    const upsertPayload: Record<string, any> = { profile_id: profileId, email };
+    if (isNewCustomer) {
+        upsertPayload.acquisition_channel = channel;
+        if (extra?.customerName) upsertPayload.name = extra.customerName;
+    }
+
     const { data: customer, error: custError } = await supabase
         .from('customers')
-        .upsert(
-            { profile_id: profileId, email, acquisition_channel: channel },
-            { onConflict: 'profile_id, email' }
-        )
-        .select()
+        .upsert(upsertPayload, { onConflict: 'profile_id, email' })
+        .select('id, total_ltv')
         .single();
 
     if (custError) {
@@ -355,7 +398,7 @@ async function syncTransaction(
         throw custError;
     }
 
-    console.log(`[Normalization] Customer synced: ${customer.id} (Channel: ${channel})`);
+    console.log(`[Normalization] Customer synced: ${customer.id} (Channel: ${channel}, New: ${isNewCustomer})`);
 
     // 3. Insert Transaction (com campaign_id e creator_id se resolvidos)
     console.log(`[Normalization] Inserting transaction for customer ${customer.id}`);
@@ -375,6 +418,8 @@ async function syncTransaction(
             northie_attribution_id: visitorId,
             campaign_id: campaignId,
             creator_id: creatorId,
+            product_name: extra?.productName || null,
+            payment_method: extra?.paymentMethod || null,
         })
         .select('id')
         .single();
