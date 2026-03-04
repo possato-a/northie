@@ -185,7 +185,11 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
             console.warn('[Shopify] orders/paid sem email — ignorando');
             return;
         }
-        const amount: number = parseFloat(payload.total_price);
+        const amountGross: number = parseFloat(payload.total_price);
+        const tax: number = parseFloat(payload.total_tax || '0');
+        const discounts: number = parseFloat(payload.total_discounts || '0');
+        // fee_platform = tax + discounts para que syncTransaction calcule amountNet corretamente
+        const feePlatform = parseFloat((tax + discounts).toFixed(2));
         const transactionId: string = String(payload.id);
 
         // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
@@ -193,7 +197,7 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
         const visitorId = noteAttrs.find((a: any) => a.name === 'northie_vid')?.value;
 
         console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
-        await syncTransaction(profileId, email, 'shopify', transactionId, amount, visitorId);
+        await syncTransaction(profileId, email, 'shopify', transactionId, amountGross, visitorId, feePlatform);
         return;
     }
 
@@ -210,6 +214,28 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
             );
         if (error) console.error(`[Shopify] Customer upsert error for ${email}:`, error.message);
         else console.log(`[Shopify] Customer synced via ${topic}: ${email}`);
+        return;
+    }
+
+    // ── orders/refunded ──────────────────────────────────────────────────────
+    if (topic === 'orders/refunded') {
+        const email: string = payload.email || payload.customer?.email;
+        const transactionId: string = String(payload.id);
+        const refundAmount: number = parseFloat(payload.total_price || '0');
+        if (!email) {
+            console.warn(`[Shopify] orders/refunded ${transactionId} sem email — ignorando`);
+            return;
+        }
+        console.log(`[Shopify] Reembolso order ${transactionId} para ${email}`);
+        await syncRefund(profileId, email, transactionId, refundAmount);
+        return;
+    }
+
+    // ── orders/cancelled ─────────────────────────────────────────────────────
+    if (topic === 'orders/cancelled') {
+        const transactionId: string = String(payload.id);
+        console.log(`[Shopify] Cancelamento order ${transactionId}`);
+        await syncCancellation(profileId, transactionId);
         return;
     }
 

@@ -109,6 +109,7 @@ interface ShopifyOrder {
     financial_status: string;
     total_price: string;
     total_tax: string;
+    total_discounts?: string;
     created_at: string;
     note_attributes?: Array<{ name: string; value: string }>;
     customer?: {
@@ -172,7 +173,8 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
 
     const amountGross = parseFloat(order.total_price);
     const tax = parseFloat(order.total_tax || '0');
-    const amountNet = parseFloat((amountGross - tax).toFixed(2));
+    const discounts = parseFloat(order.total_discounts || '0');
+    const amountNet = parseFloat((amountGross - tax - discounts).toFixed(2));
 
     // Pixel Northie injeta visitorId como note_attribute
     const noteAttrs = order.note_attributes ?? [];
@@ -325,4 +327,25 @@ export async function runShopifySyncForAllProfiles(): Promise<void> {
     }
 
     console.log('[ShopifySync] Incremental sync complete.');
+}
+
+// ── Cron job scheduler ────────────────────────────────────────────────────────
+
+/**
+ * Inicia o cron diário de sync Shopify (roda às 04:30).
+ * Chamado uma vez no startup do servidor local.
+ */
+export function startShopifySyncJob(): void {
+    const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+    const now = new Date();
+    const nextRun = new Date();
+    nextRun.setHours(4, 30, 0, 0);
+    if (nextRun <= now) nextRun.setDate(nextRun.getDate() + 1);
+    const delay = nextRun.getTime() - now.getTime();
+
+    console.log(`[ShopifySync] Cron job scheduled — next run at ${nextRun.toISOString()}`);
+    setTimeout(() => {
+        runShopifySyncForAllProfiles();
+        setInterval(runShopifySyncForAllProfiles, INTERVAL_MS);
+    }, delay);
 }

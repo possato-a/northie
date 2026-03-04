@@ -24,6 +24,7 @@ import { startGrowthCorrelationsJob } from './jobs/growth-correlations.job.js';
 import { startSafetyNetJob } from './jobs/safety-net.job.js';
 import { startCapitalScoreJob } from './jobs/capital-score.job.js';
 import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
+import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import { handleStripeWebhook } from './controllers/webhook.controller.js';
 
 dotenv.config({ path: '.env.local' });
@@ -74,6 +75,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         startSafetyNetJob();
         startCapitalScoreJob();
         startValuationCalcJob();
+        startShopifySyncJob();
     });
 }
 
