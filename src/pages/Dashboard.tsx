@@ -27,13 +27,15 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      const [statsRes, campaignsRes] = await Promise.all([
+      const [statsRes, campaignsRes, growthRes] = await Promise.all([
         dashboardApi.getStats(),
         dashboardApi.getAdCampaigns(30),
+        dashboardApi.getGrowth(),
       ])
 
       const data = statsRes.data
       const campaigns: any[] = campaignsRes.data || []
+      const growth = growthRes.data
 
       const calcRoas = (platform: string) => {
         const filtered = campaigns.filter(c => c.platform === platform)
@@ -45,13 +47,20 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
       const totalSpend = campaigns.reduce((s, c) => s + (c.spend_brl || 0), 0)
       const totalRevenue = campaigns.reduce((s, c) => s + (c.purchase_value || 0), 0)
 
+      const growthPct = growth?.growth_percentage ?? null
+      const growthTrend = growthPct !== null
+        ? `${Math.abs(growthPct).toFixed(1)}%`
+        : undefined
+
       setStats({
         faturamento: data.total_revenue || 0,
         ticketMedio: data.average_ticket || 0,
-        pedidos: data.total_customers || 0,
+        pedidos: data.total_transactions || 0,
         roi: totalSpend > 0 ? totalRevenue / totalSpend : 0,
         roasMeta: calcRoas('meta'),
         roasGoogle: calcRoas('google'),
+        growthTrend,
+        growthPositive: growthPct !== null ? growthPct >= 0 : undefined,
       })
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
@@ -79,7 +88,7 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
 
       <PageHeader
         title={`Olá, ${userName}!`}
-        subtitle="Confira o resumo de performance da sua loja nas últimas 24 horas."
+        subtitle="Visão consolidada do seu negócio — dados em tempo real."
       />
 
       {/* KPI section */}
@@ -90,7 +99,7 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
         style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
       >
         <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
-          <KpiCard label="FATURAMENTO" value={stats?.faturamento || 0} prefix="R$ " decimals={0} delay={0.15} />
+          <KpiCard label="FATURAMENTO" value={stats?.faturamento || 0} prefix="R$ " decimals={0} delay={0.15} trend={stats?.growthTrend} positive={stats?.growthPositive} />
           <KpiCard label="TICKET MÉDIO" value={stats?.ticketMedio || 0} prefix="R$ " decimals={2} delay={0.25} />
           <KpiCard label="PEDIDOS" value={stats?.pedidos || 0} decimals={0} delay={0.35} />
           <KpiCard label="ROAS GERAL (30d)" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />

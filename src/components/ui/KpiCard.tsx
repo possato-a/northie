@@ -66,6 +66,8 @@ export function KpiCard({
   locale = 'pt-BR',
   decimals = 0,
   delay = 0,
+  trend,
+  positive,
 }: KpiCardProps) {
   return (
     <motion.div
@@ -122,6 +124,24 @@ export function KpiCard({
           />
         </span>
       </div>
+
+      {/* Trend badge */}
+      {trend && (
+        <motion.span
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: delay + 0.4 }}
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: '0.04em',
+            color: positive ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)',
+          }}
+        >
+          {positive ? '▲' : '▼'} {trend} vs mês anterior
+        </motion.span>
+      )}
     </motion.div>
   )
 }

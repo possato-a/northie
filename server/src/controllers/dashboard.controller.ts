@@ -31,12 +31,22 @@ export async function getGeneralStats(req: Request, res: Response) {
 
         if (cError) throw cError;
 
-        // 3. Average Ticket (AOV)
-        const averageTicket = customerCount && customerCount > 0 ? totalRevenue / customerCount : 0;
+        // 3. Transaction Count (correct denominator for AOV)
+        const { count: transactionCount, error: txCountError } = await supabase
+            .from('transactions')
+            .select('*', { count: 'exact', head: true })
+            .eq('profile_id', profileId)
+            .eq('status', 'approved');
+
+        if (txCountError) throw txCountError;
+
+        // 4. Average Ticket (AOV) — revenue / number of transactions
+        const averageTicket = transactionCount && transactionCount > 0 ? totalRevenue / transactionCount : 0;
 
         res.status(200).json({
             total_revenue: totalRevenue,
             total_customers: customerCount || 0,
+            total_transactions: transactionCount || 0,
             average_ticket: Number(averageTicket.toFixed(2)),
             currency: 'BRL'
         });
