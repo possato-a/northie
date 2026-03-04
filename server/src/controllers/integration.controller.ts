@@ -446,9 +446,9 @@ export async function triggerSync(req: Request, res: Response) {
             if (!integration) {
                 return res.status(401).json({ error: 'Hotmart não conectado. Reconecte a integração.' });
             }
-            // Run sync synchronously — backfillHotmart now uses client_credentials token
-            // so there is no OAuth expiry issue. Vercel allows up to 60s.
-            const result = await backfillHotmart(profileId, days);
+            // Run sync synchronously — uses user's OAuth token. Vercel allows up to 60s.
+            const force = req.body?.force === true;
+            const result = await backfillHotmart(profileId, days, force);
             return res.status(200).json({
                 message: `Hotmart sync completed for last ${days} days.`,
                 ...result,
