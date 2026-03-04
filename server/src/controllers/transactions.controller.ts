@@ -16,16 +16,7 @@ export async function listTransactions(req: Request, res: Response) {
         const { data, error } = await supabase
             .from('transactions')
             .select(`
-                id,
-                external_id,
-                platform,
-                status,
-                amount_gross,
-                amount_net,
-                product_name,
-                payment_method,
-                created_at,
-                customer_id,
+                *,
                 customers (
                     name,
                     email,
