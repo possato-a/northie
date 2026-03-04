@@ -331,7 +331,15 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             const status = err?.response?.status
             const isTimeout = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
             if (status === 401) {
-                alert('Sessão da Hotmart expirada. Desconecte e reconecte a integração para sincronizar.')
+                const platformNames: Record<string, string> = {
+                    'meta-ads': 'Meta Ads',
+                    'google-ads': 'Google Ads',
+                    'hotmart': 'Hotmart',
+                    'stripe': 'Stripe',
+                    'shopify': 'Shopify',
+                }
+                const platformName = platformNames[pluginId] ?? pluginId
+                alert(`Sessão da ${platformName} expirada. Desconecte e reconecte a integração para sincronizar.`)
             } else if (isTimeout) {
                 alert('A sincronização foi iniciada, mas demorou para confirmar. Os dados serão importados em breve.')
             } else {

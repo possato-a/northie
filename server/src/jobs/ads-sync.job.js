@@ -542,7 +542,8 @@ async function syncGoogleAccount(profileId, customerId, accessToken, developerTo
                 metrics.clicks,
                 metrics.conversions,
                 metrics.conversions_value,
-                metrics.video_views
+                metrics.video_views,
+                metrics.landing_page_views
             FROM campaign
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
@@ -583,7 +584,7 @@ async function syncGoogleAccount(profileId, customerId, accessToken, developerTo
                 purchaseValue: isPurchaseChannel ? round2(parseFloat(String(r.metrics?.conversionsValue || '0'))) : 0,
                 leads: isPurchaseChannel ? 0 : conversions,
                 linkClicks: clicks,
-                landingPageViews: 0,
+                landingPageViews: parseInt(String(r.metrics?.landingPageViews || '0'), 10),
                 videoViews: parseInt(String(r.metrics?.videoViews || '0'), 10),
             };
         });
@@ -629,7 +630,8 @@ async function syncGoogleAccount(profileId, customerId, accessToken, developerTo
                 metrics.clicks,
                 metrics.conversions,
                 metrics.conversions_value,
-                metrics.video_views
+                metrics.video_views,
+                metrics.landing_page_views
             FROM ad_group
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
@@ -671,7 +673,7 @@ async function syncGoogleAccount(profileId, customerId, accessToken, developerTo
                 purchaseValue: isPurchaseChannel ? round2(parseFloat(String(r.metrics?.conversionsValue || '0'))) : 0,
                 leads: isPurchaseChannel ? 0 : conversions,
                 linkClicks: clicks,
-                landingPageViews: 0,
+                landingPageViews: parseInt(String(r.metrics?.landingPageViews || '0'), 10),
                 videoViews: parseInt(String(r.metrics?.videoViews || '0'), 10),
             };
         });
