@@ -264,12 +264,13 @@ export async function backfillHotmart(profileId, days) {
         throw new Error(`[HotmartSync] No Hotmart integration for profile ${profileId}`);
     }
     // Renova token OAuth do usuário se próximo do vencimento.
-    // O sync usa client_credentials para buscar dados, mas mantemos o token
-    // do usuário atualizado para que a integração permaneça ativa e auditável.
+    // Usamos o token OAuth do usuário para buscar vendas — cada founder
+    // conecta sua própria conta Hotmart e o token dá acesso aos dados dela.
     // Se o refresh falhar, o IntegrationService marca como inactive e lança erro.
+    let userTokens = integration;
     if (IntegrationService.isNearExpiry(integration)) {
         console.log(`[HotmartSync] OAuth token near expiry for profile ${profileId} — refreshing before sync`);
-        await IntegrationService.refreshTokens(profileId, 'hotmart');
+        userTokens = await IntegrationService.refreshTokens(profileId, 'hotmart');
     }
     // Mutex: evita execuções paralelas
     const acquired = await acquireSyncMutex(profileId);
@@ -282,8 +283,17 @@ export async function backfillHotmart(profileId, days) {
     let skipped = 0;
     let errors = 0;
     try {
-        // Obtém token de serviço com retry
-        const accessToken = await getClientCredentialsToken();
+        // Usa o token OAuth do usuário para acessar os dados da conta Hotmart dele.
+        // Fallback para client_credentials se o token do usuário não estiver disponível.
+        let accessToken;
+        if (userTokens?.access_token) {
+            accessToken = userTokens.access_token;
+            console.log(`[HotmartSync] Using user OAuth token for profile ${profileId}`);
+        }
+        else {
+            accessToken = await getClientCredentialsToken();
+            console.log(`[HotmartSync] Fallback to client_credentials for profile ${profileId}`);
+        }
         // Busca todas as vendas com retry e timeout
         const sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
         console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
