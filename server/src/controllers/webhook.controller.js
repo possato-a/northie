@@ -4,9 +4,17 @@ import { supabase } from '../lib/supabase.js';
 import { webhookQueue } from '../lib/webhook-queue.js';
 import { validateWebhookPayload } from '../lib/webhook-schemas.js';
 import { decrypt } from '../utils/encryption.js';
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2026-01-28.clover',
-});
+// Lazy init — Stripe SDK throws if apiKey is empty
+let _stripe = null;
+function getStripe() {
+    if (!_stripe) {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (!key)
+            throw new Error('STRIPE_SECRET_KEY not configured');
+        _stripe = new Stripe(key, { apiVersion: '2026-01-28.clover' });
+    }
+    return _stripe;
+}
 /**
  * Verifica o token de autenticação de plataformas que usam segredo estático.
  * Usa comparação em tempo constante (timingSafeEqual) para prevenir timing attacks.
@@ -56,7 +64,7 @@ export async function handleStripeWebhook(req, res) {
     }
     let event;
     try {
-        event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+        event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
     }
     catch (err) {
         console.warn('[StripeWebhook] Signature verification failed:', err.message);

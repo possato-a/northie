@@ -8,7 +8,7 @@ const IV_LENGTH = 16; // For AES, this is always 16
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 if (!ENCRYPTION_KEY || Buffer.from(ENCRYPTION_KEY).length !== 32) {
-    throw new Error(
+    console.error(
         '[encryption] ENCRYPTION_KEY env var must be set to exactly 32 bytes. ' +
         'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
     );

@@ -3,13 +3,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-console.log('[AI] Anthropic SDK initialized. Key present:', !!process.env.ANTHROPIC_API_KEY);
-if (process.env.ANTHROPIC_API_KEY) {
-    console.log('[AI] Key starts with:', process.env.ANTHROPIC_API_KEY.substring(0, 10));
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+    if (!_anthropic) {
+        if (!process.env.ANTHROPIC_API_KEY) {
+            throw new Error('ANTHROPIC_API_KEY não configurada.');
+        }
+        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    }
+    return _anthropic;
 }
 
 export interface ChatContext {
@@ -48,7 +50,7 @@ Rules:
     ];
 
     try {
-        const response = await anthropic.messages.create({
+        const response = await getAnthropic().messages.create({
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 1024,
             system: systemPrompt,
@@ -192,7 +194,7 @@ correspondente na interface.
     ];
 
     try {
-        const response = await anthropic.messages.create({
+        const response = await getAnthropic().messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 2048,
             system: systemPrompt,
@@ -227,7 +229,7 @@ correspondente na interface.
                 }
 
                 // Segunda chamada com resultado da tool
-                const followUp = await anthropic.messages.create({
+                const followUp = await getAnthropic().messages.create({
                     model: 'claude-sonnet-4-6',
                     max_tokens: 2048,
                     system: systemPrompt,
