@@ -351,6 +351,8 @@ interface TransactionExtra {
     productName?: string | undefined;
     paymentMethod?: string | undefined;
     customerName?: string | undefined;
+    createdAt?: string | undefined;   // for backfill historical dates
+    phone?: string | undefined;        // customer phone
 }
 
 /**
@@ -361,7 +363,7 @@ interface TransactionExtra {
  * First-touch attribution: acquisition_channel is only set on the customer's
  * first purchase. Subsequent purchases preserve the original channel.
  */
-async function syncTransaction(
+export async function syncTransaction(
     profileId: string,
     email: string,
     platform: string,
@@ -450,6 +452,7 @@ async function syncTransaction(
     if (isNewCustomer) {
         upsertPayload.acquisition_channel = channel;
         if (extra?.customerName) upsertPayload.name = extra.customerName;
+        if (extra?.phone) upsertPayload.phone = extra.phone;
     }
 
     const { data: customer, error: custError } = await supabase
@@ -485,6 +488,7 @@ async function syncTransaction(
             creator_id: creatorId,
             product_name: extra?.productName || null,
             payment_method: extra?.paymentMethod || null,
+            ...(extra?.createdAt ? { created_at: extra.createdAt } : {}),
         })
         .select('id')
         .single();

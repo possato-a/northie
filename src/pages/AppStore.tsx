@@ -709,9 +709,9 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
 
                         {plugin.id === 'shopify' && isConnected && shopifyWebhookUrl && (
                             <div style={{ marginTop: 40 }}>
-                                <SectionLabel gutterBottom={12}>Webhook (opcional)</SectionLabel>
+                                <SectionLabel gutterBottom={12}>Webhooks Configurados</SectionLabel>
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
-                                    Para receber pedidos em tempo real, adicione esta URL como webhook na sua loja em <strong>Configurações → Notificações → Webhooks</strong>.
+                                    Webhooks registrados automaticamente na sua loja. Pedidos, reembolsos e clientes são sincronizados em tempo real.
                                 </p>
                                 <div style={{
                                     background: 'var(--color-bg-secondary)', padding: '16px 20px',
@@ -753,7 +753,7 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                     </motion.button>
                                 </div>
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
-                                    Evento recomendado: <strong>Pedido pago</strong> (orders/paid)
+                                    Eventos ativos: <strong>orders/paid · orders/refunded · orders/cancelled · customers/create · customers/update</strong>
                                 </p>
                             </div>
                         )}

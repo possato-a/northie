@@ -227,15 +227,37 @@ export async function handleCallback(req: Request, res: Response) {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
 
-        // Shopify: salva o shop_domain e dispara backfill
+        // Shopify: salva o shop_domain e registra webhooks automaticamente
         if (platform === 'shopify') {
             const shop = req.query.shop as string;
-            if (shop) {
+            const shopifyToken = tokens.access_token;
+            if (shop && shopifyToken) {
                 await supabase
                     .from('integrations')
                     .update({ shopify_shop_domain: shop })
                     .eq('profile_id', profileId)
                     .eq('platform', 'shopify');
+
+                // Registra webhooks automaticamente — elimina configuração manual
+                const backendUrl = process.env.BACKEND_URL || 'https://northie.vercel.app';
+                const webhookAddress = `${backendUrl}/api/webhooks/shopify/${profileId}`;
+                const topics = ['orders/paid', 'orders/refunded', 'orders/cancelled', 'customers/create', 'customers/update'];
+
+                for (const topic of topics) {
+                    try {
+                        await axios.post(
+                            `https://${shop}/admin/api/2024-01/webhooks.json`,
+                            { webhook: { topic, address: webhookAddress, format: 'json' } },
+                            { headers: { 'X-Shopify-Access-Token': shopifyToken }, timeout: 10000 }
+                        );
+                        console.log(`[Shopify] Webhook registrado: ${topic}`);
+                    } catch (whErr: any) {
+                        // Ignora erro 422 (webhook já existe) — idempotente
+                        if (whErr.response?.status !== 422) {
+                            console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data?.errors ?? whErr.message);
+                        }
+                    }
+                }
             }
         }
 

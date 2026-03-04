@@ -8,6 +8,7 @@
 import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
+import { syncTransaction } from '../services/normalization.service.js';
 
 const SHOPIFY_API_VERSION = '2024-01';
 
@@ -161,7 +162,6 @@ async function fetchAllOrders(shop: string, token: string, createdAtMin: string)
 // ── Process order ─────────────────────────────────────────────────────────────
 
 async function processOrder(profileId: string, order: ShopifyOrder): Promise<'synced' | 'skipped'> {
-    // Apenas pedidos pagos geram transação
     if (order.financial_status !== 'paid') return 'skipped';
 
     const email = order.email || order.customer?.email;
@@ -172,7 +172,7 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
 
     const externalId = String(order.id);
 
-    // Idempotência: verifica se transação já existe
+    // Idempotência: evita reprocessar ordens já existentes
     const { data: existing } = await supabase
         .from('transactions')
         .select('id')
@@ -182,68 +182,25 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
 
     if (existing) return 'skipped';
 
-    // total_price já reflete descontos. amount_net = total_price - tax (o que o merchant retém antes das taxas da plataforma)
     const amountGross = parseFloat(order.total_price);
     const tax = parseFloat(order.total_tax || '0');
-    const amountNet = parseFloat((amountGross - tax).toFixed(2));
 
-    // Pixel Northie injeta visitorId como note_attribute
     const noteAttrs = order.note_attributes ?? [];
     const visitorId = noteAttrs.find(a => a.name === 'northie_vid')?.value;
 
-    // Nome do produto principal (primeiro line item)
     const productName = order.line_items?.[0]
         ? [order.line_items[0].title, order.line_items[0].variant_title].filter(Boolean).join(' — ')
         : undefined;
 
-    // Upsert customer com nome e telefone
     const customerName = [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(' ') || undefined;
-    const customerPhone = order.customer?.phone || undefined;
-    const { data: customer, error: custError } = await supabase
-        .from('customers')
-        .upsert(
-            {
-                profile_id: profileId,
-                email,
-                ...(customerName ? { name: customerName } : {}),
-                ...(customerPhone ? { phone: customerPhone } : {}),
-            },
-            { onConflict: 'profile_id,email', ignoreDuplicates: false }
-        )
-        .select('id, total_ltv')
-        .single();
+    const phone = order.customer?.phone || undefined;
 
-    if (custError || !customer) {
-        console.error(`[ShopifySync] Customer upsert failed for ${email}:`, custError?.message);
-        return 'skipped';
-    }
-
-    const { error: txError } = await supabase.from('transactions').insert({
-        profile_id: profileId,
-        customer_id: customer.id,
-        platform: 'shopify',
-        external_id: externalId,
-        amount_gross: amountGross,
-        amount_net: amountNet,
-        fee_platform: tax, // Armazena o imposto — taxa real da Shopify não é exposta na REST API
-        status: 'approved',
-        created_at: order.created_at,
-        northie_attribution_id: visitorId ?? null,
-        ...(productName ? { product_name: productName } : {}),
+    await syncTransaction(profileId, email, 'shopify', externalId, amountGross, visitorId, tax, {
+        productName,
+        customerName,
+        phone,
+        createdAt: order.created_at,
     });
-
-    if (txError) {
-        if (txError.code === '23505') return 'skipped'; // Duplicate — idempotente
-        console.error(`[ShopifySync] Transaction insert failed for order ${externalId}:`, txError.message);
-        return 'skipped';
-    }
-
-    // Atualiza LTV do cliente
-    const newLtv = (Number(customer.total_ltv) || 0) + amountNet;
-    await supabase
-        .from('customers')
-        .update({ total_ltv: newLtv, last_purchase_at: order.created_at })
-        .eq('id', customer.id);
 
     return 'synced';
 }
