@@ -103,6 +103,14 @@ function getNextPageUrl(linkHeader?: string): string | null {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface ShopifyLineItem {
+    title: string;
+    variant_title?: string;
+    quantity: number;
+    price: string;
+    sku?: string;
+}
+
 interface ShopifyOrder {
     id: number;
     email: string;
@@ -112,10 +120,13 @@ interface ShopifyOrder {
     total_discounts?: string;
     created_at: string;
     note_attributes?: Array<{ name: string; value: string }>;
+    line_items?: ShopifyLineItem[];
     customer?: {
+        id?: number;
         first_name?: string;
         last_name?: string;
         email?: string;
+        phone?: string;
     };
 }
 
@@ -171,21 +182,32 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
 
     if (existing) return 'skipped';
 
+    // total_price já reflete descontos. amount_net = total_price - tax (o que o merchant retém antes das taxas da plataforma)
     const amountGross = parseFloat(order.total_price);
     const tax = parseFloat(order.total_tax || '0');
-    const discounts = parseFloat(order.total_discounts || '0');
-    const amountNet = parseFloat((amountGross - tax - discounts).toFixed(2));
+    const amountNet = parseFloat((amountGross - tax).toFixed(2));
 
     // Pixel Northie injeta visitorId como note_attribute
     const noteAttrs = order.note_attributes ?? [];
     const visitorId = noteAttrs.find(a => a.name === 'northie_vid')?.value;
 
-    // Upsert customer
+    // Nome do produto principal (primeiro line item)
+    const productName = order.line_items?.[0]
+        ? [order.line_items[0].title, order.line_items[0].variant_title].filter(Boolean).join(' — ')
+        : undefined;
+
+    // Upsert customer com nome e telefone
     const customerName = [order.customer?.first_name, order.customer?.last_name].filter(Boolean).join(' ') || undefined;
+    const customerPhone = order.customer?.phone || undefined;
     const { data: customer, error: custError } = await supabase
         .from('customers')
         .upsert(
-            { profile_id: profileId, email, ...(customerName ? { name: customerName } : {}) },
+            {
+                profile_id: profileId,
+                email,
+                ...(customerName ? { name: customerName } : {}),
+                ...(customerPhone ? { phone: customerPhone } : {}),
+            },
             { onConflict: 'profile_id,email', ignoreDuplicates: false }
         )
         .select('id, total_ltv')
@@ -203,10 +225,11 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
         external_id: externalId,
         amount_gross: amountGross,
         amount_net: amountNet,
-        fee_platform: 0, // Shopify não informa a taxa na API REST
+        fee_platform: 0, // Shopify não expõe taxa de processamento na REST API
         status: 'approved',
         created_at: order.created_at,
         northie_attribution_id: visitorId ?? null,
+        ...(productName ? { product_name: productName } : {}),
     });
 
     if (txError) {
@@ -223,6 +246,52 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
         .eq('id', customer.id);
 
     return 'synced';
+}
+
+// ── Process refund ────────────────────────────────────────────────────────────
+
+async function processRefundedOrder(profileId: string, order: ShopifyOrder): Promise<'refunded' | 'skipped'> {
+    const email = order.email || order.customer?.email;
+    const externalId = String(order.id);
+
+    const { data: tx } = await supabase
+        .from('transactions')
+        .select('id, customer_id, amount_net, status')
+        .eq('profile_id', profileId)
+        .eq('external_id', externalId)
+        .single();
+
+    if (!tx || tx.status === 'refunded') return 'skipped';
+
+    await supabase.from('transactions').update({ status: 'refunded' }).eq('id', tx.id);
+
+    if (tx.customer_id) {
+        const { data: cust } = await supabase.from('customers').select('total_ltv').eq('id', tx.customer_id).single();
+        if (cust) {
+            const newLtv = Math.max(0, (Number(cust.total_ltv) || 0) - Number(tx.amount_net));
+            await supabase.from('customers').update({ total_ltv: newLtv }).eq('id', tx.customer_id);
+        }
+    }
+
+    console.log(`[ShopifySync] Refund applied for order ${externalId} (${email})`);
+    return 'refunded';
+}
+
+async function fetchRefundedOrders(shop: string, token: string, createdAtMin: string): Promise<ShopifyOrder[]> {
+    const all: ShopifyOrder[] = [];
+    let url: string | null =
+        `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders.json`
+        + `?status=any&financial_status=refunded&limit=250&created_at_min=${encodeURIComponent(createdAtMin)}`;
+
+    while (url) {
+        const res = await withRetry(() =>
+            axios.get(url!, { headers: { 'X-Shopify-Access-Token': token }, timeout: 30000 })
+        );
+        const orders: ShopifyOrder[] = res.data?.orders ?? [];
+        all.push(...orders);
+        url = getNextPageUrl(res.headers['link'] as string | undefined);
+    }
+    return all;
 }
 
 // ── Backfill ──────────────────────────────────────────────────────────────────
@@ -262,6 +331,7 @@ export async function backfillShopify(
     let errors = 0;
 
     try {
+        // 1. Pedidos pagos
         const orders = await fetchAllOrders(shop, token, createdAtMin);
         console.log(`[ShopifySync] Fetched ${orders.length} orders for profile ${profileId}`);
 
@@ -279,6 +349,19 @@ export async function backfillShopify(
                     });
             } catch (e: any) {
                 console.error(`[ShopifySync] Error processing order ${order.id}:`, e.message);
+                errors++;
+            }
+        }
+
+        // 2. Pedidos reembolsados — garante que reembolsos históricos são refletidos no LTV
+        const refundedOrders = await fetchRefundedOrders(shop, token, createdAtMin);
+        console.log(`[ShopifySync] Fetched ${refundedOrders.length} refunded orders for profile ${profileId}`);
+
+        for (const order of refundedOrders) {
+            try {
+                await processRefundedOrder(profileId, order);
+            } catch (e: any) {
+                console.error(`[ShopifySync] Error processing refund for order ${order.id}:`, e.message);
                 errors++;
             }
         }

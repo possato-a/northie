@@ -186,18 +186,23 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
             return;
         }
         const amountGross: number = parseFloat(payload.total_price);
+        // total_price já reflete descontos — fee_platform = apenas impostos para isolar o valor líquido real
         const tax: number = parseFloat(payload.total_tax || '0');
-        const discounts: number = parseFloat(payload.total_discounts || '0');
-        // fee_platform = tax + discounts para que syncTransaction calcule amountNet corretamente
-        const feePlatform = parseFloat((tax + discounts).toFixed(2));
+        const feePlatform = parseFloat(tax.toFixed(2));
         const transactionId: string = String(payload.id);
 
         // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
         const noteAttrs: Array<{ name: string; value: string }> = payload.note_attributes || [];
         const visitorId = noteAttrs.find((a: any) => a.name === 'northie_vid')?.value;
 
+        // Nome do produto principal (primeiro line item)
+        const lineItems: any[] = payload.line_items || [];
+        const productName = lineItems[0]
+            ? [lineItems[0].title, lineItems[0].variant_title].filter(Boolean).join(' — ')
+            : undefined;
+
         console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
-        await syncTransaction(profileId, email, 'shopify', transactionId, amountGross, visitorId, feePlatform);
+        await syncTransaction(profileId, email, 'shopify', transactionId, amountGross, visitorId, feePlatform, productName ? { productName } : undefined);
         return;
     }
 
