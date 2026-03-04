@@ -6,9 +6,16 @@ import { webhookQueue } from '../lib/webhook-queue.js';
 import { validateWebhookPayload } from '../lib/webhook-schemas.js';
 import { decrypt } from '../utils/encryption.js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2026-01-28.clover' as any,
-});
+// Lazy init — Stripe SDK throws if apiKey is empty
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+    if (!_stripe) {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (!key) throw new Error('STRIPE_SECRET_KEY not configured');
+        _stripe = new Stripe(key, { apiVersion: '2026-01-28.clover' as any });
+    }
+    return _stripe;
+}
 
 /**
  * Verifica o token de autenticação de plataformas que usam segredo estático.
@@ -62,7 +69,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
 
     let event: Stripe.Event;
     try {
-        event = stripe.webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
+        event = getStripe().webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
     } catch (err: any) {
         console.warn('[StripeWebhook] Signature verification failed:', err.message);
         return res.status(400).json({ error: `Webhook Error: ${err.message}` });
