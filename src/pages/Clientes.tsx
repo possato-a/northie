@@ -7,9 +7,20 @@ import CohortHeatmap from '../components/charts/CohortHeatmap'
 import RFMCards from '../components/ui/RFMCards'
 import AIActions from '../components/ui/AIActions'
 import ClientProfile from '../components/ui/ClientProfile'
-import { dataApi } from '../lib/api'
+import { dataApi, dashboardApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
 import type { ClientUI, ClientStatus, AcquisitionChannel, RFMSegment } from '../types'
+
+// Mapeia o valor da DB (snake_case) para o nome de exibição da UI
+function mapChannel(raw: string | undefined): AcquisitionChannel {
+    const s = (raw || '').toLowerCase()
+    if (s === 'meta_ads' || s === 'meta') return 'Meta Ads'
+    if (s === 'google_ads' || s === 'google') return 'Google Ads'
+    if (s === 'organico' || s === 'organic') return 'Google Orgânico'
+    if (s === 'email' || s === 'newsletter') return 'Email'
+    if (s === 'afiliado' || s === 'affiliate') return 'Direto'
+    return 'Direto'
+}
 
 // ── Filter Constants ───────────────────────────────────────────────────────────
 
@@ -214,21 +225,43 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        dataApi.getCustomers().then(res => {
-            const mapped = res.data.map((c: any) => ({
-                id: c.id,
-                name: c.name || c.email || 'Cliente',
-                channel: c.acquisition_channel || 'Direto',
-                totalSpent: Number(c.total_ltv),
-                cac: Number(c.cac || 0),
-                ltv: Number(c.total_ltv),
-                margin: Number(c.margin || 70),
-                status: (c.total_ltv > 0 ? 'Lucrativo' : 'Payback') as ClientStatus,
-                segment: (c.rfm_segment as RFMSegment) || 'Novos Promissores',
-                lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
-                purchases: [],
-                churnProb: Number(c.churn_probability || 0),
-            }))
+        Promise.all([
+            dataApi.getCustomers(),
+            dashboardApi.getAttribution(),
+        ]).then(([custRes, attrRes]) => {
+            // Monta mapa canal → CAC a partir dos dados de Meta/Google Ads
+            const cacByChannel: Record<string, number> = {}
+            for (const stat of (attrRes.data || [])) {
+                const ch = (stat.channel || '').toLowerCase().replace(' ', '_')
+                if (stat.cac > 0) cacByChannel[ch] = stat.cac
+            }
+            // Também indexa pelo nome completo para facilitar lookup
+            for (const stat of (attrRes.data || [])) {
+                if (stat.cac > 0) cacByChannel[stat.channel] = stat.cac
+            }
+
+            const mapped = custRes.data.map((c: any) => {
+                const channel = mapChannel(c.acquisition_channel)
+                // CAC: tenta via nome display, depois via raw DB value, senão 0
+                const cac = cacByChannel[channel] || cacByChannel[c.acquisition_channel] || 0
+                const ltv = Number(c.total_ltv)
+                const margin = cac > 0 && ltv > 0 ? Math.round(((ltv - cac) / ltv) * 100) : (ltv > 0 ? 70 : 0)
+                const status: ClientStatus = ltv > cac && cac > 0 ? 'Lucrativo' : cac > 0 ? 'Payback' : (ltv > 0 ? 'Lucrativo' : 'Payback')
+                return {
+                    id: c.id,
+                    name: c.name || c.email || 'Cliente',
+                    channel,
+                    totalSpent: ltv,
+                    cac,
+                    ltv,
+                    margin,
+                    status,
+                    segment: (c.rfm_segment as RFMSegment) || 'Novos Promissores',
+                    lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
+                    purchases: [],
+                    churnProb: Number(c.churn_probability || 0),
+                }
+            })
             setClients(mapped)
         }).finally(() => setLoading(false))
     }, [])
