@@ -93,7 +93,6 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
             case 'Vendas': return ['Previsão Mensal', 'Canal mais lucrativo', 'Ticket Médio']
             case 'Visão Geral': return ['Resumo Growth', 'Alerta de CAC', 'Performance Ads']
             case 'Northie Card': return ['Como aumentar meu score?', 'Quando serei aprovado?', 'Split explicado']
-            case 'Northie Raise': return ['Explica o Northie Score', 'O que os investidores veem?', 'Comparar métricas']
             case 'Northie Valuation': return ['Por que esse múltiplo?', 'Como aumentar valuation?', 'Benchmark do segmento']
             default: return ['Resumo do dia', 'Próximas ações']
         }

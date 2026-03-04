@@ -12,6 +12,8 @@ import cronRoutes from './routes/cron.routes.js';
 import dataRoutes from './routes/data.routes.js';
 import campaignRoutes from './routes/campaign.routes.js';
 import growthRoutes from './routes/growth.routes.js';
+import cardRoutes from './routes/card.routes.js';
+import valuationRoutes from './routes/valuation.routes.js';
 import { startTokenRefreshJob } from './jobs/token-refresh.job.js';
 import { startAdsSyncJob } from './jobs/ads-sync.job.js';
 import { startHotmartSyncJob } from './jobs/hotmart-sync.job.js';
@@ -20,6 +22,8 @@ import { webhookQueue } from './lib/webhook-queue.js';
 import { startAlertsJob } from './jobs/alerts.job.js';
 import { startGrowthCorrelationsJob } from './jobs/growth-correlations.job.js';
 import { startSafetyNetJob } from './jobs/safety-net.job.js';
+import { startCapitalScoreJob } from './jobs/capital-score.job.js';
+import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { handleStripeWebhook } from './controllers/webhook.controller.js';
 dotenv.config({ path: '.env.local' });
 const app = express();
@@ -41,6 +45,8 @@ app.use('/api/cron', cronRoutes);
 app.use('/api/data', dataRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/growth', growthRoutes);
+app.use('/api/card', cardRoutes);
+app.use('/api/valuation', valuationRoutes);
 // Basic Route
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v11-debug' });
@@ -57,6 +63,8 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         startAlertsJob();
         startGrowthCorrelationsJob();
         startSafetyNetJob();
+        startCapitalScoreJob();
+        startValuationCalcJob();
     });
 }
 export default app;

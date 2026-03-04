@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import { KpiCard } from '../components/ui/KpiCard'
 import { PageHeader, Divider, SectionLabel, TabBar, TH } from '../components/ui/shared'
+import api from '../lib/api'
 
 interface PageProps {
     onToggleChat: () => void
@@ -170,29 +171,53 @@ const METHODOLOGY_LABELS: Record<string, string> = {
 
 export default function Valuation({ onToggleChat }: PageProps) {
     const [tab, setTab] = useState<'atual' | 'historico'>('atual')
+    const [current, setCurrent] = useState<ValuationSnapshot | null>(null)
+    const [history, setHistory] = useState<ValuationSnapshot[]>([])
 
-    // Mock data — será substituído pela API quando backend Valuation estiver pronto
-    const current: ValuationSnapshot = {
-        snapshot_month: 'Mar 2026',
-        valuation_brl: 1_420_000,
-        multiple: 12.5,
-        arr_brl: 113_600,
-        mrr_brl: 9_466,
-        ltv_cac_ratio: 7.2,
-        churn_rate: 0.032,
-        gross_margin: 0.74,
-        methodology: 'arr_multiple',
-        benchmark_percentile: 68,
+    useEffect(() => {
+        api.get('/valuation/current').then(r => {
+            const d = r.data
+            setCurrent({
+                snapshot_month: d.snapshot_month ?? '',
+                valuation_brl: d.valuation_brl ?? 0,
+                multiple: d.multiple ?? 0,
+                arr_brl: d.arr_brl ?? 0,
+                mrr_brl: d.mrr_brl ?? 0,
+                ltv_cac_ratio: d.ltv_cac_ratio ?? 0,
+                churn_rate: d.churn_rate ?? 0,
+                gross_margin: 0,
+                methodology: d.methodology ?? 'arr_multiple',
+                benchmark_percentile: d.benchmark_percentile ?? 50,
+            })
+        }).catch(console.error)
+
+        api.get('/valuation/history').then(r => {
+            const rows = (r.data ?? []) as ValuationSnapshot[]
+            setHistory(rows.map(d => ({
+                snapshot_month: new Date(d.snapshot_month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+                valuation_brl: d.valuation_brl,
+                multiple: d.multiple,
+                arr_brl: d.arr_brl,
+                mrr_brl: d.mrr_brl,
+                ltv_cac_ratio: d.ltv_cac_ratio,
+                churn_rate: d.churn_rate,
+                gross_margin: 0,
+                methodology: d.methodology ?? 'arr_multiple',
+                benchmark_percentile: d.benchmark_percentile,
+            })))
+        }).catch(console.error)
+    }, [])
+
+    if (!current) {
+        return (
+            <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+                <TopBar onToggleChat={onToggleChat} />
+                <div style={{ paddingTop: 80, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
+                    Calculando valuation...
+                </div>
+            </div>
+        )
     }
-
-    const history: ValuationSnapshot[] = [
-        { ...current, snapshot_month: 'Out', valuation_brl: 780_000, multiple: 9.0, arr_brl: 86_400, mrr_brl: 7_200, benchmark_percentile: 52 },
-        { ...current, snapshot_month: 'Nov', valuation_brl: 920_000, multiple: 10.2, arr_brl: 90_196, mrr_brl: 7_516, benchmark_percentile: 57 },
-        { ...current, snapshot_month: 'Dez', valuation_brl: 1_050_000, multiple: 10.8, arr_brl: 97_200, mrr_brl: 8_100, benchmark_percentile: 60 },
-        { ...current, snapshot_month: 'Jan', valuation_brl: 1_150_000, multiple: 11.0, arr_brl: 104_544, mrr_brl: 8_712, benchmark_percentile: 63 },
-        { ...current, snapshot_month: 'Fev', valuation_brl: 1_280_000, multiple: 11.8, arr_brl: 108_480, mrr_brl: 9_040, benchmark_percentile: 66 },
-        { ...current, snapshot_month: 'Mar', valuation_brl: 1_420_000, multiple: 12.5, arr_brl: 113_600, mrr_brl: 9_466, benchmark_percentile: 68 },
-    ]
 
     const monthlyDelta = history.length >= 2
         ? ((history[history.length - 1].valuation_brl - history[history.length - 2].valuation_brl) / history[history.length - 2].valuation_brl * 100)

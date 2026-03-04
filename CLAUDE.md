@@ -32,10 +32,10 @@ Os agentes estão em `.claude/agents/`. Use-os automaticamente conforme o contex
 **Exemplo de uso correto:**
 ```
 // BAD: Claude faz tudo na conversa principal
-Lê Card.tsx → reescreve → lê Raise.tsx → reescreve → lê Valuation.tsx → reescreve
+Lê Card.tsx → reescreve → lê Valuation.tsx → reescreve
 
 // GOOD: Claude delega em paralelo
-Task(Card) + Task(Raise) + Task(Valuation) → todos rodam simultaneamente
+Task(Card) + Task(Valuation) → todos rodam simultaneamente
 ```
 
 ---
@@ -75,12 +75,7 @@ Capital Score: visível desde o primeiro dia, atualizado mensalmente. Founder qu
 
 Opera via parceiro financeiro regulado (QI Tech ou Celcoin). A Northie faz o underwriting e fica com o spread + MDR das transações.
 
-### Produto 3 — Northie Raise
-Data room auditado e contínuo. Não é ferramenta para encontrar investidor — é ferramenta para não perder o investidor que você já encontrou. Resolve a due diligence, não o acesso.
-
-Métricas conectadas às fontes reais: faturamento do Stripe, CAC do Meta Ads, LTV da base de clientes, cohort de retenção. Dados impossíveis de manipular. Northie Score calculado automaticamente. Link de acesso com permissões configuráveis. Exportação de relatório PDF.
-
-### Produto 4 — Northie Valuation
+### Produto 3 — Northie Valuation
 O founder acompanha quanto o negócio vale hoje — calculado com base nos dados reais, atualizado todo mês. Múltiplo de receita, ARR, LTV/CAC com benchmark de negócios similares dentro da própria plataforma Northie (não relatório genérico de mercado).
 
 ### Feature Transversal — Relatórios Automáticos
@@ -159,7 +154,6 @@ O backend atua como orquestrador: filtra dados normalizados, entrega contexto li
 ### Produtos Financeiros
 - **`capital_score_history`**: Histórico mensal do Capital Score por founder
 - **`card_applications`**: Lista de espera e aplicações para o Northie Card
-- **`raise_rooms`**: Data rooms criados, permissões, links de acesso, histórico de visualizações
 - **`valuation_snapshots`**: Snapshots mensais de valuation calculado com metodologia e benchmark
 
 ### Atribuição e IA
@@ -219,7 +213,6 @@ src/
   pages/
     Growth/         # Northie Growth — correlações e execução
     Card/           # Northie Card — Capital Score, lista de espera
-    Raise/          # Northie Raise — data room, métricas auditadas
     Valuation/      # Northie Valuation — valor do negócio
     Dashboard/      # Visão Geral (complemento)
     Clientes/       # Base de clientes com unit economics (complemento)
@@ -244,7 +237,6 @@ server/src/
     normalization/  # Northie Schema
     growth/         # Motor de correlações e execução
     capital/        # Underwriting, Capital Score
-    raise/          # Data room, Northie Score
     valuation/      # Cálculo de valuation, benchmark
   lib/
     supabase.ts
@@ -288,7 +280,7 @@ supabase/
 
 4. **Dados acumulados são o moat** — o histórico que cresce mês a mês é o ativo mais valioso. Decisões de arquitetura devem sempre proteger e enriquecer esse histórico.
 
-5. **Financeiro como consequência** — o produto resolve crescimento. Capital, Raise e Valuation são consequências naturais de ter dados que ninguém mais tem — não features de uma fintech.
+5. **Financeiro como consequência** — o produto resolve crescimento. Capital e Valuation são consequências naturais de ter dados que ninguém mais tem — não features de uma fintech.
 
 ## Colaboração entre founders
 
@@ -323,7 +315,6 @@ Banco estável antes de qualquer desenvolvimento paralelo. Victor em modo estudo
 |--------|--------|
 | `feat/db-schema-review` | Revisar schema existente — consistência de tipos, naming e foreign keys |
 | `feat/db-card` | Migration: `capital_score_history` + `card_applications` |
-| `feat/db-raise` | Migration: `raise_rooms` + permissões de acesso |
 | `feat/db-valuation` | Migration: `valuation_snapshots` |
 | `feat/db-rls` | RLS policies completas em todas as tabelas |
 | `feat/db-docs` | Documentar schema final |
@@ -340,7 +331,6 @@ Banco estável antes de qualquer desenvolvimento paralelo. Victor em modo estudo
 | `feat/shopify-integration` | Shopify — OAuth + sync de pedidos |
 | `feat/growth-page` | Tela Growth — recomendações + fluxo de confirmação |
 | `feat/card-page` | Tela Card — Capital Score visual + lista de espera |
-| `feat/raise-page` | Tela Raise — data room + métricas ao vivo |
 | `feat/valuation-page` | Tela Valuation — valor do negócio + histórico |
 
 **Victor**

@@ -122,32 +122,13 @@ O score melhora com o tempo dentro da Northie — quanto mais histórico, mais p
 
 ---
 
-# Produto 3 — Northie Raise
-
-Métricas auditadas para founders que querem captar ou vender o negócio.
-
-Não são dois produtos separados. São dois caminhos do mesmo ecossistema dependendo do estágio do negócio.
-
-## Features
-
-- Painel de métricas conectadas às fontes reais: faturamento, MRR, ARR, LTV por canal, CAC por campanha, cohort de retenção, margem de contribuição, churn
-- Histórico de evolução de cada métrica ao longo do tempo
-- Northie Score — índice de saúde do negócio calculado automaticamente pelo cruzamento de todas as métricas
-- Link de acesso para investidores com permissões configuráveis — o founder decide o que cada investidor vê
-- Visibilidade de quais investidores acessaram e por quanto tempo
-- Exportação de relatório completo em PDF para apresentações, reuniões e processos de captação
-
----
-
-# Produto 4 — Northie Valuation
+# Produto 3 — Northie Valuation
 
 O founder acompanha quanto o negócio vale hoje — calculado automaticamente com base nos dados reais da plataforma, atualizado todo mês.
 
 Não é previsão. Não é aspiração. É cálculo baseado em performance real — múltiplo de receita, ARR, LTV/CAC — com benchmark de mercado de negócios similares no Brasil. O benchmark não vem de relatório genérico de mercado — vem de negócios reais dentro da plataforma Northie, com perfis similares em segmento, modelo de receita e estágio.
 
 O founder que usa o Growth para aumentar receita vê o impacto direto no Valuation. O que usa o Card para escalar vê o negócio valer mais mês a mês. Crescimento e valor construído se tornam a mesma métrica — não duas conversas separadas.
-
-Quando quiser levantar uma rodada via Raise, o Valuation já é o ponto de partida da negociação — calculado pelos dados que o investidor também pode ver, não pelo que o founder acha que o negócio vale.
 
 ---
 
@@ -159,7 +140,6 @@ O founder configura relatórios automáticos — semanal, mensal, trimestral —
 
 - **Growth** — relatório de performance das ações executadas: quais correlações foram encontradas, quais ações foram aprovadas, qual o impacto na receita
 - **Northie Card** — extrato inteligente com contexto de crescimento: onde o capital foi usado, qual o retorno gerado por canal, saldo devedor e projeção de quitação
-- **Northie Raise** — relatório completo de métricas para investidores em PDF visual, exportável a qualquer momento
 - **Northie Valuation** — evolução mensal do valuation com benchmark comparativo de negócios similares na plataforma
 
 O founder não precisa abrir a Northie para sentir o valor da Northie. Todo mês os relatórios chegam — e lembram que o negócio está sendo acompanhado, analisado e otimizado.
