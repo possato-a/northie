@@ -120,7 +120,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
  * Cada founder configura a URL única no painel da Hotmart — sem necessidade de header x-profile-id.
  */
 export async function handleHotmartWebhook(req: Request, res: Response) {
-    const { profileId } = req.params;
+    const profileId = req.params.profileId as string;
 
     if (!profileId) {
         return res.status(400).json({ error: 'Missing profileId in URL' });

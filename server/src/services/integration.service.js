@@ -47,7 +47,11 @@ export class IntegrationService {
      * Prevents issues with trailing slashes in BACKEND_URL.
      */
     static getRedirectUri(platform) {
-        const baseUrl = (process.env.BACKEND_URL || 'http://localhost:3001').replace(/\/+$/, '');
+        const baseUrl = process.env.BACKEND_URL
+            ? process.env.BACKEND_URL.replace(/\/+$/, '')
+            : process.env.VERCEL_URL
+                ? `https://${process.env.VERCEL_URL}`
+                : 'http://localhost:3001';
         return `${baseUrl}/api/integrations/callback/${platform}`;
     }
     /**
@@ -67,6 +71,11 @@ export class IntegrationService {
             case 'hotmart':
                 const hotmartClientId = process.env.HOTMART_CLIENT_ID;
                 return `https://api-sec-vlc.hotmart.com/security/oauth/authorize?client_id=${hotmartClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(state)}`;
+            case 'stripe':
+                return `https://connect.stripe.com/oauth/authorize?` +
+                    `response_type=code&client_id=${process.env.STRIPE_CLIENT_ID}` +
+                    `&scope=read_write&state=${encodeURIComponent(state)}` +
+                    `&redirect_uri=${encodeURIComponent(this.getRedirectUri('stripe'))}`;
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
         }
@@ -256,6 +265,12 @@ export class IntegrationService {
                     .eq('platform', 'hotmart');
                 throw error;
             }
+        }
+        // ── Stripe ────────────────────────────────────────────────────────────
+        if (platform === 'stripe') {
+            // Stripe Connect Standard tokens don't expire — nothing to refresh.
+            console.log(`[IntegrationService] Stripe token is permanent for profile ${profileId}, skipping refresh.`);
+            return tokens;
         }
         throw new Error(`[IntegrationService] refreshTokens not implemented for platform: ${platform}`);
     }

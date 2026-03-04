@@ -83,8 +83,9 @@ export async function getAttributionStats(req, res) {
             // Normalize to same channel names used above
             const ch = raw.includes('meta') ? 'Meta Ads'
                 : raw.includes('google') ? 'Google Ads'
-                    : raw === 'desconhecido' ? 'Direto / Outros'
-                        : (c.acquisition_channel || 'Direto / Outros');
+                    : raw.includes('hotmart') ? 'Hotmart'
+                        : raw === 'desconhecido' ? 'Direto / Outros'
+                            : (c.acquisition_channel || 'Direto / Outros');
             ensureChannel(ch);
             const entry = channelStats[ch];
             entry.ltv_sum += Number(c.total_ltv || 0);
