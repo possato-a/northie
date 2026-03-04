@@ -277,7 +277,7 @@ export async function backfillHotmart(profileId, days) {
     // Mutex: evita execuções paralelas
     const acquired = await acquireSyncMutex(profileId);
     if (!acquired)
-        return { synced: 0, skipped: 0, errors: 0 };
+        return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
     // Logging estruturado
     const logId = await startSyncLog(profileId);
     console.log(`[HotmartSync] Starting backfill for profile ${profileId} — last ${effectiveDays} days`);

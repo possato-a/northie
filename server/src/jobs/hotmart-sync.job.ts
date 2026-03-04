@@ -357,7 +357,7 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
 
     // Mutex: evita execuções paralelas
     const acquired = await acquireSyncMutex(profileId);
-    if (!acquired) return { synced: 0, skipped: 0, errors: 0 };
+    if (!acquired) return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
 
     // Logging estruturado
     const logId = await startSyncLog(profileId);

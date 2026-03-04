@@ -49,7 +49,7 @@ app.use('/api/growth', growthRoutes);
 
 // Basic Route
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'northie-backend' });
+    res.json({ status: 'ok', service: 'northie-backend', version: 'v11-debug' });
 });
 
 
