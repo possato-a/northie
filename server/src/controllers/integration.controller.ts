@@ -191,19 +191,50 @@ export async function handleCallback(req: Request, res: Response) {
                         }
                     );
                     const resourceNames: string[] = customersRes.data?.resourceNames || [];
-                    const customerIds = resourceNames.map((r: string) => r.replace('customers/', ''));
-                    if (customerIds.length > 0) {
+                    const allIds = resourceNames.map((r: string) => r.replace('customers/', ''));
+
+                    // Filtra contas MCC (manager) — não têm métricas de campanha diretamente
+                    const leafIds: string[] = [];
+                    for (const cid of allIds) {
+                        try {
+                            const checkRes = await axios.post(
+                                `https://googleads.googleapis.com/v17/customers/${cid}/googleAds:searchStream`,
+                                { query: 'SELECT customer.id, customer.manager FROM customer' },
+                                {
+                                    headers: {
+                                        Authorization: `Bearer ${tokens.access_token}`,
+                                        'developer-token': devToken,
+                                        'Content-Type': 'application/json',
+                                    },
+                                    timeout: 8000,
+                                }
+                            );
+                            const results = checkRes.data?.[0]?.results || [];
+                            const isManager = results[0]?.customer?.manager === true;
+                            if (!isManager) {
+                                leafIds.push(cid);
+                            } else {
+                                console.log(`[IntegrationController] Google: ${cid} é conta MCC (manager), ignorando para sync de métricas`);
+                            }
+                        } catch {
+                            // Se não conseguir verificar, inclui por precaução
+                            leafIds.push(cid);
+                        }
+                    }
+
+                    const idsToStore = leafIds.length > 0 ? leafIds : allIds;
+                    if (idsToStore.length > 0) {
                         await supabase
                             .from('integrations')
-                            .update({ google_customer_ids: customerIds })
+                            .update({ google_customer_ids: idsToStore })
                             .eq('profile_id', profileId)
                             .eq('platform', 'google');
-                        console.log(`[IntegrationController] Google: discovered ${customerIds.length} customer ID(s):`, customerIds);
+                        console.log(`[IntegrationController] Google: ${idsToStore.length} conta(s) leaf salvas:`, idsToStore);
                     } else {
-                        console.warn('[IntegrationController] Google: listAccessibleCustomers returned no accounts.');
+                        console.warn('[IntegrationController] Google: nenhuma conta encontrada.');
                     }
                 } catch (discoveryErr: any) {
-                    console.warn('[IntegrationController] Google: auto-discovery of customer IDs failed:', discoveryErr.response?.data || discoveryErr.message);
+                    console.warn('[IntegrationController] Google: auto-discovery falhou:', discoveryErr.response?.data || discoveryErr.message);
                 }
             }
         }
@@ -304,7 +335,7 @@ export async function getIntegrationStatus(req: Request, res: Response) {
     try {
         const { data, error } = await supabase
             .from('integrations')
-            .select('platform, status, last_sync_at')
+            .select('platform, status, last_sync_at, google_customer_ids')
             .eq('profile_id', profileId);
 
         if (error) throw error;

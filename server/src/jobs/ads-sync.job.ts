@@ -586,18 +586,20 @@ async function fetchGoogleRows(
     accessToken: string,
     developerToken: string,
     query: string,
+    loginCustomerId?: string,
 ): Promise<any[]> {
+    const headers: Record<string, string> = {
+        Authorization: `Bearer ${accessToken}`,
+        'developer-token': developerToken,
+        'Content-Type': 'application/json',
+    };
+    if (loginCustomerId && loginCustomerId !== customerId) {
+        headers['login-customer-id'] = loginCustomerId;
+    }
     const res = await withRetry(() => axios.post(
         `https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`,
         { query },
-        {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'developer-token': developerToken,
-                'Content-Type': 'application/json',
-            },
-            timeout: 30000,
-        }
+        { headers, timeout: 30000 }
     ));
     const batches: any[] = res.data || [];
     const rows: any[] = [];
@@ -635,6 +637,29 @@ async function syncGoogleAccount(
         // fallback para o ID — não bloqueia o sync
     }
 
+    // ── Fix: detecta moeda da conta e calcula taxa de conversão ───────────────
+    let exchangeRate = 1.0;
+    try {
+        const currencyRows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+            SELECT customer.currency_code FROM customer
+        `);
+        const currencyCode: string = currencyRows[0]?.customer?.currencyCode || 'BRL';
+        if (currencyCode !== 'BRL') {
+            const rateRes = await axios.get(
+                `https://api.exchangerate-api.com/v4/latest/${currencyCode}`,
+                { timeout: 5000 }
+            );
+            exchangeRate = rateRes.data?.rates?.BRL || 5.5;
+            console.log(`[AdsSync] Google: conta ${customerId} usa ${currencyCode}, taxa BRL: ${exchangeRate}`);
+        }
+    } catch {
+        console.warn(`[AdsSync] Google: não foi possível detectar moeda de ${customerId}, assumindo BRL`);
+    }
+
+    // Helper local que aplica taxa de câmbio
+    const toReais = (micros: any): number =>
+        round2((parseInt(String(micros || '0'), 10) / 1_000_000) * exchangeRate);
+
     // Heurística de tipo de conversão por canal:
     // SHOPPING e PERFORMANCE_MAX → compras; demais → leads
     const PURCHASE_CHANNELS = new Set(['SHOPPING', 'PERFORMANCE_MAX', 'SMART_SHOPPING']);
@@ -662,7 +687,7 @@ async function syncGoogleAccount(
         const batch: AdCampaignPayload[] = rows
             .filter(r => r.segments?.date)
             .map(r => {
-                const spendBrl = microsToReais(r.metrics?.costMicros);
+                const spendBrl = toReais(r.metrics?.costMicros);
                 const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
                 const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
                 const channelType: string = r.campaign?.advertisingChannelType || '';
@@ -708,7 +733,7 @@ async function syncGoogleAccount(
             const d: string = r.segments?.date || '';
             if (!d) continue;
             if (!byDate[d]) byDate[d] = { spend: 0, impressions: 0, clicks: 0 };
-            byDate[d]!.spend += parseInt(String(r.metrics?.costMicros || '0'), 10) / 1_000_000;
+            byDate[d]!.spend += (parseInt(String(r.metrics?.costMicros || '0'), 10) / 1_000_000) * exchangeRate;
             byDate[d]!.impressions += parseInt(String(r.metrics?.impressions || '0'), 10);
             byDate[d]!.clicks += parseInt(String(r.metrics?.clicks || '0'), 10);
         }
@@ -751,7 +776,7 @@ async function syncGoogleAccount(
         const batch: AdCampaignPayload[] = rows
             .filter(r => r.segments?.date)
             .map(r => {
-                const spendBrl = microsToReais(r.metrics?.costMicros);
+                const spendBrl = toReais(r.metrics?.costMicros);
                 const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
                 const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
                 const channelType: string = r.campaign?.advertisingChannelType || '';
@@ -826,7 +851,7 @@ async function syncGoogleAccount(
         const batch: AdCampaignPayload[] = rows
             .filter(r => r.segments?.date)
             .map(r => {
-                const spendBrl = microsToReais(r.metrics?.costMicros);
+                const spendBrl = toReais(r.metrics?.costMicros);
                 const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
                 const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
                 const channelType: string = r.campaign?.advertisingChannelType || '';
