@@ -18,7 +18,7 @@ import { startRfmCalcJob } from './jobs/rfm-calc.job.js';
 import { webhookQueue } from './lib/webhook-queue.js';
 import { startAlertsJob } from './jobs/alerts.job.js';
 
-dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
