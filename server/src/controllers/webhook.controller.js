@@ -163,6 +163,73 @@ export async function handleHotmartWebhook(req, res) {
     }
 }
 /**
+ * Handles Shopify webhooks via URL-based profile identification.
+ * URL: POST /api/webhooks/shopify/:profileId
+ * Verifica assinatura HMAC-SHA256 com o Shopify Webhook Secret.
+ */
+export async function handleShopifyWebhook(req, res) {
+    const profileId = req.params.profileId;
+    if (!profileId) {
+        return res.status(400).json({ error: 'Missing profileId in URL' });
+    }
+    // 1. Verificar assinatura HMAC em tempo constante
+    const sig = req.headers['x-shopify-hmac-sha256'];
+    const webhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+        console.error('[ShopifyWebhook] SHOPIFY_WEBHOOK_SECRET não configurado');
+        return res.status(500).json({ error: 'Webhook secret not configured' });
+    }
+    if (!sig) {
+        return res.status(400).json({ error: 'Missing x-shopify-hmac-sha256 header' });
+    }
+    const hmac = crypto.createHmac('sha256', webhookSecret)
+        .update(req.body)
+        .digest('base64');
+    try {
+        if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(sig))) {
+            console.warn(`[ShopifyWebhook] Invalid HMAC for profile ${profileId}`);
+            return res.status(401).json({ error: 'Invalid signature' });
+        }
+    }
+    catch {
+        return res.status(401).json({ error: 'Invalid signature' });
+    }
+    // 2. Confirmar integração ativa
+    const { data: integration } = await supabase
+        .from('integrations')
+        .select('id')
+        .eq('profile_id', profileId)
+        .eq('platform', 'shopify')
+        .eq('status', 'active')
+        .single();
+    if (!integration) {
+        console.warn(`[ShopifyWebhook] No active Shopify integration for profile ${profileId}`);
+        return res.status(404).json({ error: 'Shopify integration not found for this profile' });
+    }
+    const payload = JSON.parse(req.body.toString());
+    const topic = req.headers['x-shopify-topic']; // e.g. 'orders/paid'
+    try {
+        // 3. Persistir raw data (audit trail)
+        const { data: rawData, error: rawError } = await supabase
+            .from('platforms_data_raw')
+            .insert({ profile_id: profileId, platform: 'shopify', payload: { ...payload, _topic: topic }, processed: false })
+            .select('id')
+            .single();
+        if (rawError)
+            throw rawError;
+        // 4. Responder imediatamente — Shopify exige resposta rápida
+        res.status(200).json({ received: true });
+        // 5. Enfileira normalização com retry automático
+        webhookQueue.enqueue(rawData.id, 'shopify', { ...payload, _topic: topic }, profileId);
+    }
+    catch (error) {
+        console.error(`[ShopifyWebhook] Error for profile ${profileId}:`, error.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+}
+/**
  * Handles incoming webhooks by persisting raw data and triggering normalization.
  * Valida o payload antes de persistir — rejeita com 400 se inválido.
  */

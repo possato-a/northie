@@ -54,15 +54,26 @@ export const HotmartWebhookSchema = z.object({
     }),
 });
 // ── Shopify ───────────────────────────────────────────────────────────────────
-export const ShopifyWebhookSchema = z.object({
+// Shopify envia diferentes payloads por topic. O _topic é injetado pelo webhook handler.
+const ShopifyOrderSchema = z.object({
     id: z.number(),
-    email: z.string().email(),
-    total_price: z.string(), // Shopify envia como string "123.45"
+    email: z.string().optional(),
+    customer: z.object({ email: z.string().optional() }).optional(),
+    total_price: z.string(),
+    total_tax: z.string().optional(),
+    total_discounts: z.string().optional(),
     financial_status: z.string(),
-    note_attributes: z
-        .array(z.object({ name: z.string(), value: z.string() }))
-        .optional(),
+    note_attributes: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+    _topic: z.string().optional(),
 });
+const ShopifyCustomerSchema = z.object({
+    id: z.number(),
+    email: z.string().optional(),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+    _topic: z.string().optional(),
+});
+export const ShopifyWebhookSchema = z.union([ShopifyOrderSchema, ShopifyCustomerSchema]);
 export function validateWebhookPayload(platform, payload) {
     let schema = null;
     switch (platform) {

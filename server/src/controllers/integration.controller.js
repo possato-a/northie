@@ -4,6 +4,7 @@ import axios from 'axios';
 import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 import { backfillStripe, runStripeSyncForAllProfiles } from '../jobs/stripe-sync.job.js';
+import { backfillShopify, runShopifySyncForAllProfiles } from '../jobs/shopify-sync.job.js';
 import { runMetaLeadAttribution } from '../jobs/meta-lead-attribution.job.js';
 import { runRfmForAllProfiles } from '../jobs/rfm-calc.job.js';
 import { runSafetyNet } from '../jobs/safety-net.job.js';
@@ -19,7 +20,11 @@ export async function connectPlatform(req, res) {
         return res.status(400).json({ error: 'Missing platform or profileId' });
     }
     try {
-        const authUrl = IntegrationService.getAuthorizationUrl(platform, profileId);
+        const shop = req.query.shop;
+        if (platform === 'shopify' && !shop) {
+            return res.status(400).json({ error: 'Parâmetro shop obrigatório para Shopify' });
+        }
+        const authUrl = IntegrationService.getAuthorizationUrl(platform, profileId, shop ? { shop } : undefined);
         console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
         res.json({ authUrl });
     }
@@ -177,6 +182,21 @@ export async function handleCallback(req, res) {
                 livemode: tokenRes.data.livemode,
             };
         }
+        else if (platform === 'shopify') {
+            const shop = req.query.shop;
+            if (!shop)
+                throw new Error('Parâmetro shop ausente no callback Shopify');
+            const tokenRes = await axios.post(`https://${shop}/admin/oauth/access_token`, {
+                client_id: process.env.SHOPIFY_API_KEY,
+                client_secret: process.env.SHOPIFY_API_SECRET,
+                code: code,
+            });
+            tokens = {
+                access_token: tokenRes.data.access_token,
+                scope: tokenRes.data.scope,
+                shop_domain: shop,
+            };
+        }
         else {
             throw new Error(`Plataforma não suportada: ${platform}`);
         }
@@ -185,6 +205,34 @@ export async function handleCallback(req, res) {
         }
         else {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
+        }
+        // Shopify: salva o shop_domain e registra webhooks automaticamente
+        if (platform === 'shopify') {
+            const shop = req.query.shop;
+            const shopifyToken = tokens.access_token;
+            if (shop && shopifyToken) {
+                await supabase
+                    .from('integrations')
+                    .update({ shopify_shop_domain: shop })
+                    .eq('profile_id', profileId)
+                    .eq('platform', 'shopify');
+                // Registra webhooks automaticamente — elimina configuração manual
+                const backendUrl = process.env.BACKEND_URL || 'https://northie.vercel.app';
+                const webhookAddress = `${backendUrl}/api/webhooks/shopify/${profileId}`;
+                const topics = ['orders/paid', 'orders/refunded', 'orders/cancelled', 'customers/create', 'customers/update'];
+                for (const topic of topics) {
+                    try {
+                        await axios.post(`https://${shop}/admin/api/2024-01/webhooks.json`, { webhook: { topic, address: webhookAddress, format: 'json' } }, { headers: { 'X-Shopify-Access-Token': shopifyToken }, timeout: 10000 });
+                        console.log(`[Shopify] Webhook registrado: ${topic}`);
+                    }
+                    catch (whErr) {
+                        // Ignora erro 422 (webhook já existe) — idempotente
+                        if (whErr.response?.status !== 422) {
+                            console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data?.errors ?? whErr.message);
+                        }
+                    }
+                }
+            }
         }
         // Google Ads: descobre automaticamente as contas acessíveis e salva os IDs
         if (platform === 'google') {
@@ -376,6 +424,7 @@ export async function cronSync(req, res) {
             runAdsSyncForAllProfiles(),
             runHotmartSyncForAllProfiles(),
             runStripeSyncForAllProfiles(),
+            runShopifySyncForAllProfiles(),
         ]);
         // Fase 2: jobs analíticos (após sync para ter dados frescos)
         await Promise.allSettled([
@@ -433,6 +482,17 @@ export async function triggerSync(req, res) {
             const result = await backfillStripe(profileId, days);
             return res.status(200).json({
                 message: `Stripe sync completed for last ${days} days.`,
+                ...result,
+            });
+        }
+        if (platform === 'shopify') {
+            const integration = await IntegrationService.getIntegration(profileId, 'shopify');
+            if (!integration) {
+                return res.status(401).json({ error: 'Shopify não conectado. Reconecte a integração.' });
+            }
+            const result = await backfillShopify(profileId, days);
+            return res.status(200).json({
+                message: `Shopify sync completed for last ${days} days.`,
                 ...result,
             });
         }

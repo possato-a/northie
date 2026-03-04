@@ -148,20 +148,80 @@ async function handleHotmartNormalization(payload, profileId) {
     console.log(`[Hotmart] Evento ignorado: ${event}`);
 }
 /**
- * Handler para webhooks Shopify (evento orders/paid).
+ * Handler para webhooks Shopify.
+ * Topics suportados: orders/paid, customers/create, customers/update.
  * O visitorId é injetado via note_attributes pelo pixel Northie no checkout.
  */
 async function handleShopifyNormalization(payload, profileId) {
-    if (payload.financial_status !== 'paid')
+    const topic = payload._topic ?? '';
+    // ── orders/paid ──────────────────────────────────────────────────────────
+    if (topic === 'orders/paid' || (!topic && payload.financial_status === 'paid')) {
+        if (payload.financial_status !== 'paid')
+            return;
+        const email = payload.email || payload.customer?.email;
+        if (!email) {
+            console.warn('[Shopify] orders/paid sem email — ignorando');
+            return;
+        }
+        const amountGross = parseFloat(payload.total_price);
+        // total_price já reflete descontos — fee_platform = apenas impostos para isolar o valor líquido real
+        const tax = parseFloat(payload.total_tax || '0');
+        const feePlatform = parseFloat(tax.toFixed(2));
+        const transactionId = String(payload.id);
+        // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
+        const noteAttrs = payload.note_attributes || [];
+        const visitorId = noteAttrs.find((a) => a.name === 'northie_vid')?.value;
+        // Nome do produto principal (primeiro line item)
+        const lineItems = payload.line_items || [];
+        const productName = lineItems[0]
+            ? [lineItems[0].title, lineItems[0].variant_title].filter(Boolean).join(' — ')
+            : undefined;
+        console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
+        await syncTransaction(profileId, email, 'shopify', transactionId, amountGross, visitorId, feePlatform, productName ? { productName } : undefined);
         return;
-    const email = payload.email;
-    const amount = parseFloat(payload.total_price);
-    const transactionId = String(payload.id);
-    // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
-    const noteAttrs = payload.note_attributes || [];
-    const visitorId = noteAttrs.find((a) => a.name === 'northie_vid')?.value;
-    console.log(`[Shopify] Normalizing order ${transactionId} for ${email}. VisitorId: ${visitorId}`);
-    await syncTransaction(profileId, email, 'shopify', transactionId, amount, visitorId);
+    }
+    // ── customers/create | customers/update ──────────────────────────────────
+    if (topic === 'customers/create' || topic === 'customers/update') {
+        const email = payload.email;
+        if (!email)
+            return;
+        const name = [payload.first_name, payload.last_name].filter(Boolean).join(' ') || undefined;
+        const phone = payload.phone || undefined;
+        const { error } = await supabase
+            .from('customers')
+            .upsert({
+            profile_id: profileId,
+            email,
+            ...(name ? { name } : {}),
+            ...(phone ? { phone } : {}),
+        }, { onConflict: 'profile_id,email', ignoreDuplicates: false });
+        if (error)
+            console.error(`[Shopify] Customer upsert error for ${email}:`, error.message);
+        else
+            console.log(`[Shopify] Customer synced via ${topic}: ${email}`);
+        return;
+    }
+    // ── orders/refunded ──────────────────────────────────────────────────────
+    if (topic === 'orders/refunded') {
+        const email = payload.email || payload.customer?.email;
+        const transactionId = String(payload.id);
+        const refundAmount = parseFloat(payload.total_price || '0');
+        if (!email) {
+            console.warn(`[Shopify] orders/refunded ${transactionId} sem email — ignorando`);
+            return;
+        }
+        console.log(`[Shopify] Reembolso order ${transactionId} para ${email}`);
+        await syncRefund(profileId, email, transactionId, refundAmount);
+        return;
+    }
+    // ── orders/cancelled ─────────────────────────────────────────────────────
+    if (topic === 'orders/cancelled') {
+        const transactionId = String(payload.id);
+        console.log(`[Shopify] Cancelamento order ${transactionId}`);
+        await syncCancellation(profileId, transactionId);
+        return;
+    }
+    console.log(`[Shopify] Topic ignorado: ${topic}`);
 }
 /**
  * Marca uma transação como reembolsada e reverte o LTV do cliente.
@@ -263,7 +323,7 @@ function mapPaymentType(type) {
  * First-touch attribution: acquisition_channel is only set on the customer's
  * first purchase. Subsequent purchases preserve the original channel.
  */
-async function syncTransaction(profileId, email, platform, externalId, amount, visitorId, feePlatform = 0, extra) {
+export async function syncTransaction(profileId, email, platform, externalId, amount, visitorId, feePlatform = 0, extra) {
     // 1. Attribution Lookup (Last Click Logic)
     let channel = 'desconhecido';
     let campaignId = null;
@@ -337,6 +397,8 @@ async function syncTransaction(profileId, email, platform, externalId, amount, v
         upsertPayload.acquisition_channel = channel;
         if (extra?.customerName)
             upsertPayload.name = extra.customerName;
+        if (extra?.phone)
+            upsertPayload.phone = extra.phone;
     }
     const { data: customer, error: custError } = await supabase
         .from('customers')
@@ -367,6 +429,7 @@ async function syncTransaction(profileId, email, platform, externalId, amount, v
         creator_id: creatorId,
         product_name: extra?.productName || null,
         payment_method: extra?.paymentMethod || null,
+        ...(extra?.createdAt ? { created_at: extra.createdAt } : {}),
     })
         .select('id')
         .single();
