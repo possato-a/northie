@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
-import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
-import { backfillHotmart } from '../jobs/hotmart-sync.job.js';
+import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
+import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -122,10 +122,15 @@ export async function handleCallback(req: Request, res: Response) {
             });
             tokens = longLivedRes.data;
         } else if (platform === 'google') {
+            const googleClientId = process.env.GOOGLE_CLIENT_ID;
+            const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+            if (!googleClientId || !googleClientSecret) {
+                throw new Error('Credenciais Google (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET) não configuradas no servidor. Adicione as variáveis no Vercel.');
+            }
             const redirectUri = IntegrationService.getRedirectUri('google');
             const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
-                client_id: process.env.GOOGLE_CLIENT_ID,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                client_id: googleClientId,
+                client_secret: googleClientSecret,
                 redirect_uri: redirectUri,
                 grant_type: 'authorization_code',
                 code: code as string
@@ -175,7 +180,86 @@ export async function handleCallback(req: Request, res: Response) {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
 
-        const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+        // Google Ads: descobre automaticamente as contas acessíveis e salva os IDs
+        if (platform === 'google') {
+            const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+            if (devToken) {
+                try {
+                    const customersRes = await axios.get(
+                        'https://googleads.googleapis.com/v17/customers:listAccessibleCustomers',
+                        {
+                            headers: {
+                                Authorization: `Bearer ${tokens.access_token}`,
+                                'developer-token': devToken,
+                            },
+                            timeout: 10000,
+                        }
+                    );
+                    const resourceNames: string[] = customersRes.data?.resourceNames || [];
+                    const allIds = resourceNames.map((r: string) => r.replace('customers/', ''));
+
+                    // Separa contas MCC (manager) das contas diretas (leaf)
+                    const leafIds: string[] = [];
+                    const managerIds: string[] = [];
+                    for (const cid of allIds) {
+                        try {
+                            const checkRes = await axios.post(
+                                `https://googleads.googleapis.com/v17/customers/${cid}/googleAds:searchStream`,
+                                { query: 'SELECT customer.id, customer.manager FROM customer' },
+                                {
+                                    headers: {
+                                        Authorization: `Bearer ${tokens.access_token}`,
+                                        'developer-token': devToken,
+                                        'Content-Type': 'application/json',
+                                    },
+                                    timeout: 8000,
+                                }
+                            );
+                            const results = checkRes.data?.[0]?.results || [];
+                            const isManager = results[0]?.customer?.manager === true;
+                            if (!isManager) {
+                                leafIds.push(cid);
+                            } else {
+                                managerIds.push(cid);
+                                console.log(`[IntegrationController] Google: ${cid} é conta MCC (manager), separada como loginCustomerId`);
+                            }
+                        } catch {
+                            // Se não conseguir verificar, inclui como leaf por precaução
+                            leafIds.push(cid);
+                        }
+                    }
+
+                    const idsToStore = leafIds.length > 0 ? leafIds : allIds;
+                    // loginCustomerId = primeiro MCC encontrado (necessário para acessar sub-contas)
+                    const loginCustomerId = managerIds.length > 0 ? managerIds[0] : null;
+
+                    if (idsToStore.length > 0) {
+                        await supabase
+                            .from('integrations')
+                            .update({
+                                google_customer_ids: idsToStore,
+                                ...(loginCustomerId && { google_login_customer_id: loginCustomerId }),
+                            })
+                            .eq('profile_id', profileId)
+                            .eq('platform', 'google');
+                        console.log(`[IntegrationController] Google: ${idsToStore.length} conta(s) leaf salvas:`, idsToStore);
+                        if (loginCustomerId) {
+                            console.log(`[IntegrationController] Google: loginCustomerId (MCC) salvo: ${loginCustomerId}`);
+                        }
+                    } else {
+                        console.warn('[IntegrationController] Google: nenhuma conta encontrada.');
+                    }
+                } catch (discoveryErr: any) {
+                    console.warn('[IntegrationController] Google: auto-discovery falhou:', discoveryErr.response?.data || discoveryErr.message);
+                }
+            }
+        }
+
+        // FRONTEND_URL deve ser configurada no Vercel. Fallback inteligente:
+        // Em produção (BACKEND_URL definida), frontend e backend estão no mesmo domínio.
+        const frontendOrigin = process.env.FRONTEND_URL
+            || (process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/+$/, '') : null)
+            || 'http://localhost:5173';
         res.send(`
             <html>
                 <head><title>Conectando Northie...</title></head>
@@ -243,6 +327,11 @@ export async function disconnectPlatform(req: Request, res: Response) {
         return res.status(400).json({ error: 'Missing platform or x-profile-id header' });
     }
 
+    const VALID_PLATFORMS = new Set(['meta', 'google', 'hotmart', 'kiwify', 'stripe', 'shopify', 'meta-ads', 'google-ads']);
+    if (!VALID_PLATFORMS.has(platform as string)) {
+        return res.status(400).json({ error: `Invalid platform: ${platform}` });
+    }
+
     try {
         const platformName = (platform as string) === 'meta-ads' ? 'meta' : (platform as string).replace('-ads', '');
         const { error } = await supabase
@@ -271,7 +360,7 @@ export async function getIntegrationStatus(req: Request, res: Response) {
     try {
         const { data, error } = await supabase
             .from('integrations')
-            .select('platform, status, last_sync_at')
+            .select('platform, status, last_sync_at, google_customer_ids')
             .eq('profile_id', profileId);
 
         if (error) throw error;
@@ -292,7 +381,10 @@ export async function cronSync(req: Request, res: Response) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-        await runAdsSyncForAllProfiles();
+        await Promise.all([
+            runAdsSyncForAllProfiles(),
+            runHotmartSyncForAllProfiles(),
+        ]);
         return res.status(200).json({ message: 'Cron sync completed.' });
     } catch (error: any) {
         console.error('[cronSync] error:', error.message);
@@ -318,6 +410,11 @@ export async function triggerSync(req: Request, res: Response) {
         if (platform === 'meta') {
             await backfillMetaAds(profileId, days);
             return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
+        }
+
+        if (platform === 'google') {
+            const result = await backfillGoogleAds(profileId, days);
+            return res.status(200).json({ message: `Google Ads sync completed for last ${days} days.`, ...result });
         }
 
         if (platform === 'hotmart') {

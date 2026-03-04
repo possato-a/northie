@@ -21,9 +21,13 @@ export async function startTokenRefreshJob() {
 
             for (const integration of integrations || []) {
                 try {
-                    // For now, we refresh everything to ensure stability during dev
-                    // In production, we would check 'expires_at'
-                    await IntegrationService.refreshTokens(integration.profile_id, integration.platform);
+                    // Só renova se o token estiver próximo de expirar (evita quota abuse)
+                    const tokens = await IntegrationService.getIntegration(integration.profile_id, integration.platform);
+                    if (!tokens) continue;
+                    if (IntegrationService.isNearExpiry(tokens)) {
+                        console.log(`[Job] Refreshing ${integration.platform} for ${integration.profile_id} (near expiry)`);
+                        await IntegrationService.refreshTokens(integration.profile_id, integration.platform);
+                    }
                 } catch (err: any) {
                     console.error(`[Job] Failed to refresh ${integration.platform} for ${integration.profile_id}:`, err.message);
                 }

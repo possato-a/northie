@@ -13,11 +13,12 @@ import dataRoutes from './routes/data.routes.js';
 import campaignRoutes from './routes/campaign.routes.js';
 import { startTokenRefreshJob } from './jobs/token-refresh.job.js';
 import { startAdsSyncJob } from './jobs/ads-sync.job.js';
+import { startHotmartSyncJob } from './jobs/hotmart-sync.job.js';
 import { startRfmCalcJob } from './jobs/rfm-calc.job.js';
 import { webhookQueue } from './lib/webhook-queue.js';
 import { startAlertsJob } from './jobs/alerts.job.js';
 
-dotenv.config();
+dotenv.config({ path: '.env.local' });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -50,6 +51,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         console.log(`Northie Backend running on port ${PORT}`);
         startTokenRefreshJob();
         startAdsSyncJob();
+        startHotmartSyncJob();
         startRfmCalcJob();
         webhookQueue.recoverPending();
         startAlertsJob();

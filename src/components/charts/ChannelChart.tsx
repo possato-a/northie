@@ -68,7 +68,12 @@ export default function ChannelChart() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         {channels.map((ch, i) => {
           const pct = totalRevenue > 0 ? (ch.revenue / totalRevenue) * 100 : 0
-          const color = CHANNEL_COLORS[ch.channel.toLowerCase()] || CHANNEL_COLORS[ch.channel] || 'var(--color-text-tertiary)'
+          // Normaliza o nome do canal para lookup consistente (ex: "Meta Ads" → "meta ads")
+          const channelKey = ch.channel.toLowerCase().trim()
+          const color = CHANNEL_COLORS[channelKey]
+            || CHANNEL_COLORS[channelKey.replace(' ads', '')]
+            || CHANNEL_COLORS[channelKey.split(' ')[0]!]
+            || 'var(--color-text-tertiary)'
 
           return (
             <motion.div

@@ -44,8 +44,10 @@ class WebhookQueue {
 
             if (!item) {
                 // Nada pronto ainda — aguardar o próximo item
+                if (this.queue.length === 0) break; // Fila esvaziou entre a checagem e aqui
                 const next = Math.min(...this.queue.map(i => i.nextRetry));
-                await sleep(next - now + 50);
+                const waitMs = Math.max(50, next - now + 50); // Nunca negativo
+                await sleep(waitMs);
                 continue;
             }
 

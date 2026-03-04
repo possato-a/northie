@@ -71,12 +71,13 @@ export class IntegrationService {
         switch (platform) {
             case 'meta':
                 const appId = process.env.META_APP_ID;
-                return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=ads_read,business_management&state=${encodeURIComponent(state)}`;
+                return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=ads_read,business_management&state=${encodeURIComponent(state)}`;
 
             case 'google':
                 const clientId = process.env.GOOGLE_CLIENT_ID;
+                if (!clientId) throw new Error('GOOGLE_CLIENT_ID não configurado no servidor. Adicione a variável de ambiente no Vercel.');
                 const googleRedirectUri = this.getRedirectUri('google');
-                return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${googleRedirectUri}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
+                return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(googleRedirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
 
             case 'hotmart':
                 const hotmartClientId = process.env.HOTMART_CLIENT_ID;

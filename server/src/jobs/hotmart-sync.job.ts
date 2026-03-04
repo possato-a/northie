@@ -12,6 +12,99 @@ import { IntegrationService } from '../services/integration.service.js';
 const HOTMART_API_BASE = 'https://api-hot-connect.hotmart.com';
 const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
 
+// Taxa padrão Hotmart para produtores (9,9%). Usada no backfill pois a API
+// de histórico não retorna o breakdown de taxas — apenas o gross amount.
+const HOTMART_FEE_RATE = 0.099;
+
+// ── Retry com backoff exponencial ─────────────────────────────────────────────
+
+/**
+ * Executa uma chamada com retry automático em caso de rate limit (429)
+ * ou erros transitórios (5xx). Usa backoff exponencial com jitter.
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> {
+    let lastError: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fn();
+        } catch (err: any) {
+            lastError = err;
+            const status = err.response?.status;
+            if (status === 401 || status === 403) throw err;
+            const isRetryable = status === 429 || (status >= 500 && status < 600) || !status;
+            if (!isRetryable || attempt === maxRetries) throw err;
+            const baseDelay = Math.pow(2, attempt + 1) * 1000;
+            const jitter = Math.random() * 1000;
+            console.warn(`[HotmartSync] Retry ${attempt + 1}/${maxRetries} após ${Math.round((baseDelay + jitter) / 1000)}s (status ${status ?? 'network error'})`);
+            await new Promise(r => setTimeout(r, baseDelay + jitter));
+        }
+    }
+    throw lastError;
+}
+
+// ── Sync log helpers ──────────────────────────────────────────────────────────
+
+async function startSyncLog(profileId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('sync_logs')
+        .insert({ profile_id: profileId, platform: 'hotmart', started_at: new Date().toISOString(), status: 'running' })
+        .select('id')
+        .single();
+    if (error) {
+        console.warn('[HotmartSync] Failed to create sync_log entry:', error.message);
+        return null;
+    }
+    return data?.id ?? null;
+}
+
+async function finishSyncLog(logId: string | null, rowsUpserted: number, errorMessage?: string): Promise<void> {
+    if (!logId) return;
+    await supabase
+        .from('sync_logs')
+        .update({
+            finished_at: new Date().toISOString(),
+            status: errorMessage ? 'error' : 'success',
+            rows_upserted: rowsUpserted,
+            error_message: errorMessage ?? null,
+        })
+        .eq('id', logId);
+}
+
+// ── Mutex anti-paralelo ───────────────────────────────────────────────────────
+
+/**
+ * Tenta adquirir o mutex de sync para a integração Hotmart.
+ * Retorna true se adquiriu (pode prosseguir), false se já está em andamento.
+ * Syncs travados há mais de 30 minutos são considerados mortos e liberados.
+ */
+async function acquireSyncMutex(profileId: string): Promise<boolean> {
+    const STALE_MINUTES = 30;
+    const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+        .from('integrations')
+        .update({ is_syncing: true, sync_started_at: new Date().toISOString() })
+        .eq('profile_id', profileId)
+        .eq('platform', 'hotmart')
+        .or(`is_syncing.eq.false,sync_started_at.lt.${staleThreshold}`)
+        .select('id')
+        .single();
+    if (error || !data) {
+        console.log(`[HotmartSync] Sync already running for profile ${profileId} — skipping`);
+        return false;
+    }
+    return true;
+}
+
+async function releaseSyncMutex(profileId: string): Promise<void> {
+    await supabase
+        .from('integrations')
+        .update({ is_syncing: false, sync_started_at: null })
+        .eq('profile_id', profileId)
+        .eq('platform', 'hotmart');
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
 /**
  * Obtém um access token via client_credentials.
  * A Hotmart Connect API (vendas) exige este tipo de token —
@@ -24,31 +117,29 @@ async function getClientCredentialsToken(): Promise<string> {
         throw new Error('[HotmartSync] HOTMART_CLIENT_ID ou HOTMART_CLIENT_SECRET não configurados');
     }
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    try {
-        const res = await axios.post(
+    const res = await withRetry(() =>
+        axios.post(
             HOTMART_AUTH_URL,
             new URLSearchParams({ grant_type: 'client_credentials' }),
-            { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
-        const token = res.data?.access_token;
-        if (!token) throw new Error('Hotmart não retornou access_token via client_credentials');
-        console.log('[HotmartSync] client_credentials token obtained successfully');
-        return token;
-    } catch (err: any) {
-        const detail = JSON.stringify(err.response?.data ?? err.message);
-        console.error(`[HotmartSync] client_credentials token failed (${err.response?.status}):`, detail);
-        throw err;
-    }
+            {
+                headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+                timeout: 15000,
+            }
+        )
+    );
+    const token = res.data?.access_token;
+    if (!token) throw new Error('Hotmart não retornou access_token via client_credentials');
+    console.log('[HotmartSync] client_credentials token obtained successfully');
+    return token;
 }
 
-// Status que representam vendas confirmadas (equivalente a PURCHASE_APPROVED)
+// ── Status sets ───────────────────────────────────────────────────────────────
+
 const APPROVED_STATUSES = new Set(['APPROVED', 'COMPLETE']);
-
-// Status de reembolso
 const REFUNDED_STATUSES = new Set(['REFUNDED', 'PARTIALLY_REFUNDED', 'CHARGEBACK', 'PROTESTED']);
-
-// Status de cancelamento
 const CANCELLED_STATUSES = new Set(['CANCELLED', 'EXPIRED', 'NO_FUNDS', 'BLOCKED']);
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface HotmartSale {
     buyer_name: string;
@@ -74,8 +165,10 @@ interface HotmartSalesResponse {
     };
 }
 
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+
 /**
- * Busca todas as vendas de uma conta Hotmart com paginação automática.
+ * Busca todas as vendas de uma conta Hotmart com paginação automática e retry.
  * Filtra por intervalo de datas (Unix ms). Se não informado, busca tudo.
  */
 async function fetchAllHotmartSales(
@@ -87,7 +180,7 @@ async function fetchAllHotmartSales(
     let pageToken: string | undefined = undefined;
 
     do {
-        console.log(`[HotmartSync] Fetching page with token: ${pageToken ?? 'none'} (Period: ${new Date(startDateMs!).toISOString()} to ${new Date(endDateMs!).toISOString()})`);
+        console.log(`[HotmartSync] Fetching page with token: ${pageToken ?? 'none'}`);
         const params: Record<string, any> = {
             max_results: 50,
             ...(startDateMs !== undefined && { start_date: startDateMs }),
@@ -95,8 +188,8 @@ async function fetchAllHotmartSales(
             ...(pageToken && { page_token: pageToken }),
         };
 
-        try {
-            const res = await axios.get<HotmartSalesResponse>(
+        const res = await withRetry(() =>
+            axios.get<HotmartSalesResponse>(
                 `${HOTMART_API_BASE}/payments/api/v1/sales/history`,
                 {
                     headers: {
@@ -104,39 +197,30 @@ async function fetchAllHotmartSales(
                         'Content-Type': 'application/json',
                     },
                     params,
+                    timeout: 30000,
                 }
-            );
+            )
+        );
 
-            const items = res.data?.items ?? [];
-            all.push(...items);
-
-            pageToken = res.data?.page_info?.next_page_token;
-            console.log(`[HotmartSync] Page success: returned ${items.length} items. Total so far: ${all.length}`);
-        } catch (err: any) {
-            console.error(`[HotmartSync] API Request Failed:`, {
-                status: err.response?.status,
-                data: err.response?.data,
-                message: err.message,
-                url: err.config?.url,
-                params: err.config?.params
-            });
-            throw err;
-        }
+        const items = res.data?.items ?? [];
+        all.push(...items);
+        pageToken = res.data?.page_info?.next_page_token;
+        console.log(`[HotmartSync] Page success: ${items.length} items. Total: ${all.length}`);
     } while (pageToken);
 
     return all;
 }
 
+// ── Process sale ──────────────────────────────────────────────────────────────
+
 /**
  * Normaliza e persiste uma venda no banco (idempotente via external_id).
- * Reutiliza o mesmo pipeline do webhook para consistência.
  */
 async function processSale(profileId: string, sale: HotmartSale): Promise<void> {
     const { transaction, buyer_email, buyer_name, amount, transaction_status } = sale;
 
     // ── Venda aprovada ────────────────────────────────────────────────────────
     if (APPROVED_STATUSES.has(transaction_status)) {
-        // Verifica se já existe (idempotência) — upsert via external_id unique constraint
         const { data: existing } = await supabase
             .from('transactions')
             .select('id')
@@ -144,18 +228,12 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             .eq('external_id', transaction)
             .single();
 
-        if (existing) return; // Já importado
+        if (existing) return;
 
-        // Upsert customer
         const { data: customer, error: custError } = await supabase
             .from('customers')
             .upsert(
-                {
-                    profile_id: profileId,
-                    email: buyer_email,
-                    name: buyer_name,
-                    acquisition_channel: 'Hotmart'
-                },
+                { profile_id: profileId, email: buyer_email, name: buyer_name, acquisition_channel: 'desconhecido' },
                 { onConflict: 'profile_id, email' }
             )
             .select('id, total_ltv')
@@ -166,26 +244,29 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             return;
         }
 
-        // Insert transaction
+        const fee = parseFloat((amount * HOTMART_FEE_RATE).toFixed(2));
+        const amountNet = parseFloat((amount - fee).toFixed(2));
+
         const { error: txError } = await supabase.from('transactions').insert({
             profile_id: profileId,
             customer_id: customer.id,
             platform: 'hotmart',
             external_id: transaction,
             amount_gross: amount,
-            amount_net: amount,
+            amount_net: amountNet,
+            fee_platform: fee,
             status: 'approved',
-            acquisition_channel: 'Hotmart'
+            acquisition_channel: 'desconhecido',
+            created_at: new Date(sale.purchase_date).toISOString(),
         });
 
         if (txError) {
-            if (txError.code === '23505') return;
+            if (txError.code === '23505') return; // Duplicate — idempotência
             console.error(`[HotmartSync] Transaction insert failed for ${transaction}:`, txError.message);
             return;
         }
 
-        // Atualiza LTV
-        const newLtv = (Number(customer.total_ltv) || 0) + amount;
+        const newLtv = (Number(customer.total_ltv) || 0) + amountNet;
         await supabase
             .from('customers')
             .update({ total_ltv: newLtv, last_purchase_at: new Date(sale.purchase_date).toISOString() })
@@ -194,16 +275,16 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
         return;
     }
 
-    // ── Reembolso — atualiza se já existir ───────────────────────────────────
+    // ── Reembolso ────────────────────────────────────────────────────────────
     if (REFUNDED_STATUSES.has(transaction_status)) {
         const { data: tx } = await supabase
             .from('transactions')
-            .select('id, customer_id, amount_gross, status')
+            .select('id, customer_id, amount_net, status')
             .eq('profile_id', profileId)
             .eq('external_id', transaction)
             .single();
 
-        if (!tx || tx.status === 'refunded') return; // Não existe ou já marcado
+        if (!tx || tx.status === 'refunded') return;
 
         await supabase.from('transactions').update({ status: 'refunded' }).eq('id', tx.id);
 
@@ -214,7 +295,8 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             .single();
 
         if (customer) {
-            const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - Number(tx.amount_gross));
+            // Usa amount_net — mesmo valor que foi somado ao LTV na venda
+            const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - Number(tx.amount_net));
             await supabase.from('customers').update({ total_ltv: newLtv }).eq('id', tx.customer_id);
         }
 
@@ -227,16 +309,18 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
         return;
     }
 
-    // ── Cancelamento ──────────────────────────────────────────────────────────
+    // ── Cancelamento ─────────────────────────────────────────────────────────
     if (CANCELLED_STATUSES.has(transaction_status)) {
         await supabase
             .from('transactions')
             .update({ status: 'cancelled' })
             .eq('profile_id', profileId)
             .eq('external_id', transaction)
-            .neq('status', 'cancelled'); // Evita update desnecessário
+            .neq('status', 'cancelled');
     }
 }
+
+// ── Backfill ──────────────────────────────────────────────────────────────────
 
 /**
  * Backfill de vendas Hotmart para um perfil.
@@ -248,68 +332,122 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
     const endMs = Date.now();
     const startMs = endMs - effectiveDays * 24 * 60 * 60 * 1000;
 
-    console.log(`[HotmartSync] Starting backfill for profile ${profileId} — last ${effectiveDays} days`);
-
-    // Verifica se a integração existe (apenas para confirmar que o usuário autorizou)
+    // Verifica se a integração existe
     const integration = await IntegrationService.getIntegration(profileId, 'hotmart');
     if (!integration) {
         throw new Error(`[HotmartSync] No Hotmart integration for profile ${profileId}`);
     }
 
-    // Usa client_credentials para obter token de serviço — a Hotmart Connect API
-    // (api-hot-connect.hotmart.com) exige este tipo de token para acesso aos dados de vendas.
-    // O token do fluxo authorization_code serve apenas para confirmar a identidade do usuário.
-    let accessToken: string;
-    try {
-        accessToken = await getClientCredentialsToken();
-    } catch (e: any) {
-        console.error(`[HotmartSync] Failed to get service token for ${profileId}:`, e.message);
-        throw e;
+    // Renova token OAuth do usuário se próximo do vencimento.
+    // O sync usa client_credentials para buscar dados, mas mantemos o token
+    // do usuário atualizado para que a integração permaneça ativa e auditável.
+    // Se o refresh falhar, o IntegrationService marca como inactive e lança erro.
+    if (IntegrationService.isNearExpiry(integration)) {
+        console.log(`[HotmartSync] OAuth token near expiry for profile ${profileId} — refreshing before sync`);
+        await IntegrationService.refreshTokens(profileId, 'hotmart');
     }
 
-    // Busca todas as vendas no período
-    let sales: HotmartSale[];
-    try {
-        sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
-    } catch (e: any) {
-        console.error(`[HotmartSync] Failed to fetch sales for ${profileId}:`, JSON.stringify(e.response?.data ?? e.message));
-        throw e;
-    }
+    // Mutex: evita execuções paralelas
+    const acquired = await acquireSyncMutex(profileId);
+    if (!acquired) return { synced: 0, skipped: 0, errors: 0 };
 
-    console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
+    // Logging estruturado
+    const logId = await startSyncLog(profileId);
+
+    console.log(`[HotmartSync] Starting backfill for profile ${profileId} — last ${effectiveDays} days`);
 
     let synced = 0;
     let skipped = 0;
     let errors = 0;
 
-    for (const sale of sales) {
-        try {
-            // Conta antes e depois para detectar se foi inserido
-            const before = await supabase
-                .from('transactions')
-                .select('id', { count: 'exact', head: true })
-                .eq('profile_id', profileId)
-                .eq('external_id', sale.transaction);
+    try {
+        // Obtém token de serviço com retry
+        const accessToken = await getClientCredentialsToken();
 
-            await processSale(profileId, sale);
+        // Busca todas as vendas com retry e timeout
+        const sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
+        console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
 
-            const after = await supabase
-                .from('transactions')
-                .select('id', { count: 'exact', head: true })
-                .eq('profile_id', profileId)
-                .eq('external_id', sale.transaction);
+        for (const sale of sales) {
+            try {
+                const before = await supabase
+                    .from('transactions')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('profile_id', profileId)
+                    .eq('external_id', sale.transaction);
 
-            if ((after.count ?? 0) > (before.count ?? 0)) {
-                synced++;
-            } else {
-                skipped++;
+                await processSale(profileId, sale);
+
+                const after = await supabase
+                    .from('transactions')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('profile_id', profileId)
+                    .eq('external_id', sale.transaction);
+
+                (after.count ?? 0) > (before.count ?? 0) ? synced++ : skipped++;
+
+                // Audit trail — persiste payload bruto (best-effort, não bloqueia o sync)
+                supabase
+                    .from('platforms_data_raw')
+                    .insert({ profile_id: profileId, platform: 'hotmart', payload: sale, processed: true })
+                    .then(({ error }) => {
+                        if (error) console.warn(`[HotmartSync] platforms_data_raw insert failed for ${sale.transaction}:`, error.message);
+                    });
+            } catch (e: any) {
+                console.error(`[HotmartSync] Error processing sale ${sale.transaction}:`, e.message);
+                errors++;
             }
-        } catch (e: any) {
-            console.error(`[HotmartSync] Error processing sale ${sale.transaction}:`, e.message);
-            errors++;
         }
+
+        console.log(`[HotmartSync] Done for ${profileId}: ${synced} synced, ${skipped} skipped, ${errors} errors`);
+        await finishSyncLog(logId, synced);
+    } catch (e: any) {
+        const msg = JSON.stringify(e.response?.data ?? e.message);
+        console.error(`[HotmartSync] Backfill failed for ${profileId}:`, msg);
+        await finishSyncLog(logId, synced, e.message);
+        throw e;
+    } finally {
+        await releaseSyncMutex(profileId);
     }
 
-    console.log(`[HotmartSync] Done for ${profileId}: ${synced} synced, ${skipped} skipped, ${errors} errors`);
     return { synced, skipped, errors };
+}
+
+// ── Cron job ──────────────────────────────────────────────────────────────────
+
+/**
+ * Roda o backfill dos últimos 7 dias para todos os perfis com integração
+ * Hotmart ativa. Executado a cada 6 horas pelo servidor.
+ */
+export async function runHotmartSyncForAllProfiles(): Promise<void> {
+    const { data: integrations, error } = await supabase
+        .from('integrations')
+        .select('profile_id')
+        .eq('platform', 'hotmart')
+        .eq('status', 'active');
+
+    if (error || !integrations?.length) {
+        console.log('[HotmartSync] No active Hotmart integrations to sync.');
+        return;
+    }
+
+    console.log(`[HotmartSync] Starting scheduled sync for ${integrations.length} profile(s)`);
+
+    for (const { profile_id } of integrations) {
+        try {
+            await backfillHotmart(profile_id, 7); // Últimos 7 dias no cron
+        } catch (e: any) {
+            console.error(`[HotmartSync] Cron sync failed for profile ${profile_id}:`, e.message);
+        }
+    }
+}
+
+/**
+ * Registra o cron job de sync da Hotmart (a cada 6 horas).
+ * Chamado em server/src/index.ts no boot do servidor.
+ */
+export function startHotmartSyncJob(): void {
+    console.log('[HotmartSync] Job registered — will run every 6 hours.');
+    runHotmartSyncForAllProfiles(); // Roda imediatamente ao iniciar
+    setInterval(runHotmartSyncForAllProfiles, 6 * 60 * 60 * 1000);
 }

@@ -18,13 +18,14 @@ interface Plugin {
     description: string
     fullDescription: string
     installCount: string
-    status: 'Instalar' | 'Em breve' | 'Conectado'
+    status: 'Instalar' | 'Em breve' | 'Conectado' | 'Expirado'
     iconColor: string
     developer: string
     reviews: string
     metricInstalls: string
     features: string[]
     logoUrl?: string
+    connectedAccounts?: number
 }
 
 const PLUGINS: Plugin[] = [
@@ -136,6 +137,7 @@ const PLUGINS: Plugin[] = [
 function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }) {
     const isAvailable = plugin.status !== 'Em breve'
     const isConnected = plugin.status === 'Conectado'
+    const isExpired = plugin.status === 'Expirado'
 
     return (
         <motion.div
@@ -144,7 +146,7 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
             style={{
                 padding: 20,
                 borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--color-border)',
+                border: `1px solid ${isExpired ? 'var(--status-critical)' : 'var(--color-border)'}`,
                 background: 'var(--color-bg-primary)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -192,12 +194,12 @@ function PluginCard({ plugin, onClick }: { plugin: Plugin; onClick: () => void }
                     {plugin.installCount.split(' ')[0]} instalações
                 </span>
                 <Btn
-                    variant={isConnected ? 'ghost' : isAvailable ? 'secondary' : 'ghost'}
+                    variant={isExpired ? 'danger' : isConnected ? 'ghost' : isAvailable ? 'secondary' : 'ghost'}
                     size="sm"
-                    disabled={!isAvailable && !isConnected}
+                    disabled={!isAvailable && !isConnected && !isExpired}
                     icon={isConnected ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : undefined}
                 >
-                    {isConnected ? 'Conectado' : plugin.status}
+                    {isExpired ? 'Reconectar' : isConnected ? 'Conectado' : plugin.status}
                 </Btn>
             </div>
         </motion.div>
@@ -273,6 +275,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [searchQuery, setSearchQuery] = useState('')
     const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null)
     const [installedPlugins, setInstalledPlugins] = useState<string[]>([])
+    const [expiredPlugins, setExpiredPlugins] = useState<string[]>([])
+    const [pluginMeta, setPluginMeta] = useState<Record<string, { connectedAccounts?: number }>>({})
     const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null)
     const [webhookOpen, setWebhookOpen] = useState<Plugin | null>(null)
 
@@ -280,17 +284,32 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         if (!user?.id) return
         const fetchIntegrations = async () => {
             try {
-                setProfileId(user.id) // ensure header is set before request
+                setProfileId(user.id)
                 const { data } = await integrationApi.getStatus()
                 if (Array.isArray(data)) {
                     const platformMap: Record<string, string> = {
                         meta: 'meta-ads',
                         google: 'google-ads',
                     }
-                    const platforms = data
+                    const active = data
                         .filter((item: { status: string }) => item.status === 'active')
                         .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
-                    setInstalledPlugins(platforms)
+                    const expired = data
+                        .filter((item: { status: string }) => item.status === 'expired' || item.status === 'inactive')
+                        .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
+
+                    // Mapeia metadados extras (ex: contas Google conectadas)
+                    const meta: Record<string, { connectedAccounts?: number }> = {}
+                    for (const item of data) {
+                        const pluginId = platformMap[item.platform] ?? item.platform
+                        if (item.google_customer_ids?.length) {
+                            meta[pluginId] = { connectedAccounts: item.google_customer_ids.length }
+                        }
+                    }
+
+                    setInstalledPlugins(active)
+                    setExpiredPlugins(expired)
+                    setPluginMeta(meta)
                 }
             } catch (err) {
                 console.error('[AppStore] fetchIntegrations error:', err)
@@ -348,9 +367,14 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const currentPlugins = useMemo(() => {
         return PLUGINS.map(p => ({
             ...p,
-            status: (installedPlugins.includes(p.id) ? 'Conectado' : p.status) as any
+            status: (
+                installedPlugins.includes(p.id) ? 'Conectado' :
+                expiredPlugins.includes(p.id) ? 'Expirado' :
+                p.status
+            ) as any,
+            connectedAccounts: pluginMeta[p.id]?.connectedAccounts,
         }))
-    }, [installedPlugins])
+    }, [installedPlugins, expiredPlugins, pluginMeta])
 
     const filteredPlugins = useMemo(() => {
         return currentPlugins.filter(p => {
@@ -501,25 +525,42 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
     isSyncingFull: boolean
 }) {
     const isConnected = plugin.status === 'Conectado'
+    const isExpired = plugin.status === 'Expirado'
     const supportsSync = ['meta-ads', 'google-ads', 'hotmart'].includes(plugin.id)
     const anySyncing = isSyncing || isSyncingFull
 
     return (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
+            {isExpired && (
+                <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                        background: 'rgba(239,68,68,0.08)', border: '1px solid var(--status-critical)',
+                        borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 24,
+                        display: 'flex', alignItems: 'center', gap: 10,
+                    }}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--status-critical)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--status-critical)' }}>
+                        Token expirado — clique em <strong>Reconectar</strong> para reautorizar.
+                    </span>
+                </motion.div>
+            )}
             <PageHeader
                 title={plugin.name}
-                subtitle={plugin.description}
+                subtitle={plugin.connectedAccounts ? `${plugin.connectedAccounts} conta(s) conectada(s)` : plugin.description}
                 breadcrumb={{ label: 'Voltar para App Store', onClick: onBack }}
                 actions={
                     <div style={{ display: 'flex', gap: 12 }}>
                         <Btn
-                            variant={isConnected ? 'secondary' : 'primary'}
+                            variant={isExpired ? 'danger' : isConnected ? 'secondary' : 'primary'}
                             size="md"
                             onClick={onInstall}
                             disabled={isConnected}
                             icon={isConnected ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : undefined}
                         >
-                            {isConnected ? 'Conectado' : plugin.status}
+                            {isExpired ? 'Reconectar' : isConnected ? 'Conectado' : plugin.status}
                         </Btn>
                         {isConnected && supportsSync && (
                             <>

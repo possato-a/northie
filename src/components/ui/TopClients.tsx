@@ -111,13 +111,15 @@ export default function TopClients() {
             {c.name || c.email}
           </span>
 
-          {/* Valor */}
+          {/* Valor (última compra) */}
           <span style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-tertiary)',
+            color: 'var(--color-text-secondary)',
             textAlign: 'right',
-          }}>—</span>
+          }}>
+            R$ {fmtBR(c.total_ltv - (c.cac || 0))}
+          </span>
 
           {/* CAC */}
           <span style={{
