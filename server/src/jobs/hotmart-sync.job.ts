@@ -279,7 +279,7 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
     if (REFUNDED_STATUSES.has(transaction_status)) {
         const { data: tx } = await supabase
             .from('transactions')
-            .select('id, customer_id, amount_gross, status')
+            .select('id, customer_id, amount_net, status')
             .eq('profile_id', profileId)
             .eq('external_id', transaction)
             .single();
@@ -295,7 +295,8 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             .single();
 
         if (customer) {
-            const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - Number(tx.amount_gross));
+            // Usa amount_net — mesmo valor que foi somado ao LTV na venda
+            const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - Number(tx.amount_net));
             await supabase.from('customers').update({ total_ltv: newLtv }).eq('id', tx.customer_id);
         }
 

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import crypto from 'crypto';
 
 /**
  * Normalizes raw platform data into the Northie Schema (Transactions, Customers, etc.)
@@ -80,16 +81,35 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
         return;
     }
 
-    // ── Assinaturas ───────────────────────────────────────────────────────────
-    if (event === 'SUBSCRIPTION_ACTIVATED' || event === 'SUBSCRIPTION_REACTIVATED') {
+    // ── Assinatura nova ───────────────────────────────────────────────────────
+    if (event === 'SUBSCRIPTION_ACTIVATED') {
         const email: string = data.buyer.email;
         const amount: number = data.purchase.full_price.value;
         const fee: number = data.purchase.hotmart_fee?.total?.value ?? 0;
         const visitorId: string | undefined =
             data.purchase.src || data.purchase.hsrc || undefined;
 
-        console.log(`[Hotmart] ${event} for ${email} tx=${transactionId}. Fee: ${fee}`);
+        console.log(`[Hotmart] SUBSCRIPTION_ACTIVATED for ${email} tx=${transactionId}. Fee: ${fee}`);
         await syncTransaction(profileId, email, 'hotmart', transactionId, amount, visitorId, fee);
+        return;
+    }
+
+    // ── Reativação de assinatura ──────────────────────────────────────────────
+    // SUBSCRIPTION_REACTIVATED = usuário pagou novamente após cancelamento.
+    // Cada reativação gera uma nova cobrança com purchase.transaction único.
+    // Se só temos subscriber_code (sem purchase.transaction), ignoramos para evitar duplicata.
+    if (event === 'SUBSCRIPTION_REACTIVATED') {
+        const purchaseTxId: string | undefined = data.purchase?.transaction;
+        if (!purchaseTxId) {
+            console.log(`[Hotmart] SUBSCRIPTION_REACTIVATED sem purchase.transaction — ignorando (subscriber_code não é único por cobrança)`);
+            return;
+        }
+        const email: string = data.buyer.email;
+        const amount: number = data.purchase.full_price.value;
+        const fee: number = data.purchase.hotmart_fee?.total?.value ?? 0;
+
+        console.log(`[Hotmart] SUBSCRIPTION_REACTIVATED for ${email} tx=${purchaseTxId}. Fee: ${fee}`);
+        await syncTransaction(profileId, email, 'hotmart', purchaseTxId, amount, undefined, fee);
         return;
     }
 
@@ -159,7 +179,7 @@ async function syncRefund(profileId: string, email: string, externalId: string, 
     // Busca a transação original pelo external_id
     const { data: tx } = await supabase
         .from('transactions')
-        .select('id, customer_id, amount_gross')
+        .select('id, customer_id, amount_net, status')
         .eq('profile_id', profileId)
         .eq('external_id', externalId)
         .single();
@@ -169,13 +189,19 @@ async function syncRefund(profileId: string, email: string, externalId: string, 
         return;
     }
 
+    // Idempotência: evita reverter LTV mais de uma vez
+    if (tx.status === 'refunded') {
+        console.log(`[Hotmart] Reembolso tx=${externalId} já processado — ignorando`);
+        return;
+    }
+
     // Atualiza status da transação
     await supabase
         .from('transactions')
         .update({ status: 'refunded' })
         .eq('id', tx.id);
 
-    // Reverte LTV do cliente
+    // Reverte LTV do cliente usando amount_net (mesmo valor que foi somado na venda)
     const { data: customer } = await supabase
         .from('customers')
         .select('total_ltv')
@@ -183,12 +209,12 @@ async function syncRefund(profileId: string, email: string, externalId: string, 
         .single();
 
     if (customer) {
-        const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - amount);
+        const newLtv = Math.max(0, (Number(customer.total_ltv) || 0) - Number(tx.amount_net));
         await supabase
             .from('customers')
             .update({ total_ltv: newLtv })
             .eq('id', tx.customer_id);
-        console.log(`[Hotmart] Reembolso aplicado: tx=${externalId}, novo LTV=${newLtv}`);
+        console.log(`[Hotmart] Reembolso aplicado: tx=${externalId}, revertido amount_net=${tx.amount_net}, novo LTV=${newLtv}`);
     }
 
     // Cancela a comissão pendente associada (não pagar comissão de venda reembolsada)
@@ -348,6 +374,11 @@ async function syncTransaction(
         .single();
 
     if (transError) {
+        // 23505 = unique_violation — transação já existe, idempotente — sem re-throw
+        if (transError.code === '23505') {
+            console.log(`[Normalization] Transaction ${externalId} já existe — ignorando duplicata`);
+            return;
+        }
         console.error('[Normalization] Transaction insert error:', transError);
         throw transError;
     }

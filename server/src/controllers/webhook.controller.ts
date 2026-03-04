@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import { webhookQueue } from '../lib/webhook-queue.js';
 import { validateWebhookPayload } from '../lib/webhook-schemas.js';
+import crypto from 'crypto';
 
 /**
  * Verifica o token de autenticação de plataformas que usam segredo estático.
@@ -16,8 +17,19 @@ function verifyPlatformToken(platform: string, req: Request): boolean {
             return true;
         }
         const received = req.headers['x-hotmart-hottok'] as string | undefined;
-        if (!received || received !== expected) {
-            console.warn('[Webhook] Hotmart: token inválido ou ausente');
+        if (!received) {
+            console.warn('[Webhook] Hotmart: token ausente');
+            return false;
+        }
+        // Comparação timing-safe para prevenir timing attacks
+        try {
+            const expectedBuf = Buffer.from(expected, 'utf8');
+            const receivedBuf = Buffer.from(received, 'utf8');
+            if (expectedBuf.length !== receivedBuf.length || !crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
+                console.warn('[Webhook] Hotmart: token inválido');
+                return false;
+            }
+        } catch {
             return false;
         }
     }

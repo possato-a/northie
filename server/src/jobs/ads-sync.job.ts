@@ -622,6 +622,7 @@ async function syncGoogleAccount(
     accessToken: string,
     developerToken: string,
     dateRange: { since: string; until: string },
+    loginCustomerId?: string,
 ): Promise<number> {
     let accountRows = 0;
 
@@ -630,7 +631,7 @@ async function syncGoogleAccount(
     try {
         const nameRows = await fetchGoogleRows(customerId, accessToken, developerToken, `
             SELECT customer.descriptive_name FROM customer
-        `);
+        `, loginCustomerId);
         const descriptiveName = nameRows[0]?.customer?.descriptiveName;
         if (descriptiveName) accountName = descriptiveName;
     } catch {
@@ -642,7 +643,7 @@ async function syncGoogleAccount(
     try {
         const currencyRows = await fetchGoogleRows(customerId, accessToken, developerToken, `
             SELECT customer.currency_code FROM customer
-        `);
+        `, loginCustomerId);
         const currencyCode: string = currencyRows[0]?.customer?.currencyCode || 'BRL';
         if (currencyCode !== 'BRL') {
             const rateRes = await axios.get(
@@ -682,7 +683,7 @@ async function syncGoogleAccount(
             FROM campaign
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
-        `);
+        `, loginCustomerId);
 
         const batch: AdCampaignPayload[] = rows
             .filter(r => r.segments?.date)
@@ -771,7 +772,7 @@ async function syncGoogleAccount(
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
               AND ad_group.status != 'REMOVED'
-        `);
+        `, loginCustomerId);
 
         const batch: AdCampaignPayload[] = rows
             .filter(r => r.segments?.date)
@@ -846,7 +847,7 @@ async function syncGoogleAccount(
               AND campaign.status != 'REMOVED'
               AND ad_group.status != 'REMOVED'
               AND ad_group_ad.status != 'REMOVED'
-        `);
+        `, loginCustomerId);
 
         const batch: AdCampaignPayload[] = rows
             .filter(r => r.segments?.date)
@@ -943,7 +944,7 @@ async function syncGoogleAds(
 
         const { data: integrationRow } = await supabase
             .from('integrations')
-            .select('google_customer_ids')
+            .select('google_customer_ids, google_login_customer_id')
             .eq('profile_id', profileId)
             .eq('platform', 'google')
             .single();
@@ -955,12 +956,16 @@ async function syncGoogleAds(
             return { rowsUpserted: 0 };
         }
 
+        // loginCustomerId = conta MCC (manager). Necessário para acessar sub-contas via MCC.
+        // Para contas diretas (não-MCC), será undefined e o header não será enviado.
+        const loginCustomerId: string | undefined = (integrationRow as any)?.google_login_customer_id ?? undefined;
+
         const since = dateRange?.since ?? yesterday();
         const until = dateRange?.until ?? today();
 
         for (const customerId of customerIds) {
             try {
-                const rows = await syncGoogleAccount(profileId, customerId, tokens.access_token, developerToken, { since, until });
+                const rows = await syncGoogleAccount(profileId, customerId, tokens.access_token, developerToken, { since, until }, loginCustomerId);
                 totalRows += rows;
             } catch (err: any) {
                 const status = err.response?.status;

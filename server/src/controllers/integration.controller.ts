@@ -193,8 +193,9 @@ export async function handleCallback(req: Request, res: Response) {
                     const resourceNames: string[] = customersRes.data?.resourceNames || [];
                     const allIds = resourceNames.map((r: string) => r.replace('customers/', ''));
 
-                    // Filtra contas MCC (manager) — não têm métricas de campanha diretamente
+                    // Separa contas MCC (manager) das contas diretas (leaf)
                     const leafIds: string[] = [];
+                    const managerIds: string[] = [];
                     for (const cid of allIds) {
                         try {
                             const checkRes = await axios.post(
@@ -214,22 +215,32 @@ export async function handleCallback(req: Request, res: Response) {
                             if (!isManager) {
                                 leafIds.push(cid);
                             } else {
-                                console.log(`[IntegrationController] Google: ${cid} é conta MCC (manager), ignorando para sync de métricas`);
+                                managerIds.push(cid);
+                                console.log(`[IntegrationController] Google: ${cid} é conta MCC (manager), separada como loginCustomerId`);
                             }
                         } catch {
-                            // Se não conseguir verificar, inclui por precaução
+                            // Se não conseguir verificar, inclui como leaf por precaução
                             leafIds.push(cid);
                         }
                     }
 
                     const idsToStore = leafIds.length > 0 ? leafIds : allIds;
+                    // loginCustomerId = primeiro MCC encontrado (necessário para acessar sub-contas)
+                    const loginCustomerId = managerIds.length > 0 ? managerIds[0] : null;
+
                     if (idsToStore.length > 0) {
                         await supabase
                             .from('integrations')
-                            .update({ google_customer_ids: idsToStore })
+                            .update({
+                                google_customer_ids: idsToStore,
+                                ...(loginCustomerId && { google_login_customer_id: loginCustomerId }),
+                            })
                             .eq('profile_id', profileId)
                             .eq('platform', 'google');
                         console.log(`[IntegrationController] Google: ${idsToStore.length} conta(s) leaf salvas:`, idsToStore);
+                        if (loginCustomerId) {
+                            console.log(`[IntegrationController] Google: loginCustomerId (MCC) salvo: ${loginCustomerId}`);
+                        }
                     } else {
                         console.warn('[IntegrationController] Google: nenhuma conta encontrada.');
                     }
