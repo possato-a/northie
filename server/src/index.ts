@@ -25,6 +25,8 @@ import { startSafetyNetJob } from './jobs/safety-net.job.js';
 import { startCapitalScoreJob } from './jobs/capital-score.job.js';
 import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
+import reportsRoutes from './routes/reports.routes.js';
+import { startReportsJob } from './jobs/reports.job.js';
 import { handleStripeWebhook } from './controllers/webhook.controller.js';
 
 dotenv.config({ path: '.env.local' });
@@ -54,6 +56,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/growth', growthRoutes);
 app.use('/api/card', cardRoutes);
 app.use('/api/valuation', valuationRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // Basic Route
 app.get('/api/health', (req, res) => {
@@ -76,6 +79,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         startCapitalScoreJob();
         startValuationCalcJob();
         startShopifySyncJob();
+        startReportsJob();
     });
 }
 

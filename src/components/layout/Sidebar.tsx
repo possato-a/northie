@@ -11,6 +11,7 @@ import {
   CardIcon,
   ValuationIcon,
   GrowthIcon,
+  RelatoriosIcon,
 } from '../../icons'
 import { useTheme } from '../../ThemeContext'
 
@@ -23,6 +24,7 @@ export type Page =
   | 'growth'
   | 'card'
   | 'valuation'
+  | 'relatorios'
   | 'app-store'
   | 'configuracoes'
 
@@ -121,6 +123,7 @@ const productsNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
 ]
 
 const bottomNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
+  { icon: <RelatoriosIcon size={20} />, label: 'Relatórios', pageId: 'relatorios' },
   { icon: <AppStoreIcon />, label: 'App Store', pageId: 'app-store' },
   { icon: <SettingsIcon />, label: 'Configurações', pageId: 'configuracoes' },
 ]

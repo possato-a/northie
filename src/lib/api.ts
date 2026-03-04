@@ -62,4 +62,12 @@ export const pixelApi = {
     getSnippet: () => api.get('/pixel/snippet'),
 };
 
+export const reportsApi = {
+    getConfig: () => api.get('/reports/config'),
+    saveConfig: (data: any) => api.post('/reports/config', data),
+    generate: (frequency: string, format: string) =>
+        api.post('/reports/generate', { frequency, format }, { responseType: 'blob' }),
+    getLogs: () => api.get('/reports/logs'),
+};
+
 export default api;

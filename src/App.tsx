@@ -11,6 +11,7 @@ import Configuracoes from './pages/Configuracoes'
 import Card from './pages/Card'
 import Valuation from './pages/Valuation'
 import Growth from './pages/Growth'
+import Relatorios from './pages/Relatorios'
 import ChatSidebar from './components/layout/ChatSidebar'
 import Login from './pages/Login'
 import { supabase } from './lib/supabase'
@@ -61,6 +62,7 @@ export default function App() {
       case 'growth': return 'Northie Growth'
       case 'card': return 'Northie Card'
       case 'valuation': return 'Northie Valuation'
+      case 'relatorios': return 'Relatórios'
       case 'app-store': return 'App Store'
       case 'configuracoes': return 'Configurações'
       default: return 'Início'
@@ -138,8 +140,9 @@ export default function App() {
             )}
             {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
             {activePage === 'valuation' && <Valuation onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'relatorios' && <Relatorios onToggleChat={() => setChatOpen(!chatOpen)} user={session?.user} />}
             {activePage === 'configuracoes' && <Configuracoes />}
-            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'valuation' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'valuation' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
               <motion.div
                 key={activePage}
                 initial={{ opacity: 0, y: 10 }}
