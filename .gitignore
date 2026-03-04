@@ -37,11 +37,10 @@ Thumbs.db
 # Temporary files
 temp_*.json
 
-# TypeScript compiled output (backend)
+# TypeScript auxiliary output (backend) — keep .js tracked for Vercel deploy
 server/src/**/*.d.ts
 server/src/**/*.d.ts.map
 server/src/**/*.js.map
-server/src/**/*.js
 server/node_modules/
 
 # Debug / test logs
