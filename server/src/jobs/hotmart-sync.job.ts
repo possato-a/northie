@@ -401,18 +401,10 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
     const debugExtra: Record<string, any> = {};
 
     try {
-        // Usa o token OAuth do usuário para acessar os dados da conta Hotmart dele.
-        // Fallback para client_credentials se o token do usuário não estiver disponível.
-        let accessToken: string;
-        if (userTokens?.access_token) {
-            accessToken = userTokens.access_token;
-            tokenSource = 'user_oauth';
-            console.log(`[HotmartSync] Using user OAuth token for profile ${profileId} (expires: ${tokenExpiresAt})`);
-        } else {
-            accessToken = await getClientCredentialsToken();
-            tokenSource = 'client_credentials';
-            console.log(`[HotmartSync] Fallback to client_credentials for profile ${profileId}`);
-        }
+        // A API de sales history da Hotmart exige client_credentials (app-level token).
+        // O token OAuth do usuário (authorization_code) não tem permissão para esse endpoint.
+        const accessToken = await getClientCredentialsToken();
+        tokenSource = 'client_credentials';
 
         // Busca todas as vendas com retry e timeout
         const fetchResult = await fetchAllHotmartSales(accessToken, startMs, endMs);
