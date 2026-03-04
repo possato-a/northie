@@ -6,6 +6,8 @@ import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '..
 import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
 import { backfillStripe, runStripeSyncForAllProfiles } from '../jobs/stripe-sync.job.js';
 import { runMetaLeadAttribution } from '../jobs/meta-lead-attribution.job.js';
+import { runRfmForAllProfiles } from '../jobs/rfm-calc.job.js';
+import { runSafetyNet } from '../jobs/safety-net.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -404,11 +406,19 @@ export async function cronSync(req: Request, res: Response) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
+        // Fase 1: sync de dados de plataformas (paralelo)
         await Promise.allSettled([
             runAdsSyncForAllProfiles(),
             runHotmartSyncForAllProfiles(),
             runStripeSyncForAllProfiles(),
         ]);
+
+        // Fase 2: jobs analíticos (após sync para ter dados frescos)
+        await Promise.allSettled([
+            runRfmForAllProfiles(),  // Recalcula segmentos, CAC e churn de todos os clientes
+            runSafetyNet(),          // Detecta e corrige gaps de webhook Hotmart
+        ]);
+
         return res.status(200).json({ message: 'Cron sync completed.' });
     } catch (error: any) {
         console.error('[cronSync] error:', error.message);
