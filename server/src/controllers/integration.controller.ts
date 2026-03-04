@@ -122,10 +122,15 @@ export async function handleCallback(req: Request, res: Response) {
             });
             tokens = longLivedRes.data;
         } else if (platform === 'google') {
+            const googleClientId = process.env.GOOGLE_CLIENT_ID;
+            const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+            if (!googleClientId || !googleClientSecret) {
+                throw new Error('Credenciais Google (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET) não configuradas no servidor. Adicione as variáveis no Vercel.');
+            }
             const redirectUri = IntegrationService.getRedirectUri('google');
             const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
-                client_id: process.env.GOOGLE_CLIENT_ID,
-                client_secret: process.env.GOOGLE_CLIENT_SECRET,
+                client_id: googleClientId,
+                client_secret: googleClientSecret,
                 redirect_uri: redirectUri,
                 grant_type: 'authorization_code',
                 code: code as string
@@ -250,7 +255,11 @@ export async function handleCallback(req: Request, res: Response) {
             }
         }
 
-        const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+        // FRONTEND_URL deve ser configurada no Vercel. Fallback inteligente:
+        // Em produção (BACKEND_URL definida), frontend e backend estão no mesmo domínio.
+        const frontendOrigin = process.env.FRONTEND_URL
+            || (process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/+$/, '') : null)
+            || 'http://localhost:5173';
         res.send(`
             <html>
                 <head><title>Conectando Northie...</title></head>

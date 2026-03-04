@@ -295,7 +295,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         .filter((item: { status: string }) => item.status === 'active')
                         .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
                     const expired = data
-                        .filter((item: { status: string }) => item.status === 'expired')
+                        .filter((item: { status: string }) => item.status === 'expired' || item.status === 'inactive')
                         .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
 
                     // Mapeia metadados extras (ex: contas Google conectadas)
