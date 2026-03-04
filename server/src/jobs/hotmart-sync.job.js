@@ -268,9 +268,11 @@ export async function backfillHotmart(profileId, days) {
     // conecta sua própria conta Hotmart e o token dá acesso aos dados dela.
     // Se o refresh falhar, o IntegrationService marca como inactive e lança erro.
     let userTokens = integration;
+    let _tokenRefreshed = false;
     if (IntegrationService.isNearExpiry(integration)) {
         console.log(`[HotmartSync] OAuth token near expiry for profile ${profileId} — refreshing before sync`);
         userTokens = await IntegrationService.refreshTokens(profileId, 'hotmart');
+        _tokenRefreshed = true;
     }
     // Mutex: evita execuções paralelas
     const acquired = await acquireSyncMutex(profileId);
@@ -282,20 +284,27 @@ export async function backfillHotmart(profileId, days) {
     let synced = 0;
     let skipped = 0;
     let errors = 0;
+    let tokenSource = 'unknown';
+    let tokenRefreshed = _tokenRefreshed;
+    let totalFetched = 0;
+    let tokenExpiresAt = userTokens?.expires_at ? new Date(userTokens.expires_at).toISOString() : 'unknown';
     try {
         // Usa o token OAuth do usuário para acessar os dados da conta Hotmart dele.
         // Fallback para client_credentials se o token do usuário não estiver disponível.
         let accessToken;
         if (userTokens?.access_token) {
             accessToken = userTokens.access_token;
-            console.log(`[HotmartSync] Using user OAuth token for profile ${profileId}`);
+            tokenSource = 'user_oauth';
+            console.log(`[HotmartSync] Using user OAuth token for profile ${profileId} (expires: ${tokenExpiresAt})`);
         }
         else {
             accessToken = await getClientCredentialsToken();
+            tokenSource = 'client_credentials';
             console.log(`[HotmartSync] Fallback to client_credentials for profile ${profileId}`);
         }
         // Busca todas as vendas com retry e timeout
         const sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
+        totalFetched = sales.length;
         console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
         for (const sale of sales) {
             try {
@@ -337,7 +346,16 @@ export async function backfillHotmart(profileId, days) {
     finally {
         await releaseSyncMutex(profileId);
     }
-    return { synced, skipped, errors };
+    return {
+        synced, skipped, errors,
+        debug: {
+            token_source: tokenSource,
+            token_refreshed: tokenRefreshed,
+            token_expires_at: tokenExpiresAt,
+            total_fetched_from_api: totalFetched,
+            date_range: { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() },
+        },
+    };
 }
 // ── Cron job ──────────────────────────────────────────────────────────────────
 /**
