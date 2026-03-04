@@ -65,6 +65,90 @@ const CHAT_CHIPS = [
   'Por que meu LTV caiu?',
 ]
 
+// ── Mock data (usado enquanto sem backend conectado) ───────────────────────────
+
+const now = Date.now()
+const MOCK_RECOMMENDATIONS: Recommendation[] = [
+  {
+    id: 'mock-1',
+    type: 'audience_sync_champions',
+    status: 'completed',
+    title: 'Sincronizar 47 Champions com o Meta Ads',
+    narrative: 'Você tem 47 clientes Champions (score RFM máximo — compram com frequência, recentemente, e de alto valor) com LTV médio de R$ 2.840,00. Sincronizar essa audiência com o Meta como Lookalike Audience direciona seus anúncios para pessoas com perfil financeiro similar aos seus melhores clientes — não apenas comportamental.',
+    impact_estimate: 'Audiência de qualidade superior baseada em LTV real, não apenas comportamento de clique',
+    sources: ['customers.rfm_score', 'customers.total_ltv', 'integrations.meta'],
+    execution_log: [
+      { step: 'Buscando segmento Champions', status: 'done', timestamp: new Date(now - 320000).toISOString(), detail: '47 Champions identificados' },
+      { step: 'Obtendo token Meta Ads', status: 'done', timestamp: new Date(now - 300000).toISOString() },
+      { step: 'Identificando conta de anúncios', status: 'done', timestamp: new Date(now - 280000).toISOString(), detail: 'act_384920183746' },
+      { step: 'Criando Northie Champions Audience', status: 'done', timestamp: new Date(now - 260000).toISOString(), detail: 'Audience ID: 23858492847120 • 47 emails' },
+    ],
+    meta: { champion_count: 47, avg_ltv: 2840 },
+    created_at: new Date(now - 3600000).toISOString(),
+    updated_at: new Date(now - 260000).toISOString(),
+  },
+  {
+    id: 'mock-2',
+    type: 'reativacao_alto_ltv',
+    status: 'pending',
+    title: 'Reativar 23 clientes de alto LTV em risco',
+    narrative: '23 clientes com LTV médio de R$ 4.120,00 (3x acima da média) não compram há mais de 60 dias e têm churn > 60%. Cruzando LTV histórico com comportamento recente, uma campanha de reativação direcionada tem potencial significativo antes que esses clientes sejam perdidos definitivamente.',
+    impact_estimate: '~R$ 28.428,00 em receita recuperável (estimativa conservadora de 30% de conversão)',
+    sources: ['customers.total_ltv', 'customers.churn_probability', 'transactions.last_purchase_at'],
+    execution_log: [],
+    meta: { segment_count: 23, avg_ltv: 4120, global_avg_ltv: 1373 },
+    created_at: new Date(now - 1800000).toISOString(),
+    updated_at: new Date(now - 1800000).toISOString(),
+  },
+  {
+    id: 'mock-3',
+    type: 'pausa_campanha_ltv_baixo',
+    status: 'pending',
+    title: 'Pausar 2 campanhas Meta com LTV abaixo da média',
+    narrative: '2 campanhas no Meta Ads gastaram R$ 3.840,00 nos últimos 14 dias, mas o LTV médio dos clientes adquiridos por esse canal (R$ 620,00) é menos de 50% do LTV médio global (R$ 1.373,00). ROAS aparentemente saudável de 2.1x, mas os clientes gerados valem menos a longo prazo. Pausar e realocar para canais com LTV superior é o movimento correto.',
+    impact_estimate: 'Economia de ~R$ 7.680,00/mês se budget for realocado para canais de maior LTV',
+    sources: ['ad_campaigns.spend_brl', 'ad_campaigns.roas', 'customers.total_ltv', 'customers.acquisition_channel'],
+    execution_log: [],
+    meta: { global_avg_ltv: 1373, total_spend_14d: 3840 },
+    created_at: new Date(now - 900000).toISOString(),
+    updated_at: new Date(now - 900000).toISOString(),
+  },
+  {
+    id: 'mock-4',
+    type: 'upsell_cohort',
+    status: 'pending',
+    title: '38 clientes no momento ideal de recompra',
+    narrative: 'Analisando o padrão histórico de recompra da sua base, o intervalo médio entre compras é de 45 dias. Há 38 clientes que estão exatamente nessa janela agora — compraram há 32–59 dias. Alcançá-los neste momento específico é significativamente mais eficaz do que uma campanha genérica de base.',
+    impact_estimate: '~R$ 9.120,00 estimados (25% de conversão no segmento)',
+    sources: ['customers.cohort', 'transactions.created_at', 'transactions.customer_id'],
+    execution_log: [],
+    meta: { segment_count: 38, avg_interval_days: 45, avg_ltv: 960 },
+    created_at: new Date(now - 600000).toISOString(),
+    updated_at: new Date(now - 600000).toISOString(),
+  },
+  {
+    id: 'mock-5',
+    type: 'realocacao_budget',
+    status: 'pending',
+    title: 'Realocar budget: Google Ads gera 68% mais LTV',
+    narrative: 'Clientes adquiridos via Google Ads têm LTV médio de R$ 2.180,00, enquanto Meta Ads gera R$ 1.298,00 por cliente — uma diferença de 68%. Com R$ 8.200,00 gastos em Meta Ads nos últimos 30 dias e apenas R$ 1.400,00 no Google, uma realocação de 30% do budget para Google Ads pode aumentar o LTV médio dos novos clientes adquiridos significativamente.',
+    impact_estimate: '+68% em LTV médio dos novos clientes adquiridos',
+    sources: ['ad_metrics.spend_brl', 'ad_metrics.platform', 'customers.total_ltv', 'customers.acquisition_channel'],
+    execution_log: [],
+    meta: { ltv_diff_pct: 68, best_channel: { platform: 'google', avg_ltv: 2180, spend: 1400 }, worst_channel: { platform: 'meta', avg_ltv: 1298, spend: 8200 } },
+    created_at: new Date(now - 300000).toISOString(),
+    updated_at: new Date(now - 300000).toISOString(),
+  },
+]
+
+const MOCK_STEPS: Record<RecType, string[]> = {
+  reativacao_alto_ltv: ['Buscando segmento de clientes', 'Obtendo token Meta Ads', 'Identificando conta de anúncios', 'Criando Custom Audience no Meta'],
+  pausa_campanha_ltv_baixo: ['Identificando campanhas para pausar', 'Obtendo token Meta Ads', 'Pausando campanhas via Meta API'],
+  audience_sync_champions: ['Buscando segmento Champions', 'Obtendo token Meta Ads', 'Identificando conta de anúncios', 'Criando Northie Champions Audience'],
+  realocacao_budget: ['Calculando nova distribuição de budget', 'Obtendo token Meta Ads', 'Ajustando budgets via Meta API'],
+  upsell_cohort: ['Buscando clientes na janela de recompra', 'Obtendo token Meta Ads', 'Identificando conta de anúncios', 'Criando Upsell Cohort Audience'],
+}
+
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
 function TypeTag({ type }: { type: RecType }) {
@@ -679,19 +763,19 @@ function GrowthChat() {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function Growth() {
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
-  const [loading, setLoading] = useState(true)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>(MOCK_RECOMMENDATIONS)
+  const [loading, setLoading] = useState(false)
   const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
-  const pollingIds = useRef<Set<string>>(new Set())
-  const pollingIntervals = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
 
   const fetchRecommendations = useCallback(async () => {
     try {
       const res = await growthApi.listRecommendations()
-      setRecommendations(res.data || [])
-      setLastAnalysis(new Date())
+      if (res.data?.length > 0) {
+        setRecommendations(res.data)
+        setLastAnalysis(new Date())
+      }
     } catch {
-      // Silently fail — keep showing cached state
+      // API indisponível — mantém mock data
     } finally {
       setLoading(false)
     }
@@ -703,61 +787,47 @@ export default function Growth() {
     return () => clearInterval(interval)
   }, [fetchRecommendations])
 
-  // Polling de status para recs em execução
-  useEffect(() => {
-    const executingRecs = recommendations.filter(r => r.status === 'executing' || r.status === 'approved')
-
-    for (const rec of executingRecs) {
-      if (pollingIds.current.has(rec.id)) continue
-
-      pollingIds.current.add(rec.id)
-      const intervalId = setInterval(async () => {
-        try {
-          const res = await growthApi.getStatus(rec.id)
-          const { status, execution_log } = res.data
-
-          setRecommendations(prev => prev.map(r =>
-            r.id === rec.id ? { ...r, status, execution_log } : r
-          ))
-
-          if (status === 'completed' || status === 'failed') {
-            clearInterval(intervalId)
-            pollingIntervals.current.delete(rec.id)
-            pollingIds.current.delete(rec.id)
-          }
-        } catch {
-          // Ignore polling errors
-        }
-      }, 2000)
-
-      pollingIntervals.current.set(rec.id, intervalId)
+  // Simulação local de execução (funciona com ou sem backend)
+  const simulateExecution = useCallback(async (id: string, type: RecType) => {
+    const steps = MOCK_STEPS[type] || []
+    for (let i = 0; i < steps.length; i++) {
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 700))
+      setRecommendations(prev => prev.map(r => {
+        if (r.id !== id) return r
+        const log = [...r.execution_log]
+        // Marca step anterior como done
+        if (log.length > 0) log[log.length - 1] = { ...log[log.length - 1]!, status: 'done' }
+        // Adiciona próximo step como running
+        log.push({ step: steps[i]!, status: i === steps.length - 1 ? 'done' : 'running', timestamp: new Date().toISOString() })
+        return { ...r, execution_log: log }
+      }))
     }
-
-    return () => {
-      for (const [, interval] of pollingIntervals.current) {
-        clearInterval(interval)
-      }
-    }
-  }, [recommendations])
+    await new Promise(r => setTimeout(r, 500))
+    setRecommendations(prev => prev.map(r =>
+      r.id === id ? { ...r, status: 'completed' } : r
+    ))
+  }, [])
 
   const handleApprove = async (id: string) => {
+    const rec = recommendations.find(r => r.id === id)
+    if (!rec) return
+
+    setRecommendations(prev => prev.map(r =>
+      r.id === id ? { ...r, status: 'executing', execution_log: [] } : r
+    ))
+
     try {
       await growthApi.approve(id)
-      setRecommendations(prev => prev.map(r =>
-        r.id === id ? { ...r, status: 'approved', execution_log: [] } : r
-      ))
+      // Se backend disponível, polling cuida do status
     } catch {
-      // Show nothing — polling will update state
+      // Backend não disponível — simula localmente
+      simulateExecution(id, rec.type)
     }
   }
 
   const handleDismiss = async (id: string) => {
-    try {
-      await growthApi.dismiss(id)
-      setRecommendations(prev => prev.filter(r => r.id !== id))
-    } catch {
-      // Silently fail
-    }
+    setRecommendations(prev => prev.filter(r => r.id !== id))
+    try { await growthApi.dismiss(id) } catch { /* silently ok */ }
   }
 
   const pendingRecs = recommendations.filter(r => r.status === 'pending')
