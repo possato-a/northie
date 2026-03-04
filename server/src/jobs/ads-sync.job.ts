@@ -621,8 +621,23 @@ async function syncGoogleAccount(
     developerToken: string,
     dateRange: { since: string; until: string },
 ): Promise<number> {
-    const accountName = `Google Ads #${customerId}`;
     let accountRows = 0;
+
+    // ── Fix 1: busca nome real da conta via customer.descriptive_name ──────────
+    let accountName = `Google Ads #${customerId}`;
+    try {
+        const nameRows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+            SELECT customer.descriptive_name FROM customer
+        `);
+        const descriptiveName = nameRows[0]?.customer?.descriptiveName;
+        if (descriptiveName) accountName = descriptiveName;
+    } catch {
+        // fallback para o ID — não bloqueia o sync
+    }
+
+    // Heurística de tipo de conversão por canal:
+    // SHOPPING e PERFORMANCE_MAX → compras; demais → leads
+    const PURCHASE_CHANNELS = new Set(['SHOPPING', 'PERFORMANCE_MAX', 'SMART_SHOPPING']);
 
     // ── Campaign level ─────────────────────────────────────────────────────────
     try {
@@ -637,7 +652,8 @@ async function syncGoogleAccount(
                 metrics.impressions,
                 metrics.clicks,
                 metrics.conversions,
-                metrics.conversions_value
+                metrics.conversions_value,
+                metrics.video_views
             FROM campaign
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
@@ -649,6 +665,9 @@ async function syncGoogleAccount(
                 const spendBrl = microsToReais(r.metrics?.costMicros);
                 const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
                 const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                const channelType: string = r.campaign?.advertisingChannelType || '';
+                const conversions = Math.round(parseFloat(String(r.metrics?.conversions || '0')));
+                const isPurchaseChannel = PURCHASE_CHANNELS.has(channelType);
                 return {
                     profileId,
                     platform: 'google',
@@ -662,7 +681,7 @@ async function syncGoogleAccount(
                     adName: '',
                     level: 'campaign',
                     status: r.campaign?.status || '',
-                    objective: r.campaign?.advertisingChannelType || '',
+                    objective: channelType,
                     date: r.segments.date,
                     spendBrl,
                     impressions,
@@ -672,12 +691,12 @@ async function syncGoogleAccount(
                     cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
                     cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
                     frequency: 0,
-                    purchases: Math.round(parseFloat(String(r.metrics?.conversions || '0'))),
-                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
-                    leads: 0,
+                    purchases: isPurchaseChannel ? conversions : 0,
+                    purchaseValue: isPurchaseChannel ? round2(parseFloat(String(r.metrics?.conversionsValue || '0'))) : 0,
+                    leads: isPurchaseChannel ? 0 : conversions,
                     linkClicks: clicks,
                     landingPageViews: 0,
-                    videoViews: 0,
+                    videoViews: parseInt(String(r.metrics?.videoViews || '0'), 10),
                 };
             });
 
@@ -700,7 +719,7 @@ async function syncGoogleAccount(
         })));
 
         accountRows += rows.length;
-        console.log(`[AdsSync] Google: ${rows.length} campaign row(s) for ${customerId}`);
+        console.log(`[AdsSync] Google: ${rows.length} campaign row(s) for ${customerId} (${accountName})`);
     } catch (err: any) {
         console.error(`[AdsSync] Google: campaign level error for ${customerId}:`, err.response?.data || err.message);
         if (err.response?.status === 401) throw err;
@@ -712,6 +731,7 @@ async function syncGoogleAccount(
             SELECT
                 campaign.id,
                 campaign.name,
+                campaign.advertising_channel_type,
                 ad_group.id,
                 ad_group.name,
                 ad_group.status,
@@ -720,7 +740,8 @@ async function syncGoogleAccount(
                 metrics.impressions,
                 metrics.clicks,
                 metrics.conversions,
-                metrics.conversions_value
+                metrics.conversions_value,
+                metrics.video_views
             FROM ad_group
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
@@ -733,6 +754,9 @@ async function syncGoogleAccount(
                 const spendBrl = microsToReais(r.metrics?.costMicros);
                 const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
                 const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                const channelType: string = r.campaign?.advertisingChannelType || '';
+                const conversions = Math.round(parseFloat(String(r.metrics?.conversions || '0')));
+                const isPurchaseChannel = PURCHASE_CHANNELS.has(channelType);
                 return {
                     profileId,
                     platform: 'google',
@@ -746,7 +770,7 @@ async function syncGoogleAccount(
                     adName: '',
                     level: 'adset',
                     status: r.adGroup?.status || '',
-                    objective: '',
+                    objective: channelType,
                     date: r.segments.date,
                     spendBrl,
                     impressions,
@@ -756,12 +780,12 @@ async function syncGoogleAccount(
                     cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
                     cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
                     frequency: 0,
-                    purchases: Math.round(parseFloat(String(r.metrics?.conversions || '0'))),
-                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
-                    leads: 0,
+                    purchases: isPurchaseChannel ? conversions : 0,
+                    purchaseValue: isPurchaseChannel ? round2(parseFloat(String(r.metrics?.conversionsValue || '0'))) : 0,
+                    leads: isPurchaseChannel ? 0 : conversions,
                     linkClicks: clicks,
                     landingPageViews: 0,
-                    videoViews: 0,
+                    videoViews: parseInt(String(r.metrics?.videoViews || '0'), 10),
                 };
             });
 
@@ -779,6 +803,7 @@ async function syncGoogleAccount(
             SELECT
                 campaign.id,
                 campaign.name,
+                campaign.advertising_channel_type,
                 ad_group.id,
                 ad_group.name,
                 ad_group_ad.ad.id,
@@ -789,7 +814,8 @@ async function syncGoogleAccount(
                 metrics.impressions,
                 metrics.clicks,
                 metrics.conversions,
-                metrics.conversions_value
+                metrics.conversions_value,
+                metrics.video_views
             FROM ad_group_ad
             WHERE segments.date BETWEEN '${dateRange.since}' AND '${dateRange.until}'
               AND campaign.status != 'REMOVED'
@@ -803,6 +829,10 @@ async function syncGoogleAccount(
                 const spendBrl = microsToReais(r.metrics?.costMicros);
                 const impressions = parseInt(String(r.metrics?.impressions || '0'), 10);
                 const clicks = parseInt(String(r.metrics?.clicks || '0'), 10);
+                const channelType: string = r.campaign?.advertisingChannelType || '';
+                const conversions = Math.round(parseFloat(String(r.metrics?.conversions || '0')));
+                const isPurchaseChannel = PURCHASE_CHANNELS.has(channelType);
+                const adId = String(r.adGroupAd?.ad?.id || '');
                 return {
                     profileId,
                     platform: 'google',
@@ -812,11 +842,12 @@ async function syncGoogleAccount(
                     campaignName: r.campaign?.name || '',
                     adsetId: String(r.adGroup?.id || ''),
                     adsetName: r.adGroup?.name || '',
-                    adId: String(r.adGroupAd?.ad?.id || ''),
-                    adName: r.adGroupAd?.ad?.name || '',
+                    adId,
+                    // Fix 4: RSAs raramente têm name — usa ID como fallback
+                    adName: r.adGroupAd?.ad?.name || (adId ? `Ad #${adId}` : ''),
                     level: 'ad',
                     status: r.adGroupAd?.status || '',
-                    objective: '',
+                    objective: channelType,
                     date: r.segments.date,
                     spendBrl,
                     impressions,
@@ -826,12 +857,12 @@ async function syncGoogleAccount(
                     cpcBrl: clicks > 0 ? round2(spendBrl / clicks) : 0,
                     cpmBrl: impressions > 0 ? round2(spendBrl / impressions * 1000) : 0,
                     frequency: 0,
-                    purchases: Math.round(parseFloat(String(r.metrics?.conversions || '0'))),
-                    purchaseValue: round2(parseFloat(String(r.metrics?.conversionsValue || '0'))),
-                    leads: 0,
+                    purchases: isPurchaseChannel ? conversions : 0,
+                    purchaseValue: isPurchaseChannel ? round2(parseFloat(String(r.metrics?.conversionsValue || '0'))) : 0,
+                    leads: isPurchaseChannel ? 0 : conversions,
                     linkClicks: clicks,
                     landingPageViews: 0,
-                    videoViews: 0,
+                    videoViews: parseInt(String(r.metrics?.videoViews || '0'), 10),
                 };
             });
 
