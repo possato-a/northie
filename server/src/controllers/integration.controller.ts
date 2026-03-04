@@ -9,6 +9,8 @@ import { backfillShopify, runShopifySyncForAllProfiles } from '../jobs/shopify-s
 import { runMetaLeadAttribution } from '../jobs/meta-lead-attribution.job.js';
 import { runRfmForAllProfiles } from '../jobs/rfm-calc.job.js';
 import { runSafetyNet } from '../jobs/safety-net.job.js';
+import { runCapitalScoreForAllProfiles } from '../jobs/capital-score.job.js';
+import { runValuationForAllProfiles } from '../jobs/valuation-calc.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -446,8 +448,10 @@ export async function cronSync(req: Request, res: Response) {
 
         // Fase 2: jobs analíticos (após sync para ter dados frescos)
         await Promise.allSettled([
-            runRfmForAllProfiles(),  // Recalcula segmentos, CAC e churn de todos os clientes
-            runSafetyNet(),          // Detecta e corrige gaps de webhook Hotmart
+            runRfmForAllProfiles(),            // Recalcula segmentos, CAC e churn de todos os clientes
+            runSafetyNet(),                    // Detecta e corrige gaps de webhook Hotmart
+            runCapitalScoreForAllProfiles(),   // Atualiza Capital Score mensal
+            runValuationForAllProfiles(),      // Atualiza Valuation mensal
         ]);
 
         return res.status(200).json({ message: 'Cron sync completed.' });

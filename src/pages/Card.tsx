@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import { KpiCard } from '../components/ui/KpiCard'
 import { PageHeader, Divider, Btn, SectionLabel, Modal } from '../components/ui/shared'
+import api from '../lib/api'
 
 interface PageProps {
     onToggleChat: () => void
@@ -410,38 +411,54 @@ function CreditRequestModal({ maxLimit, onClose, onConfirm }: {
 // ─────────────────────────────────────────────────────────────────
 export default function Card({ onToggleChat }: PageProps) {
     const [showRequestModal, setShowRequestModal] = useState(false)
-    const [cards, setCards] = useState<NorthieCard[]>([
-        { id: '1', type: 'virtual', lastFour: '4521', holder: 'F POSSATO', expiry: '03/29', frozen: false, limit_brl: 12000 },
-        { id: '2', type: 'physical', lastFour: '7893', holder: 'F POSSATO', expiry: '03/29', frozen: false, limit_brl: 12000 },
-    ])
+    const [cards, setCards] = useState<NorthieCard[]>([])
+    const [pageState, setPageState] = useState<CardPageState>('not_eligible')
+    const [scoreData, setScoreData] = useState<{
+        total: number; revenue: number; ltv_churn: number; cac_ltv: number; platform_age: number;
+        max_limit_brl: number; snapshot_month: string;
+    }>({
+        total: 0, revenue: 0, ltv_churn: 0, cac_ltv: 0, platform_age: 0,
+        max_limit_brl: 0, snapshot_month: '',
+    })
+    const [history, setHistory] = useState<{ m: string; s: number }[]>([])
+    const [credit, setCredit] = useState<CreditInfo>({
+        approved_limit: 0, used_amount: 0, split_rate: 0.12, term_months: 12,
+        purpose: [], cards: [],
+    })
 
-    // ── Mock data ── mude o valor inicial para testar os 3 estados ──
-    const [pageState] = useState<CardPageState>('active')  // 'not_eligible' | 'eligible' | 'active'
+    useEffect(() => {
+        api.get('/card/score').then(r => {
+            const d = r.data
+            const total = d.score ?? 0
+            const dims = d.dimensions ?? {}
+            const limitBrl = d.credit_limit_brl ?? 0
+            setScoreData({
+                total,
+                revenue: dims.revenue_consistency ?? 0,
+                ltv_churn: dims.customer_quality ?? 0,
+                cac_ltv: dims.acquisition_efficiency ?? 0,
+                platform_age: dims.platform_tenure ?? 0,
+                max_limit_brl: limitBrl,
+                snapshot_month: d.snapshot_month ?? '',
+            })
+            // Derive page state — no active card support yet (card issuance not built)
+            setPageState(total >= 70 ? 'eligible' : 'not_eligible')
+            setCredit(prev => ({ ...prev, approved_limit: limitBrl }))
+        }).catch(console.error)
 
-    const score = {
-        total: pageState === 'not_eligible' ? 56 : 76,
-        revenue: pageState === 'not_eligible' ? 14 : 20,
-        ltv_churn: pageState === 'not_eligible' ? 13 : 19,
-        cac_ltv: pageState === 'not_eligible' ? 14 : 18,
-        platform_age: pageState === 'not_eligible' ? 15 : 19,
-        max_limit_brl: 12000,
-        snapshot_month: 'Mar 2026',
-    }
+        api.get('/card/history').then(r => {
+            const rows: { snapshot_month: string; score: number }[] = r.data ?? []
+            // snapshot_month format from DB is YYYY-MM-DD, convert to short month label
+            const mapped = rows.slice().reverse().map(row => ({
+                m: new Date(row.snapshot_month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short' }),
+                s: row.score,
+            }))
+            if (mapped.length > 0) setHistory(mapped)
+        }).catch(console.error)
+    }, [])
 
-    const credit: CreditInfo = {
-        approved_limit: 12000,
-        used_amount: 3200,
-        split_rate: 0.12,
-        term_months: 12,
-        purpose: ['Meta Ads', 'Google Ads'],
-        cards,
-    }
-
-    const history = pageState === 'not_eligible'
-        ? [{ m: 'Out', s: 38 }, { m: 'Nov', s: 44 }, { m: 'Dez', s: 48 }, { m: 'Jan', s: 51 }, { m: 'Fev', s: 54 }, { m: 'Mar', s: 56 }]
-        : [{ m: 'Out', s: 52 }, { m: 'Nov', s: 58 }, { m: 'Dez', s: 63 }, { m: 'Jan', s: 68 }, { m: 'Fev', s: 72 }, { m: 'Mar', s: 76 }]
-
-    const maxH = Math.max(...history.map(h => h.s))
+    const score = scoreData
+    const maxH = history.length > 0 ? Math.max(...history.map(h => h.s)) : 100
 
     const handleToggleFreeze = (id: string) =>
         setCards(prev => prev.map(c => c.id === id ? { ...c, frozen: !c.frozen } : c))

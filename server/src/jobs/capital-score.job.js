@@ -1,0 +1,37 @@
+import { supabase } from '../lib/supabase.js';
+import { calculateCapitalScore } from '../services/capital.service.js';
+export async function runCapitalScoreForAllProfiles() {
+    console.log('[capital-score.job] Starting capital score calculation for all profiles...');
+    const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id');
+    if (error || !profiles) {
+        console.error('[capital-score.job] Failed to fetch profiles:', error?.message);
+        return;
+    }
+    let success = 0;
+    let failed = 0;
+    await Promise.allSettled(profiles.map(async (profile) => {
+        try {
+            await calculateCapitalScore(profile.id);
+            success++;
+        }
+        catch (err) {
+            console.error(`[capital-score.job] Failed for profile ${profile.id}:`, err.message);
+            failed++;
+        }
+    }));
+    console.log(`[capital-score.job] Done. Success: ${success}, Failed: ${failed}`);
+}
+export function startCapitalScoreJob() {
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL)
+        return;
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    console.log('[capital-score.job] Scheduled monthly capital score job started.');
+    // Run once on startup then every 30 days
+    runCapitalScoreForAllProfiles().catch(console.error);
+    setInterval(() => {
+        runCapitalScoreForAllProfiles().catch(console.error);
+    }, THIRTY_DAYS_MS);
+}
+//# sourceMappingURL=capital-score.job.js.map
