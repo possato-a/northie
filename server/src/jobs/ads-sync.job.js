@@ -72,20 +72,31 @@ async function finishSyncLog(logId, rowsUpserted, errorMessage) {
  */
 async function acquireSyncMutex(profileId, platform) {
     const STALE_MINUTES = 30;
-    const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60 * 1000).toISOString();
-    // Tenta atualizar apenas se is_syncing=false OU sync_started_at antigo (stale)
-    const { data, error } = await supabase
+    // 1. Lê estado atual (SELECT funciona mesmo com schema cache desatualizado)
+    const { data: row } = await supabase
         .from('integrations')
-        .update({ is_syncing: true, sync_started_at: new Date().toISOString() })
+        .select('id, is_syncing, sync_started_at')
         .eq('profile_id', profileId)
         .eq('platform', platform)
-        .or(`is_syncing.eq.false,sync_started_at.lt.${staleThreshold}`)
-        .select('id')
         .single();
-    if (error || !data) {
+    if (!row) {
+        console.warn(`[AdsSync] ${platform}/${profileId}: integração não encontrada.`);
+        return false;
+    }
+    // 2. Verifica se está travado e não é stale
+    const isLocked = row.is_syncing === true;
+    const isStale = row.sync_started_at
+        ? new Date(row.sync_started_at).getTime() < Date.now() - STALE_MINUTES * 60 * 1000
+        : true;
+    if (isLocked && !isStale) {
         console.warn(`[AdsSync] ${platform}/${profileId}: já existe sync em andamento, pulando.`);
         return false;
     }
+    // 3. Adquire o lock — UPDATE simples sem filtrar pela coluna is_syncing
+    await supabase
+        .from('integrations')
+        .update({ is_syncing: true, sync_started_at: new Date().toISOString() })
+        .eq('id', row.id);
     return true;
 }
 async function releaseSyncMutex(profileId, platform) {
