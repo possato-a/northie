@@ -29,7 +29,7 @@ function TransactionList({ transactions, loading }: { transactions: Transaction[
     if (search && !t.client.toLowerCase().includes(search.toLowerCase()) &&
       !t.product.toLowerCase().includes(search.toLowerCase())) return false
     return true
-  }), [statusFilter, search])
+  }), [transactions, statusFilter, search])
 
   return (
     <div>
@@ -163,29 +163,29 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      dataApi.getTransactions(),
-      dashboardApi.getStats(),
-      dashboardApi.getAdCampaigns(30)
-    ]).then(([txRes, statsRes, campaignsRes]) => {
-      const mapped = txRes.data.map((t: any) => ({
+    const txPromise = dataApi.getTransactions().catch(() => ({ data: [] }))
+    const statsPromise = dashboardApi.getStats().catch(() => ({ data: {} }))
+    const campaignsPromise = dashboardApi.getAdCampaigns(30).catch(() => ({ data: [] }))
+
+    Promise.all([txPromise, statsPromise, campaignsPromise]).then(([txRes, statsRes, campaignsRes]) => {
+      const mapped = (txRes.data as any[]).map((t: any) => ({
         id: t.id,
         date: new Date(t.created_at).toLocaleDateString('pt-BR'),
         client: t.customers?.name || t.customers?.email || 'Desconhecido',
-        product: t.product_name || 'Produto',
+        product: t.product_name || '—',
         value: Number(t.amount_net),
         method: t.payment_method || '—',
-        status: ({ approved: 'Pago', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', chargeback: 'Estorno' } as Record<string, string>)[t.status] ?? 'Pendente',
+        status: (({ approved: 'Pago', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', chargeback: 'Estorno' } as Record<string, string>)[t.status] ?? 'Pendente') as TransactionStatus,
         channel: t.customers?.acquisition_channel || 'desconhecido'
       }))
       setTransactions(mapped)
 
-      const campaigns: any[] = campaignsRes.data || []
-      const totalLeads = campaigns.reduce((s, c) => s + (c.leads || 0), 0)
-      const totalPurchases = campaigns.reduce((s, c) => s + (c.purchases || 0), 0)
+      const campaigns: any[] = (campaignsRes.data as any[]) || []
+      const totalLeads = campaigns.reduce((s: number, c: any) => s + (c.leads || 0), 0)
+      const totalPurchases = campaigns.reduce((s: number, c: any) => s + (c.purchases || 0), 0)
       const convRate = totalLeads > 0 ? (totalPurchases / totalLeads) * 100 : null
 
-      setStats({ ...statsRes.data, convRate })
+      setStats({ ...(statsRes.data as any), convRate })
     }).finally(() => setLoading(false))
   }, [])
 
