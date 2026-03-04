@@ -151,10 +151,10 @@ async function fetchAllHotmartSales(accessToken, startDateMs, endDateMs) {
                 keys: Object.keys(res.data || {}),
                 page_info: res.data?.page_info,
                 items_count: res.data?.items?.length ?? 0,
-                // First item sample (redacted buyer info)
-                sample_item: res.data?.items?.[0]
-                    ? { transaction: res.data.items[0].transaction, transaction_status: res.data.items[0].transaction_status, product_name: res.data.items[0].product_name, amount: res.data.items[0].amount }
-                    : null,
+                // First item: all keys + raw object (redact email)
+                sample_item_keys: res.data?.items?.[0] ? Object.keys(res.data.items[0]) : [],
+                sample_item_raw: res.data?.items?.[0] ? (() => { const s = { ...res.data.items[0] }; if (s.buyer_email)
+                    s.buyer_email = '***'; return s; })() : null,
             };
         }
         const items = res.data?.items ?? [];
