@@ -399,16 +399,24 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             const height = 700
             const left = window.screen.width / 2 - width / 2
             const top = window.screen.height / 2 - height / 2
-            const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : 'https://northie.vercel.app'
-            // Fetch the authUrl from backend (avoids Node.js header validation issues with redirect)
-            fetch(`${baseUrl}/api/integrations/connect/${platform}?profileId=${user?.id}`)
-                .then(r => r.json())
+            // Use relative URL in production, absolute only in localhost (backend runs on port 3001)
+            const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
+            fetch(`${apiBase}/api/integrations/connect/${platform}?profileId=${user?.id}`)
+                .then(r => {
+                    if (!r.ok) throw new Error(`Server error: ${r.status}`)
+                    return r.json()
+                })
                 .then(({ authUrl }) => {
+                    if (!authUrl) throw new Error('authUrl não retornado pelo servidor')
                     window.open(
                         authUrl,
                         `Northie${platform}Auth`,
                         `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
                     )
+                })
+                .catch((err) => {
+                    console.error('[AppStore] Erro ao iniciar OAuth:', err)
+                    alert('Não foi possível conectar. Verifique sua conexão e tente novamente.')
                 })
         } else if (['stripe', 'shopify'].includes(pluginId)) {
             const plugin = PLUGINS.find(p => p.id === pluginId)
