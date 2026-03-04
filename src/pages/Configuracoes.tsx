@@ -713,8 +713,7 @@ function IntegracoesPanel() {
         { name: 'Meta Ads', description: 'Sincronize campanhas e dados de performance do Facebook e Instagram Ads.', icon: '🔵', connected: false },
         { name: 'Google Ads', description: 'Importe dados de campanhas Google Search, Display e YouTube.', icon: '🔴', connected: false },
         { name: 'Hotmart', description: 'Conecte vendas, comissões e métricas de produtos digitais.', icon: '🟠', connected: false },
-        { name: 'Kiwify', description: 'Sincronize transações, abandono de carrinho e churn.', icon: '🟢', connected: false },
-        { name: 'Eduzz', description: 'Conecte seus produtos e relatórios financeiros da Eduzz.', icon: '🟡', connected: false },
+{ name: 'Eduzz', description: 'Conecte seus produtos e relatórios financeiros da Eduzz.', icon: '🟡', connected: false },
         { name: 'ActiveCampaign', description: 'Sincronize automações, leads e taxas de abertura de email.', icon: '⚪', connected: false },
     ]
 

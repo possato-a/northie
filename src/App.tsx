@@ -11,6 +11,7 @@ import Configuracoes from './pages/Configuracoes'
 import Card from './pages/Card'
 import Raise from './pages/Raise'
 import Valuation from './pages/Valuation'
+import Growth from './pages/Growth'
 import ChatSidebar from './components/layout/ChatSidebar'
 import Login from './pages/Login'
 import { supabase } from './lib/supabase'
@@ -58,6 +59,7 @@ export default function App() {
       case 'clientes': return 'Clientes'
       case 'canais': return 'Canais'
       case 'creators': return 'Criadores'
+      case 'growth': return 'Northie Growth'
       case 'card': return 'Northie Card'
       case 'raise': return 'Northie Raise'
       case 'valuation': return 'Northie Valuation'
@@ -107,64 +109,72 @@ export default function App() {
           flex: 1,
           minHeight: '100vh',
           background: 'var(--bg)',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <div style={{ padding: '28px 64px 80px' }}>
-          {activePage === 'visao-geral' && (
-            <Dashboard
-              onToggleChat={() => setChatOpen(!chatOpen)}
-              user={session?.user}
-            />
-          )}
-          {activePage === 'vendas' && (
-            <Vendas
-              onToggleChat={() => setChatOpen(!chatOpen)}
-              user={session?.user}
-            />
-          )}
-          {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'app-store' && (
-            <AppStore
-              onToggleChat={() => setChatOpen(!chatOpen)}
-              user={session?.user}
-            />
-          )}
-          {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'raise' && <Raise onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'valuation' && <Valuation onToggleChat={() => setChatOpen(!chatOpen)} />}
-          {activePage === 'configuracoes' && <Configuracoes />}
-          {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'raise' && activePage !== 'valuation' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
-            <motion.div
-              key={activePage}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-              style={{
-                paddingTop: 64,
-                fontFamily: "'Poppins', sans-serif",
-                fontSize: 40,
-                fontWeight: 400,
-                letterSpacing: '-1.6px',
-                color: 'rgba(30,30,30,0.25)',
-              }}
-            >
-              Em breve
-            </motion.div>
-          )}
-        </div>
+        {activePage === 'growth' ? (
+          <Growth />
+        ) : (
+          <div style={{ padding: '28px 64px 80px' }}>
+            {activePage === 'visao-geral' && (
+              <Dashboard
+                onToggleChat={() => setChatOpen(!chatOpen)}
+                user={session?.user}
+              />
+            )}
+            {activePage === 'vendas' && (
+              <Vendas
+                onToggleChat={() => setChatOpen(!chatOpen)}
+                user={session?.user}
+              />
+            )}
+            {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'app-store' && (
+              <AppStore
+                onToggleChat={() => setChatOpen(!chatOpen)}
+                user={session?.user}
+              />
+            )}
+            {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'raise' && <Raise onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'valuation' && <Valuation onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'configuracoes' && <Configuracoes />}
+            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'raise' && activePage !== 'valuation' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+              <motion.div
+                key={activePage}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{
+                  paddingTop: 64,
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 40,
+                  fontWeight: 400,
+                  letterSpacing: '-1.6px',
+                  color: 'rgba(30,30,30,0.25)',
+                }}
+              >
+                Em breve
+              </motion.div>
+            )}
+          </div>
+        )}
       </motion.main>
-      <ChatSidebar
-        isOpen={chatOpen}
-        onClose={() => {
-          setChatOpen(false)
-          setIsChatFull(false)
-        }}
-        context={pageTitle}
-        isFull={isChatFull}
-        onToggleFull={() => setIsChatFull(!isChatFull)}
-      />
+      {activePage !== 'growth' && (
+        <ChatSidebar
+          isOpen={chatOpen}
+          onClose={() => {
+            setChatOpen(false)
+            setIsChatFull(false)
+          }}
+          context={pageTitle}
+          isFull={isChatFull}
+          onToggleFull={() => setIsChatFull(!isChatFull)}
+        />
+      )}
     </motion.div>
   )
 }

@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { AskNorthieIcon } from '../../icons'
 
 interface TopBarProps {
   onToggleChat?: () => void
 }
 
-export default function TopBar({ onToggleChat }: TopBarProps) {
+export default function TopBar(_props: TopBarProps) {
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
 
@@ -70,39 +69,6 @@ export default function TopBar({ onToggleChat }: TopBarProps) {
           ⌘K
         </span>
       </div>
-
-      {/* Ask Northie Button — Notion primary action style */}
-      <motion.button
-        onClick={onToggleChat}
-        whileHover={{ opacity: 0.88 }}
-        whileTap={{ scale: 0.97 }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          height: 36, padding: '0 14px',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--color-bg-secondary)',
-          cursor: 'pointer',
-          color: 'var(--color-text-secondary)',
-          flexShrink: 0,
-          fontFamily: 'var(--font-sans)',
-          fontSize: 'var(--text-sm)',
-          fontWeight: 500,
-          transition: 'background var(--transition-base), color var(--transition-base)',
-          letterSpacing: '-0.1px',
-        }}
-        onMouseEnter={e => {
-          (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)'
-            ; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)'
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'
-            ; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)'
-        }}
-      >
-        <AskNorthieIcon />
-        <span>Ask Northie</span>
-      </motion.button>
 
       {/* Notification bell */}
       <motion.button

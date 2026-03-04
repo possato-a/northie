@@ -11,6 +11,7 @@ import {
   CardIcon,
   RaiseIcon,
   ValuationIcon,
+  GrowthIcon,
 } from '../../icons'
 import { useTheme } from '../../ThemeContext'
 
@@ -20,6 +21,7 @@ export type Page =
   | 'clientes'
   | 'canais'
   | 'creators'
+  | 'growth'
   | 'card'
   | 'raise'
   | 'valuation'
@@ -115,6 +117,7 @@ const mainNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
 ]
 
 const productsNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
+  { icon: <GrowthIcon />, label: 'Northie Growth', pageId: 'growth' },
   { icon: <CardIcon />, label: 'Northie Card', pageId: 'card' },
   { icon: <RaiseIcon />, label: 'Northie Raise', pageId: 'raise' },
   { icon: <ValuationIcon />, label: 'Valuation', pageId: 'valuation' },
