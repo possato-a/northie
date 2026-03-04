@@ -318,6 +318,11 @@ export async function disconnectPlatform(req: Request, res: Response) {
         return res.status(400).json({ error: 'Missing platform or x-profile-id header' });
     }
 
+    const VALID_PLATFORMS = new Set(['meta', 'google', 'hotmart', 'kiwify', 'stripe', 'shopify', 'meta-ads', 'google-ads']);
+    if (!VALID_PLATFORMS.has(platform as string)) {
+        return res.status(400).json({ error: `Invalid platform: ${platform}` });
+    }
+
     try {
         const platformName = (platform as string) === 'meta-ads' ? 'meta' : (platform as string).replace('-ads', '');
         const { error } = await supabase

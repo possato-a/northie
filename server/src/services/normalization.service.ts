@@ -393,7 +393,8 @@ async function syncTransaction(
 
         const rate = Number(campaign?.commission_rate || 0);
         if (rate > 0) {
-            const commissionAmount = Number((amount * rate / 100).toFixed(2));
+            // Comissão calculada sobre amount_net — o que o produtor efetivamente recebe após taxas
+            const commissionAmount = Number((amountNet * rate / 100).toFixed(2));
             const { error: commErr } = await supabase.from('commissions').insert({
                 profile_id: profileId,
                 campaign_id: campaignId,

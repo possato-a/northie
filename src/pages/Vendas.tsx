@@ -175,7 +175,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
         product: t.product_name || 'Produto Northie',
         value: Number(t.amount_net),
         method: t.payment_method || 'Cartão',
-        status: t.status === 'approved' ? 'Pago' : t.status === 'pending' ? 'Pendente' : 'Reembolsado',
+        status: ({ approved: 'Pago', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', chargeback: 'Estorno' } as Record<string, string>)[t.status] ?? 'Pendente',
         channel: t.acquisition_channel || 'Direto'
       }))
       setTransactions(mapped)

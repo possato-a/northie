@@ -181,20 +181,13 @@ async function calcRfmForProfile(profileId: string): Promise<void> {
             };
         });
 
-        for (const upd of updates) {
-            const { error } = await supabase
-                .from('customers')
-                .update({
-                    rfm_score: upd.rfm_score,
-                    cac: upd.cac,
-                    churn_probability: upd.churn_probability,
-                    rfm_updated_at: upd.rfm_updated_at,
-                })
-                .eq('id', upd.id);
+        // Batch upsert — uma única requisição por lote de 50 em vez de N queries sequenciais
+        const { error } = await supabase
+            .from('customers')
+            .upsert(updates, { onConflict: 'id' });
 
-            if (error) {
-                console.error(`[RFM] Failed to update customer ${upd.id}:`, error);
-            }
+        if (error) {
+            console.error(`[RFM] Failed to batch upsert customers (lote ${i / BATCH + 1}):`, error);
         }
     }
 

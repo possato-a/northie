@@ -207,12 +207,19 @@ async function runAlertsForAllProfiles(): Promise<void> {
 
     for (const profile of profiles || []) {
         try {
-            await Promise.all([
+            // allSettled: uma falha não cancela as outras verificações
+            const results = await Promise.allSettled([
                 checkRoasDrop(profile.id),
                 checkHighChurn(profile.id),
                 checkRevenueZero(profile.id),
                 checkOrganicSpike(profile.id),
             ]);
+            results.forEach((r, i) => {
+                if (r.status === 'rejected') {
+                    const names = ['checkRoasDrop', 'checkHighChurn', 'checkRevenueZero', 'checkOrganicSpike'];
+                    console.error(`[Alerts] ${names[i]} failed for ${profile.id}:`, r.reason?.message);
+                }
+            });
         } catch (err: any) {
             console.error(`[Alerts] Error for profile ${profile.id}:`, err.message);
         }
