@@ -31,6 +31,7 @@ function MetricCell({ value, format = 'num' }: { value: number; format?: 'brl' |
 }
 
 const OBJECTIVE_LABELS: Record<string, string> = {
+    // Meta Ads
     OUTCOME_LEADS: 'Leads',
     OUTCOME_SALES: 'Vendas',
     OUTCOME_TRAFFIC: 'Tráfego',
@@ -39,6 +40,17 @@ const OBJECTIVE_LABELS: Record<string, string> = {
     OUTCOME_APP_PROMOTION: 'App',
     LEAD_GENERATION: 'Leads',
     CONVERSIONS: 'Conversões',
+    // Google Ads
+    SEARCH: 'Search',
+    DISPLAY: 'Display',
+    VIDEO: 'YouTube',
+    SHOPPING: 'Shopping',
+    PERFORMANCE_MAX: 'Performance Max',
+    SMART: 'Smart',
+    DISCOVERY: 'Discovery',
+    HOTEL: 'Hotel',
+    LOCAL: 'Local',
+    APP: 'App',
 }
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -859,7 +871,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
     const [loading, setLoading] = useState(true)
     const [periodDays, setPeriodDays] = useState(30)
     const [drawerCamp, setDrawerCamp] = useState<any>(null)
-    const [activeChannelTab, setActiveChannelTab] = useState('Meta Ads')
+    const [activeChannelTab, setActiveChannelTab] = useState('Todos')
 
     useEffect(() => {
         setLoading(true)

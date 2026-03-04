@@ -30,24 +30,32 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
       const [statsRes, campaignsRes] = await Promise.all([
         dashboardApi.getStats(),
         dashboardApi.getAdCampaigns(30),
-        dashboardApi.getChart()
       ])
 
       const data = statsRes.data
       const campaigns: any[] = campaignsRes.data || []
+
+      const calcRoas = (platform: string) => {
+        const filtered = campaigns.filter(c => c.platform === platform)
+        const spend = filtered.reduce((s, c) => s + (c.spend_brl || 0), 0)
+        const revenue = filtered.reduce((s, c) => s + (c.purchase_value || 0), 0)
+        return spend > 0 ? revenue / spend : 0
+      }
+
       const totalSpend = campaigns.reduce((s, c) => s + (c.spend_brl || 0), 0)
-      const totalPurchaseValue = campaigns.reduce((s, c) => s + (c.purchase_value || 0), 0)
-      const roas = totalSpend > 0 ? totalPurchaseValue / totalSpend : 0
+      const totalRevenue = campaigns.reduce((s, c) => s + (c.purchase_value || 0), 0)
 
       setStats({
         faturamento: data.total_revenue || 0,
         ticketMedio: data.average_ticket || 0,
         pedidos: data.total_customers || 0,
-        roi: roas
+        roi: totalSpend > 0 ? totalRevenue / totalSpend : 0,
+        roasMeta: calcRoas('meta'),
+        roasGoogle: calcRoas('google'),
       })
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
-      setStats({ faturamento: 0, ticketMedio: 0, pedidos: 0, roi: 0 })
+      setStats({ faturamento: 0, ticketMedio: 0, pedidos: 0, roi: 0, roasMeta: 0, roasGoogle: 0 })
     } finally {
       setLoading(false)
     }
@@ -85,7 +93,13 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
           <KpiCard label="FATURAMENTO" value={stats?.faturamento || 0} prefix="R$ " decimals={0} delay={0.15} />
           <KpiCard label="TICKET MÉDIO" value={stats?.ticketMedio || 0} prefix="R$ " decimals={2} delay={0.25} />
           <KpiCard label="PEDIDOS" value={stats?.pedidos || 0} decimals={0} delay={0.35} />
-          <KpiCard label="ROAS (30d)" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />
+          <KpiCard label="ROAS GERAL (30d)" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />
+          {(stats?.roasMeta || 0) > 0 && (
+            <KpiCard label="ROAS META (30d)" value={stats.roasMeta} suffix="x" decimals={2} delay={0.55} />
+          )}
+          {(stats?.roasGoogle || 0) > 0 && (
+            <KpiCard label="ROAS GOOGLE (30d)" value={stats.roasGoogle} suffix="x" decimals={2} delay={0.65} />
+          )}
         </div>
       </motion.div>
 
