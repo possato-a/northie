@@ -328,7 +328,7 @@ export async function getTopCustomers(req: Request, res: Response) {
     try {
         const { data: customers, error } = await supabase
             .from('customers')
-            .select('name, email, total_ltv, cac')
+            .select('name, email, total_ltv, acquisition_channel')
             .eq('profile_id', profileId)
             .order('total_ltv', { ascending: false })
             .limit(10);

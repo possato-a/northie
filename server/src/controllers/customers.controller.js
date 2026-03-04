@@ -15,13 +15,11 @@ export async function listCustomers(req, res) {
                 id,
                 email,
                 name,
-                phone,
                 total_ltv,
                 acquisition_channel,
                 rfm_score,
                 churn_probability,
                 last_purchase_at,
-                cac,
                 created_at
             `)
             .eq('profile_id', profileId)

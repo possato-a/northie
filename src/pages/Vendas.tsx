@@ -171,12 +171,12 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
       const mapped = txRes.data.map((t: any) => ({
         id: t.id,
         date: new Date(t.created_at).toLocaleDateString('pt-BR'),
-        client: t.customers?.name || t.customer_name || 'Desconhecido',
-        product: t.product_name || 'Produto Northie',
+        client: t.customers?.name || t.customers?.email || 'Desconhecido',
+        product: t.product_name || 'Produto',
         value: Number(t.amount_net),
-        method: t.payment_method || 'Cartão',
+        method: t.payment_method || '—',
         status: ({ approved: 'Pago', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', chargeback: 'Estorno' } as Record<string, string>)[t.status] ?? 'Pendente',
-        channel: t.acquisition_channel || 'Direto'
+        channel: t.customers?.acquisition_channel || 'desconhecido'
       }))
       setTransactions(mapped)
 

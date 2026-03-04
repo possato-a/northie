@@ -175,6 +175,7 @@ interface HotmartSale {
     fee: number;
     currency_code?: string;
     commission_as?: string | undefined;
+    payment_type?: string | undefined;
 }
 
 function mapRawToSale(raw: HotmartSaleRaw): HotmartSale {
@@ -191,6 +192,7 @@ function mapRawToSale(raw: HotmartSaleRaw): HotmartSale {
         fee: raw.purchase?.hotmart_fee?.total ?? 0,
         currency_code: raw.purchase?.price?.currency_code ?? 'BRL',
         commission_as: raw.purchase?.commission_as,
+        payment_type: raw.purchase?.payment?.type,
     };
 }
 
@@ -273,6 +275,17 @@ async function fetchAllHotmartSales(
     return { sales: all, rawFirstPage, httpStatus };
 }
 
+// ── Payment type mapping ──────────────────────────────────────────────────
+
+function mapPaymentType(type?: string): string | null {
+    if (!type) return null;
+    const t = type.toUpperCase();
+    if (t.includes('PIX')) return 'Pix';
+    if (t.includes('BILLET') || t.includes('BOLETO')) return 'Boleto';
+    if (t.includes('CREDIT') || t.includes('DEBIT') || t.includes('CARD')) return 'Cartão';
+    return type;
+}
+
 // ── Process sale ──────────────────────────────────────────────────────────────
 
 /**
@@ -326,6 +339,8 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             fee_platform: fee,
             status: 'approved',
             created_at: new Date(sale.purchase_date).toISOString(),
+            product_name: sale.product_name || null,
+            payment_method: mapPaymentType(sale.payment_type),
         });
 
         if (txError) {

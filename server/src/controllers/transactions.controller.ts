@@ -22,12 +22,14 @@ export async function listTransactions(req: Request, res: Response) {
                 status,
                 amount_gross,
                 amount_net,
-                acquisition_channel,
+                product_name,
+                payment_method,
                 created_at,
                 customer_id,
                 customers (
                     name,
-                    email
+                    email,
+                    acquisition_channel
                 )
             `)
             .eq('profile_id', profileId)
