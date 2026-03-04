@@ -145,33 +145,46 @@ export async function runMetaLeadAttribution(profileId: string): Promise<LeadAtt
     return result;
 }
 
+interface LeadsPageResponse {
+    data: MetaLead[];
+    paging?: { next?: string };
+}
+
+async function fetchLeadsPage(url: string, params: Record<string, unknown>): Promise<LeadsPageResponse> {
+    const axiosRes = await axios.get<LeadsPageResponse>(url, { params, timeout: 20000 });
+    return axiosRes.data;
+}
+
 async function processFormLeads(
     profileId: string,
     formId: string,
     pageToken: string,
     result: LeadAttributionResult,
 ): Promise<void> {
-    let nextUrl: string | null = `${GRAPH_URL}/${formId}/leads`;
-    let params: Record<string, any> = {
+    const firstUrl = `${GRAPH_URL}/${formId}/leads`;
+    const firstParams: Record<string, unknown> = {
         access_token: pageToken,
         fields: 'field_data,created_time',
         limit: 100,
     };
 
-    while (nextUrl) {
-        let leads: MetaLead[] = [];
-        let nextPage: string | null = null;
+    let pageUrl: string | null = firstUrl;
+    let pageParams: Record<string, unknown> = firstParams;
+
+    while (pageUrl !== null) {
+        let page: LeadsPageResponse;
 
         try {
-            const res = await axios.get(nextUrl, { params, timeout: 20000 });
-            leads = res.data?.data || [];
-            nextPage = res.data?.paging?.next || null;
-        } catch (err: any) {
-            const msg = err.response?.data?.error?.message || err.message;
+            page = await fetchLeadsPage(pageUrl, pageParams);
+        } catch (err: unknown) {
+            const msg = (err as any)?.response?.data?.error?.message ?? (err as Error).message;
             console.warn(`[MetaLeadAttribution] Could not fetch leads for form ${formId}: ${msg}`);
             result.errors.push(`Leads (form ${formId}): ${msg}`);
             break;
         }
+
+        const leads: MetaLead[] = page.data ?? [];
+        const nextPage: string | undefined = page.paging?.next;
 
         result.leadsProcessed += leads.length;
 
@@ -214,8 +227,8 @@ async function processFormLeads(
             }
         }
 
-        // Próxima página
-        nextUrl = nextPage;
-        params = {}; // URL de next já contém os params
+        // Próxima página — next URL já inclui todos os params
+        pageUrl = nextPage ?? null;
+        pageParams = {};
     }
 }
