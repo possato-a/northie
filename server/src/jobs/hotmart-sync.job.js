@@ -254,7 +254,7 @@ async function processSale(profileId, sale) {
  * - days=0 ou undefined: busca os últimos 365 dias
  * - days=N: busca os últimos N dias
  */
-export async function backfillHotmart(profileId, days) {
+export async function backfillHotmart(profileId, days, force = false) {
     const effectiveDays = (!days || days <= 0) ? 365 : days;
     const endMs = Date.now();
     const startMs = endMs - effectiveDays * 24 * 60 * 60 * 1000;
@@ -275,6 +275,10 @@ export async function backfillHotmart(profileId, days) {
         _tokenRefreshed = true;
     }
     // Mutex: evita execuções paralelas
+    if (force) {
+        console.log(`[HotmartSync] Force flag — releasing mutex for profile ${profileId}`);
+        await releaseSyncMutex(profileId);
+    }
     const acquired = await acquireSyncMutex(profileId);
     if (!acquired)
         return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
