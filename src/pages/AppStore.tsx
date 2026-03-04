@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
-import { integrationApi, setProfileId } from '../lib/api'
+import { integrationApi, setProfileId, pixelApi } from '../lib/api'
 import {
     PageHeader, SectionLabel,
     Btn, Modal, EmptyState, FilterPills, Input
@@ -9,7 +9,7 @@ import {
 
 // ── Types & Mock Data ────────────────────────────────────────────────────────
 
-type Category = 'Todos' | 'Integrações' | 'Marketing' | 'Pagamentos' | 'Fiscal' | 'Em breve'
+type Category = 'Todos' | 'Integrações' | 'Marketing' | 'Pagamentos' | 'Rastreamento' | 'Fiscal' | 'Em breve'
 
 interface Plugin {
     id: string
@@ -128,6 +128,26 @@ const PLUGINS: Plugin[] = [
             'Rastreamento de conversão por canal',
             'Gestão de estoque sincronizada',
             'Analytics de clientes recorrentes'
+        ]
+    },
+    {
+        id: 'northie-pixel',
+        name: 'Northie Pixel',
+        category: 'Rastreamento',
+        description: 'Rastreie visitantes, UTMs e atribua conversões ao canal certo.',
+        fullDescription: 'O Northie Pixel é um script leve que você instala no <head> do seu site. Ele captura UTMs, GCLIDs, FBCLIDs e gera um visitor_id único para atribuição determinística — conectando cada compra à campanha de origem com precisão.',
+        installCount: '890 instalaram nos últimos 7 dias',
+        status: 'Instalar',
+        iconColor: '#1E1E1E',
+        developer: '@northie',
+        reviews: '5.0',
+        metricInstalls: '1k+',
+        features: [
+            'Captura automática de UTMs, GCLID e FBCLID',
+            'Geração de visitor_id único para atribuição determinística',
+            'Injeção do parâmetro src no checkout da Hotmart',
+            'Script < 2KB — zero dependências externas',
+            'Funciona em qualquer plataforma de site ou landing page'
         ]
     }
 ]
@@ -372,7 +392,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         return () => window.removeEventListener('message', handleMessage)
     }, [handleSync])
 
-    const categories: Category[] = ['Todos', 'Integrações', 'Marketing', 'Pagamentos', 'Fiscal', 'Em breve']
+    const categories: Category[] = ['Todos', 'Integrações', 'Marketing', 'Pagamentos', 'Rastreamento', 'Fiscal', 'Em breve']
 
     const currentPlugins = useMemo(() => {
         return PLUGINS.map(p => ({
@@ -440,6 +460,9 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                     console.error('[AppStore] Erro ao iniciar OAuth:', err)
                     alert('Não foi possível conectar. Verifique sua conexão e tente novamente.')
                 })
+        } else if (pluginId === 'northie-pixel') {
+            // Pixel doesn't need OAuth — snippet is shown in detail view
+            return
         } else if (pluginId === 'stripe') {
             const plugin = PLUGINS.find(p => p.id === pluginId)
             if (plugin) setWebhookOpen(plugin)
@@ -572,6 +595,25 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
     const webhookUrl = userId ? `${window.location.origin}/api/webhooks/hotmart/${userId}` : null
     const shopifyWebhookUrl = userId ? `${window.location.origin}/api/webhooks/shopify/${userId}` : null
 
+    const [pixelSnippet, setPixelSnippet] = useState<string | null>(null)
+    const [copiedPixel, setCopiedPixel] = useState(false)
+    const copyPixelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        if (plugin.id !== 'northie-pixel') return
+        pixelApi.getSnippet()
+            .then(({ data }) => setPixelSnippet(data.snippet))
+            .catch(() => setPixelSnippet(null))
+    }, [plugin.id])
+
+    const handleCopyPixel = () => {
+        if (!pixelSnippet) return
+        navigator.clipboard.writeText(pixelSnippet)
+        setCopiedPixel(true)
+        if (copyPixelTimeoutRef.current) clearTimeout(copyPixelTimeoutRef.current)
+        copyPixelTimeoutRef.current = setTimeout(() => setCopiedPixel(false), 2000)
+    }
+
     const handleCopy = () => {
         if (!webhookUrl) return
         navigator.clipboard.writeText(webhookUrl)
@@ -610,7 +652,7 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                 title={plugin.name}
                 subtitle={plugin.connectedAccounts ? `${plugin.connectedAccounts} conta(s) conectada(s)` : plugin.description}
                 breadcrumb={{ label: 'Voltar para App Store', onClick: onBack }}
-                actions={
+                actions={plugin.id === 'northie-pixel' ? undefined : (
                     <div style={{ display: 'flex', gap: 12 }}>
                         <Btn
                             variant={isExpired ? 'danger' : isConnected ? 'secondary' : 'primary'}
@@ -641,7 +683,7 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                             </Btn>
                         )}
                     </div>
-                }
+                )}
             />
 
             <div style={{ display: 'flex', gap: 48, marginTop: 40, alignItems: 'flex-start' }}>
@@ -755,6 +797,73 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
                                     Eventos ativos: <strong>orders/paid · orders/refunded · orders/cancelled · customers/create · customers/update</strong>
                                 </p>
+                            </div>
+                        )}
+
+                        {plugin.id === 'northie-pixel' && (
+                            <div style={{ marginTop: 40 }}>
+                                <SectionLabel gutterBottom={12}>Snippet de instalação</SectionLabel>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+                                    Cole o código abaixo no <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--color-bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>&lt;head&gt;</code> de todas as páginas do seu site ou landing page.
+                                </p>
+
+                                <div style={{
+                                    background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-lg)',
+                                    border: '1px solid var(--color-border)', overflow: 'hidden'
+                                }}>
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        padding: '10px 16px', borderBottom: '1px solid var(--color-border)'
+                                    }}>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', letterSpacing: '0.04em' }}>
+                                            northie-pixel.js
+                                        </span>
+                                        <motion.button
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={handleCopyPixel}
+                                            disabled={!pixelSnippet}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 6,
+                                                padding: '6px 12px', borderRadius: 'var(--radius-md)',
+                                                border: `1px solid ${copiedPixel ? 'var(--color-success, #22c55e)' : 'var(--color-border)'}`,
+                                                background: copiedPixel ? 'rgba(34,197,94,0.08)' : 'var(--color-bg-primary)',
+                                                color: copiedPixel ? 'var(--color-success, #22c55e)' : 'var(--color-text-secondary)',
+                                                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
+                                                fontWeight: 500, cursor: pixelSnippet ? 'pointer' : 'default',
+                                                transition: 'all 0.2s', letterSpacing: '0.04em', textTransform: 'uppercase'
+                                            }}
+                                        >
+                                            {copiedPixel ? (
+                                                <>
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    Copiado
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                                    Copiar
+                                                </>
+                                            )}
+                                        </motion.button>
+                                    </div>
+                                    <pre style={{
+                                        margin: 0, padding: '16px 20px', overflow: 'auto', maxHeight: 280,
+                                        fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
+                                        color: 'var(--color-text-primary)', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all'
+                                    }}>
+                                        {pixelSnippet ?? 'Carregando snippet...'}
+                                    </pre>
+                                </div>
+
+                                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginTop: 24 }}>
+                                    <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 10 }}>Como instalar:</p>
+                                    <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 8, lineHeight: 1.6 }}>
+                                        <li>Copie o snippet acima</li>
+                                        <li>Cole no <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--color-bg-secondary)', padding: '2px 5px', borderRadius: 3 }}>&lt;head&gt;</code> de todas as páginas do seu site</li>
+                                        <li>Se usar Hotmart, o pixel injeta o parâmetro <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--color-bg-secondary)', padding: '2px 5px', borderRadius: 3 }}>src</code> automaticamente no checkout</li>
+                                        <li>A atribuição começa imediatamente — cada visita é vinculada à campanha de origem</li>
+                                    </ol>
+                                </div>
                             </div>
                         )}
 

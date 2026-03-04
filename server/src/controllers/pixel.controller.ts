@@ -1,5 +1,20 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
+import { generatePixelSnippet } from '../utils/pixel-snippet.js';
+
+/**
+ * Retorna o snippet do Northie Pixel gerado com o profileId do founder.
+ * O founder copia e cola no <head> do seu site.
+ */
+export async function getPixelSnippet(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+
+    const backendUrl = process.env.BACKEND_URL || 'https://northie.vercel.app';
+    const snippet = generatePixelSnippet(profileId, backendUrl);
+
+    return res.status(200).json({ snippet, profileId, backendUrl });
+}
 
 /**
  * Handles incoming tracking events from the Northie Pixel (UTMs, Click IDs, etc.)

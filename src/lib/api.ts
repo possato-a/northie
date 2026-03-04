@@ -58,4 +58,8 @@ export const growthApi = {
     getStatus: (id: string) => api.get(`/growth/recommendations/${id}/status`),
 };
 
+export const pixelApi = {
+    getSnippet: () => api.get('/pixel/snippet'),
+};
+
 export default api;
