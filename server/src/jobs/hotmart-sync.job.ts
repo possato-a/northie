@@ -141,6 +141,27 @@ const CANCELLED_STATUSES = new Set(['CANCELLED', 'EXPIRED', 'NO_FUNDS', 'BLOCKED
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+// ── Tipo real da API Hotmart (v1 — objetos aninhados) ─────────────────────────
+
+interface HotmartSaleRaw {
+    product: { id: number; name: string };
+    producer: { ucode: string; name: string };
+    buyer: { name: string; email: string; ucode: string };
+    purchase: {
+        status: string;
+        transaction: string;
+        order_date: number;        // Unix ms
+        approved_date?: number;    // Unix ms
+        price: { value: number; currency_code: string };
+        is_subscription: boolean;
+        hotmart_fee?: { total: number; percentage: number; base: number; fixed: number; currency_code: string };
+        payment?: { type: string; method: string; installments_number: number };
+        offer?: { code: string; payment_mode: string };
+        commission_as?: string;
+    };
+}
+
+// Flat interface for processSale (mapped from raw)
 interface HotmartSale {
     buyer_name: string;
     buyer_email: string;
@@ -151,12 +172,30 @@ interface HotmartSale {
     transaction_status: string;
     purchase_date: number; // Unix ms
     amount: number;
+    fee: number;
     currency_code?: string;
-    commission_as?: string; // PRODUCER | COPRODUCER | AFFILIATE
+    commission_as?: string | undefined;
+}
+
+function mapRawToSale(raw: HotmartSaleRaw): HotmartSale {
+    return {
+        buyer_name: raw.buyer?.name ?? '',
+        buyer_email: raw.buyer?.email ?? '',
+        buyer_ucode: raw.buyer?.ucode ?? '',
+        product_id: raw.product?.id ?? 0,
+        product_name: raw.product?.name ?? '',
+        transaction: raw.purchase?.transaction ?? '',
+        transaction_status: raw.purchase?.status ?? '',
+        purchase_date: raw.purchase?.order_date ?? raw.purchase?.approved_date ?? 0,
+        amount: raw.purchase?.price?.value ?? 0,
+        fee: raw.purchase?.hotmart_fee?.total ?? 0,
+        currency_code: raw.purchase?.price?.currency_code ?? 'BRL',
+        commission_as: raw.purchase?.commission_as,
+    };
 }
 
 interface HotmartSalesResponse {
-    items: HotmartSale[];
+    items: HotmartSaleRaw[];
     page_info: {
         total_results: number;
         results_per_page: number;
@@ -173,7 +212,7 @@ interface HotmartSalesResponse {
  */
 interface FetchResult {
     sales: HotmartSale[];
-    rawFirstPage: any; // diagnostic: raw API response from first page
+    rawFirstPage: any;
     httpStatus: number;
 }
 
@@ -220,11 +259,12 @@ async function fetchAllHotmartSales(
                 items_count: res.data?.items?.length ?? 0,
                 // First item: all keys + raw object (redact email)
                 sample_item_keys: res.data?.items?.[0] ? Object.keys(res.data.items[0]) : [],
-                sample_item_raw: res.data?.items?.[0] ? (() => { const s = { ...res.data.items[0] }; if (s.buyer_email) s.buyer_email = '***'; return s; })() : null,
+                sample_item_raw: res.data?.items?.[0] ? (() => { const s: any = { ...res.data.items[0] }; if (s.buyer?.email) s.buyer = { ...s.buyer, email: '***' }; return s; })() : null,
             };
         }
 
-        const items = res.data?.items ?? [];
+        const rawItems = res.data?.items ?? [];
+        const items = rawItems.map(mapRawToSale);
         all.push(...items);
         pageToken = res.data?.page_info?.next_page_token;
         console.log(`[HotmartSync] Page success: ${items.length} items. Total: ${all.length}`);
@@ -272,7 +312,8 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             return;
         }
 
-        const fee = parseFloat((amount * HOTMART_FEE_RATE).toFixed(2));
+        // Usa fee real da API quando disponível, senão calcula com taxa padrão
+        const fee = sale.fee > 0 ? sale.fee : parseFloat((amount * HOTMART_FEE_RATE).toFixed(2));
         const amountNet = parseFloat((amount - fee).toFixed(2));
 
         const { error: txError } = await supabase.from('transactions').insert({
