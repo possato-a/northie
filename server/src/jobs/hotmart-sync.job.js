@@ -285,14 +285,15 @@ export async function backfillHotmart(profileId, days, force = false) {
         userTokens = await IntegrationService.refreshTokens(profileId, 'hotmart');
         _tokenRefreshed = true;
     }
-    // Mutex: evita execuções paralelas
-    if (force) {
-        console.log(`[HotmartSync] Force flag — releasing mutex for profile ${profileId}`);
-        await releaseSyncMutex(profileId);
+    // Mutex: evita execuções paralelas (skip when force=true)
+    if (!force) {
+        const acquired = await acquireSyncMutex(profileId);
+        if (!acquired)
+            return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
     }
-    const acquired = await acquireSyncMutex(profileId);
-    if (!acquired)
-        return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
+    else {
+        console.log(`[HotmartSync] Force flag — skipping mutex for profile ${profileId}`);
+    }
     // Logging estruturado
     const logId = await startSyncLog(profileId);
     console.log(`[HotmartSync] Starting backfill for profile ${profileId} — last ${effectiveDays} days`);
@@ -363,7 +364,8 @@ export async function backfillHotmart(profileId, days, force = false) {
         throw e;
     }
     finally {
-        await releaseSyncMutex(profileId);
+        if (!force)
+            await releaseSyncMutex(profileId);
     }
     return {
         synced, skipped, errors,

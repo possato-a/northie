@@ -378,13 +378,13 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
         _tokenRefreshed = true;
     }
 
-    // Mutex: evita execuções paralelas
-    if (force) {
-        console.log(`[HotmartSync] Force flag — releasing mutex for profile ${profileId}`);
-        await releaseSyncMutex(profileId);
+    // Mutex: evita execuções paralelas (skip when force=true)
+    if (!force) {
+        const acquired = await acquireSyncMutex(profileId);
+        if (!acquired) return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
+    } else {
+        console.log(`[HotmartSync] Force flag — skipping mutex for profile ${profileId}`);
     }
-    const acquired = await acquireSyncMutex(profileId);
-    if (!acquired) return { synced: 0, skipped: 0, errors: 0, debug: { blocked: 'mutex_locked' } };
 
     // Logging estruturado
     const logId = await startSyncLog(profileId);
@@ -462,7 +462,7 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
         await finishSyncLog(logId, synced, e.message);
         throw e;
     } finally {
-        await releaseSyncMutex(profileId);
+        if (!force) await releaseSyncMutex(profileId);
     }
 
     return {
