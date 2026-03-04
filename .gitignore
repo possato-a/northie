@@ -46,3 +46,4 @@ server/node_modules/
 
 # Debug / test logs
 server/*.txt
+supabase/.temp/

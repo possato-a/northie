@@ -8,6 +8,33 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 const HOTMART_API_BASE = 'https://api-hot-connect.hotmart.com';
+const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
+/**
+ * Obtém um access token via client_credentials.
+ * A Hotmart Connect API (vendas) exige este tipo de token —
+ * o token do fluxo authorization_code não tem permissão para essa API.
+ */
+async function getClientCredentialsToken() {
+    const clientId = (process.env.HOTMART_CLIENT_ID || '').trim();
+    const clientSecret = (process.env.HOTMART_CLIENT_SECRET || '').trim();
+    if (!clientId || !clientSecret) {
+        throw new Error('[HotmartSync] HOTMART_CLIENT_ID ou HOTMART_CLIENT_SECRET não configurados');
+    }
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    try {
+        const res = await axios.post(HOTMART_AUTH_URL, new URLSearchParams({ grant_type: 'client_credentials' }), { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
+        const token = res.data?.access_token;
+        if (!token)
+            throw new Error('Hotmart não retornou access_token via client_credentials');
+        console.log('[HotmartSync] client_credentials token obtained successfully');
+        return token;
+    }
+    catch (err) {
+        const detail = JSON.stringify(err.response?.data ?? err.message);
+        console.error(`[HotmartSync] client_credentials token failed (${err.response?.status}):`, detail);
+        throw err;
+    }
+}
 // Status que representam vendas confirmadas (equivalente a PURCHASE_APPROVED)
 const APPROVED_STATUSES = new Set(['APPROVED', 'COMPLETE']);
 // Status de reembolso
@@ -22,23 +49,36 @@ async function fetchAllHotmartSales(accessToken, startDateMs, endDateMs) {
     const all = [];
     let pageToken = undefined;
     do {
+        console.log(`[HotmartSync] Fetching page with token: ${pageToken ?? 'none'} (Period: ${new Date(startDateMs).toISOString()} to ${new Date(endDateMs).toISOString()})`);
         const params = {
             max_results: 50,
             ...(startDateMs !== undefined && { start_date: startDateMs }),
             ...(endDateMs !== undefined && { end_date: endDateMs }),
             ...(pageToken && { page_token: pageToken }),
         };
-        const res = await axios.get(`${HOTMART_API_BASE}/payments/api/v1/sales/history`, {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-            },
-            params,
-        });
-        const items = res.data?.items ?? [];
-        all.push(...items);
-        pageToken = res.data?.page_info?.next_page_token;
-        console.log(`[HotmartSync] Fetched ${items.length} sales (total so far: ${all.length}, next_page_token: ${pageToken ?? 'none'})`);
+        try {
+            const res = await axios.get(`${HOTMART_API_BASE}/payments/api/v1/sales/history`, {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                params,
+            });
+            const items = res.data?.items ?? [];
+            all.push(...items);
+            pageToken = res.data?.page_info?.next_page_token;
+            console.log(`[HotmartSync] Page success: returned ${items.length} items. Total so far: ${all.length}`);
+        }
+        catch (err) {
+            console.error(`[HotmartSync] API Request Failed:`, {
+                status: err.response?.status,
+                data: err.response?.data,
+                message: err.message,
+                url: err.config?.url,
+                params: err.config?.params
+            });
+            throw err;
+        }
     } while (pageToken);
     return all;
 }
@@ -47,7 +87,7 @@ async function fetchAllHotmartSales(accessToken, startDateMs, endDateMs) {
  * Reutiliza o mesmo pipeline do webhook para consistência.
  */
 async function processSale(profileId, sale) {
-    const { transaction, buyer_email, amount, transaction_status } = sale;
+    const { transaction, buyer_email, buyer_name, amount, transaction_status } = sale;
     // ── Venda aprovada ────────────────────────────────────────────────────────
     if (APPROVED_STATUSES.has(transaction_status)) {
         // Verifica se já existe (idempotência) — upsert via external_id unique constraint
@@ -62,7 +102,12 @@ async function processSale(profileId, sale) {
         // Upsert customer
         const { data: customer, error: custError } = await supabase
             .from('customers')
-            .upsert({ profile_id: profileId, email: buyer_email, acquisition_channel: 'desconhecido' }, { onConflict: 'profile_id, email' })
+            .upsert({
+            profile_id: profileId,
+            email: buyer_email,
+            name: buyer_name,
+            acquisition_channel: 'Hotmart'
+        }, { onConflict: 'profile_id, email' })
             .select('id, total_ltv')
             .single();
         if (custError || !customer) {
@@ -78,9 +123,9 @@ async function processSale(profileId, sale) {
             amount_gross: amount,
             amount_net: amount,
             status: 'approved',
+            acquisition_channel: 'Hotmart'
         });
         if (txError) {
-            // Ignora conflito de unique constraint (já processado por webhook)
             if (txError.code === '23505')
                 return;
             console.error(`[HotmartSync] Transaction insert failed for ${transaction}:`, txError.message);
@@ -90,7 +135,7 @@ async function processSale(profileId, sale) {
         const newLtv = (Number(customer.total_ltv) || 0) + amount;
         await supabase
             .from('customers')
-            .update({ total_ltv: newLtv, last_purchase_at: new Date().toISOString() })
+            .update({ total_ltv: newLtv, last_purchase_at: new Date(sale.purchase_date).toISOString() })
             .eq('id', customer.id);
         return;
     }
@@ -141,22 +186,21 @@ export async function backfillHotmart(profileId, days) {
     const endMs = Date.now();
     const startMs = endMs - effectiveDays * 24 * 60 * 60 * 1000;
     console.log(`[HotmartSync] Starting backfill for profile ${profileId} — last ${effectiveDays} days`);
-    // Busca e valida token
-    const tokens = await IntegrationService.getIntegration(profileId, 'hotmart');
-    if (!tokens?.access_token) {
-        throw new Error(`[HotmartSync] No Hotmart tokens for profile ${profileId}`);
+    // Verifica se a integração existe (apenas para confirmar que o usuário autorizou)
+    const integration = await IntegrationService.getIntegration(profileId, 'hotmart');
+    if (!integration) {
+        throw new Error(`[HotmartSync] No Hotmart integration for profile ${profileId}`);
     }
-    // Renova token se necessário (10min buffer — Hotmart usa tokens de ~1h)
-    let accessToken = tokens.access_token;
-    if (IntegrationService.isNearExpiry(tokens, 10 * 60 * 1000)) {
-        try {
-            const refreshed = await IntegrationService.refreshTokens(profileId, 'hotmart');
-            accessToken = refreshed.access_token;
-        }
-        catch (e) {
-            console.error(`[HotmartSync] Token refresh failed for ${profileId}:`, e.message);
-            throw e;
-        }
+    // Usa client_credentials para obter token de serviço — a Hotmart Connect API
+    // (api-hot-connect.hotmart.com) exige este tipo de token para acesso aos dados de vendas.
+    // O token do fluxo authorization_code serve apenas para confirmar a identidade do usuário.
+    let accessToken;
+    try {
+        accessToken = await getClientCredentialsToken();
+    }
+    catch (e) {
+        console.error(`[HotmartSync] Failed to get service token for ${profileId}:`, e.message);
+        throw e;
     }
     // Busca todas as vendas no período
     let sales;
@@ -164,7 +208,7 @@ export async function backfillHotmart(profileId, days) {
         sales = await fetchAllHotmartSales(accessToken, startMs, endMs);
     }
     catch (e) {
-        console.error(`[HotmartSync] Failed to fetch sales for ${profileId}:`, e.response?.data ?? e.message);
+        console.error(`[HotmartSync] Failed to fetch sales for ${profileId}:`, JSON.stringify(e.response?.data ?? e.message));
         throw e;
     }
     console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);

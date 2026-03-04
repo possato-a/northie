@@ -30,7 +30,7 @@ export async function listRecommendations(req: Request, res: Response) {
  */
 export async function approveRecommendation(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
-    const { id } = req.params;
+    const id = req.params.id as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
     const { data: rec, error } = await supabase

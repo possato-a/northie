@@ -24,7 +24,9 @@
       "Bash(npx tsx src/scripts/backfill-meta.ts)",
       "Bash(git add src/pages/Canais.tsx server/src/jobs/ads-sync.job.ts server/src/scripts/backfill-meta.ts)",
       "Bash(git push)",
-      "Bash(npx tsc:*)"
+      "Bash(echo:*)",
+      "Bash(cd \"C:\\\\Users\\\\Possato\\\\Documents\\\\northie\" && git checkout -b feat/francisco-fase-a-e-product-pages 2>&1)",
+      "Bash(npx supabase:*)"
     ]
   }
 }

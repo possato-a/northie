@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
 import { backfillMetaAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 import { backfillHotmart } from '../jobs/hotmart-sync.job.js';
+import { backfillStripe } from '../jobs/stripe-sync.job.js';
 /**
  * Redirects the user to the platform's OAuth consent screen
  */
@@ -146,6 +147,26 @@ export async function handleCallback(req, res) {
                 throw new Error(`Hotmart API Error (${errorStatus}): ${errorMsg} | RedirectURI: ${redirectUri}`);
             }
         }
+        else if (platform === 'stripe') {
+            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            if (!stripeSecretKey) {
+                throw new Error('STRIPE_SECRET_KEY não configurado no servidor.');
+            }
+            const tokenRes = await axios.post('https://connect.stripe.com/oauth/token', new URLSearchParams({
+                grant_type: 'authorization_code',
+                code: code,
+            }), {
+                auth: { username: stripeSecretKey, password: '' },
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
+            tokens = {
+                access_token: tokenRes.data.access_token,
+                stripe_user_id: tokenRes.data.stripe_user_id,
+                refresh_token: tokenRes.data.refresh_token,
+                scope: tokenRes.data.scope,
+                livemode: tokenRes.data.livemode,
+            };
+        }
         else {
             throw new Error(`Plataforma não suportada: ${platform}`);
         }
@@ -278,20 +299,40 @@ export async function cronSync(req, res) {
  * Triggers an immediate ad metrics sync
  */
 export async function triggerSync(req, res) {
-    const { platform } = req.params;
+    const { platform: rawPlatform } = req.params;
+    const platform = String(rawPlatform || '').toLowerCase().trim();
     const profileId = req.headers['x-profile-id'];
     if (!profileId)
         return res.status(400).json({ error: 'Missing x-profile-id header' });
     const days = req.body?.days !== undefined ? Number(req.body.days) : 2;
     try {
+        console.log(`[IntegrationController] triggerSync started for ${platform} (Profile: ${profileId}, Days: ${days})`);
         if (platform === 'meta') {
             await backfillMetaAds(profileId, days);
             return res.status(200).json({ message: `Meta Ads sync completed for last ${days} days.` });
         }
         if (platform === 'hotmart') {
+            // Verify integration exists (user has connected Hotmart)
+            const integration = await IntegrationService.getIntegration(profileId, 'hotmart');
+            if (!integration) {
+                return res.status(401).json({ error: 'Hotmart não conectado. Reconecte a integração.' });
+            }
+            // Run sync synchronously — backfillHotmart now uses client_credentials token
+            // so there is no OAuth expiry issue. Vercel allows up to 60s.
             const result = await backfillHotmart(profileId, days);
             return res.status(200).json({
                 message: `Hotmart sync completed for last ${days} days.`,
+                ...result,
+            });
+        }
+        if (platform === 'stripe') {
+            const integration = await IntegrationService.getIntegration(profileId, 'stripe');
+            if (!integration) {
+                return res.status(401).json({ error: 'Stripe não conectado. Reconecte a integração.' });
+            }
+            const result = await backfillStripe(profileId, days);
+            return res.status(200).json({
+                message: `Stripe sync completed for last ${days} days.`,
                 ...result,
             });
         }
@@ -302,8 +343,17 @@ export async function triggerSync(req, res) {
         return res.status(400).json({ error: `Sync not supported for platform: ${platform}` });
     }
     catch (error) {
-        console.error('[IntegrationController] triggerSync error:', error.message);
-        res.status(500).json({ error: 'Failed to trigger sync', detail: error.message });
+        const hotmartBody = error.response?.data;
+        const errorMsg = hotmartBody?.error_description || hotmartBody?.error || error.message;
+        const httpStatus = error.response?.status;
+        console.error(`[IntegrationController] triggerSync error for ${platform} (HTTP ${httpStatus}):`, JSON.stringify(hotmartBody ?? error.message));
+        return res.status(500).json({
+            error: 'Failed to trigger sync',
+            message: errorMsg,
+            hotmart_error: hotmartBody ?? null,
+            http_status: httpStatus ?? null,
+            platform: platform
+        });
     }
 }
 //# sourceMappingURL=integration.controller.js.map
