@@ -1,0 +1,132 @@
+import * as AIService from '../services/ai.service.js';
+import { supabase } from '../lib/supabase.js';
+const HISTORY_LIMIT = 20; // últimas N mensagens enviadas ao Claude
+/**
+ * Main chat endpoint for "Ask Northie".
+ * Inclui histórico de conversa para manter contexto entre mensagens.
+ */
+export async function handleChatMessage(req, res) {
+    const { message } = req.body;
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId || !message) {
+        return res.status(400).json({ error: 'Missing x-profile-id or message' });
+    }
+    try {
+        // 1. Buscar histórico das últimas N mensagens do perfil
+        const { data: historyRows } = await supabase
+            .from('ai_chat_history')
+            .select('role, content')
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(HISTORY_LIMIT);
+        // Reverter para ordem cronológica (mais antigas primeiro)
+        const history = (historyRows || []).reverse();
+        // 2. Buscar contexto de dados do workspace
+        const { data: transData } = await supabase
+            .from('transactions')
+            .select('amount_net')
+            .eq('profile_id', profileId)
+            .eq('status', 'approved');
+        const revenue = transData?.reduce((sum, t) => sum + Number(t.amount_net), 0) || 0;
+        const { data: customers } = await supabase
+            .from('customers')
+            .select('acquisition_channel, total_ltv')
+            .eq('profile_id', profileId);
+        const context = {
+            profileId,
+            stats: {
+                total_revenue: revenue,
+                currency: 'BRL',
+                total_customers: customers?.length || 0,
+            },
+            attribution: customers,
+            history,
+        };
+        // 3. Persistir mensagem do usuário ANTES de gerar resposta
+        await supabase.from('ai_chat_history').insert({
+            profile_id: profileId,
+            role: 'user',
+            content: message,
+        });
+        // 4. Gerar resposta com histórico
+        const response = await AIService.generateAIResponse(message, context);
+        // 5. Persistir resposta da IA
+        await supabase.from('ai_chat_history').insert({
+            profile_id: profileId,
+            role: 'assistant',
+            content: response.content,
+        });
+        res.status(200).json(response);
+    }
+    catch (error) {
+        console.error('AI Chat Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+/**
+ * Limpa o histórico de chat de um perfil (botão "Nova conversa" no frontend).
+ */
+export async function clearChatHistory(req, res) {
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId)
+        return res.status(400).json({ error: 'Missing x-profile-id' });
+    const { error } = await supabase
+        .from('ai_chat_history')
+        .delete()
+        .eq('profile_id', profileId);
+    if (error)
+        return res.status(500).json({ error: 'Failed to clear history' });
+    res.status(200).json({ message: 'History cleared' });
+}
+/**
+ * Growth chat endpoint — contexto expandido com recomendações e business stats.
+ */
+export async function handleGrowthChatMessage(req, res) {
+    const { message } = req.body;
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId || !message) {
+        return res.status(400).json({ error: 'Missing x-profile-id or message' });
+    }
+    try {
+        // Buscar histórico de chat
+        const { data: historyRows } = await supabase
+            .from('ai_chat_history')
+            .select('role, content')
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(10);
+        const history = (historyRows || []).reverse();
+        // Buscar dados do workspace
+        const [transResult, customersResult, recsResult] = await Promise.all([
+            supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
+            supabase.from('customers').select('total_ltv, churn_probability, acquisition_channel').eq('profile_id', profileId),
+            supabase.from('growth_recommendations').select('id, type, title, narrative, impact_estimate, sources, meta, status').eq('profile_id', profileId).in('status', ['pending', 'approved', 'executing', 'completed', 'failed']).order('created_at', { ascending: false }).limit(10),
+        ]);
+        const customers = customersResult.data || [];
+        const totalRevenue = (transResult.data || []).reduce((s, t) => s + Number(t.amount_net), 0);
+        const avgLtv = customers.length > 0 ? customers.reduce((s, c) => s + Number(c.total_ltv), 0) / customers.length : 0;
+        const avgChurn = customers.length > 0 ? customers.reduce((s, c) => s + Number(c.churn_probability || 0), 0) / customers.length / 100 : 0;
+        const channels = [...new Set(customers.map(c => c.acquisition_channel).filter(Boolean))];
+        const allRecs = recsResult.data || [];
+        const pendingRecs = allRecs.filter(r => ['pending', 'approved', 'executing'].includes(r.status));
+        const recentRecs = allRecs.filter(r => ['completed', 'failed'].includes(r.status));
+        const context = {
+            profileId,
+            businessStats: { total_revenue: totalRevenue, avg_ltv: avgLtv, avg_churn: avgChurn, active_channels: channels },
+            pendingRecs,
+            recentRecs,
+            history,
+        };
+        // Persistir mensagem do usuário
+        await supabase.from('ai_chat_history').insert({ profile_id: profileId, role: 'user', content: message });
+        const response = await AIService.generateGrowthAIResponse(message, context);
+        // Persistir resposta
+        await supabase.from('ai_chat_history').insert({ profile_id: profileId, role: 'assistant', content: response.content });
+        res.status(200).json(response);
+    }
+    catch (error) {
+        console.error('Growth Chat Error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+}
+//# sourceMappingURL=ai.controller.js.map
