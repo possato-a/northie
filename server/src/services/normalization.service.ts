@@ -211,10 +211,16 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
         const email: string = payload.email;
         if (!email) return;
         const name = [payload.first_name, payload.last_name].filter(Boolean).join(' ') || undefined;
+        const phone: string | undefined = payload.phone || undefined;
         const { error } = await supabase
             .from('customers')
             .upsert(
-                { profile_id: profileId, email, ...(name ? { name } : {}) },
+                {
+                    profile_id: profileId,
+                    email,
+                    ...(name ? { name } : {}),
+                    ...(phone ? { phone } : {}),
+                },
                 { onConflict: 'profile_id,email', ignoreDuplicates: false }
             );
         if (error) console.error(`[Shopify] Customer upsert error for ${email}:`, error.message);

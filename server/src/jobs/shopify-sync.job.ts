@@ -225,7 +225,7 @@ async function processOrder(profileId: string, order: ShopifyOrder): Promise<'sy
         external_id: externalId,
         amount_gross: amountGross,
         amount_net: amountNet,
-        fee_platform: 0, // Shopify não expõe taxa de processamento na REST API
+        fee_platform: tax, // Armazena o imposto — taxa real da Shopify não é exposta na REST API
         status: 'approved',
         created_at: order.created_at,
         northie_attribution_id: visitorId ?? null,

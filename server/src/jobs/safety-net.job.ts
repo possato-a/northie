@@ -17,6 +17,8 @@
 import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { backfillHotmart } from './hotmart-sync.job.js';
+import { backfillShopify } from './shopify-sync.job.js';
+import { IntegrationService } from '../services/integration.service.js';
 
 const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
 const HOTMART_API_BASE = 'https://developers.hotmart.com';
@@ -145,6 +147,113 @@ async function reconcileProfile(profileId: string, accessToken: string): Promise
     }
 }
 
+// ── Shopify Safety Net ────────────────────────────────────────────────────
+
+/**
+ * Conta pedidos pagos na API da Shopify para um período.
+ * Usa /orders/count.json que retorna { count: N } sem paginação.
+ */
+async function getShopifyApiCount(
+    shop: string,
+    token: string,
+    createdAtMin: string,
+    createdAtMax: string
+): Promise<number> {
+    const res = await axios.get(
+        `https://${shop}/admin/api/2024-01/orders/count.json`,
+        {
+            headers: { 'X-Shopify-Access-Token': token },
+            params: { financial_status: 'paid', created_at_min: createdAtMin, created_at_max: createdAtMax },
+            timeout: 20000,
+        }
+    );
+    return res.data?.count ?? 0;
+}
+
+async function reconcileShopifyProfile(profileId: string): Promise<void> {
+    const DAYS = 30;
+    const endIso = new Date().toISOString();
+    const startIso = new Date(Date.now() - DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+    const integration = await IntegrationService.getIntegration(profileId, 'shopify');
+    if (!integration) return;
+
+    const token = integration.access_token;
+    const shop = (integration as any).shop_domain as string | undefined;
+    if (!token || !shop) return;
+
+    let apiCount = 0;
+    let dbCount = 0;
+
+    try {
+        const { count } = await supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('profile_id', profileId)
+            .eq('platform', 'shopify')
+            .eq('status', 'approved')
+            .gte('created_at', startIso)
+            .lte('created_at', endIso);
+
+        dbCount = count ?? 0;
+        apiCount = await getShopifyApiCount(shop, token, startIso, endIso);
+    } catch (err: any) {
+        console.error(`[SafetyNet/Shopify] Failed to fetch counts for ${profileId}:`, err.message);
+        await supabase.from('sync_logs').insert({
+            profile_id: profileId, platform: 'shopify_safety_net',
+            started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
+            status: 'error', rows_upserted: 0, error_message: err.message,
+        });
+        return;
+    }
+
+    const gap = apiCount - dbCount;
+    console.log(`[SafetyNet/Shopify] Profile ${profileId}: API=${apiCount}, DB=${dbCount}, gap=${gap}`);
+
+    if (gap <= 0) {
+        await supabase.from('sync_logs').insert({
+            profile_id: profileId, platform: 'shopify_safety_net',
+            started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
+            status: 'success', rows_upserted: 0,
+            meta: JSON.stringify({ apiCount, dbCount, backfillTriggered: false, gap: 0 }),
+        });
+        return;
+    }
+
+    console.warn(`[SafetyNet/Shopify] Gap de ${gap} pedido(s) para ${profileId} — disparando backfill`);
+    try {
+        const result = await backfillShopify(profileId, DAYS);
+        console.log(`[SafetyNet/Shopify] Backfill completo para ${profileId}: ${result.synced} recuperado(s)`);
+        await supabase.from('sync_logs').insert({
+            profile_id: profileId, platform: 'shopify_safety_net',
+            started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
+            status: 'success', rows_upserted: result.synced,
+            meta: JSON.stringify({ apiCount, dbCount, backfillTriggered: true, gap }),
+        });
+    } catch (err: any) {
+        console.error(`[SafetyNet/Shopify] Backfill falhou para ${profileId}:`, err.message);
+    }
+}
+
+async function runShopifyReconciliation(): Promise<void> {
+    const { data: integrations } = await supabase
+        .from('integrations')
+        .select('profile_id')
+        .eq('platform', 'shopify')
+        .eq('status', 'active');
+
+    if (!integrations?.length) return;
+
+    console.log(`[SafetyNet/Shopify] Reconciling ${integrations.length} profile(s)...`);
+    for (const { profile_id } of integrations) {
+        try {
+            await reconcileShopifyProfile(profile_id);
+        } catch (err: any) {
+            console.error(`[SafetyNet/Shopify] Unhandled error for profile ${profile_id}:`, err.message);
+        }
+    }
+}
+
 // ── Main runner ───────────────────────────────────────────────────────────
 
 async function runSafetyNet(): Promise<void> {
@@ -178,6 +287,8 @@ async function runSafetyNet(): Promise<void> {
             console.error(`[SafetyNet] Unhandled error for profile ${profile_id}:`, err.message);
         }
     }
+
+    await runShopifyReconciliation();
 
     console.log('[SafetyNet] Reconciliation complete.');
 }
