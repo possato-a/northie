@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../ThemeContext'
+import { supabase } from '../lib/supabase'
+import { integrationApi } from '../lib/api'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -289,10 +291,28 @@ function NavItem({
 
 // ── Settings Panels ────────────────────────────────────────────────────────────
 
-function PerfilPanel() {
-    const [name, setName] = useState('Francisco Possato')
-    const [email] = useState('francisco@empresa.com')
+function PerfilPanel({ user }: { user?: any }) {
+    const initialName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
+    const email = user?.email || ''
+    const [name, setName] = useState(initialName)
     const [focused, setFocused] = useState<string | null>(null)
+    const [saving, setSaving] = useState(false)
+    const [saved, setSaved] = useState(false)
+
+    const handleSave = async () => {
+        if (!user?.id || !name.trim()) return
+        setSaving(true)
+        try {
+            await supabase.from('profiles').update({ full_name: name.trim() }).eq('id', user.id)
+            await supabase.auth.updateUser({ data: { full_name: name.trim() } })
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2000)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const initial = name?.[0]?.toUpperCase() || email?.[0]?.toUpperCase() || 'N'
 
     return (
         <div>
@@ -317,17 +337,11 @@ function PerfilPanel() {
                     fontWeight: 400,
                     color: 'var(--color-text-primary)',
                     flexShrink: 0,
-                }}>F</div>
+                }}>{initial}</div>
                 <div>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--color-text-primary)', margin: 0 }}>{name}</p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--color-text-primary)', margin: 0 }}>{name || email}</p>
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>{email}</p>
                 </div>
-                <button
-                    className="notion-btn"
-                    style={{ marginLeft: 'auto', border: '1px solid var(--color-border)' }}
-                >
-                    Alterar foto
-                </button>
             </div>
 
             <SettingRow title="Nome" description="Seu nome é visível para todos os membros do workspace.">
@@ -368,11 +382,33 @@ function PerfilPanel() {
                 </span>
             </SettingRow>
 
-            <SettingRow title="Senha" description="Altere sua senha de acesso." divider={false}>
+            <SettingRow title="Senha" description="Altere sua senha de acesso.">
                 <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
                     Alterar senha
                 </button>
             </SettingRow>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
+                <button
+                    onClick={handleSave}
+                    disabled={saving || !name.trim()}
+                    style={{
+                        padding: '7px 20px',
+                        borderRadius: 'var(--radius-md)',
+                        border: 'none',
+                        background: saved ? 'var(--color-success, #22c55e)' : 'var(--color-primary)',
+                        color: 'white',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: saving ? 'default' : 'pointer',
+                        opacity: saving ? 0.7 : 1,
+                        transition: 'background 0.2s',
+                    }}
+                >
+                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+            </div>
 
             <div style={{ marginTop: 40 }}>
                 <SectionHeading>Zona de perigo</SectionHeading>
@@ -708,14 +744,27 @@ function MembrosPanel() {
     )
 }
 
-function IntegracoesPanel() {
-    const integrations = [
-        { name: 'Meta Ads', description: 'Sincronize campanhas e dados de performance do Facebook e Instagram Ads.', icon: '🔵', connected: false },
-        { name: 'Google Ads', description: 'Importe dados de campanhas Google Search, Display e YouTube.', icon: '🔴', connected: false },
-        { name: 'Hotmart', description: 'Conecte vendas, comissões e métricas de produtos digitais.', icon: '🟠', connected: false },
-{ name: 'Eduzz', description: 'Conecte seus produtos e relatórios financeiros da Eduzz.', icon: '🟡', connected: false },
-        { name: 'ActiveCampaign', description: 'Sincronize automações, leads e taxas de abertura de email.', icon: '⚪', connected: false },
+function IntegracoesPanel({ onGoToAppStore }: { onGoToAppStore?: () => void }) {
+    const INTEGRATION_META = [
+        { platform: 'meta', name: 'Meta Ads', description: 'Campanhas Facebook e Instagram Ads — ROAS, CAC e conversões.', logoUrl: '/logos/logo-meta.png' },
+        { platform: 'google', name: 'Google Ads', description: 'Search, Display e YouTube — custo, cliques e atribuição GCLID.', logoUrl: '/logos/logo-googleads.png' },
+        { platform: 'hotmart', name: 'Hotmart', description: 'Vendas, reembolsos e assinaturas de produtos digitais em tempo real.', logoUrl: '/logos/logo-hotmart.jpg' },
+        { platform: 'stripe', name: 'Stripe', description: 'Transações, MRR e churn de assinaturas e pagamentos globais.', logoUrl: '/logos/logo-stripe.png' },
+        { platform: 'shopify', name: 'Shopify', description: 'Pedidos, clientes e estoque do seu e-commerce.', logoUrl: '/logos/logo-shopify.png' },
     ]
+
+    const [statuses, setStatuses] = useState<Record<string, string>>({})
+
+    useEffect(() => {
+        integrationApi.getStatus()
+            .then(({ data }) => {
+                if (!Array.isArray(data)) return
+                const map: Record<string, string> = {}
+                for (const item of data) map[item.platform] = item.status
+                setStatuses(map)
+            })
+            .catch(() => { })
+    }, [])
 
     return (
         <div>
@@ -727,55 +776,65 @@ function IntegracoesPanel() {
                 marginBottom: 24,
                 lineHeight: 1.55,
             }}>
-                Conecte suas plataformas para centralizar todos os seus dados na Northie.
+                Gerencie suas conexões de plataforma. Para conectar ou reconectar, acesse a <strong>App Store</strong>.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {integrations.map((intg, i) => (
-                    <motion.div
-                        key={intg.name}
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, delay: i * 0.04 }}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 16,
-                            padding: '16px 0',
-                            borderBottom: i < integrations.length - 1 ? '1px solid var(--color-border)' : 'none',
-                        }}
-                    >
-                        <span style={{ fontSize: 22, flexShrink: 0, width: 36, textAlign: 'center' }}>{intg.icon}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-base)', color: 'var(--color-text-primary)', margin: 0 }}>{intg.name}</p>
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '3px 0 0', lineHeight: 1.4 }}>{intg.description}</p>
-                        </div>
-                        <button style={{
-                            padding: '6px 14px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-bg-secondary)',
-                            color: 'var(--color-text-secondary)',
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: 'var(--text-sm)',
-                            fontWeight: 400,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            transition: 'all var(--transition-base)',
-                        }}
-                            onMouseEnter={e => {
-                                (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)'
-                                    ; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)'
-                            }}
-                            onMouseLeave={e => {
-                                (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'
-                                    ; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)'
+                {INTEGRATION_META.map((intg, i) => {
+                    const status = statuses[intg.platform]
+                    const isActive = status === 'active'
+                    const isExpired = status === 'expired' || status === 'inactive'
+                    return (
+                        <motion.div
+                            key={intg.platform}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.25, delay: i * 0.04 }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 16,
+                                padding: '16px 0',
+                                borderBottom: i < INTEGRATION_META.length - 1 ? '1px solid var(--color-border)' : 'none',
                             }}
                         >
-                            Conectar
-                        </button>
-                    </motion.div>
-                ))}
+                            <div style={{
+                                width: 36, height: 36, borderRadius: 'var(--radius-md)',
+                                background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                overflow: 'hidden', flexShrink: 0,
+                            }}>
+                                <img src={intg.logoUrl} alt={intg.name} style={{ width: 22, height: 22, objectFit: 'contain' }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-base)', color: 'var(--color-text-primary)', margin: 0 }}>{intg.name}</p>
+                                    {isActive && <span className="tag tag-complete" style={{ fontSize: 9 }}>Conectado</span>}
+                                    {isExpired && <span className="tag tag-warning" style={{ fontSize: 9 }}>Expirado</span>}
+                                </div>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '3px 0 0', lineHeight: 1.4 }}>{intg.description}</p>
+                            </div>
+                            <button
+                                onClick={onGoToAppStore}
+                                style={{
+                                    padding: '6px 14px',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: `1px solid ${isExpired ? 'var(--status-critical)' : 'var(--color-border)'}`,
+                                    background: 'var(--color-bg-secondary)',
+                                    color: isExpired ? 'var(--status-critical)' : 'var(--color-text-secondary)',
+                                    fontFamily: 'var(--font-sans)',
+                                    fontSize: 'var(--text-sm)',
+                                    fontWeight: 400,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                    transition: 'all var(--transition-base)',
+                                }}
+                            >
+                                {isExpired ? 'Reconectar' : isActive ? 'Gerenciar' : 'Conectar'}
+                            </button>
+                        </motion.div>
+                    )
+                })}
             </div>
         </div>
     )
@@ -852,21 +911,23 @@ const navGroups: NavGroup[] = [
     },
 ]
 
-const PANELS: Record<SettingsSection, React.ReactNode> = {
-    perfil: <PerfilPanel />,
-    preferencias: <PreferenciasPanel />,
-    notificacoes: <NotificacoesPanel />,
-    seguranca: <SegurancaPanel />,
-    workspace: <WorkspacePanel />,
-    membros: <MembrosPanel />,
-    integracoes: <IntegracoesPanel />,
-    planos: <PlanosPanel />,
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-export default function Configuracoes() {
+export default function Configuracoes({ user, onGoToAppStore }: { user?: any; onGoToAppStore?: () => void }) {
     const [active, setActive] = useState<SettingsSection>('preferencias')
+
+    const renderPanel = () => {
+        switch (active) {
+            case 'perfil': return <PerfilPanel user={user} />
+            case 'integracoes': return <IntegracoesPanel onGoToAppStore={onGoToAppStore} />
+            case 'preferencias': return <PreferenciasPanel />
+            case 'notificacoes': return <NotificacoesPanel />
+            case 'seguranca': return <SegurancaPanel />
+            case 'workspace': return <WorkspacePanel />
+            case 'membros': return <MembrosPanel />
+            case 'planos': return <PlanosPanel />
+        }
+    }
 
     return (
         <div style={{ paddingTop: 28, paddingBottom: 80, display: 'flex', gap: 0, minHeight: '80vh' }}>
@@ -918,7 +979,7 @@ export default function Configuracoes() {
                         exit={{ opacity: 0, y: -4 }}
                         transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
                     >
-                        {PANELS[active]}
+                        {renderPanel()}
                     </motion.div>
                 </AnimatePresence>
             </div>

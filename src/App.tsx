@@ -141,7 +141,9 @@ export default function App() {
             {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
             {activePage === 'valuation' && <Valuation onToggleChat={() => setChatOpen(!chatOpen)} />}
             {activePage === 'relatorios' && <Relatorios onToggleChat={() => setChatOpen(!chatOpen)} user={session?.user} />}
-            {activePage === 'configuracoes' && <Configuracoes />}
+            {activePage === 'configuracoes' && (
+              <Configuracoes user={session?.user} onGoToAppStore={() => setActivePage('app-store')} />
+            )}
             {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'valuation' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
               <motion.div
                 key={activePage}
