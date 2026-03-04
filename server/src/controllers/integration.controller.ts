@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
 import { backfillMetaAds, backfillGoogleAds, runAdsSyncForAllProfiles } from '../jobs/ads-sync.job.js';
 import { backfillHotmart, runHotmartSyncForAllProfiles } from '../jobs/hotmart-sync.job.js';
+import { backfillStripe, runStripeSyncForAllProfiles } from '../jobs/stripe-sync.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -170,6 +171,29 @@ export async function handleCallback(req: Request, res: Response) {
                 const errorMsg = errorData?.error_description || errorData?.error || hotError.message;
                 throw new Error(`Hotmart API Error (${errorStatus}): ${errorMsg} | RedirectURI: ${redirectUri}`);
             }
+        } else if (platform === 'stripe') {
+            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            if (!stripeSecretKey) {
+                throw new Error('STRIPE_SECRET_KEY não configurado no servidor.');
+            }
+            const tokenRes = await axios.post(
+                'https://connect.stripe.com/oauth/token',
+                new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    code: code as string,
+                }),
+                {
+                    auth: { username: stripeSecretKey, password: '' },
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                }
+            );
+            tokens = {
+                access_token: tokenRes.data.access_token,
+                stripe_user_id: tokenRes.data.stripe_user_id,
+                refresh_token: tokenRes.data.refresh_token,
+                scope: tokenRes.data.scope,
+                livemode: tokenRes.data.livemode,
+            };
         } else {
             throw new Error(`Plataforma não suportada: ${platform}`);
         }
@@ -230,7 +254,6 @@ export async function handleCallback(req: Request, res: Response) {
                     }
 
                     const idsToStore = leafIds.length > 0 ? leafIds : allIds;
-                    // loginCustomerId = primeiro MCC encontrado (necessário para acessar sub-contas)
                     const loginCustomerId = managerIds.length > 0 ? managerIds[0] : null;
 
                     if (idsToStore.length > 0) {
@@ -256,7 +279,6 @@ export async function handleCallback(req: Request, res: Response) {
         }
 
         // FRONTEND_URL deve ser configurada no Vercel. Fallback inteligente:
-        // Em produção (BACKEND_URL definida), frontend e backend estão no mesmo domínio.
         const frontendOrigin = process.env.FRONTEND_URL
             || (process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/+$/, '') : null)
             || 'http://localhost:5173';
@@ -381,9 +403,10 @@ export async function cronSync(req: Request, res: Response) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-        await Promise.all([
+        await Promise.allSettled([
             runAdsSyncForAllProfiles(),
             runHotmartSyncForAllProfiles(),
+            runStripeSyncForAllProfiles(),
         ]);
         return res.status(200).json({ message: 'Cron sync completed.' });
     } catch (error: any) {
@@ -428,6 +451,18 @@ export async function triggerSync(req: Request, res: Response) {
             const result = await backfillHotmart(profileId, days);
             return res.status(200).json({
                 message: `Hotmart sync completed for last ${days} days.`,
+                ...result,
+            });
+        }
+
+        if (platform === 'stripe') {
+            const integration = await IntegrationService.getIntegration(profileId, 'stripe');
+            if (!integration) {
+                return res.status(401).json({ error: 'Stripe não conectado. Reconecte a integração.' });
+            }
+            const result = await backfillStripe(profileId, days);
+            return res.status(200).json({
+                message: `Stripe sync completed for last ${days} days.`,
                 ...result,
             });
         }

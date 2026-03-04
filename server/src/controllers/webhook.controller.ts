@@ -1,24 +1,30 @@
 import type { Request, Response } from 'express';
+import Stripe from 'stripe';
+import crypto from 'crypto';
 import { supabase } from '../lib/supabase.js';
 import { webhookQueue } from '../lib/webhook-queue.js';
 import { validateWebhookPayload } from '../lib/webhook-schemas.js';
-import crypto from 'crypto';
+import { decrypt } from '../utils/encryption.js';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+    apiVersion: '2026-01-28.clover' as any,
+});
 
 /**
  * Verifica o token de autenticação de plataformas que usam segredo estático.
- * Retorna true se válido (ou se a plataforma não requer verificação).
+ * Usa comparação em tempo constante (timingSafeEqual) para prevenir timing attacks.
+ * Retorna true se válido.
  */
 function verifyPlatformToken(platform: string, req: Request): boolean {
     if (platform === 'hotmart') {
         const expected = process.env.HOTMART_WEBHOOK_TOKEN;
         if (!expected) {
-            // Token não configurado — loga aviso mas não bloqueia (evita quebrar em dev)
-            console.warn('[Webhook] HOTMART_WEBHOOK_TOKEN não configurado — pulando verificação');
-            return true;
+            console.error('[Webhook] HOTMART_WEBHOOK_TOKEN não configurado — rejeitando request');
+            return false;
         }
         const received = req.headers['x-hotmart-hottok'] as string | undefined;
         if (!received) {
-            console.warn('[Webhook] Hotmart: token ausente');
+            console.warn('[Webhook] Hotmart: header x-hotmart-hottok ausente');
             return false;
         }
         // Comparação timing-safe para prevenir timing attacks
@@ -34,6 +40,140 @@ function verifyPlatformToken(platform: string, req: Request): boolean {
         }
     }
     return true;
+}
+
+/**
+ * Handles Stripe Connect webhooks.
+ * Requires raw body (express.raw) — must be mounted BEFORE express.json().
+ * Verifies HMAC signature and looks up profile via stripe_user_id.
+ */
+export async function handleStripeWebhook(req: Request, res: Response) {
+    const sig = req.headers['stripe-signature'] as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+        console.error('[StripeWebhook] STRIPE_WEBHOOK_SECRET not configured');
+        return res.status(500).json({ error: 'Webhook secret not configured' });
+    }
+
+    if (!sig) {
+        return res.status(400).json({ error: 'Missing stripe-signature header' });
+    }
+
+    let event: Stripe.Event;
+    try {
+        event = stripe.webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
+    } catch (err: any) {
+        console.warn('[StripeWebhook] Signature verification failed:', err.message);
+        return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+    }
+
+    // For Stripe Connect, every event includes the connected account ID
+    const stripeAccountId: string | undefined = (event as any).account;
+
+    let profileId: string | null = null;
+
+    if (stripeAccountId) {
+        const { data: integrations } = await supabase
+            .from('integrations')
+            .select('profile_id, config_encrypted')
+            .eq('platform', 'stripe')
+            .eq('status', 'active');
+
+        for (const intg of integrations || []) {
+            try {
+                const tokens = JSON.parse(decrypt((intg.config_encrypted as any).data));
+                if (tokens.stripe_user_id === stripeAccountId) {
+                    profileId = intg.profile_id;
+                    break;
+                }
+            } catch { /* skip corrupt record */ }
+        }
+    }
+
+    if (!profileId) {
+        // Acknowledge Stripe but skip processing — account not linked to any profile
+        console.log(`[StripeWebhook] No profile for Stripe account ${stripeAccountId} — event ${event.type} ack'd`);
+        return res.status(200).json({ received: true });
+    }
+
+    const { data: rawData, error: rawError } = await supabase
+        .from('platforms_data_raw')
+        .insert({ profile_id: profileId, platform: 'stripe', payload: event, processed: false })
+        .select('id')
+        .single();
+
+    if (rawError) {
+        console.error('[StripeWebhook] Failed to persist raw event:', rawError.message);
+        return res.status(500).json({ error: 'Failed to persist event' });
+    }
+
+    // Acknowledge immediately — Stripe requires fast response
+    res.status(200).json({ received: true });
+
+    webhookQueue.enqueue(rawData.id, 'stripe', event, profileId);
+}
+
+/**
+ * Handles Hotmart webhooks via URL-based profile identification.
+ * URL: POST /api/webhooks/hotmart/:profileId
+ * Cada founder configura a URL única no painel da Hotmart — sem necessidade de header x-profile-id.
+ */
+export async function handleHotmartWebhook(req: Request, res: Response) {
+    const { profileId } = req.params;
+
+    if (!profileId) {
+        return res.status(400).json({ error: 'Missing profileId in URL' });
+    }
+
+    // 1. Verificar token em tempo constante
+    if (!verifyPlatformToken('hotmart', req)) {
+        return res.status(401).json({ error: 'Unauthorized: invalid hotmart token' });
+    }
+
+    // 2. Confirmar que o profile tem integração Hotmart ativa
+    const { data: integration } = await supabase
+        .from('integrations')
+        .select('id')
+        .eq('profile_id', profileId)
+        .eq('platform', 'hotmart')
+        .eq('status', 'active')
+        .single();
+
+    if (!integration) {
+        console.warn(`[Webhook] Hotmart: no active integration for profile ${profileId}`);
+        return res.status(404).json({ error: 'Hotmart integration not found for this profile' });
+    }
+
+    // 3. Validar estrutura do payload
+    const payload = req.body;
+    const validation = validateWebhookPayload('hotmart', payload);
+    if (!validation.success) {
+        console.warn(`[Webhook] Hotmart: invalid payload for profile ${profileId}:`, validation.errors);
+        return res.status(400).json({ error: 'Invalid payload', details: validation.errors });
+    }
+
+    try {
+        // 4. Persistir raw data (audit trail)
+        const { data: rawData, error: rawError } = await supabase
+            .from('platforms_data_raw')
+            .insert({ profile_id: profileId, platform: 'hotmart', payload, processed: false })
+            .select('id')
+            .single();
+
+        if (rawError) throw rawError;
+
+        // 5. Responder imediatamente — Hotmart exige resposta rápida ou retenta
+        res.status(200).json({ status: 'received', id: rawData.id });
+
+        // 6. Enfileira normalização com retry automático
+        webhookQueue.enqueue(rawData.id, 'hotmart', payload, profileId);
+    } catch (error: any) {
+        console.error(`[Webhook] Hotmart error for profile ${profileId}:`, error.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
 }
 
 /**

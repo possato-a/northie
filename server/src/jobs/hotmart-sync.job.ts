@@ -233,8 +233,14 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
         const { data: customer, error: custError } = await supabase
             .from('customers')
             .upsert(
-                { profile_id: profileId, email: buyer_email, name: buyer_name, acquisition_channel: 'desconhecido' },
-                { onConflict: 'profile_id, email' }
+                {
+                    profile_id: profileId,
+                    email: buyer_email,
+                    name: buyer_name,
+                    // acquisition_channel omitido: novos clientes ficam com 'desconhecido'
+                    // (default do banco), clientes existentes preservam o canal original
+                },
+                { onConflict: 'profile_id,email', ignoreDuplicates: false }
             )
             .select('id, total_ltv')
             .single();
@@ -256,7 +262,6 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
             amount_net: amountNet,
             fee_platform: fee,
             status: 'approved',
-            acquisition_channel: 'desconhecido',
             created_at: new Date(sale.purchase_date).toISOString(),
         });
 
@@ -420,6 +425,8 @@ export async function backfillHotmart(profileId: string, days?: number): Promise
  * Hotmart ativa. Executado a cada 6 horas pelo servidor.
  */
 export async function runHotmartSyncForAllProfiles(): Promise<void> {
+    console.log('[HotmartSync] Running incremental sync for all profiles...');
+
     const { data: integrations, error } = await supabase
         .from('integrations')
         .select('profile_id')
@@ -435,11 +442,13 @@ export async function runHotmartSyncForAllProfiles(): Promise<void> {
 
     for (const { profile_id } of integrations) {
         try {
-            await backfillHotmart(profile_id, 7); // Últimos 7 dias no cron
+            await backfillHotmart(profile_id, 7);
         } catch (e: any) {
             console.error(`[HotmartSync] Cron sync failed for profile ${profile_id}:`, e.message);
         }
     }
+
+    console.log('[HotmartSync] Incremental sync complete.');
 }
 
 /**
@@ -448,6 +457,6 @@ export async function runHotmartSyncForAllProfiles(): Promise<void> {
  */
 export function startHotmartSyncJob(): void {
     console.log('[HotmartSync] Job registered — will run every 6 hours.');
-    runHotmartSyncForAllProfiles(); // Roda imediatamente ao iniciar
+    runHotmartSyncForAllProfiles();
     setInterval(runHotmartSyncForAllProfiles, 6 * 60 * 60 * 1000);
 }

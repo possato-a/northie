@@ -391,7 +391,7 @@ function CreditRequestModal({ maxLimit, onClose, onConfirm }: {
                         </div>
 
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6 }}>
-                            O split é capturado automaticamente via Stripe, Hotmart ou Kiwify. Você não precisa fazer transferências manuais.
+                            O split é capturado automaticamente via Stripe ou Hotmart. Você não precisa fazer transferências manuais.
                         </p>
 
                         <div style={{ display: 'flex', gap: 10 }}>

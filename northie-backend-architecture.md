@@ -33,7 +33,7 @@ O backend existe para servir esses quatro produtos. Não é um fim em si mesmo.
 - Endpoint genérico `POST /api/webhooks/:platform`
 - Validação de schema via Zod antes de persistir (rejeita payload malformado com 400)
 - Fila em memória com retry exponencial e recovery de itens pendentes no boot
-- Handlers normalizadores para: Stripe, Hotmart, Kiwify, Shopify
+- Handlers normalizadores para: Stripe, Hotmart, Shopify
 
 **Cron Jobs**
 - `ads-sync.job.ts`: Sincroniza Meta Ads nos três níveis (campaign/adset/ad) com upsert em batch. Roda a cada 6h.
@@ -468,7 +468,7 @@ Dependências técnicas que precisam estar prontas:
 - Capital Score calculado e histórico de pelo menos 3 meses por profile elegível
 - Lista de espera qualificada com score mínimo definido
 - Integração com QI Tech ou Celcoin para desembolso (novo domínio, fora do escopo atual)
-- Split de pagamento configurado nas integrações Hotmart/Kiwify/Stripe
+- Split de pagamento configurado nas integrações Hotmart/Stripe
 
 ### Fase 3 — Northie Valuation
 

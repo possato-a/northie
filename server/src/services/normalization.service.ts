@@ -12,8 +12,6 @@ export async function normalizeData(rawId: string, platform: string, payload: an
             await handleStripeNormalization(payload, profileId);
         } else if (platform === 'hotmart') {
             await handleHotmartNormalization(payload, profileId);
-        } else if (platform === 'kiwify') {
-            await handleKiwifyNormalization(payload, profileId);
         } else if (platform === 'shopify') {
             await handleShopifyNormalization(payload, profileId);
         } else {
@@ -34,20 +32,41 @@ export async function normalizeData(rawId: string, platform: string, payload: an
 }
 
 /**
- * Specific handler for Stripe Webhooks
+ * Specific handler for Stripe Webhooks.
+ * Handles checkout.session.completed, payment_intent.succeeded, and charge.refunded.
  */
 async function handleStripeNormalization(payload: any, profileId: string) {
-    if (payload.type === 'checkout.session.completed') {
-        const session = payload.data.object;
-        const email = session.customer_details?.email;
-        const amount_total = session.amount_total / 100;
+    const eventType: string = payload.type;
+    const obj = payload.data?.object;
 
-        // Stripe stores custom metadata where we inject the visitorId
-        const visitorId = session.metadata?.visitorId;
-
-        if (!email) throw new Error('Customer email missing in Stripe session');
-        await syncTransaction(profileId, email, 'stripe', session.id, amount_total, visitorId);
+    if (eventType === 'checkout.session.completed') {
+        const email: string = obj.customer_details?.email;
+        const amount = obj.amount_total / 100;
+        const visitorId: string | undefined = obj.metadata?.northie_vid || obj.metadata?.visitorId;
+        if (!email) throw new Error('Customer email missing in Stripe checkout session');
+        await syncTransaction(profileId, email, 'stripe', obj.id, amount, visitorId);
+        return;
     }
+
+    if (eventType === 'payment_intent.succeeded') {
+        const email: string = obj.receipt_email || 'unknown@stripe.com';
+        const amount = obj.amount_received / 100;
+        const visitorId: string | undefined = obj.metadata?.northie_vid || obj.metadata?.visitorId;
+        await syncTransaction(profileId, email, 'stripe', obj.id, amount, visitorId);
+        return;
+    }
+
+    if (eventType === 'charge.refunded') {
+        const piId: string | null = typeof obj.payment_intent === 'string' ? obj.payment_intent : null;
+        const email: string = obj.billing_details?.email || 'unknown@stripe.com';
+        const refundAmount = obj.amount_refunded / 100;
+        if (piId) {
+            await syncRefund(profileId, email, piId, refundAmount);
+        }
+        return;
+    }
+
+    console.log(`[Stripe] Evento ignorado: ${eventType}`);
 }
 
 // Eventos Hotmart que representam cancelamento/falha (sem impacto financeiro positivo)
@@ -137,19 +156,6 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
 
     // Outros eventos (PURCHASE_COMPLETE, PURCHASE_DELAYED, etc.) — sem ação
     console.log(`[Hotmart] Evento ignorado: ${event}`);
-}
-
-async function handleKiwifyNormalization(payload: any, profileId: string) {
-    if (payload.order_status === 'paid' || payload.order_status === 'approved') {
-        const email = payload.Customer.email;
-        const amount = payload.order_ref_amount / 100;
-        const transactionId = payload.order_id;
-        // Kiwify doesn't provide a direct visitor ID in standard webhooks,
-        // so we pass undefined for now. Future integration might involve custom fields.
-        const visitorId = undefined;
-
-        await syncTransaction(profileId, email, 'kiwify', transactionId, amount, visitorId);
-    }
 }
 
 /**

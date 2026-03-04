@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import { integrationApi, setProfileId } from '../lib/api'
@@ -410,7 +410,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
                     )
                 })
-        } else if (['stripe', 'shopify', 'kiwify'].includes(pluginId)) {
+        } else if (['stripe', 'shopify'].includes(pluginId)) {
             const plugin = PLUGINS.find(p => p.id === pluginId)
             if (plugin) setWebhookOpen(plugin)
         } else {
@@ -454,6 +454,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         onSyncFull={() => handleSync(currentSelectedPlugin.id, 0)}
                         isSyncing={syncingPlatform === currentSelectedPlugin.id}
                         isSyncingFull={syncingPlatform === `${currentSelectedPlugin.id}-full`}
+                        userId={user?.id}
                     />
                 ) : (
                     <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -514,7 +515,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     )
 }
 
-function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFull, isSyncing, isSyncingFull }: {
+function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFull, isSyncing, isSyncingFull, userId }: {
     plugin: Plugin
     onBack: () => void
     onInstall: () => void
@@ -523,11 +524,24 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
     onSyncFull: () => void
     isSyncing: boolean
     isSyncingFull: boolean
+    userId?: string
 }) {
     const isConnected = plugin.status === 'Conectado'
     const isExpired = plugin.status === 'Expirado'
     const supportsSync = ['meta-ads', 'google-ads', 'hotmart'].includes(plugin.id)
     const anySyncing = isSyncing || isSyncingFull
+    const [copied, setCopied] = useState(false)
+    const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const webhookUrl = userId ? `${window.location.origin}/api/webhooks/hotmart/${userId}` : null
+
+    const handleCopy = () => {
+        if (!webhookUrl) return
+        navigator.clipboard.writeText(webhookUrl)
+        setCopied(true)
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+        copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
+    }
 
     return (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
@@ -631,6 +645,70 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                 </li>
                             ))}
                         </ul>
+
+                        {plugin.id === 'hotmart' && isConnected && webhookUrl && (
+                            <div style={{ marginTop: 40 }}>
+                                <SectionLabel gutterBottom={12}>Configuração de Webhook</SectionLabel>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
+                                    Para receber vendas em tempo real, cole a URL abaixo no painel da Hotmart em <strong>Ferramentas → Webhooks</strong>.
+                                </p>
+
+                                <div style={{
+                                    background: 'var(--color-bg-secondary)', padding: '16px 20px',
+                                    borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)',
+                                    display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20
+                                }}>
+                                    <code style={{
+                                        flex: 1, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)',
+                                        color: 'var(--color-text-primary)', overflow: 'hidden',
+                                        textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0
+                                    }}>
+                                        {webhookUrl}
+                                    </code>
+                                    <motion.button
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleCopy}
+                                        style={{
+                                            flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
+                                            padding: '8px 14px', borderRadius: 'var(--radius-md)',
+                                            border: `1px solid ${copied ? 'var(--color-success, #22c55e)' : 'var(--color-border)'}`,
+                                            background: copied ? 'rgba(34,197,94,0.08)' : 'var(--color-bg-primary)',
+                                            color: copied ? 'var(--color-success, #22c55e)' : 'var(--color-text-secondary)',
+                                            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
+                                            fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
+                                            letterSpacing: '0.04em', textTransform: 'uppercase'
+                                        }}
+                                    >
+                                        {copied ? (
+                                            <>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                                Copiado
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                                </svg>
+                                                Copiar
+                                            </>
+                                        )}
+                                    </motion.button>
+                                </div>
+
+                                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                                    <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 10 }}>Passo a passo na Hotmart:</p>
+                                    <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 8, lineHeight: 1.6 }}>
+                                        <li>Acesse <strong>Meus Produtos → Ferramentas → Webhooks</strong></li>
+                                        <li>Clique em <strong>Adicionar URL de Notificação</strong></li>
+                                        <li>Cole a URL acima no campo de destino</li>
+                                        <li>Selecione os eventos: <strong>Compra Aprovada</strong>, <strong>Reembolso</strong> e <strong>Assinatura Cancelada</strong></li>
+                                        <li>Salve. A Northie começa a receber vendas em tempo real.</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -15,7 +15,7 @@ export interface OAuthTokens {
 /**
  * Supported platforms for OAuth and webhooks
  */
-export type SupportedPlatform = 'meta' | 'google' | 'stripe' | 'hotmart' | 'kiwify' | 'shopify'
+export type SupportedPlatform = 'meta' | 'google' | 'stripe' | 'hotmart' | 'shopify'
 
 /**
  * Acquisition channels for customer attribution

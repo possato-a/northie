@@ -70,7 +70,7 @@ A Northie conecta tudo, encontra as correlações e executa. Esse é o diferenci
 
 # A Base — Integrações e Banco de Dados Unificado
 
-Tudo começa pelas integrações. A Northie conecta Meta Ads, Google Ads, Hotmart, Kiwify, Stripe e Shopify via API, importando histórico completo de vendas, campanhas, clientes e performance de canais.
+Tudo começa pelas integrações. A Northie conecta Meta Ads, Google Ads, Hotmart, Stripe e Shopify via API, importando histórico completo de vendas, campanhas, clientes e performance de canais.
 
 Os dados são normalizados num schema único — o Northie Schema — que traduz fontes diferentes em objetos padronizados: transações, clientes, campanhas, métricas de ads. É esse schema que torna possível cruzar dados de plataformas distintas e encontrar correlações que nenhuma delas enxerga sozinha.
 
@@ -112,7 +112,7 @@ O limite não é calculado por score de crédito tradicional — é calculado pe
 
 O founder é aprovado para um limite baseado nos dados da Northie. Esse limite cai no Northie Card — não na conta bancária. Ele usa o cartão para pagar Meta Ads, Google Ads, fornecedores e ferramentas. Todo mês, um percentual fixo da receita é capturado automaticamente via split na fonte — antes do dinheiro chegar na conta do founder.
 
-O split na fonte é o diferencial técnico central. O pagamento acontece direto nas integrações com Stripe, Hotmart e Kiwify no momento do recebimento. Isso elimina risco de inadimplência e torna a operação mais simples para os dois lados.
+O split na fonte é o diferencial técnico central. O pagamento acontece direto nas integrações com Stripe e Hotmart no momento do recebimento. Isso elimina risco de inadimplência e torna a operação mais simples para os dois lados.
 
 ## Capital Score
 

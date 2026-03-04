@@ -60,17 +60,6 @@ export const HotmartWebhookSchema = z.object({
     }),
 });
 
-// ── Kiwify ────────────────────────────────────────────────────────────────────
-
-export const KiwifyWebhookSchema = z.object({
-    order_status: z.string(),
-    order_id: z.string(),
-    order_ref_amount: z.number().positive(),
-    Customer: z.object({
-        email: z.string().email(),
-    }),
-});
-
 // ── Shopify ───────────────────────────────────────────────────────────────────
 
 export const ShopifyWebhookSchema = z.object({
@@ -98,9 +87,6 @@ export function validateWebhookPayload(platform: string, payload: unknown): Vali
             break;
         case 'hotmart':
             schema = HotmartWebhookSchema;
-            break;
-        case 'kiwify':
-            schema = KiwifyWebhookSchema;
             break;
         case 'shopify':
             schema = ShopifyWebhookSchema;

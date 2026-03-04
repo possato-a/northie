@@ -57,7 +57,7 @@ A Northie é a infraestrutura financeira para founders de negócios digitais que
 ## Produtos
 
 ### Base — Integrações e Banco de Dados Unificado
-Fundação de tudo. Conecta Meta Ads, Google Ads, Hotmart, Kiwify, Stripe e Shopify via API. Os dados são normalizados via **Northie Schema** em objetos padronizados: transações, clientes, campanhas, métricas de ads. O banco de dados cresce com o uso e é o ativo central da plataforma.
+Fundação de tudo. Conecta Meta Ads, Google Ads, Hotmart, Stripe e Shopify via API. Os dados são normalizados via **Northie Schema** em objetos padronizados: transações, clientes, campanhas, métricas de ads. O banco de dados cresce com o uso e é o ativo central da plataforma.
 
 ### Produto 1 — Northie Growth
 **Produto central.** Execução automática de ações de growth baseadas em cruzamento de dados de múltiplas fontes. O diferencial é o contexto — não a automação. Cada ação exige cruzamento de pelo menos duas fontes distintas para fazer sentido.
@@ -69,7 +69,7 @@ Ações: reativação de clientes de alto LTV, pausa de campanha baseada em LTV 
 ### Produto 2 — Northie Card
 Cartão corporativo com limite baseado no faturamento real do negócio. Capital sem garantia física, sem equity, sem burocracia. O limite é calculado pelos dados reais da Northie — histórico de faturamento, LTV médio, churn, saúde do caixa.
 
-Split na fonte: pagamento capturado automaticamente como percentual fixo da receita diretamente nas integrações (Stripe, Hotmart, Kiwify) antes de chegar na conta do founder. Elimina risco de inadimplência.
+Split na fonte: pagamento capturado automaticamente como percentual fixo da receita diretamente nas integrações (Stripe, Hotmart) antes de chegar na conta do founder. Elimina risco de inadimplência.
 
 Capital Score: visível desde o primeiro dia, atualizado mensalmente. Founder que não está elegível entra na lista de espera com um clique.
 
@@ -122,7 +122,7 @@ git push          # Dispara build automático na Vercel (branch main)
 
 ### Ingestão Híbrida
 - **OAuth-First**: Meta Ads, Google Ads, Stripe. Backend gerencia ciclo de vida dos tokens silenciosamente.
-- **Webhooks**: Hotmart, Kiwify — captura vendas, reembolsos e assinaturas em tempo real.
+- **Webhooks**: Hotmart — captura vendas, reembolsos e assinaturas em tempo real.
 - **Cron Jobs**: Polling periódico para métricas de Ads e backfill de histórico.
 
 ### Northie Schema
@@ -136,7 +136,7 @@ Cron job diário que compara dados locais com APIs das plataformas, detecta gaps
 
 ### Rate Limiting
 - Meta/Google: Sliding window com cache
-- Hotmart/Kiwify: Webhook-first com fila de prioridade máxima
+- Hotmart: Webhook-first com fila de prioridade máxima
 - Geral: Exponential backoff em todas as filas
 
 ### Camada de IA
@@ -240,7 +240,7 @@ server/src/
   routes/           # Rotas Express por domínio
   services/
     ai/             # Orquestrador Claude, function calling
-    integrations/   # Meta, Google, Hotmart, Kiwify, Stripe
+    integrations/   # Meta, Google, Hotmart, Stripe
     normalization/  # Northie Schema
     growth/         # Motor de correlações e execução
     capital/        # Underwriting, Capital Score

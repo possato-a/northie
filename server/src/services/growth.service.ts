@@ -5,6 +5,7 @@
  */
 
 import { supabase } from '../lib/supabase.js';
+import { IntegrationService } from './integration.service.js';
 import crypto from 'crypto';
 
 type RecType =
@@ -45,14 +46,8 @@ async function updateStatus(recId: string, status: string): Promise<void> {
 }
 
 async function getMetaToken(profileId: string): Promise<string | null> {
-    const { data } = await supabase
-        .from('integrations')
-        .select('access_token')
-        .eq('profile_id', profileId)
-        .eq('platform', 'meta')
-        .eq('status', 'active')
-        .single();
-    return data?.access_token || null;
+    const tokens = await IntegrationService.getIntegration(profileId, 'meta');
+    return tokens?.access_token || null;
 }
 
 async function getMetaAdAccountId(accessToken: string): Promise<string | null> {

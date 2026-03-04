@@ -766,6 +766,7 @@ export default function Growth() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>(MOCK_RECOMMENDATIONS)
   const [loading, setLoading] = useState(false)
   const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
+  const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
 
   const fetchRecommendations = useCallback(async () => {
     try {
@@ -786,6 +787,35 @@ export default function Growth() {
     const interval = setInterval(fetchRecommendations, 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchRecommendations])
+
+  useEffect(() => {
+    const refs = pollingRefs.current
+    return () => { Object.values(refs).forEach(clearInterval) }
+  }, [])
+
+  const stopPolling = useCallback((id: string) => {
+    if (pollingRefs.current[id]) {
+      clearInterval(pollingRefs.current[id])
+      delete pollingRefs.current[id]
+    }
+  }, [])
+
+  const startPolling = useCallback((id: string) => {
+    pollingRefs.current[id] = setInterval(async () => {
+      try {
+        const res = await growthApi.getStatus(id)
+        const { status, execution_log } = res.data
+        setRecommendations(prev => prev.map(r =>
+          r.id === id ? { ...r, status, execution_log: execution_log || [] } : r
+        ))
+        if (status === 'completed' || status === 'failed') {
+          stopPolling(id)
+        }
+      } catch {
+        // erro de rede durante polling — continua tentando
+      }
+    }, 2000)
+  }, [stopPolling])
 
   // Simulação local de execução (funciona com ou sem backend)
   const simulateExecution = useCallback(async (id: string, type: RecType) => {
@@ -818,7 +848,7 @@ export default function Growth() {
 
     try {
       await growthApi.approve(id)
-      // Se backend disponível, polling cuida do status
+      startPolling(id)
     } catch {
       // Backend não disponível — simula localmente
       simulateExecution(id, rec.type)

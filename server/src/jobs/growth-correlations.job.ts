@@ -59,8 +59,7 @@ async function detectReativacaoAltoLtv(profileId: string): Promise<void> {
     const { data: avgData } = await supabase
         .from('customers')
         .select('total_ltv')
-        .eq('profile_id', profileId)
-        .eq('status', 'active');
+        .eq('profile_id', profileId);
 
     if (!avgData?.length) return;
 
@@ -74,7 +73,7 @@ async function detectReativacaoAltoLtv(profileId: string): Promise<void> {
         .select('id, email, total_ltv, churn_probability, last_purchase_at')
         .eq('profile_id', profileId)
         .gte('total_ltv', avgLtv * 2)
-        .gte('churn_probability', 60)
+        .gte('churn_probability', 0.6)
         .lt('last_purchase_at', sixtyDaysAgo)
         .limit(100);
 
@@ -105,20 +104,22 @@ async function detectPausaCampanhaLtvBaixo(profileId: string): Promise<void> {
 
     const { data: campaigns } = await supabase
         .from('ad_campaigns')
-        .select('id, name, platform, campaign_id_external, spend_brl, roas')
+        .select('campaign_id, campaign_name, platform, spend_brl')
         .eq('profile_id', profileId)
+        .eq('level', 'campaign')
         .gte('date', fourteenDaysAgo)
         .gt('spend_brl', 0);
 
     if (!campaigns?.length) return;
 
-    // Agregar spend por campanha nos últimos 14 dias
+    // Agregar spend por campaign_id externo (cada linha é um dia de dados)
     const campaignSpend: Record<string, { spend: number; name: string; platform: string; campaign_id_external: string }> = {};
     for (const c of campaigns) {
-        if (!campaignSpend[c.id]) {
-            campaignSpend[c.id] = { spend: 0, name: c.name, platform: c.platform, campaign_id_external: c.campaign_id_external };
+        const key = c.campaign_id;
+        if (!campaignSpend[key]) {
+            campaignSpend[key] = { spend: 0, name: c.campaign_name, platform: c.platform, campaign_id_external: c.campaign_id };
         }
-        campaignSpend[c.id]!.spend += Number(c.spend_brl);
+        campaignSpend[key]!.spend += Number(c.spend_brl);
     }
 
     // LTV médio global
@@ -164,7 +165,7 @@ async function detectPausaCampanhaLtvBaixo(profileId: string): Promise<void> {
         title: `Pausar ${badCampaigns.length} campanha(s) com LTV abaixo da média`,
         narrative: `${badCampaigns.length} campanha(s) no ${worstCampaign.platform === 'meta' ? 'Meta Ads' : 'Google Ads'} gastaram R$ ${totalSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} nos últimos 14 dias, mas o LTV médio dos clientes adquiridos por esse canal (R$ ${worstCampaign.channelLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) é menos de 50% do LTV médio global (R$ ${globalAvgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). ROAS aparentemente saudável, mas os clientes gerados valem menos a longo prazo.`,
         impact_estimate: `Economia de ~R$ ${(totalSpend * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês se budget for realocado para canais de maior LTV`,
-        sources: ['ad_campaigns.spend_brl', 'ad_campaigns.roas', 'customers.total_ltv', 'customers.acquisition_channel'],
+        sources: ['ad_campaigns.spend_brl', 'customers.total_ltv', 'customers.acquisition_channel'],
         meta: {
             campaigns: badCampaigns,
             global_avg_ltv: globalAvgLtv,
@@ -198,13 +199,11 @@ async function detectAudienceSyncChampions(profileId: string): Promise<void> {
 
     if (!champions) return;
 
-    // Champions: R >= 4 AND F >= 4 AND M >= 4 (score string "444" a "555")
+    // Champions: R >= 4 AND F >= 4 AND M >= 4 (rfm_score é JSONB {"r": N, "f": N, "m": N})
     const championSegment = champions.filter(c => {
-        const score = c.rfm_score || '';
-        const r = parseInt(score[0] || '0');
-        const f = parseInt(score[1] || '0');
-        const m = parseInt(score[2] || '0');
-        return r >= 4 && f >= 4 && m >= 4;
+        const score = c.rfm_score as { r: number; f: number; m: number } | null;
+        if (!score) return false;
+        return score.r >= 4 && score.f >= 4 && score.m >= 4;
     });
 
     if (championSegment.length < 20) return;
