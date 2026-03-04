@@ -122,6 +122,22 @@ async function getClientCredentialsToken() {
 const APPROVED_STATUSES = new Set(['APPROVED', 'COMPLETE']);
 const REFUNDED_STATUSES = new Set(['REFUNDED', 'PARTIALLY_REFUNDED', 'CHARGEBACK', 'PROTESTED']);
 const CANCELLED_STATUSES = new Set(['CANCELLED', 'EXPIRED', 'NO_FUNDS', 'BLOCKED']);
+function mapRawToSale(raw) {
+    return {
+        buyer_name: raw.buyer?.name ?? '',
+        buyer_email: raw.buyer?.email ?? '',
+        buyer_ucode: raw.buyer?.ucode ?? '',
+        product_id: raw.product?.id ?? 0,
+        product_name: raw.product?.name ?? '',
+        transaction: raw.purchase?.transaction ?? '',
+        transaction_status: raw.purchase?.status ?? '',
+        purchase_date: raw.purchase?.order_date ?? raw.purchase?.approved_date ?? 0,
+        amount: raw.purchase?.price?.value ?? 0,
+        fee: raw.purchase?.hotmart_fee?.total ?? 0,
+        currency_code: raw.purchase?.price?.currency_code ?? 'BRL',
+        commission_as: raw.purchase?.commission_as,
+    };
+}
 async function fetchAllHotmartSales(accessToken, startDateMs, endDateMs) {
     const all = [];
     let pageToken = undefined;
@@ -153,11 +169,12 @@ async function fetchAllHotmartSales(accessToken, startDateMs, endDateMs) {
                 items_count: res.data?.items?.length ?? 0,
                 // First item: all keys + raw object (redact email)
                 sample_item_keys: res.data?.items?.[0] ? Object.keys(res.data.items[0]) : [],
-                sample_item_raw: res.data?.items?.[0] ? (() => { const s = { ...res.data.items[0] }; if (s.buyer_email)
-                    s.buyer_email = '***'; return s; })() : null,
+                sample_item_raw: res.data?.items?.[0] ? (() => { const s = { ...res.data.items[0] }; if (s.buyer?.email)
+                    s.buyer = { ...s.buyer, email: '***' }; return s; })() : null,
             };
         }
-        const items = res.data?.items ?? [];
+        const rawItems = res.data?.items ?? [];
+        const items = rawItems.map(mapRawToSale);
         all.push(...items);
         pageToken = res.data?.page_info?.next_page_token;
         console.log(`[HotmartSync] Page success: ${items.length} items. Total: ${all.length}`);
@@ -195,7 +212,8 @@ async function processSale(profileId, sale) {
             console.error(`[HotmartSync] Customer upsert failed for ${buyer_email}:`, custError?.message);
             return;
         }
-        const fee = parseFloat((amount * HOTMART_FEE_RATE).toFixed(2));
+        // Usa fee real da API quando disponível, senão calcula com taxa padrão
+        const fee = sale.fee > 0 ? sale.fee : parseFloat((amount * HOTMART_FEE_RATE).toFixed(2));
         const amountNet = parseFloat((amount - fee).toFixed(2));
         const { error: txError } = await supabase.from('transactions').insert({
             profile_id: profileId,
