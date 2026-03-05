@@ -8,7 +8,7 @@ const FREQ_MAP = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
     weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
 };
-async function processScheduledReports() {
+export async function processScheduledReports() {
     const now = new Date().toISOString();
     const { data: configs } = await supabase
         .from('report_configs')

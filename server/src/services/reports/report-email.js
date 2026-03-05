@@ -210,7 +210,7 @@ export async function sendReport(opts) {
         ? opts.fileBuffer.toString('base64')
         : Buffer.from(opts.fileBuffer, 'utf-8').toString('base64');
     const { data, error } = await resend.emails.send({
-        from: 'Northie <onboarding@resend.dev>',
+        from: process.env.RESEND_FROM_EMAIL ?? 'Northie <onboarding@resend.dev>',
         to: opts.to,
         subject: `Relatório ${freqLabel} — Northie · ${new Date().toLocaleDateString('pt-BR')}`,
         html,

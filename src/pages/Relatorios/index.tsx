@@ -76,12 +76,13 @@ interface PreviewData {
     revenue_trend: RevenueTrend[]
     rfm_source?: 'calculated' | 'estimated'
     business_type?: string | null
-    ai: {
-        situacao_geral: 'saudavel' | 'atencao' | 'critica'
-        resumo_executivo: string
-        diagnosticos: Diagnosis[]
-        proximos_passos: string[]
-    }
+}
+
+interface AIAnalysis {
+    situacao_geral: 'saudavel' | 'atencao' | 'critica'
+    resumo_executivo: string
+    diagnosticos: Diagnosis[]
+    proximos_passos: string[]
 }
 
 interface ReportLog {
@@ -225,6 +226,8 @@ export default function Relatorios(_props: RelatoriosProps) {
     // Preview state
     const [preview, setPreview] = useState<PreviewData | null>(null)
     const [loadingPreview, setLoadingPreview] = useState(true)
+    const [aiData, setAiData] = useState<AIAnalysis | null>(null)
+    const [loadingAI, setLoadingAI] = useState(false)
     const [previewFreq, setPreviewFreq] = useState<ReportConfig['frequency']>('mensal')
 
     // Generate on-demand
@@ -240,9 +243,17 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     const loadPreview = useCallback((freq: string) => {
         setLoadingPreview(true)
+        setAiData(null)
         reportsApi.getPreview(freq)
-            .then(res => setPreview(res.data as PreviewData))
-            .then(() => setLoadingPreview(false), () => setLoadingPreview(false))
+            .then(res => {
+                setPreview(res.data as PreviewData)
+                setLoadingPreview(false)
+                setLoadingAI(true)
+                reportsApi.getAIAnalysis(freq)
+                    .then(aiRes => { setAiData(aiRes.data as AIAnalysis); setLoadingAI(false) })
+                    .catch(() => setLoadingAI(false))
+            })
+            .catch(() => setLoadingPreview(false))
     }, [])
 
     useEffect(() => {
@@ -354,7 +365,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                     {loadingPreview ? (
                         <div style={{ padding: 32, display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--color-border)', borderTopColor: '#1a7fe8', animation: 'spin 0.8s linear infinite' }} />
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>Analisando dados com IA...</span>
+                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>Carregando dados...</span>
                         </div>
                     ) : preview ? (
                         <>
@@ -362,13 +373,21 @@ export default function Relatorios(_props: RelatoriosProps) {
                             <div style={{ padding: '20px 28px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <SituacaoBadge value={preview.ai.situacao_geral} size="md" />
+                                        {aiData ? (
+                                            <SituacaoBadge value={aiData.situacao_geral} size="md" />
+                                        ) : (
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                                                {loadingAI ? (
+                                                    <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid var(--color-border)', borderTopColor: '#1a7fe8', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />Analisando...</>
+                                                ) : 'IA indisponível'}
+                                            </span>
+                                        )}
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
                                             {fmtDateShort(preview.period.start)} – {fmtDateShort(preview.period.end)}
                                         </span>
                                     </div>
                                     <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', maxWidth: 600, lineHeight: 1.5 }}>
-                                        {preview.ai.resumo_executivo}
+                                        {aiData?.resumo_executivo ?? (loadingAI ? 'Análise em processamento...' : '')}
                                     </p>
                                 </div>
                             </div>
@@ -426,7 +445,10 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 <div style={{ padding: '20px 24px' }}>
                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diagnósticos</span>
                                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                        {preview.ai.diagnosticos.slice(0, 3).map((d, i) => (
+                                        {loadingAI && !aiData && (
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>Analisando com IA...</span>
+                                        )}
+                                        {(aiData?.diagnosticos ?? []).slice(0, 3).map((d, i) => (
                                             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                                                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: SEVERIDADE_COLOR[d.severidade], flexShrink: 0, marginTop: 5 }} />
                                                 <div>
@@ -438,7 +460,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                 </span>
                                             </div>
                                         ))}
-                                        {preview.ai.diagnosticos.length === 0 && (
+                                        {!loadingAI && aiData && aiData.diagnosticos.length === 0 && (
                                             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#22C55E' }}>Nenhum problema crítico identificado ✓</span>
                                         )}
                                         {preview.at_risk_customers.length > 0 && (
@@ -501,10 +523,10 @@ export default function Relatorios(_props: RelatoriosProps) {
                             )}
 
                             {/* Próximos passos */}
-                            {preview.ai.proximos_passos.length > 0 && (
+                            {(aiData?.proximos_passos?.length ?? 0) > 0 && (
                                 <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Próximos passos</span>
-                                    {preview.ai.proximos_passos.slice(0, 3).map((p, i) => (
+                                    {aiData!.proximos_passos.slice(0, 3).map((p, i) => (
                                         <span key={i} style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)' }}>
                                             <span style={{ color: '#1a7fe8', marginRight: 6, fontWeight: 600 }}>{i + 1}.</span>{p}
                                         </span>

@@ -70,12 +70,13 @@ export const reportsApi = {
     generate: (frequency: string, format: string) =>
         api.post('/reports/generate', { frequency, format }, {
             responseType: 'blob',
-            timeout: format === 'pdf' ? 45000 : 20000,
+            timeout: format === 'pdf' ? 90000 : 15000,
         }),
     getLogs: () => api.get('/reports/logs'),
-    getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 30000 }),
+    getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 15000 }),
+    getAIAnalysis: (frequency: string) => api.get('/reports/ai-analysis', { params: { frequency }, timeout: 90000 }),
     sendEmail: (frequency: string, format: string, email?: string) =>
-        api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 60000 }),
+        api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 90000 }),
 };
 
 export default api;

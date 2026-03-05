@@ -14,6 +14,7 @@ import { runValuationForAllProfiles } from '../jobs/valuation-calc.job.js';
 import { runGrowthCorrelationsForAllProfiles } from '../jobs/growth-correlations.job.js';
 import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
 import { checkAndRefreshAll } from '../jobs/token-refresh.job.js';
+import { processScheduledReports } from '../jobs/reports.job.js';
 
 /**
  * Redirects the user to the platform's OAuth consent screen
@@ -485,6 +486,9 @@ export async function cronSync(req: Request, res: Response) {
         // Fase 3: camada de correlação (após RFM e dados analíticos)
         await refreshCorrelationViews();              // Refresh das materialized views
         await runGrowthCorrelationsForAllProfiles();  // Detecta oportunidades de growth
+
+        // Fase 4: relatórios automáticos agendados
+        await processScheduledReports();
 
         return res.status(200).json({ message: 'Cron sync completed.' });
     } catch (error: any) {

@@ -95,6 +95,7 @@ export async function saveReportConfig(req: Request, res: Response) {
     return res.json(data);
 }
 
+// Preview rápido — só dados, sem IA (responde em ~2-3s)
 export async function getReportPreview(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
@@ -104,7 +105,6 @@ export async function getReportPreview(req: Request, res: Response) {
 
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
         return res.json({
             period: reportData.period,
             business_type: reportData.business_type,
@@ -115,16 +115,33 @@ export async function getReportPreview(req: Request, res: Response) {
             at_risk_customers: reportData.at_risk_customers,
             top_products: reportData.top_products,
             revenue_trend: reportData.revenue_trend,
-            ai: {
-                situacao_geral: aiAnalysis.situacao_geral,
-                resumo_executivo: aiAnalysis.resumo_executivo,
-                diagnosticos: aiAnalysis.diagnosticos,
-                proximos_passos: aiAnalysis.proximos_passos,
-            },
         });
     } catch (err) {
         console.error('[Reports] preview error:', err);
         return res.status(500).json({ error: 'Failed to generate preview' });
+    }
+}
+
+// Análise de IA separada — chamada lazy pelo frontend após carregar dados (pode levar ~30-60s)
+export async function getReportAIAnalysis(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const freqRaw: string = (req.query.frequency as string) ?? 'monthly';
+    const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+
+    try {
+        const reportData = await generateReportData(profileId, frequency);
+        const aiAnalysis = await generateReportNarrative(reportData);
+        return res.json({
+            situacao_geral: aiAnalysis.situacao_geral,
+            resumo_executivo: aiAnalysis.resumo_executivo,
+            diagnosticos: aiAnalysis.diagnosticos,
+            proximos_passos: aiAnalysis.proximos_passos,
+        });
+    } catch (err) {
+        console.error('[Reports] AI analysis error:', err);
+        return res.status(500).json({ error: 'Failed to generate AI analysis' });
     }
 }
 
@@ -138,7 +155,12 @@ export async function generateReport(req: Request, res: Response) {
 
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
+
+        // IA só é chamada para PDF — CSV e JSON exportam rápido sem IA
+        const aiAnalysis = format === 'pdf'
+            ? await generateReportNarrative(reportData)
+            : { situacao_geral: 'atencao' as const, resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
+
         const snapshot = buildSnapshot(reportData, aiAnalysis);
 
         await supabase.from('report_logs').insert({
