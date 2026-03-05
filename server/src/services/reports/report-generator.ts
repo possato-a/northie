@@ -134,10 +134,10 @@ export async function generateReportData(profileId: string, frequency: ReportFre
                 .select('rfm_score, total_ltv, acquisition_channel')
                 .eq('profile_id', profileId)
                 .not('rfm_score', 'is', null),
-            // Q8 — tipo de negócio
+            // Q8 — tipo de negócio + nome do founder
             supabase
                 .from('profiles')
-                .select('business_type')
+                .select('business_type, full_name, company_name')
                 .eq('id', profileId)
                 .single(),
             // Q9 — top produtos por receita (crucial para Hotmart)
@@ -337,6 +337,44 @@ export async function generateReportData(profileId: string, frequency: ReportFre
         return { month: label, revenue: rev, change_pct: changePct };
     });
 
+    // ── Transactions detail for Vendas section ────────────────────────────────
+    const { data: txDetailRaw } = await supabase
+        .from('transactions')
+        .select('id, customer_id, platform, amount_net, status, created_at')
+        .eq('profile_id', profileId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    const txCustomerIds = [...new Set(
+        (txDetailRaw ?? []).map(t => t.customer_id).filter((id): id is string => id != null),
+    )];
+
+    let custInfoMap: Record<string, { email: string | null; channel: string | null }> = {};
+    if (txCustomerIds.length > 0) {
+        const { data: custInfo } = await supabase
+            .from('customers')
+            .select('id, email, acquisition_channel')
+            .in('id', txCustomerIds);
+        for (const c of (custInfo ?? [])) {
+            const cc = c as { id: string; email?: string | null; acquisition_channel?: string | null };
+            custInfoMap[cc.id] = { email: cc.email ?? null, channel: cc.acquisition_channel ?? null };
+        }
+    }
+
+    const transactionsDetail = (txDetailRaw ?? []).map(t => ({
+        id: String(t.id),
+        customer_email: custInfoMap[String(t.customer_id)]?.email ?? null,
+        customer_channel: custInfoMap[String(t.customer_id)]?.channel ?? null,
+        platform: String(t.platform ?? ''),
+        amount_net: (t.amount_net as number) ?? 0,
+        status: String(t.status ?? ''),
+        created_at: String(t.created_at ?? ''),
+    }));
+
+    const cacOverall = (newCustomers?.length ?? 0) > 0 && totalSpend > 0
+        ? totalSpend / newCustomers!.length
+        : 0;
+
     // ── Reembolsos ────────────────────────────────────────────────────────────
     const refundAmount = (refundTransactions ?? []).reduce(
         (s, t) => s + ((t as { amount_gross: number }).amount_gross ?? 0), 0
@@ -346,9 +384,16 @@ export async function generateReportData(profileId: string, frequency: ReportFre
         (txCount + refundCount) > 0 ? (refundCount / (txCount + refundCount)) * 100 : 0
     ));
 
+    const profileInfo = profileData as { business_type?: string | null; full_name?: string | null; company_name?: string | null } | null;
+
     return {
         period: { start: periodStart.toISOString(), end: periodEnd.toISOString(), days, frequency },
-        business_type: (profileData as { business_type?: string | null } | null)?.business_type ?? null,
+        business_type: profileInfo?.business_type ?? null,
+        profile_name: profileInfo?.company_name ?? profileInfo?.full_name ?? null,
+        transactions_detail: transactionsDetail,
+        cac_overall: cacOverall,
+        margin_contribution_brl: revenue - totalSpend,
+        margin_contribution_pct: revenue > 0 ? ((revenue - totalSpend) / revenue) * 100 : 0,
         summary: {
             revenue_net: revenue,
             revenue_gross: grossRevenue,

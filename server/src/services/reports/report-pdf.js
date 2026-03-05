@@ -2,23 +2,28 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PDFDocument = require('pdfkit');
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Layout constants ──────────────────────────────────────────────────────────
 const MARGIN = 50;
 const PAGE_WIDTH = 595.28; // A4
 const PAGE_HEIGHT = 841.89; // A4
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2; // 495.28
-const FOOTER_ZONE = PAGE_HEIGHT - MARGIN; // Reserve 50px at bottom for footer
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const HEADER_H = 64;
+const FOOTER_ZONE = PAGE_HEIGHT - 52;
+// ── Brand palette ─────────────────────────────────────────────────────────────
 const C = {
     dark: '#1E1E1E',
+    accent: '#1a1a2e', // Azul marinho — header e tabelas
     white: '#FFFFFF',
-    bg: '#FCF8F8',
-    border: '#E5E5E5',
+    tableLine: '#F4F4F4', // Linhas de tabela
+    zebraRow: '#F9F9F9', // Linhas pares
     textSecondary: '#6B7280',
     success: '#22C55E',
     danger: '#EF4444',
     warning: '#F59E0B',
     primary: '#1A7FE8',
+    border: '#E5E5E5',
 };
+// ── Severity maps (AI) ────────────────────────────────────────────────────────
 const SEVERITY_COLOR = {
     critica: C.danger,
     alta: C.warning,
@@ -31,27 +36,40 @@ const SEVERITY_LABEL = {
     media: 'MEDIA',
     ok: 'OK',
 };
-const SITUACAO_COLOR = {
-    saudavel: C.success,
-    atencao: C.warning,
-    critica: C.danger,
+// ── Channel / status translations ─────────────────────────────────────────────
+const CHANNEL_LABELS = {
+    meta_ads: 'Meta Ads',
+    google_ads: 'Google Ads',
+    organico: 'Orgânico',
+    email: 'Email',
+    direto: 'Direto',
+    afiliado: 'Afiliado',
+    desconhecido: 'Outros',
+    hotmart: 'Hotmart',
+    stripe: 'Stripe',
+    shopify: 'Shopify',
 };
-const SITUACAO_LABEL = {
-    saudavel: 'SAUDAVEL',
-    atencao: 'ATENCAO',
-    critica: 'CRITICA',
+function translateChannel(ch) {
+    return CHANNEL_LABELS[ch] ?? ch;
+}
+const STATUS_DEF = {
+    approved: { text: 'Aprovado', color: C.success },
+    refunded: { text: 'Reembolsado', color: C.danger },
+    pending: { text: 'Pendente', color: C.warning },
+    cancelled: { text: 'Cancelado', color: C.textSecondary },
+    chargeback: { text: 'Chargeback', color: C.danger },
 };
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function streamToBuffer(doc) {
     return new Promise((resolve, reject) => {
         const chunks = [];
-        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('data', (c) => chunks.push(c));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', reject);
     });
 }
 function fmtBrl(n) {
-    return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
 }
 function fmtNum(n, decimals = 2) {
     return n.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -59,22 +77,17 @@ function fmtNum(n, decimals = 2) {
 function fmtDate(iso) {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
+function fmtDateShort(iso) {
+    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 function changeBadge(pct) {
     if (pct === null)
         return '';
     const sign = pct >= 0 ? '+' : '';
     return `${sign}${fmtNum(pct)}%`;
 }
-// ── Page-break safety ────────────────────────────────────────────────────────
-function ensureSpace(doc, needed, ai, periodLabel, frequency) {
-    if (doc.y + needed > FOOTER_ZONE) {
-        doc.addPage();
-        drawPageHeader(doc, ai, periodLabel, frequency);
-        doc.y = 90;
-    }
-}
-// ── Drawing primitives ───────────────────────────────────────────────────────
-function drawHRule(doc, y, color = C.border) {
+// ── Drawing primitives ────────────────────────────────────────────────────────
+function drawHRule(doc, y, color = C.tableLine) {
     doc.save()
         .moveTo(MARGIN, y)
         .lineTo(PAGE_WIDTH - MARGIN, y)
@@ -91,91 +104,48 @@ function sectionLabel(doc, title) {
     drawHRule(doc, doc.y + 4);
     doc.y = doc.y + 10;
 }
-// ── Shared header (drawn on every page) ──────────────────────────────────────
-function drawPageHeader(doc, ai, periodLabel, frequency) {
-    // Dark bar
+// ── Page header (all pages) ───────────────────────────────────────────────────
+function drawPageHeader(doc, profileName, periodLabel) {
+    // Navy accent bar
     doc.save()
-        .rect(0, 0, PAGE_WIDTH, 70)
-        .fillColor(C.dark)
+        .rect(0, 0, PAGE_WIDTH, HEADER_H)
+        .fillColor(C.accent)
         .fill()
         .restore();
-    // NORTHIE title
+    // NORTHIE left
     doc.font('Helvetica-Bold')
-        .fontSize(20)
+        .fontSize(18)
         .fillColor(C.white)
-        .text('NORTHIE', MARGIN, 22);
-    // Subtitle
+        .text('NORTHIE', MARGIN, 16);
+    // Period label left (below logo)
     doc.font('Helvetica')
-        .fontSize(8.5)
-        .fillColor('#999999')
-        .text(`Relatorio ${frequency} · ${periodLabel}`, MARGIN, 48);
-    // Situacao geral badge (pill shape, top-right)
-    const situacaoColor = SITUACAO_COLOR[ai.situacao_geral];
-    const situacaoLabel = SITUACAO_LABEL[ai.situacao_geral];
-    const badgeW = 72;
-    const badgeH = 18;
-    const badgeX = PAGE_WIDTH - MARGIN - badgeW;
-    const badgeY = 26;
-    const badgeR = 9;
-    doc.save()
-        .roundedRect(badgeX, badgeY, badgeW, badgeH, badgeR)
-        .fillColor(situacaoColor)
-        .fill()
-        .restore();
-    doc.font('Helvetica-Bold')
-        .fontSize(7.5)
-        .fillColor(C.white)
-        .text(situacaoLabel, badgeX, badgeY + 5, { width: badgeW, align: 'center' });
-}
-// ── KPI Grid (3 cols x 2 rows) ──────────────────────────────────────────────
-function drawKpiGrid(doc, items) {
-    const cols = 3;
-    const cardGap = 8;
-    const cardW = (CONTENT_WIDTH - cardGap * (cols - 1)) / cols;
-    const cardH = 58;
-    const startY = doc.y;
-    items.forEach((item, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = MARGIN + col * (cardW + cardGap);
-        const y = startY + row * (cardH + cardGap);
-        // Card border
-        doc.save()
-            .rect(x, y, cardW, cardH)
-            .strokeColor(C.border)
-            .lineWidth(0.5)
-            .stroke()
-            .restore();
-        // Label
+        .fontSize(8)
+        .fillColor('#A0A8C8')
+        .text(periodLabel, MARGIN, 42);
+    // Business name right
+    if (profileName) {
         doc.font('Helvetica')
-            .fontSize(7)
-            .fillColor(C.textSecondary)
-            .text(item.label.toUpperCase(), x + 10, y + 8, { width: cardW - 20, characterSpacing: 0.5 });
-        // Value
-        doc.font('Helvetica-Bold')
-            .fontSize(14)
-            .fillColor(C.dark)
-            .text(item.value, x + 10, y + 22, { width: cardW - 20 });
-        // Delta
-        if (item.delta) {
-            doc.font('Helvetica')
-                .fontSize(8)
-                .fillColor(item.deltaPositive ? C.success : C.danger)
-                .text(item.delta, x + 10, y + 42, { width: cardW - 20 });
-        }
-    });
-    const rows = Math.ceil(items.length / cols);
-    doc.y = startY + rows * (cardH + cardGap) + 4;
+            .fontSize(10)
+            .fillColor('#D8DCF0')
+            .text(profileName, 0, 20, { width: PAGE_WIDTH - MARGIN, align: 'right' });
+    }
 }
-function drawTable(doc, columns, rows, ai, periodLabel, frequency) {
+// ── Page-break safety ─────────────────────────────────────────────────────────
+function ensureSpace(doc, needed, profileName, periodLabel) {
+    if (doc.y + needed > FOOTER_ZONE) {
+        doc.addPage();
+        drawPageHeader(doc, profileName, periodLabel);
+        doc.y = HEADER_H + 18;
+    }
+}
+function drawTable(doc, columns, rows, profileName, periodLabel) {
     const headerH = 22;
     const rowH = 20;
     const colWidths = columns.map(c => CONTENT_WIDTH * c.width);
-    // Draw header
     function drawHeader(yPos) {
         doc.save()
             .rect(MARGIN, yPos, CONTENT_WIDTH, headerH)
-            .fillColor(C.dark)
+            .fillColor(C.accent)
             .fill()
             .restore();
         let hx = MARGIN + 8;
@@ -186,29 +156,25 @@ function drawTable(doc, columns, rows, ai, periodLabel, frequency) {
             hx += w;
         });
     }
-    // Check if at least header + 1 row fits
-    ensureSpace(doc, headerH + rowH + 4, ai, periodLabel, frequency);
+    ensureSpace(doc, headerH + rowH + 4, profileName, periodLabel);
     const startY = doc.y;
     drawHeader(startY);
     let rowY = startY + headerH;
     rows.forEach((row, idx) => {
-        // Page break check for each row
         if (rowY + rowH > FOOTER_ZONE) {
-            // Draw outer border for what we have so far
             doc.save()
                 .rect(MARGIN, startY, CONTENT_WIDTH, rowY - startY)
-                .strokeColor(C.border)
+                .strokeColor(C.tableLine)
                 .lineWidth(0.5)
                 .stroke()
                 .restore();
             doc.addPage();
-            drawPageHeader(doc, ai, periodLabel, frequency);
-            doc.y = 90;
-            drawHeader(90);
-            rowY = 90 + headerH;
+            drawPageHeader(doc, profileName, periodLabel);
+            doc.y = HEADER_H + 18;
+            drawHeader(doc.y);
+            rowY = doc.y + headerH;
         }
-        // Alternating row background
-        const bg = idx % 2 === 1 ? '#F7F7F7' : C.white;
+        const bg = idx % 2 === 1 ? C.zebraRow : C.white;
         doc.save()
             .rect(MARGIN, rowY, CONTENT_WIDTH, rowH)
             .fillColor(bg)
@@ -231,358 +197,255 @@ function drawTable(doc, columns, rows, ai, periodLabel, frequency) {
     // Outer border
     doc.save()
         .rect(MARGIN, startY, CONTENT_WIDTH, rowY - startY)
-        .strokeColor(C.border)
+        .strokeColor(C.tableLine)
         .lineWidth(0.5)
         .stroke()
         .restore();
     doc.y = rowY + 12;
 }
-// ── Channel economics table (6 cols for page 1, 7 cols for full) ─────────────
-function drawChannelTable(doc, channels, full, ai, periodLabel, frequency) {
-    const columns = full
-        ? [
-            { label: 'CANAL', width: 0.18, align: 'left' },
-            { label: 'CLIENTES', width: 0.09, align: 'right', font: 'Courier' },
-            { label: 'LTV MEDIO', width: 0.15, align: 'right', font: 'Courier' },
-            { label: 'CAC', width: 0.13, align: 'right', font: 'Courier' },
-            { label: 'LTV/CAC', width: 0.11, align: 'right', font: 'Courier' },
-            { label: 'VALOR CRIADO', width: 0.18, align: 'right', font: 'Courier' },
-            { label: 'STATUS', width: 0.16, align: 'right' },
-        ]
-        : [
-            { label: 'CANAL', width: 0.20, align: 'left' },
-            { label: 'CLIENTES', width: 0.12, align: 'right', font: 'Courier' },
-            { label: 'LTV MEDIO', width: 0.18, align: 'right', font: 'Courier' },
-            { label: 'CAC', width: 0.16, align: 'right', font: 'Courier' },
-            { label: 'LTV/CAC', width: 0.14, align: 'right', font: 'Courier' },
-            { label: 'STATUS', width: 0.20, align: 'right' },
-        ];
-    const rows = channels.map(ch => {
-        const statusColor = ch.status === 'lucrativo' ? C.success : ch.status === 'prejuizo' ? C.danger : C.textSecondary;
-        const statusLabel = ch.status === 'lucrativo' ? 'Lucrativo' : ch.status === 'prejuizo' ? 'Prejuizo' : 'Organico';
-        const ltvcacStr = ch.ltv_cac_ratio !== null ? `${fmtNum(ch.ltv_cac_ratio)}x` : '--';
-        const cacStr = ch.cac > 0 ? fmtBrl(ch.cac) : '--';
-        const valorColor = ch.value_created >= 0 ? C.success : C.danger;
-        const baseCells = [
-            { text: ch.channel },
-            { text: String(ch.new_customers) },
-            { text: fmtBrl(ch.avg_ltv) },
-            { text: cacStr },
-            { text: ltvcacStr },
-        ];
-        if (full) {
-            baseCells.push({ text: fmtBrl(ch.value_created), color: valorColor });
+// ── KPI Cards (5 per spec) ────────────────────────────────────────────────────
+function drawKpiCards(doc, data) {
+    const cols = 3;
+    const cardGap = 8;
+    const cardW = (CONTENT_WIDTH - cardGap * (cols - 1)) / cols;
+    const cardH = 62;
+    const startY = doc.y;
+    const deltaRev = changeBadge(data.summary.revenue_change_pct);
+    const kpis = [
+        {
+            label: 'Faturamento Total',
+            value: fmtBrl(data.summary.revenue_net),
+            sub: deltaRev || undefined,
+            subPositive: (data.summary.revenue_change_pct ?? 0) >= 0,
+        },
+        {
+            label: 'LTV Médio',
+            value: fmtBrl(data.summary.ltv_avg),
+        },
+        {
+            label: 'CAC Médio',
+            value: data.cac_overall > 0 ? fmtBrl(data.cac_overall) : '—',
+            sub: data.summary.new_customers > 0 ? `${data.summary.new_customers} novos clientes` : undefined,
+            subPositive: true,
+        },
+        {
+            label: 'ROAS Consolidado',
+            value: data.summary.roas > 0 ? `${fmtNum(data.summary.roas)}x` : '—',
+            sub: data.summary.ad_spend > 0 ? `Spend ${fmtBrl(data.summary.ad_spend)}` : undefined,
+            subPositive: true,
+        },
+        {
+            label: 'Margem de Contribuição',
+            value: `${fmtNum(data.margin_contribution_pct)}%`,
+            sub: fmtBrl(data.margin_contribution_brl),
+            subPositive: data.margin_contribution_brl >= 0,
+        },
+    ];
+    kpis.forEach((kpi, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = MARGIN + col * (cardW + cardGap);
+        const y = startY + row * (cardH + cardGap);
+        // Accent left bar
+        doc.save().rect(x, y, 3, cardH).fillColor(C.accent).fill().restore();
+        // Card border
+        doc.save().rect(x, y, cardW, cardH).strokeColor(C.tableLine).lineWidth(0.5).stroke().restore();
+        // Label
+        doc.font('Helvetica')
+            .fontSize(7)
+            .fillColor(C.textSecondary)
+            .text(kpi.label.toUpperCase(), x + 12, y + 9, { width: cardW - 20, characterSpacing: 0.3 });
+        // Value (Courier = Geist Mono substitute)
+        doc.font('Helvetica-Bold')
+            .fontSize(13)
+            .fillColor(C.dark)
+            .text(kpi.value, x + 12, y + 22, { width: cardW - 20 });
+        // Sub
+        if (kpi.sub) {
+            doc.font('Helvetica')
+                .fontSize(7.5)
+                .fillColor(kpi.subPositive ? C.success : C.danger)
+                .text(kpi.sub, x + 12, y + 45, { width: cardW - 20 });
         }
-        baseCells.push({ text: statusLabel, color: statusColor, font: 'Helvetica-Bold' });
-        return { cells: baseCells };
     });
-    drawTable(doc, columns, rows, ai, periodLabel, frequency);
+    const totalRows = Math.ceil(kpis.length / cols);
+    doc.y = startY + totalRows * (cardH + cardGap) + 8;
 }
-// ── Diagnosis card ───────────────────────────────────────────────────────────
-function drawDiagnosisCard(doc, d, ai, periodLabel, frequency) {
+// ── Channel Performance Table (spec columns) ──────────────────────────────────
+function drawChannelPerformanceTable(doc, channels, profileName, periodLabel) {
+    const filtered = channels.filter(c => c.channel !== 'desconhecido');
+    if (filtered.length === 0)
+        return;
+    const columns = [
+        { label: 'CANAL', width: 0.18, align: 'left' },
+        { label: 'INVESTIMENTO', width: 0.17, align: 'right', font: 'Courier' },
+        { label: 'RECEITA ATRIBUÍDA', width: 0.21, align: 'right', font: 'Courier' },
+        { label: 'ROAS', width: 0.11, align: 'right', font: 'Courier' },
+        { label: 'LTV MÉDIO', width: 0.17, align: 'right', font: 'Courier' },
+        { label: 'MARGEM', width: 0.16, align: 'right', font: 'Courier' },
+    ];
+    const rows = filtered.map(ch => {
+        const roas = ch.total_spend > 0 ? ch.total_ltv / ch.total_spend : 0;
+        const margin = ch.total_ltv > 0 ? ((ch.total_ltv - ch.total_spend) / ch.total_ltv) * 100 : 0;
+        return {
+            cells: [
+                { text: translateChannel(ch.channel) },
+                { text: ch.total_spend > 0 ? fmtBrl(ch.total_spend) : '—' },
+                { text: fmtBrl(ch.total_ltv) },
+                { text: ch.total_spend > 0 ? `${fmtNum(roas)}x` : '—' },
+                { text: fmtBrl(ch.avg_ltv) },
+                { text: `${fmtNum(margin)}%`, color: margin >= 0 ? C.success : C.danger },
+            ],
+        };
+    });
+    drawTable(doc, columns, rows, profileName, periodLabel);
+}
+// ── Detalhamento de Vendas ────────────────────────────────────────────────────
+function drawVendasTable(doc, transactions, profileName, periodLabel) {
+    if (transactions.length === 0)
+        return;
+    const columns = [
+        { label: 'ID DA TRANSAÇÃO', width: 0.16, align: 'left', font: 'Courier' },
+        { label: 'CLIENTE', width: 0.22, align: 'left' },
+        { label: 'CANAL DE AQUISIÇÃO', width: 0.18, align: 'left' },
+        { label: 'VALOR LÍQUIDO', width: 0.18, align: 'right', font: 'Courier' },
+        { label: 'DATA', width: 0.13, align: 'center', font: 'Courier' },
+        { label: 'STATUS', width: 0.13, align: 'center' },
+    ];
+    const rows = transactions.slice(0, 60).map(t => {
+        const st = STATUS_DEF[t.status] ?? { text: t.status, color: C.textSecondary };
+        const channel = translateChannel(t.customer_channel ?? t.platform ?? '—');
+        const dateStr = t.created_at ? fmtDateShort(t.created_at) : '—';
+        const client = t.customer_email ?? '—';
+        return {
+            cells: [
+                { text: t.id.slice(0, 8), font: 'Courier' },
+                { text: client },
+                { text: channel },
+                { text: fmtBrl(t.amount_net), font: 'Courier' },
+                { text: dateStr, font: 'Courier' },
+                { text: st.text, color: st.color },
+            ],
+        };
+    });
+    drawTable(doc, columns, rows, profileName, periodLabel);
+}
+// ── AI: Diagnosis card ────────────────────────────────────────────────────────
+function drawDiagnosisCard(doc, d, profileName, periodLabel) {
     const color = SEVERITY_COLOR[d.severidade];
     const cardH = 110;
-    ensureSpace(doc, cardH + 10, ai, periodLabel, frequency);
+    ensureSpace(doc, cardH + 10, profileName, periodLabel);
     const startY = doc.y;
     const innerX = MARGIN + 14;
     const innerW = CONTENT_WIDTH - 24;
-    // Card border
-    doc.save()
-        .rect(MARGIN, startY, CONTENT_WIDTH, cardH)
-        .strokeColor(C.border)
-        .lineWidth(0.5)
-        .stroke()
-        .restore();
-    // Left accent bar
-    doc.save()
-        .rect(MARGIN, startY, 3, cardH)
-        .fillColor(color)
-        .fill()
-        .restore();
-    // Channel name + severity badge
-    doc.font('Helvetica-Bold')
-        .fontSize(9)
-        .fillColor(C.dark)
+    doc.save().rect(MARGIN, startY, CONTENT_WIDTH, cardH).strokeColor(C.border).lineWidth(0.5).stroke().restore();
+    doc.save().rect(MARGIN, startY, 3, cardH).fillColor(color).fill().restore();
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(C.dark)
         .text(d.canal.toUpperCase(), innerX, startY + 10, { width: innerW - 80 });
-    // Severity badge (pill)
-    const badgeW = 56;
-    const badgeH = 16;
-    const badgeX = PAGE_WIDTH - MARGIN - badgeW - 8;
-    const badgeY = startY + 8;
-    doc.save()
-        .roundedRect(badgeX, badgeY, badgeW, badgeH, 8)
-        .fillColor(color)
-        .fill()
-        .restore();
-    doc.font('Helvetica-Bold')
-        .fontSize(7)
-        .fillColor(C.white)
-        .text(SEVERITY_LABEL[d.severidade], badgeX, badgeY + 4, { width: badgeW, align: 'center' });
-    // Symptom
-    doc.font('Helvetica-Bold')
-        .fontSize(7)
-        .fillColor(C.textSecondary)
-        .text('SINTOMA', innerX, startY + 28);
-    doc.font('Helvetica')
-        .fontSize(8.5)
-        .fillColor(C.dark)
+    const bW = 56;
+    const bH = 16;
+    const bX = PAGE_WIDTH - MARGIN - bW - 8;
+    const bY = startY + 8;
+    doc.save().roundedRect(bX, bY, bW, bH, 8).fillColor(color).fill().restore();
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.white)
+        .text(SEVERITY_LABEL[d.severidade], bX, bY + 4, { width: bW, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('SINTOMA', innerX, startY + 28);
+    doc.font('Helvetica').fontSize(8.5).fillColor(C.dark)
         .text(d.sintoma, innerX, startY + 38, { width: innerW, lineGap: 1 });
-    // Causa raiz + consequencia (2 columns)
     const halfW = (innerW - 12) / 2;
     const colY = startY + 56;
-    doc.font('Helvetica-Bold')
-        .fontSize(7)
-        .fillColor(C.textSecondary)
-        .text('CAUSA RAIZ', innerX, colY);
-    doc.font('Helvetica')
-        .fontSize(8)
-        .fillColor(C.dark)
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('CAUSA RAIZ', innerX, colY);
+    doc.font('Helvetica').fontSize(8).fillColor(C.dark)
         .text(d.causa_raiz, innerX, colY + 10, { width: halfW, lineGap: 1 });
-    doc.font('Helvetica-Bold')
-        .fontSize(7)
-        .fillColor(C.textSecondary)
-        .text('CONSEQUENCIA', innerX + halfW + 12, colY);
-    doc.font('Helvetica')
-        .fontSize(8)
-        .fillColor(C.dark)
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('CONSEQUÊNCIA', innerX + halfW + 12, colY);
+    doc.font('Helvetica').fontSize(8).fillColor(C.dark)
         .text(d.consequencia, innerX + halfW + 12, colY + 10, { width: halfW, lineGap: 1 });
-    // Financial impact + action + deadline
     const bottomY = startY + 88;
-    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mes' }[d.prazo];
-    doc.font('Helvetica-Bold')
-        .fontSize(8)
-        .fillColor(color)
+    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mês' }[d.prazo] ?? d.prazo;
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(color)
         .text(`Impacto: ${fmtBrl(d.consequencia_financeira_brl)}`, innerX, bottomY);
-    doc.font('Helvetica')
-        .fontSize(7.5)
-        .fillColor(C.textSecondary)
+    doc.font('Helvetica').fontSize(7.5).fillColor(C.textSecondary)
         .text(`${prazoLabel} · ${d.acao_recomendada}`, innerX + 140, bottomY, { width: innerW - 140, lineGap: 1 });
     doc.y = startY + cardH + 10;
 }
-// ── Compact alert (page 1) ───────────────────────────────────────────────────
-function drawCompactAlert(doc, d) {
-    const color = SEVERITY_COLOR[d.severidade];
-    const y = doc.y;
-    const alertH = 30;
-    // Left color bar
-    doc.save()
-        .rect(MARGIN, y, 3, alertH)
-        .fillColor(color)
-        .fill()
-        .restore();
-    // Channel + severity
-    doc.font('Helvetica-Bold')
-        .fontSize(8.5)
-        .fillColor(C.dark)
-        .text(`${d.canal.toUpperCase()} -- ${SEVERITY_LABEL[d.severidade]}`, MARGIN + 12, y + 4, { width: CONTENT_WIDTH - 110 });
-    // Action
-    doc.font('Helvetica')
-        .fontSize(8)
-        .fillColor(C.textSecondary)
-        .text(d.acao_recomendada, MARGIN + 12, y + 17, { width: CONTENT_WIDTH - 110 });
-    // Financial impact right-aligned
-    doc.font('Helvetica-Bold')
-        .fontSize(8)
-        .fillColor(color)
-        .text(fmtBrl(d.consequencia_financeira_brl), PAGE_WIDTH - MARGIN - 90, y + 10, { width: 86, align: 'right' });
-    doc.y = y + alertH + 6;
-}
-// ── Proximos passos with blue left bar ───────────────────────────────────────
+// ── AI: Próximos Passos ───────────────────────────────────────────────────────
 function drawProximosPassos(doc, steps) {
-    const barX = MARGIN;
     const startY = doc.y;
     const textX = MARGIN + 12;
     const textW = CONTENT_WIDTH - 12;
     for (let i = 0; i < steps.length; i++) {
-        const y = doc.y;
-        doc.font('Helvetica-Bold')
-            .fontSize(9)
-            .fillColor(C.primary)
-            .text(`${i + 1}.`, textX, y, { continued: true })
-            .font('Helvetica')
-            .fillColor(C.dark)
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(C.primary)
+            .text(`${i + 1}.`, textX, doc.y, { continued: true })
+            .font('Helvetica').fillColor(C.dark)
             .text(` ${steps[i]}`, { width: textW - 20, lineGap: 2 });
         doc.moveDown(0.3);
     }
     const endY = doc.y;
-    // Blue left bar spanning all items
-    doc.save()
-        .rect(barX, startY, 3, endY - startY)
-        .fillColor(C.primary)
-        .fill()
-        .restore();
+    doc.save().rect(MARGIN, startY, 3, endY - startY).fillColor(C.primary).fill().restore();
 }
-// ── Main export ──────────────────────────────────────────────────────────────
+// ── Main export ───────────────────────────────────────────────────────────────
 export async function generatePdf(data, ai) {
     const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
     const bufferPromise = streamToBuffer(doc);
-    const periodLabel = `${fmtDate(data.period.start)} -- ${fmtDate(data.period.end)}`;
-    const freq = data.period.frequency;
+    const periodLabel = `${fmtDate(data.period.start)} — ${fmtDate(data.period.end)}`;
+    const profileName = data.profile_name ?? null;
     // ═══════════════════════════════════════════════════════════════════════════
-    // PAGE 1 -- SUMARIO EXECUTIVO
+    // PAGE 1 — DADOS PRINCIPAIS
     // ═══════════════════════════════════════════════════════════════════════════
-    drawPageHeader(doc, ai, periodLabel, freq);
-    doc.y = 90;
-    // 1. Resumo Executivo
-    if (ai.resumo_executivo) {
-        sectionLabel(doc, 'Resumo Executivo');
-        doc.font('Helvetica')
-            .fontSize(9.5)
-            .fillColor(C.dark)
-            .text(ai.resumo_executivo, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 3 });
-        doc.moveDown(1);
-    }
-    // 2. KPI Grid
-    ensureSpace(doc, 140, ai, periodLabel, freq);
-    sectionLabel(doc, 'Indicadores do Periodo');
-    const deltaRevenue = changeBadge(data.summary.revenue_change_pct);
-    const revenuePositive = (data.summary.revenue_change_pct ?? 0) >= 0;
-    const refundIsHigh = data.summary.refund_rate > 5;
-    drawKpiGrid(doc, [
-        {
-            label: 'Receita Liquida',
-            value: fmtBrl(data.summary.revenue_net),
-            ...(deltaRevenue ? { delta: deltaRevenue, deltaPositive: revenuePositive } : {}),
-        },
-        {
-            label: 'ROAS',
-            value: `${fmtNum(data.summary.roas)}x`,
-            ...(data.summary.ad_spend > 0 ? { delta: `Spend ${fmtBrl(data.summary.ad_spend)}`, deltaPositive: true } : {}),
-        },
-        { label: 'Novos Clientes', value: String(data.summary.new_customers) },
-        { label: 'LTV Medio', value: fmtBrl(data.summary.ltv_avg) },
-        { label: 'Margem Bruta', value: `${fmtNum(data.summary.gross_margin_pct)}%` },
-        {
-            label: 'Taxa de Reembolso',
-            value: `${fmtNum(data.summary.refund_rate)}%`,
-            ...(refundIsHigh ? { delta: `${fmtBrl(data.summary.refund_amount)} reembolsado`, deltaPositive: false } : {}),
-        },
-    ]);
+    drawPageHeader(doc, profileName, periodLabel);
+    doc.y = HEADER_H + 18;
+    // 1. Resumo Executivo — 5 KPI cards
+    sectionLabel(doc, 'Resumo Executivo');
+    drawKpiCards(doc, data);
     doc.moveDown(0.5);
-    // 3. Economia por Canal (top 4, compact)
-    const topChannels = data.channel_economics
-        .filter(c => c.channel !== 'desconhecido')
-        .slice(0, 4);
-    if (topChannels.length > 0) {
-        ensureSpace(doc, 120, ai, periodLabel, freq);
-        sectionLabel(doc, 'Economia por Canal');
-        drawChannelTable(doc, topChannels, false, ai, periodLabel, freq);
+    // 2. Performance de Canais
+    const channelsData = data.channel_economics.filter(c => c.channel !== 'desconhecido');
+    if (channelsData.length > 0) {
+        ensureSpace(doc, 80, profileName, periodLabel);
+        sectionLabel(doc, 'Performance de Canais');
+        drawChannelPerformanceTable(doc, channelsData, profileName, periodLabel);
     }
-    // 4. Alertas (top 2-3 critical/alta)
-    const criticalDiags = [...ai.diagnosticos]
-        .filter(d => d.severidade === 'critica' || d.severidade === 'alta')
-        .slice(0, 3);
-    if (criticalDiags.length > 0) {
-        ensureSpace(doc, 50 + criticalDiags.length * 36, ai, periodLabel, freq);
-        sectionLabel(doc, 'Alertas Criticos');
-        for (const d of criticalDiags) {
-            if (doc.y + 36 > FOOTER_ZONE)
-                break;
-            drawCompactAlert(doc, d);
-        }
-    }
-    // 5. Proximos Passos (top 3)
-    if (ai.proximos_passos.length > 0) {
-        ensureSpace(doc, 60, ai, periodLabel, freq);
-        sectionLabel(doc, 'Proximos Passos');
-        drawProximosPassos(doc, ai.proximos_passos.slice(0, 3));
+    // 3. Detalhamento de Vendas
+    if (data.transactions_detail.length > 0) {
+        ensureSpace(doc, 80, profileName, periodLabel);
+        sectionLabel(doc, 'Detalhamento de Vendas');
+        drawVendasTable(doc, data.transactions_detail, profileName, periodLabel);
     }
     // ═══════════════════════════════════════════════════════════════════════════
-    // PAGE 2+ -- DETALHADO
+    // PAGE 2+ — ANÁLISE DE IA (se disponível)
     // ═══════════════════════════════════════════════════════════════════════════
-    doc.addPage();
-    drawPageHeader(doc, ai, periodLabel, freq);
-    doc.y = 90;
-    // 6. Diagnosticos Completos
-    if (ai.diagnosticos.length > 0) {
-        sectionLabel(doc, 'Diagnosticos por Canal');
-        const order = { critica: 0, alta: 1, media: 2, ok: 3 };
-        const sorted = [...ai.diagnosticos].sort((a, b) => order[a.severidade] - order[b.severidade]);
-        for (const d of sorted) {
-            drawDiagnosisCard(doc, d, ai, periodLabel, freq);
+    if (ai && (ai.resumo_executivo || ai.diagnosticos.length > 0)) {
+        doc.addPage();
+        drawPageHeader(doc, profileName, periodLabel);
+        doc.y = HEADER_H + 18;
+        // Resumo executivo de IA
+        if (ai.resumo_executivo) {
+            sectionLabel(doc, 'Análise de IA');
+            doc.font('Helvetica').fontSize(9.5).fillColor(C.dark)
+                .text(ai.resumo_executivo, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 3 });
+            doc.moveDown(1);
         }
-    }
-    // 7. Economia por Canal -- Completa
-    const allChannels = data.channel_economics.filter(c => c.channel !== 'desconhecido');
-    if (allChannels.length > 0) {
-        ensureSpace(doc, 60 + allChannels.length * 20, ai, periodLabel, freq);
-        sectionLabel(doc, 'Economia por Canal -- Visao Completa');
-        drawChannelTable(doc, allChannels, true, ai, periodLabel, freq);
-    }
-    // 8. Tendencia de Receita
-    if (data.revenue_trend.length >= 2) {
-        const trendColumns = [
-            { label: 'MES', width: 0.40, align: 'left' },
-            { label: 'RECEITA', width: 0.35, align: 'right', font: 'Courier' },
-            { label: 'VARIACAO', width: 0.25, align: 'right', font: 'Courier' },
-        ];
-        const trendRows = data.revenue_trend.map(t => {
-            const changeText = t.change_pct !== null
-                ? `${t.change_pct >= 0 ? '+' : ''}${fmtNum(t.change_pct)}%`
-                : '--';
-            const changeColor = t.change_pct === null
-                ? C.textSecondary
-                : t.change_pct >= 0 ? C.success : C.danger;
-            return {
-                cells: [
-                    { text: t.month },
-                    { text: fmtBrl(t.revenue) },
-                    { text: changeText, color: changeColor },
-                ],
-            };
-        });
-        ensureSpace(doc, 40 + trendRows.length * 20, ai, periodLabel, freq);
-        sectionLabel(doc, 'Tendencia de Receita');
-        drawTable(doc, trendColumns, trendRows, ai, periodLabel, freq);
-    }
-    // 9. Top Produtos
-    if (data.top_products.length > 0) {
-        const prodColumns = [
-            { label: 'PRODUTO', width: 0.50, align: 'left' },
-            { label: 'RECEITA', width: 0.30, align: 'right', font: 'Courier' },
-            { label: '% DO TOTAL', width: 0.20, align: 'right', font: 'Courier' },
-        ];
-        const prodRows = data.top_products.map(p => ({
-            cells: [
-                { text: p.product_name.length > 50 ? p.product_name.slice(0, 47) + '...' : p.product_name },
-                { text: fmtBrl(p.revenue) },
-                { text: `${p.pct_of_total}%` },
-            ],
-        }));
-        ensureSpace(doc, 40 + prodRows.length * 20, ai, periodLabel, freq);
-        sectionLabel(doc, 'Top Produtos por Receita');
-        drawTable(doc, prodColumns, prodRows, ai, periodLabel, freq);
-    }
-    // 10. Qualidade da Base (RFM)
-    if (data.rfm_distribution.length > 0 && data.rfm_distribution.some(s => s.count > 0)) {
-        const rfmTitle = data.rfm_source === 'estimated'
-            ? 'Qualidade da Base (RFM -- estimado)'
-            : 'Qualidade da Base (RFM)';
-        const rfmFiltered = data.rfm_distribution.filter(s => s.count > 0);
-        const rfmColumns = [
-            { label: 'SEGMENTO', width: 0.60, align: 'left' },
-            { label: 'LTV TOTAL', width: 0.40, align: 'right', font: 'Courier' },
-        ];
-        const rfmRows = rfmFiltered.map(s => ({
-            cells: [
-                { text: `${s.segment} · ${s.count} clientes` },
-                { text: fmtBrl(s.ltv) },
-            ],
-        }));
-        ensureSpace(doc, 40 + rfmRows.length * 20 + 20, ai, periodLabel, freq);
-        sectionLabel(doc, rfmTitle);
-        drawTable(doc, rfmColumns, rfmRows, ai, periodLabel, freq);
-        if (data.rfm_source === 'estimated') {
-            doc.font('Helvetica')
-                .fontSize(7.5)
-                .fillColor(C.textSecondary)
-                .text('* Segmentacao estimada a partir dos dados disponiveis. Ative o job de RFM para precisao.', MARGIN, doc.y, { width: CONTENT_WIDTH });
-            doc.moveDown(0.5);
+        // Diagnósticos por canal
+        if (ai.diagnosticos.length > 0) {
+            ensureSpace(doc, 80, profileName, periodLabel);
+            sectionLabel(doc, 'Diagnósticos por Canal');
+            const order = { critica: 0, alta: 1, media: 2, ok: 3 };
+            const sorted = [...ai.diagnosticos].sort((a, b) => order[a.severidade] - order[b.severidade]);
+            for (const d of sorted) {
+                drawDiagnosisCard(doc, d, profileName, periodLabel);
+            }
+        }
+        // Próximos passos
+        if (ai.proximos_passos.length > 0) {
+            ensureSpace(doc, 60, profileName, periodLabel);
+            sectionLabel(doc, 'Próximos Passos');
+            drawProximosPassos(doc, ai.proximos_passos);
         }
     }
     // ═══════════════════════════════════════════════════════════════════════════
-    // FOOTER (all pages via bufferedPageRange)
+    // FOOTER — todas as páginas
     // ═══════════════════════════════════════════════════════════════════════════
+    const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
@@ -590,10 +453,10 @@ export async function generatePdf(data, ai) {
         drawHRule(doc, footerY - 8);
         const pageNum = i - range.start + 1;
         const totalPages = range.count;
-        doc.font('Helvetica')
-            .fontSize(7)
-            .fillColor(C.textSecondary)
-            .text(`Gerado em ${fmtDate(ai.generated_at)} · Analise por ${ai.model} · Northie · Pag ${pageNum}/${totalPages}`, MARGIN, footerY, { width: CONTENT_WIDTH, align: 'center' });
+        doc.font('Helvetica').fontSize(7).fillColor(C.textSecondary)
+            .text(`Gerado por Northie em ${today}`, MARGIN, footerY);
+        doc.font('Helvetica').fontSize(7).fillColor(C.textSecondary)
+            .text(`Página ${pageNum} de ${totalPages}`, 0, footerY, { width: PAGE_WIDTH - MARGIN, align: 'right' });
     }
     doc.end();
     return bufferPromise;

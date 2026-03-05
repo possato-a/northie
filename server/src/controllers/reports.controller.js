@@ -217,6 +217,36 @@ export async function generateReport(req, res) {
         return res.status(500).json({ error: 'Failed to generate report' });
     }
 }
+// GET /reports/export?format=pdf|xlsx&period=30d|90d  — download rápido sem IA
+export async function exportReport(req, res) {
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId)
+        return res.status(400).json({ error: 'Missing x-profile-id' });
+    const format = req.query.format ?? 'pdf';
+    const period = req.query.period ?? '30d';
+    const periodFreqMap = { '30d': 'monthly', '90d': 'quarterly' };
+    const frequency = periodFreqMap[period] ?? 'monthly';
+    const freqLabel = period === '90d' ? 'trimestral' : 'mensal';
+    const dateStr = new Date().toISOString().split('T')[0];
+    try {
+        const reportData = await generateReportData(profileId, frequency);
+        if (format === 'xlsx') {
+            const buf = await generateXlsx(reportData);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqLabel}-${dateStr}.xlsx"`);
+            return res.send(buf);
+        }
+        // PDF — sem IA para resposta rápida
+        const buf = await generatePdf(reportData);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqLabel}-${dateStr}.pdf"`);
+        return res.send(buf);
+    }
+    catch (err) {
+        console.error('[Reports] exportReport error:', err);
+        return res.status(500).json({ error: 'Failed to export report' });
+    }
+}
 export async function getReportLogs(req, res) {
     const profileId = req.headers['x-profile-id'];
     if (!profileId)

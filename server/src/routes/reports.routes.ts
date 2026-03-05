@@ -7,6 +7,7 @@ router.post('/config', ReportsController.saveReportConfig);
 router.get('/preview', ReportsController.getReportPreview);
 router.get('/ai-analysis', ReportsController.getReportAIAnalysis);
 router.post('/generate', ReportsController.generateReport);
+router.get('/export', ReportsController.exportReport);
 router.get('/logs', ReportsController.getReportLogs);
 router.post('/send-email', ReportsController.sendReportByEmail);
 
