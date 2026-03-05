@@ -12,6 +12,9 @@ type RecType =
   | 'audience_sync_champions'
   | 'realocacao_budget'
   | 'upsell_cohort'
+  | 'divergencia_roi_canal'
+  | 'queda_retencao_cohort'
+  | 'canal_alto_ltv_underinvested'
 
 interface ExecutionStep {
   step: string
@@ -48,6 +51,9 @@ const TYPE_LABELS: Record<RecType, string> = {
   audience_sync_champions: 'Audiência',
   realocacao_budget: 'Budget',
   upsell_cohort: 'Upsell',
+  divergencia_roi_canal: 'ROI',
+  queda_retencao_cohort: 'Retenção',
+  canal_alto_ltv_underinvested: 'Oportunidade',
 }
 
 const TYPE_COLORS: Record<RecType, string> = {
@@ -56,6 +62,9 @@ const TYPE_COLORS: Record<RecType, string> = {
   audience_sync_champions: '#10B981',
   realocacao_budget: '#3B82F6',
   upsell_cohort: '#8B5CF6',
+  divergencia_roi_canal: '#F97316',
+  queda_retencao_cohort: '#EF4444',
+  canal_alto_ltv_underinvested: '#10B981',
 }
 
 const CHAT_CHIPS = [

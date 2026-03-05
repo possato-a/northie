@@ -13,7 +13,7 @@
     },
     "crons": [
         {
-            "path": "/api/integrations/cron/sync",
+            "path": "/api/cron/sync",
             "schedule": "0 6 * * *"
         }
     ]
