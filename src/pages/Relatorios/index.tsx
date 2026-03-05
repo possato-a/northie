@@ -146,6 +146,7 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
+    const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'json'>('pdf')
     const [generating, setGenerating] = useState<'xlsx' | 'json' | 'pdf' | null>(null)
     const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
@@ -220,7 +221,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         setSendingEmail(true)
         setEmailFeedback(null)
         try {
-            await reportsApi.sendEmail(genFrequency, config.format ?? 'pdf', email)
+            await reportsApi.sendEmail(genFrequency, genFormat, email)
             setEmailFeedback({ ok: true, msg: `Enviado para ${email} ✓` })
             reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
         } catch (err: unknown) {
@@ -253,12 +254,24 @@ export default function Relatorios(_props: RelatoriosProps) {
                             <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                                 Gere e baixe o relatório completo com dados cruzados, análise de canais e diagnóstico de IA.
                             </p>
-                            <SegmentedControl
-                                options={['semanal', 'mensal', 'trimestral'] as const}
-                                value={genFrequency}
-                                onChange={setGenFrequency}
-                                labels={{ semanal: 'Última semana', mensal: 'Último mês', trimestral: 'Último trimestre' }}
-                            />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Período</span>
+                                <SegmentedControl
+                                    options={['semanal', 'mensal', 'trimestral'] as const}
+                                    value={genFrequency}
+                                    onChange={setGenFrequency}
+                                    labels={{ semanal: 'Última semana', mensal: 'Último mês', trimestral: 'Último trimestre' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato para email</span>
+                                <SegmentedControl
+                                    options={['pdf', 'xlsx', 'json'] as const}
+                                    value={genFormat}
+                                    onChange={setGenFormat}
+                                    labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }}
+                                />
+                            </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                             {(['xlsx', 'json', 'pdf'] as const).map(fmt => (

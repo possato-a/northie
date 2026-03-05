@@ -3,8 +3,9 @@ import {
     generateReportData, formatAsCsv, computeNextSendAt,
     type ReportFrequency,
 } from '../services/reports/report-generator.js';
-import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
+import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
 
 // Normaliza frequência pt-BR → en
@@ -12,6 +13,46 @@ const FREQ_MAP: Record<string, ReportFrequency> = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
     weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
 };
+
+function buildSnapshot(
+    data: Awaited<ReturnType<typeof generateReportData>>,
+    ai: ReportAIAnalysis,
+) {
+    const topChannel = data.channel_economics
+        .filter(c => c.channel !== 'desconhecido')
+        .sort((a, b) => b.value_created - a.value_created)[0];
+
+    const worstChannel = data.channel_economics
+        .filter(c => c.status === 'prejuizo')
+        .sort((a, b) => a.value_created - b.value_created)[0];
+
+    return {
+        revenue_net:          data.summary.revenue_net,
+        ad_spend:             data.summary.ad_spend,
+        roas:                 data.summary.roas,
+        new_customers:        data.summary.new_customers,
+        ltv_avg:              data.summary.ltv_avg,
+        revenue_change_pct:   data.summary.revenue_change_pct,
+        situacao_geral:       ai.situacao_geral,
+        resumo_executivo:     ai.resumo_executivo,
+        top_channel: topChannel ? {
+            channel:         topChannel.channel,
+            value_created:   topChannel.value_created,
+            ltv_cac_ratio:   topChannel.ltv_cac_ratio,
+            status:          topChannel.status,
+        } : null,
+        worst_channel: worstChannel ? {
+            channel:       worstChannel.channel,
+            value_created: worstChannel.value_created,
+            cac:           worstChannel.cac,
+            avg_ltv:       worstChannel.avg_ltv,
+        } : null,
+        at_risk_count:       data.at_risk_customers.length,
+        at_risk_ltv:         data.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0),
+        diagnosticos_count:  ai.diagnosticos.length,
+        criticos:            ai.diagnosticos.filter(d => d.severidade === 'critica').length,
+    };
+}
 
 export async function processScheduledReports() {
     const now = new Date().toISOString();
@@ -41,6 +82,9 @@ export async function processScheduledReports() {
             if (format === 'pdf') {
                 fileBuffer = await generatePdf(reportData, aiAnalysis);
                 filename = `northie-relatorio-${config.frequency}-${dateStr}.pdf`;
+            } else if (format === 'xlsx') {
+                fileBuffer = await generateXlsx(reportData, aiAnalysis);
+                filename = `northie-relatorio-${config.frequency}-${dateStr}.xlsx`;
             } else if (format === 'csv') {
                 fileBuffer = formatAsCsv(reportData, aiAnalysis);
                 filename = `northie-relatorio-${config.frequency}-${dateStr}.csv`;
@@ -48,6 +92,8 @@ export async function processScheduledReports() {
                 fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
                 filename = `northie-relatorio-${config.frequency}-${dateStr}.json`;
             }
+
+            const snapshot = buildSnapshot(reportData, aiAnalysis);
 
             // Envia email se configurado e captura o ID do Resend
             let resendEmailId: string | null = null;
@@ -72,6 +118,8 @@ export async function processScheduledReports() {
                 period_start: reportData.period.start,
                 period_end: reportData.period.end,
                 status: 'success',
+                situacao_geral: aiAnalysis.situacao_geral,
+                snapshot,
                 ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
             });
 
