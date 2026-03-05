@@ -200,6 +200,29 @@ function PreviewSkeleton() {
     )
 }
 
+// ── AI Analysis types + components ───────────────────────────────────────────
+
+interface AIAnalysis {
+    situacao_geral: 'saudavel' | 'atencao' | 'critica'
+    resumo_executivo: string
+    diagnosticos: {
+        canal: string
+        severidade: 'critica' | 'alta' | 'media' | 'ok'
+        sintoma: string
+        acao_recomendada: string
+        consequencia_financeira_brl: number
+        prazo: string
+    }[]
+    proximos_passos: string[]
+}
+
+const SEV_STYLE: Record<string, { color: string; label: string }> = {
+    critica: { color: '#EF4444', label: 'CRÍTICA' },
+    alta:    { color: '#F59E0B', label: 'ALTA'    },
+    media:   { color: '#F59E0B', label: 'MÉDIA'   },
+    ok:      { color: '#22C55E', label: 'OK'      },
+}
+
 // ── Download helper ───────────────────────────────────────────────────────────
 
 function DownloadIcon() {
@@ -242,6 +265,11 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [loadingPreview, setLoadingPreview] = useState(true)
     const [previewError, setPreviewError] = useState(false)
 
+    // AI Analysis (lazy — só carrega quando o usuário pede)
+    const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
+    const [loadingAI, setLoadingAI] = useState(false)
+    const [aiError, setAiError] = useState(false)
+
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'json'>('pdf')
@@ -269,11 +297,26 @@ export default function Relatorios(_props: RelatoriosProps) {
     useEffect(() => {
         setLoadingPreview(true)
         setPreviewError(false)
+        setAiAnalysis(null)
+        setAiError(false)
         reportsApi.getPreview(genFrequency)
             .then(res => { setPreview(res.data as PreviewData) })
             .catch(() => setPreviewError(true))
             .finally(() => setLoadingPreview(false))
     }, [genFrequency])
+
+    async function handleRequestAI() {
+        setLoadingAI(true)
+        setAiError(false)
+        try {
+            const res = await reportsApi.getAIAnalysis(genFrequency)
+            setAiAnalysis(res.data as AIAnalysis)
+        } catch {
+            setAiError(true)
+        } finally {
+            setLoadingAI(false)
+        }
+    }
 
     async function handleSaveConfig() {
         setSavingConfig(true)
@@ -481,6 +524,142 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 )}
                             </motion.div>
                         ) : null}
+                    </AnimatePresence>
+                </div>
+            </motion.div>
+
+            {/* ── Análise de IA ───────────────────────────────────────────── */}
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(2), ease: [0.25, 0.1, 0.25, 1] }}>
+                <SectionLabel gutterBottom={16}>Análise de IA</SectionLabel>
+                <div style={card}>
+                    <AnimatePresence mode="wait">
+                        {!aiAnalysis && !loadingAI && (
+                            <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                                <div>
+                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                        Diagnóstico com IA
+                                    </p>
+                                    <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                        Cruzamento de canais, análise de churn e diagnósticos por severidade. Leva ~30-60s.
+                                    </p>
+                                </div>
+                                <Btn variant="primary" onClick={handleRequestAI} disabled={loadingPreview || previewError}>
+                                    Analisar com IA
+                                </Btn>
+                            </motion.div>
+                        )}
+
+                        {loadingAI && (
+                            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 0' }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                </svg>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                        Analisando dados com IA...
+                                    </span>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                        Cruzando fontes e diagnosticando cada canal. Isso pode levar até 60 segundos.
+                                    </span>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {aiError && !loadingAI && (
+                            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#EF4444' }}>
+                                    Falha na análise. Tente novamente.
+                                </span>
+                                <Btn variant="secondary" onClick={handleRequestAI}>Tentar novamente</Btn>
+                            </motion.div>
+                        )}
+
+                        {aiAnalysis && !loadingAI && (
+                            <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                                {/* Header: situação geral + resumo */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                                    <SituacaoBadge value={aiAnalysis.situacao_geral} size="md" />
+                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6, flex: 1 }}>
+                                        {aiAnalysis.resumo_executivo}
+                                    </p>
+                                </div>
+
+                                {/* Diagnósticos */}
+                                {aiAnalysis.diagnosticos.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                                            Diagnósticos por canal
+                                        </span>
+                                        {aiAnalysis.diagnosticos
+                                            .sort((a, b) => (['critica','alta','media','ok'].indexOf(a.severidade)) - (['critica','alta','media','ok'].indexOf(b.severidade)))
+                                            .map((d, i, arr) => {
+                                                const sev = SEV_STYLE[d.severidade] ?? SEV_STYLE.media
+                                                return (
+                                                    <div key={i} style={{
+                                                        display: 'grid',
+                                                        gridTemplateColumns: '140px 1fr auto',
+                                                        alignItems: 'start',
+                                                        gap: 16,
+                                                        padding: '12px 0',
+                                                        borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
+                                                    }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                                                                {CHANNEL_LABEL[d.canal] ?? d.canal}
+                                                            </span>
+                                                            <span style={{ display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: sev.color, letterSpacing: '0.06em' }}>
+                                                                {sev.label}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                                                                {d.sintoma}
+                                                            </span>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                                                                → {d.acao_recomendada}
+                                                            </span>
+                                                        </div>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: sev.color, whiteSpace: 'nowrap' }}>
+                                                            {fmtBRL(d.consequencia_financeira_brl)}
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })}
+                                    </div>
+                                )}
+
+                                {/* Próximos passos */}
+                                {aiAnalysis.proximos_passos.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', background: 'var(--color-bg-secondary)', borderRadius: 8 }}>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                                            Próximos passos
+                                        </span>
+                                        {aiAnalysis.proximos_passos.map((step, i) => (
+                                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: '#1a7fe8', flexShrink: 0, marginTop: 1 }}>
+                                                    {String(i + 1).padStart(2, '0')}
+                                                </span>
+                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                                                    {step}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Refazer análise */}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <Btn variant="secondary" onClick={handleRequestAI} disabled={loadingAI}>
+                                        Atualizar análise
+                                    </Btn>
+                                </div>
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
             </motion.div>
