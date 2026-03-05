@@ -86,6 +86,8 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
             style={{
                 padding: '20px 0',
                 borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
+                overflow: 'hidden',
+                position: 'relative',
             }}
         >
             {/* ── Header: título + badge ─────────────────────────────────── */}
@@ -147,13 +149,14 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
                 gap: 24,
+                alignItems: 'start',
                 marginBottom: 16,
             }}>
-                <div>
+                <div style={{ overflow: 'hidden', wordBreak: 'break-word', minWidth: 0 }}>
                     <FieldLabel>Causa Raiz</FieldLabel>
                     <FieldValue>{d.causa_raiz}</FieldValue>
                 </div>
-                <div>
+                <div style={{ overflow: 'hidden', wordBreak: 'break-word', minWidth: 0 }}>
                     <FieldLabel>Consequência</FieldLabel>
                     <FieldValue>{d.consequencia}</FieldValue>
                 </div>
