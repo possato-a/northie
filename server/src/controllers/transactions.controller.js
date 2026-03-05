@@ -5,23 +5,23 @@ import { supabase } from '../lib/supabase.js';
  */
 export async function listTransactions(req, res) {
     const profileId = req.headers['x-profile-id'];
+    const days = Number(req.query.days ?? 30);
     if (!profileId) {
         return res.status(400).json({ error: 'Missing x-profile-id header' });
     }
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('transactions')
-            .select(`
-                *,
-                customers (
-                    name,
-                    email,
-                    acquisition_channel
-                )
-            `)
+            .select(`*, customers (name, email, acquisition_channel)`)
             .eq('profile_id', profileId)
             .order('created_at', { ascending: false })
-            .limit(200);
+            .limit(500);
+        if (days > 0) {
+            const since = new Date();
+            since.setDate(since.getDate() - days);
+            query = query.gte('created_at', since.toISOString());
+        }
+        const { data, error } = await query;
         if (error)
             throw error;
         res.status(200).json(data || []);

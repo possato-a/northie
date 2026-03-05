@@ -12,12 +12,31 @@ export async function getCurrentValuation(req, res) {
             .order('snapshot_month', { ascending: false })
             .limit(1)
             .single();
+        // Compute benchmark stats from all profiles' most recent snapshot
+        const { data: allSnapshots } = await supabase
+            .from('valuation_snapshots')
+            .select('valuation_brl, profile_id')
+            .order('snapshot_month', { ascending: false });
+        // Get most recent snapshot per profile
+        const latestByProfile = new Map();
+        for (const s of allSnapshots || []) {
+            if (!latestByProfile.has(s.profile_id)) {
+                latestByProfile.set(s.profile_id, Number(s.valuation_brl));
+            }
+        }
+        const allValues = Array.from(latestByProfile.values()).sort((a, b) => a - b);
+        const segmentSampleSize = allValues.length;
+        const mid = Math.floor(allValues.length / 2);
+        const segmentMedianBrl = allValues.length === 0 ? 0
+            : allValues.length % 2 === 0
+                ? ((allValues[mid - 1] + allValues[mid]) / 2)
+                : allValues[mid];
         if (error || !data) {
             // No snapshot yet — calculate inline
             const result = await calculateValuation(profileId);
-            return res.status(200).json(result);
+            return res.status(200).json({ ...result, segment_median_brl: segmentMedianBrl, segment_sample_size: segmentSampleSize });
         }
-        return res.status(200).json(data);
+        return res.status(200).json({ ...data, segment_median_brl: segmentMedianBrl, segment_sample_size: segmentSampleSize });
     }
     catch (err) {
         console.error('[valuation.controller] getCurrentValuation error:', err.message);
