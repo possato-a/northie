@@ -1,6 +1,6 @@
 import { createRequire } from 'module';
 import type { generateReportData } from './report-generator.js';
-import type { ReportAIAnalysis } from './report-ai-analyst.js';
+import type { ReportAIAnalysis, ChannelDiagnosis } from './report-ai-analyst.js';
 
 const require = createRequire(import.meta.url);
 const PDFDocument = require('pdfkit') as typeof import('pdfkit');
@@ -21,6 +21,33 @@ const C = {
     danger: '#EF4444',
     primary: '#1A7FE8',
     accent: '#F59E0B',
+    warning: '#F97316',
+};
+
+const SEVERITY_COLOR: Record<ChannelDiagnosis['severidade'], string> = {
+    critica: C.danger,
+    alta: C.warning,
+    media: C.accent,
+    ok: C.success,
+};
+
+const SEVERITY_LABEL: Record<ChannelDiagnosis['severidade'], string> = {
+    critica: 'CRÍTICA',
+    alta: 'ALTA',
+    media: 'MÉDIA',
+    ok: 'OK',
+};
+
+const SITUACAO_COLOR: Record<ReportAIAnalysis['situacao_geral'], string> = {
+    saudavel: C.success,
+    atencao: C.accent,
+    critica: C.danger,
+};
+
+const SITUACAO_LABEL: Record<ReportAIAnalysis['situacao_geral'], string> = {
+    saudavel: 'SAUDÁVEL',
+    atencao: 'ATENÇÃO',
+    critica: 'CRÍTICA',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -83,7 +110,6 @@ function bulletList(
 ) {
     for (const item of items) {
         const y = doc.y;
-        // Colored bar
         doc.save()
             .rect(MARGIN, y, barWidth, 14)
             .fillColor(color)
@@ -111,7 +137,6 @@ function kpiGrid(
         const x = MARGIN + col * cellW;
         const y = startY + row * 72;
 
-        // Cell border
         doc.save()
             .rect(x, y, cellW - 8, 62)
             .strokeColor(C.border)
@@ -119,19 +144,16 @@ function kpiGrid(
             .stroke()
             .restore();
 
-        // Label
         doc.font('Helvetica')
             .fontSize(7.5)
             .fillColor(C.textSecondary)
             .text(item.label.toUpperCase(), x + 10, y + 10, { width: cellW - 26, characterSpacing: 0.5 });
 
-        // Value
         doc.font('Helvetica-Bold')
             .fontSize(15)
             .fillColor(C.dark)
             .text(item.value, x + 10, y + 24, { width: cellW - 26 });
 
-        // Delta
         if (item.delta) {
             doc.font('Helvetica')
                 .fontSize(8)
@@ -154,7 +176,6 @@ function twoColTable(
     const colB = CONTENT_WIDTH * 0.4;
     const startY = doc.y;
 
-    // Header
     doc.save()
         .rect(MARGIN, startY, CONTENT_WIDTH, 20)
         .fillColor(C.dark)
@@ -187,7 +208,6 @@ function twoColTable(
         rowY += 18;
     });
 
-    // Bottom border
     doc.save()
         .rect(MARGIN, startY, CONTENT_WIDTH, rowY - startY)
         .strokeColor(C.border)
@@ -196,6 +216,93 @@ function twoColTable(
         .restore();
 
     doc.y = rowY + 12;
+}
+
+// ── Channel diagnosis card ────────────────────────────────────────────────────
+
+function drawDiagnosisCard(doc: InstanceType<typeof PDFDocument>, d: ChannelDiagnosis) {
+    const color = SEVERITY_COLOR[d.severidade];
+    const startY = doc.y;
+    const cardHeight = 120;
+
+    // Left accent bar
+    doc.save()
+        .rect(MARGIN, startY, 4, cardHeight)
+        .fillColor(color)
+        .fill()
+        .restore();
+
+    // Card border
+    doc.save()
+        .rect(MARGIN, startY, CONTENT_WIDTH, cardHeight)
+        .strokeColor(color)
+        .lineWidth(0.5)
+        .stroke()
+        .restore();
+
+    const innerX = MARGIN + 14;
+    const innerW = CONTENT_WIDTH - 20;
+
+    // Canal + severity badge
+    doc.font('Helvetica-Bold')
+        .fontSize(9)
+        .fillColor(C.dark)
+        .text(d.canal.toUpperCase(), innerX, startY + 10, { width: innerW - 70, continued: false });
+
+    doc.save()
+        .rect(PAGE_WIDTH - MARGIN - 65, startY + 8, 60, 14)
+        .fillColor(color)
+        .fill()
+        .restore();
+    doc.font('Helvetica-Bold')
+        .fontSize(7)
+        .fillColor(C.white)
+        .text(SEVERITY_LABEL[d.severidade], PAGE_WIDTH - MARGIN - 63, startY + 11, { width: 56, align: 'center' });
+
+    // Symptom
+    doc.font('Helvetica-Bold')
+        .fontSize(7.5)
+        .fillColor(C.textSecondary)
+        .text('SINTOMA', innerX, startY + 28);
+    doc.font('Helvetica')
+        .fontSize(8.5)
+        .fillColor(C.dark)
+        .text(d.sintoma, innerX, startY + 38, { width: innerW });
+
+    // Causa raiz + consequência em 2 colunas
+    const halfW = (innerW - 10) / 2;
+    doc.font('Helvetica-Bold')
+        .fontSize(7.5)
+        .fillColor(C.textSecondary)
+        .text('CAUSA RAIZ', innerX, startY + 60);
+    doc.font('Helvetica')
+        .fontSize(8)
+        .fillColor(C.dark)
+        .text(d.causa_raiz, innerX, startY + 70, { width: halfW });
+
+    doc.font('Helvetica-Bold')
+        .fontSize(7.5)
+        .fillColor(C.textSecondary)
+        .text('CONSEQUÊNCIA', innerX + halfW + 10, startY + 60);
+    doc.font('Helvetica')
+        .fontSize(8)
+        .fillColor(C.dark)
+        .text(d.consequencia, innerX + halfW + 10, startY + 70, { width: halfW });
+
+    // Financial impact + ação + prazo
+    const impactY = startY + 96;
+    doc.font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor(color)
+        .text(`Impacto: ${fmtBrl(d.consequencia_financeira_brl)}`, innerX, impactY);
+
+    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mês' }[d.prazo];
+    doc.font('Helvetica')
+        .fontSize(8)
+        .fillColor(C.textSecondary)
+        .text(`Prazo: ${prazoLabel} · ${d.acao_recomendada}`, innerX + 100, impactY, { width: innerW - 100 });
+
+    doc.y = startY + cardHeight + 10;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -225,45 +332,29 @@ export async function generatePdf(
         .fillColor('#AAAAAA')
         .text(`Relatório ${data.period.frequency} · ${periodLabel}`, MARGIN, 52);
 
+    // Situação geral badge (top-right of header)
+    const situacaoColor = SITUACAO_COLOR[ai.situacao_geral];
+    const situacaoLabel = SITUACAO_LABEL[ai.situacao_geral];
+    doc.save()
+        .rect(PAGE_WIDTH - MARGIN - 80, 26, 76, 20)
+        .fillColor(situacaoColor)
+        .fill()
+        .restore();
+    doc.font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor(C.white)
+        .text(situacaoLabel, PAGE_WIDTH - MARGIN - 78, 31, { width: 72, align: 'center' });
+
     doc.y = 100;
 
     // ── Análise Executiva ─────────────────────────────────────────────────────
-    if (ai.executive_summary) {
+    if (ai.resumo_executivo) {
         sectionTitle(doc, 'Análise Executiva');
         doc.font('Helvetica')
             .fontSize(10)
             .fillColor(C.dark)
-            .text(ai.executive_summary, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 3 });
+            .text(ai.resumo_executivo, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 3 });
         doc.moveDown(0.5);
-    }
-
-    // ── Destaques / Alertas / Recomendações ───────────────────────────────────
-    const hasHighlights = ai.highlights.length > 0;
-    const hasAlerts = ai.alerts.length > 0;
-    const hasRecs = ai.recommendations.length > 0;
-
-    if (hasHighlights || hasAlerts || hasRecs) {
-        sectionTitle(doc, 'Destaques & Atenções');
-
-        if (hasHighlights) {
-            doc.font('Helvetica-Bold').fontSize(9).fillColor(C.success).text('Destaques', MARGIN, doc.y);
-            doc.moveDown(0.3);
-            bulletList(doc, ai.highlights, C.success);
-            doc.moveDown(0.4);
-        }
-
-        if (hasAlerts) {
-            doc.font('Helvetica-Bold').fontSize(9).fillColor(C.danger).text('Atenção', MARGIN, doc.y);
-            doc.moveDown(0.3);
-            bulletList(doc, ai.alerts, C.danger);
-            doc.moveDown(0.4);
-        }
-
-        if (hasRecs) {
-            doc.font('Helvetica-Bold').fontSize(9).fillColor(C.primary).text('Recomendações', MARGIN, doc.y);
-            doc.moveDown(0.3);
-            bulletList(doc, ai.recommendations, C.primary);
-        }
     }
 
     // ── KPI Grid ─────────────────────────────────────────────────────────────
@@ -277,36 +368,32 @@ export async function generatePdf(
             value: fmtBrl(data.summary.revenue_net),
             ...(deltaRevenue ? { delta: deltaRevenue, deltaPositive: revenuePositive } : {}),
         },
-        {
-            label: 'Ticket Médio',
-            value: fmtBrl(data.summary.aov),
-        },
-        {
-            label: 'ROAS',
-            value: `${fmtNum(data.summary.roas)}x`,
-        },
-        {
-            label: 'LTV Médio',
-            value: fmtBrl(data.summary.ltv_avg),
-        },
-        {
-            label: 'Novos Clientes',
-            value: String(data.summary.new_customers),
-        },
-        {
-            label: 'Margem Bruta',
-            value: `${fmtNum(data.summary.gross_margin_pct)}%`,
-        },
+        { label: 'Ticket Médio', value: fmtBrl(data.summary.aov) },
+        { label: 'ROAS', value: `${fmtNum(data.summary.roas)}x` },
+        { label: 'LTV Médio', value: fmtBrl(data.summary.ltv_avg) },
+        { label: 'Novos Clientes', value: String(data.summary.new_customers) },
+        { label: 'Margem Bruta', value: `${fmtNum(data.summary.gross_margin_pct)}%` },
     ]);
 
-    // ── Channel Insights ──────────────────────────────────────────────────────
-    if (ai.channel_insights) {
-        sectionTitle(doc, 'Insights de Canais');
-        doc.font('Helvetica')
-            .fontSize(10)
-            .fillColor(C.dark)
-            .text(ai.channel_insights, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 3 });
-        doc.moveDown(0.5);
+    // ── Diagnósticos por Canal ────────────────────────────────────────────────
+    if (ai.diagnosticos.length > 0) {
+        sectionTitle(doc, 'Diagnósticos por Canal');
+
+        // Sort: crítica → alta → média → ok
+        const order: Record<ChannelDiagnosis['severidade'], number> = { critica: 0, alta: 1, media: 2, ok: 3 };
+        const sorted = [...ai.diagnosticos].sort((a, b) => order[a.severidade] - order[b.severidade]);
+
+        for (const d of sorted) {
+            // Page break if near bottom
+            if (doc.y > 680) doc.addPage();
+            drawDiagnosisCard(doc, d);
+        }
+    }
+
+    // ── Próximos Passos ───────────────────────────────────────────────────────
+    if (ai.proximos_passos.length > 0) {
+        sectionTitle(doc, 'Próximos Passos');
+        bulletList(doc, ai.proximos_passos.map((p, i) => `${i + 1}. ${p}`), C.primary);
     }
 
     // ── Receita por Plataforma ────────────────────────────────────────────────
@@ -324,18 +411,29 @@ export async function generatePdf(
         .sort(([, a], [, b]) => (b as number) - (a as number))
         .map(([k, v]): [string, string] => [k, fmtBrl(v as number)]);
 
-    const cacRows = Object.entries(data.cac_by_channel)
-        .sort(([, a], [, b]) => (a as number) - (b as number))
-        .map(([k, v]): [string, string] => [k, fmtBrl(v as number)]);
-
     if (spendRows.length > 0) {
         sectionTitle(doc, 'Investimento em Ads');
         twoColTable(doc, spendRows, 'Plataforma', 'Gasto');
     }
 
-    if (cacRows.length > 0) {
-        sectionTitle(doc, 'CAC por Canal');
-        twoColTable(doc, cacRows, 'Canal', 'Custo por Cliente');
+    // ── Channel Economics ─────────────────────────────────────────────────────
+    if (data.channel_economics.length > 0) {
+        sectionTitle(doc, 'Economia por Canal (LTV × CAC)');
+        const econRows = data.channel_economics.map((e): [string, string] => {
+            const ltv_cac = e.ltv_cac_ratio !== null ? `${fmtNum(e.ltv_cac_ratio)}x` : '-';
+            const statusLabel = e.status === 'lucrativo' ? '✓ Lucrativo' : e.status === 'prejuizo' ? '✗ Prejuízo' : 'Orgânico';
+            return [`${e.channel} · ${e.new_customers} clientes · CAC ${e.cac > 0 ? fmtBrl(e.cac) : '-'} · LTV/CAC ${ltv_cac}`, statusLabel];
+        });
+        twoColTable(doc, econRows, 'Canal', 'Status');
+    }
+
+    // ── RFM Distribution ──────────────────────────────────────────────────────
+    if (data.rfm_distribution.length > 0 && data.rfm_distribution.some(s => s.count > 0)) {
+        sectionTitle(doc, 'Qualidade da Base (RFM)');
+        const rfmRows = data.rfm_distribution
+            .filter(s => s.count > 0)
+            .map((s): [string, string] => [`${s.segment} · ${s.count} clientes`, fmtBrl(s.ltv)]);
+        twoColTable(doc, rfmRows, 'Segmento', 'LTV Total');
     }
 
     // ── Footer ────────────────────────────────────────────────────────────────

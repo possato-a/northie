@@ -67,7 +67,8 @@ export async function generateReport(req: Request, res: Response) {
         const dateStr = new Date().toISOString().split('T')[0];
 
         if (format === 'csv') {
-            const csv = formatAsCsv(reportData);
+            const aiAnalysis = await generateReportNarrative(reportData);
+            const csv = formatAsCsv(reportData, aiAnalysis);
             const filename = `northie-report-${frequency}-${dateStr}.csv`;
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
