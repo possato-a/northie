@@ -71,6 +71,40 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v11-debug' });
 });
 
+// TEMP — migration endpoint, remove after use
+app.post('/api/admin/migrate-20260310', async (req, res) => {
+    if (req.headers['x-migrate-token'] !== 'nrth-mig-7f4e2b9c1d3a') {
+        return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+        const { Client } = await import('pg');
+        const client = new Client({
+            host: 'db.ucwlgqowqpfmotcofqoz.supabase.co',
+            port: 5432,
+            user: 'postgres',
+            password: process.env.POSTGRES_PASSWORD,
+            database: 'postgres',
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 15000,
+        });
+        await client.connect();
+        const statements = [
+            `ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_status TEXT CHECK (email_status IN ('ok', 'bounced', 'unsubscribed')) DEFAULT 'ok'`,
+            `ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_engagement_at TIMESTAMPTZ`,
+            `CREATE INDEX IF NOT EXISTS idx_customers_email_status ON customers (profile_id, email_status) WHERE email_status != 'ok'`,
+        ];
+        const results: string[] = [];
+        for (const sql of statements) {
+            await client.query(sql);
+            results.push(`ok: ${sql.substring(0, 70)}`);
+        }
+        await client.end();
+        return res.json({ done: true, results });
+    } catch (err: unknown) {
+        return res.status(500).json({ error: (err as Error).message });
+    }
+});
+
 
 // Start server only if not in Vercel (Production)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
