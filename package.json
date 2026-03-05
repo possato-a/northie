@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "cd server && npx tsc && cd .. && tsc -b && vite build",
+    "build": "cd server && npm install && npx tsc && cd .. && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
