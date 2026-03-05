@@ -4,8 +4,57 @@ import {
     generateReportData, formatAsCsv, computeNextSendAt,
     type ReportFrequency, type ReportFormat
 } from '../services/reports/report-generator.js';
-import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
+import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const FREQ_MAP: Record<string, ReportFrequency> = {
+    semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
+    weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
+};
+
+function buildSnapshot(
+    data: Awaited<ReturnType<typeof generateReportData>>,
+    ai: ReportAIAnalysis
+) {
+    const topChannel = data.channel_economics
+        .filter(c => c.channel !== 'desconhecido')
+        .sort((a, b) => b.value_created - a.value_created)[0];
+
+    const worstChannel = data.channel_economics
+        .filter(c => c.status === 'prejuizo')
+        .sort((a, b) => a.value_created - b.value_created)[0];
+
+    return {
+        revenue_net: data.summary.revenue_net,
+        ad_spend: data.summary.ad_spend,
+        roas: data.summary.roas,
+        new_customers: data.summary.new_customers,
+        ltv_avg: data.summary.ltv_avg,
+        revenue_change_pct: data.summary.revenue_change_pct,
+        situacao_geral: ai.situacao_geral,
+        resumo_executivo: ai.resumo_executivo,
+        top_channel: topChannel ? {
+            channel: topChannel.channel,
+            value_created: topChannel.value_created,
+            ltv_cac_ratio: topChannel.ltv_cac_ratio,
+            status: topChannel.status,
+        } : null,
+        worst_channel: worstChannel ? {
+            channel: worstChannel.channel,
+            value_created: worstChannel.value_created,
+            cac: worstChannel.cac,
+            avg_ltv: worstChannel.avg_ltv,
+        } : null,
+        at_risk_count: data.at_risk_customers.length,
+        at_risk_ltv: data.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0),
+        diagnosticos_count: ai.diagnosticos.length,
+        criticos: ai.diagnosticos.filter(d => d.severidade === 'critica').length,
+    };
+}
+
+// ── Controllers ───────────────────────────────────────────────────────────────
 
 export async function getReportConfig(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
@@ -45,58 +94,84 @@ export async function saveReportConfig(req: Request, res: Response) {
     return res.json(data);
 }
 
+export async function getReportPreview(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const freqRaw: string = (req.query.frequency as string) ?? 'monthly';
+    const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+
+    try {
+        const reportData = await generateReportData(profileId, frequency);
+        const aiAnalysis = await generateReportNarrative(reportData);
+        return res.json({
+            period: reportData.period,
+            summary: reportData.summary,
+            channel_economics: reportData.channel_economics,
+            rfm_distribution: reportData.rfm_distribution,
+            at_risk_customers: reportData.at_risk_customers,
+            ai: {
+                situacao_geral: aiAnalysis.situacao_geral,
+                resumo_executivo: aiAnalysis.resumo_executivo,
+                diagnosticos: aiAnalysis.diagnosticos,
+                proximos_passos: aiAnalysis.proximos_passos,
+            },
+        });
+    } catch (err) {
+        console.error('[Reports] preview error:', err);
+        return res.status(500).json({ error: 'Failed to generate preview' });
+    }
+}
+
 export async function generateReport(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
-    // Normaliza frequência pt-BR → en (suporte a ambos os formatos)
     const freqRaw: string = req.body.frequency ?? 'monthly';
-    const freqMap: Record<string, ReportFrequency> = {
-        semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
-        weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
-    };
-    const frequency: ReportFrequency = freqMap[freqRaw] ?? 'monthly';
+    const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
     const format: ReportFormat = req.body.format ?? 'csv';
 
     try {
         const reportData = await generateReportData(profileId, frequency);
+        const aiAnalysis = await generateReportNarrative(reportData);
+        const snapshot = buildSnapshot(reportData, aiAnalysis);
 
         await supabase.from('report_logs').insert({
             profile_id: profileId,
-            frequency,
+            frequency: freqRaw,
             format,
             period_start: reportData.period.start,
             period_end: reportData.period.end,
             status: 'generated',
+            situacao_geral: aiAnalysis.situacao_geral,
+            snapshot,
         });
 
         const dateStr = new Date().toISOString().split('T')[0];
 
         if (format === 'csv') {
-            const aiAnalysis = await generateReportNarrative(reportData);
             const csv = formatAsCsv(reportData, aiAnalysis);
-            const filename = `northie-report-${frequency}-${dateStr}.csv`;
+            const filename = `northie-report-${freqRaw}-${dateStr}.csv`;
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             return res.send('\ufeff' + csv);
         }
 
         if (format === 'pdf') {
-            const aiAnalysis = await generateReportNarrative(reportData);
             const pdfBuffer = await generatePdf(reportData, aiAnalysis);
-            const filename = `northie-report-${frequency}-${dateStr}.pdf`;
+            const filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
             return res.send(pdfBuffer);
         }
 
-        // JSON — inclui análise de IA opcionalmente
-        const aiAnalysis = await generateReportNarrative(reportData);
-        const filename = `northie-report-${frequency}-${dateStr}.json`;
+        // JSON
+        const filename = `northie-report-${freqRaw}-${dateStr}.json`;
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         return res.json({ ...reportData, ai_analysis: aiAnalysis });
-    } catch (err: any) {
+
+    } catch (err) {
         console.error('[Reports] generateReport error:', err);
         return res.status(500).json({ error: 'Failed to generate report' });
     }
@@ -108,7 +183,7 @@ export async function getReportLogs(req: Request, res: Response) {
 
     const { data, error } = await supabase
         .from('report_logs')
-        .select('*')
+        .select('id, created_at, frequency, format, status, situacao_geral, snapshot, email_status, period_start, period_end')
         .eq('profile_id', profileId)
         .order('created_at', { ascending: false })
         .limit(20);

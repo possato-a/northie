@@ -71,6 +71,7 @@ export const reportsApi = {
             timeout: format === 'pdf' ? 45000 : 20000,
         }),
     getLogs: () => api.get('/reports/logs'),
+    getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 30000 }),
 };
 
 export default api;

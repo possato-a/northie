@@ -28,6 +28,7 @@ import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { handleStripeWebhook } from './controllers/webhook.controller.js';
+import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
 dotenv.config({ path: '.env.local' });
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -35,8 +36,14 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
-// Stripe webhook MUST be mounted before express.json() — Stripe requires raw body for signature verification
+// Webhooks com raw body DEVEM ser montados antes do express.json()
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
+app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), (req, res, next) => {
+    // Expõe rawBody para verificação de assinatura Svix
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    req.rawBody = req.body;
+    next();
+}, handleResendWebhook);
 app.use(express.json());
 // Routes
 app.use('/api/webhooks', webhookRoutes);
