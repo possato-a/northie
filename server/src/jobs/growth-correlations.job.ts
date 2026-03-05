@@ -15,7 +15,9 @@ type RecType =
     | 'upsell_cohort'
     | 'divergencia_roi_canal'
     | 'queda_retencao_cohort'
-    | 'canal_alto_ltv_underinvested';
+    | 'canal_alto_ltv_underinvested'
+    | 'cac_vs_ltv_deficit'
+    | 'em_risco_alto_valor';
 
 async function upsertRecommendation(
     profileId: string,
@@ -76,11 +78,11 @@ async function detectReativacaoAltoLtv(profileId: string): Promise<void> {
         .select('id, email, total_ltv, churn_probability, last_purchase_at')
         .eq('profile_id', profileId)
         .gte('total_ltv', avgLtv * 2)
-        .gte('churn_probability', 0.6)
+        .gte('churn_probability', 60)
         .lt('last_purchase_at', sixtyDaysAgo)
         .limit(100);
 
-    if (!segment || segment.length < 5) return;
+    if (!segment || segment.length < 3) return;
 
     const totalLtv = segment.reduce((s, c) => s + Number(c.total_ltv), 0);
     const avgSegLtv = totalLtv / segment.length;
@@ -202,14 +204,17 @@ async function detectAudienceSyncChampions(profileId: string): Promise<void> {
 
     if (!champions) return;
 
-    // Champions: R >= 4 AND F >= 4 AND M >= 4 (rfm_score é JSONB {"r": N, "f": N, "m": N})
+    // Champions: R >= 4 AND F >= 4 AND M >= 4 (rfm_score é TEXT "RFM" ex: "545")
     const championSegment = champions.filter(c => {
-        const score = c.rfm_score as { r: number; f: number; m: number } | null;
-        if (!score) return false;
-        return score.r >= 4 && score.f >= 4 && score.m >= 4;
+        const rfmStr = c.rfm_score as string | null;
+        if (!rfmStr || rfmStr.length !== 3) return false;
+        const r = parseInt(rfmStr[0]!);
+        const f = parseInt(rfmStr[1]!);
+        const m = parseInt(rfmStr[2]!);
+        return r >= 4 && f >= 3 && m >= 3; // rfmSegment() usa r>=4 f>=3 m>=3 para Champions
     });
 
-    if (championSegment.length < 20) return;
+    if (championSegment.length < 5) return;
 
     const avgLtv = championSegment.reduce((s, c) => s + Number(c.total_ltv), 0) / championSegment.length;
 
@@ -362,7 +367,7 @@ async function detectUpsellCohort(profileId: string): Promise<void> {
         }
     }
 
-    if (opportunityCustomerIds.length < 10) return;
+    if (opportunityCustomerIds.length < 5) return;
 
     // Buscar dados dos clientes no segmento
     const { data: segmentCustomers } = await supabase
@@ -559,6 +564,96 @@ async function detectCanalAltoLtvUnderinvested(profileId: string): Promise<void>
     });
 }
 
+// ── Detector 9: CAC vs LTV — Clientes Não Rentabilizados ─────────────────────
+// Fontes: customers.cac (calculado pelo RFM job) + customers.total_ltv
+// Lógica: se LTV < CAC, o cliente ainda não pagou seu custo de aquisição
+async function detectCacVsLtvDeficit(profileId: string): Promise<void> {
+    const { data: customers } = await supabase
+        .from('customers')
+        .select('id, email, total_ltv, cac, acquisition_channel, rfm_score')
+        .eq('profile_id', profileId)
+        .gt('cac', 0);
+
+    if (!customers?.length) return;
+
+    const unprofitable = customers.filter(c => Number(c.total_ltv) < Number(c.cac));
+    if (unprofitable.length < 3) return;
+
+    const totalDeficit = unprofitable.reduce(
+        (s, c) => s + (Number(c.cac) - Number(c.total_ltv)),
+        0
+    );
+    const avgCac = unprofitable.reduce((s, c) => s + Number(c.cac), 0) / unprofitable.length;
+    const avgLtv = unprofitable.reduce((s, c) => s + Number(c.total_ltv), 0) / unprofitable.length;
+    const deficitPct = Math.round((unprofitable.length / customers.length) * 100);
+
+    await upsertRecommendation(profileId, 'cac_vs_ltv_deficit', {
+        title: `${unprofitable.length} clientes (${deficitPct}% da base) ainda não pagaram o CAC`,
+        narrative: `${unprofitable.length} clientes têm LTV médio de R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — abaixo do CAC médio de R$ ${avgCac.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. O déficit total acumulado é de R$ ${totalDeficit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Esses clientes foram adquiridos mas ainda não geraram retorno suficiente. Uma ação de recompra direcionada pode acelerar o payback antes que o churn os retire da equação.`,
+        impact_estimate: `Recuperar R$ ${(totalDeficit * 0.4).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em payback acelerado (estimativa de 40% de conversão em segunda compra)`,
+        sources: ['customers.cac', 'customers.total_ltv', 'customers.acquisition_channel'],
+        meta: {
+            unprofitable_count: unprofitable.length,
+            total_customers: customers.length,
+            deficit_pct: deficitPct,
+            total_deficit: totalDeficit,
+            avg_cac: avgCac,
+            avg_ltv: avgLtv,
+            customer_ids: unprofitable.map(c => c.id),
+            customer_emails: unprofitable.map(c => c.email),
+        },
+    });
+}
+
+// ── Detector 10: Em Risco de Alto Valor ───────────────────────────────────────
+// Fontes: customers.rfm_score + customers.churn_probability + customers.total_ltv
+// Lógica: clientes com M >= 3 (alto valor histórico) mas R <= 2 (pararam de comprar)
+// — são os mais valiosos que estão em sinal amarelo
+async function detectEmRiscoAltoValor(profileId: string): Promise<void> {
+    const { data: customers } = await supabase
+        .from('customers')
+        .select('id, email, total_ltv, rfm_score, churn_probability, last_purchase_at')
+        .eq('profile_id', profileId)
+        .not('rfm_score', 'is', null)
+        .limit(500);
+
+    if (!customers?.length) return;
+
+    // Em Risco de Alto Valor: M >= 3 (compravam bem) mas R <= 2 (sumiram)
+    const atRisk = customers.filter(c => {
+        const rfmStr = c.rfm_score as string | null;
+        if (!rfmStr || rfmStr.length !== 3) return false;
+        const r = parseInt(rfmStr[0]!);
+        const m = parseInt(rfmStr[2]!);
+        return r <= 2 && m >= 3;
+    });
+
+    if (atRisk.length < 3) return;
+
+    const avgLtv = atRisk.reduce((s, c) => s + Number(c.total_ltv), 0) / atRisk.length;
+    const avgChurn = Math.round(atRisk.reduce((s, c) => s + Number(c.churn_probability), 0) / atRisk.length);
+
+    // LTV médio global para contexto
+    const globalAvgLtv = customers.reduce((s, c) => s + Number(c.total_ltv), 0) / customers.length;
+    const ltvMultiplier = globalAvgLtv > 0 ? Math.round(avgLtv / globalAvgLtv) : 1;
+
+    await upsertRecommendation(profileId, 'em_risco_alto_valor', {
+        title: `${atRisk.length} clientes de alto valor em silêncio — churn médio ${avgChurn}%`,
+        narrative: `${atRisk.length} clientes que historicamente compravam com alto valor (LTV médio de R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${ltvMultiplier}x acima da média) estão há muito tempo sem comprar e com probabilidade de churn de ${avgChurn}%. Esses não são clientes comuns — são os que mais contribuíram para a receita. Cada um que churnar representa uma perda significativamente maior que um cliente médio.`,
+        impact_estimate: `~R$ ${(avgLtv * atRisk.length * 0.35).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em risco imediato (35% de chance de churn sem intervenção)`,
+        sources: ['customers.rfm_score', 'customers.churn_probability', 'customers.total_ltv', 'customers.last_purchase_at'],
+        meta: {
+            at_risk_count: atRisk.length,
+            avg_ltv: avgLtv,
+            avg_churn_probability: avgChurn,
+            global_avg_ltv: globalAvgLtv,
+            ltv_multiplier: ltvMultiplier,
+            customer_ids: atRisk.map(c => c.id),
+            customer_emails: atRisk.map(c => c.email),
+        },
+    });
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runGrowthCorrelationsForAllProfiles(): Promise<void> {
@@ -577,6 +672,8 @@ async function runGrowthCorrelationsForAllProfiles(): Promise<void> {
                 detectDivergenciaRoiCanal(profile.id),
                 detectQuedaRetencaoCohort(profile.id),
                 detectCanalAltoLtvUnderinvested(profile.id),
+                detectCacVsLtvDeficit(profile.id),
+                detectEmRiscoAltoValor(profile.id),
             ]);
         } catch (err: any) {
             console.error(`[Growth] Error for profile ${profile.id}:`, err.message);

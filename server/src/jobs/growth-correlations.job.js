@@ -50,10 +50,10 @@ async function detectReativacaoAltoLtv(profileId) {
         .select('id, email, total_ltv, churn_probability, last_purchase_at')
         .eq('profile_id', profileId)
         .gte('total_ltv', avgLtv * 2)
-        .gte('churn_probability', 0.6)
+        .gte('churn_probability', 60)
         .lt('last_purchase_at', sixtyDaysAgo)
         .limit(100);
-    if (!segment || segment.length < 5)
+    if (!segment || segment.length < 3)
         return;
     const totalLtv = segment.reduce((s, c) => s + Number(c.total_ltv), 0);
     const avgSegLtv = totalLtv / segment.length;
@@ -163,14 +163,17 @@ async function detectAudienceSyncChampions(profileId) {
         .limit(500);
     if (!champions)
         return;
-    // Champions: R >= 4 AND F >= 4 AND M >= 4 (rfm_score é JSONB {"r": N, "f": N, "m": N})
+    // Champions: R >= 4 AND F >= 4 AND M >= 4 (rfm_score é TEXT "RFM" ex: "545")
     const championSegment = champions.filter(c => {
-        const score = c.rfm_score;
-        if (!score)
+        const rfmStr = c.rfm_score;
+        if (!rfmStr || rfmStr.length !== 3)
             return false;
-        return score.r >= 4 && score.f >= 4 && score.m >= 4;
+        const r = parseInt(rfmStr[0]);
+        const f = parseInt(rfmStr[1]);
+        const m = parseInt(rfmStr[2]);
+        return r >= 4 && f >= 3 && m >= 3; // rfmSegment() usa r>=4 f>=3 m>=3 para Champions
     });
-    if (championSegment.length < 20)
+    if (championSegment.length < 5)
         return;
     const avgLtv = championSegment.reduce((s, c) => s + Number(c.total_ltv), 0) / championSegment.length;
     await upsertRecommendation(profileId, 'audience_sync_champions', {
@@ -310,7 +313,7 @@ async function detectUpsellCohort(profileId) {
             opportunityCustomerIds.push(customerId);
         }
     }
-    if (opportunityCustomerIds.length < 10)
+    if (opportunityCustomerIds.length < 5)
         return;
     // Buscar dados dos clientes no segmento
     const { data: segmentCustomers } = await supabase
@@ -335,6 +338,236 @@ async function detectUpsellCohort(profileId) {
         },
     });
 }
+// ── Detector 6: Divergência LTV vs Spend por Canal ────────────────────────────
+// Fontes: mv_campaign_ltv_performance (ROI real) + campaign_performance_snapshots (histórico)
+async function detectDivergenciaRoiCanal(profileId) {
+    const { data: current } = await supabase
+        .from('mv_campaign_ltv_performance')
+        .select('channel, total_spend_brl, true_roi, total_ltv_brl, customers_acquired')
+        .eq('profile_id', profileId)
+        .not('true_roi', 'is', null)
+        .gt('total_spend_brl', 0);
+    if (!current?.length)
+        return;
+    // Buscar snapshot do mês anterior para comparar
+    const lastMonth = new Date();
+    lastMonth.setDate(1);
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    const lastMonthStr = lastMonth.toISOString().split('T')[0];
+    const { data: historic } = await supabase
+        .from('campaign_performance_snapshots')
+        .select('channel, true_roi, total_spend_brl')
+        .eq('profile_id', profileId)
+        .eq('snapshot_month', lastMonthStr)
+        .not('true_roi', 'is', null);
+    if (!historic?.length)
+        return;
+    const historicByChannel = {};
+    for (const row of historic) {
+        historicByChannel[row.channel] = { roi: Number(row.true_roi), spend: Number(row.total_spend_brl) };
+    }
+    // Detectar: spend cresceu mas ROI caiu
+    const divergentChannels = [];
+    for (const row of current) {
+        const hist = historicByChannel[row.channel];
+        if (!hist)
+            continue;
+        const spendGrew = Number(row.total_spend_brl) > hist.spend * 1.1; // +10% spend
+        const roiFell = Number(row.true_roi) < hist.roi * 0.85; // -15% ROI
+        if (spendGrew && roiFell) {
+            divergentChannels.push({
+                channel: row.channel,
+                current_roi: Number(row.true_roi),
+                historic_roi: hist.roi,
+                current_spend: Number(row.total_spend_brl),
+                historic_spend: hist.spend,
+                roi_drop_pct: Math.round(((hist.roi - Number(row.true_roi)) / hist.roi) * 100),
+            });
+        }
+    }
+    if (!divergentChannels.length)
+        return;
+    const worst = divergentChannels.sort((a, b) => b.roi_drop_pct - a.roi_drop_pct)[0];
+    const channelLabel = worst.channel === 'meta_ads' ? 'Meta Ads' : worst.channel === 'google_ads' ? 'Google Ads' : worst.channel;
+    await upsertRecommendation(profileId, 'divergencia_roi_canal', {
+        title: `ROI do ${channelLabel} caiu ${worst.roi_drop_pct}% com spend crescendo`,
+        narrative: `O ${channelLabel} teve um aumento de gasto de R$ ${worst.historic_spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para R$ ${worst.current_spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} no último mês — mas o ROI real (baseado em LTV, não ROAS) caiu de ${worst.historic_roi.toFixed(2)}x para ${worst.current_roi.toFixed(2)}x. Você está investindo mais e colhendo menos por cliente adquirido. O criativo ou a segmentação pode ter saturado.`,
+        impact_estimate: `ROI em queda livre — revisão de criativo/targeting pode recuperar ${worst.roi_drop_pct}% de eficiência`,
+        sources: ['mv_campaign_ltv_performance.true_roi', 'campaign_performance_snapshots.true_roi', 'ad_campaigns.spend_brl'],
+        meta: { divergent_channels: divergentChannels, worst_channel: worst },
+    });
+}
+// ── Detector 7: Queda de Retenção de Cohort ───────────────────────────────────
+// Fonte: mv_cohort_retention (retenção 30d do cohort atual vs média histórica)
+async function detectQuedaRetencaoCohort(profileId) {
+    const { data: cohorts } = await supabase
+        .from('mv_cohort_retention')
+        .select('acquisition_channel, cohort_month, cohort_size, retention_rate_30d')
+        .eq('profile_id', profileId)
+        .gt('cohort_size', 10)
+        .not('retention_rate_30d', 'is', null)
+        .order('cohort_month', { ascending: false })
+        .limit(24); // últimos 24 meses
+    if (!cohorts || cohorts.length < 3)
+        return;
+    // Agrupar por canal
+    const byChannel = {};
+    for (const row of cohorts) {
+        const ch = row.acquisition_channel;
+        if (!byChannel[ch])
+            byChannel[ch] = [];
+        byChannel[ch].push({
+            month: row.cohort_month,
+            rate: Number(row.retention_rate_30d),
+            size: Number(row.cohort_size),
+        });
+    }
+    const alerts = [];
+    for (const [channel, rows] of Object.entries(byChannel)) {
+        if (rows.length < 3)
+            continue;
+        const sorted = rows.sort((a, b) => b.month.localeCompare(a.month));
+        const latest = sorted[0];
+        const historical = sorted.slice(1);
+        const historicAvg = historical.reduce((s, r) => s + r.rate, 0) / historical.length;
+        if (latest.rate < historicAvg * 0.5) {
+            alerts.push({
+                channel,
+                current_retention: latest.rate,
+                historic_avg: Math.round(historicAvg * 10) / 10,
+                cohort_month: latest.month,
+                cohort_size: latest.size,
+                drop_pct: Math.round(((historicAvg - latest.rate) / historicAvg) * 100),
+            });
+        }
+    }
+    if (!alerts.length)
+        return;
+    const worst = alerts.sort((a, b) => b.drop_pct - a.drop_pct)[0];
+    const channelLabel = worst.channel === 'meta_ads' ? 'Meta Ads' : worst.channel === 'google_ads' ? 'Google Ads' : worst.channel;
+    await upsertRecommendation(profileId, 'queda_retencao_cohort', {
+        title: `Retenção do cohort recente (${channelLabel}) caiu ${worst.drop_pct}%`,
+        narrative: `Os ${worst.cohort_size} clientes adquiridos via ${channelLabel} no último mês estão retendo em ${worst.current_retention}% — menos da metade da média histórica de ${worst.historic_avg}%. Clientes recentes estão abandonando muito mais rápido que coortes anteriores. Isso pode indicar mudança no perfil de audiência, queda na qualidade do produto ou onboarding com problemas.`,
+        impact_estimate: `Risco de churn acelerado na base mais recente — intervenção precoce pode dobrar retenção`,
+        sources: ['mv_cohort_retention.retention_rate_30d', 'mv_cohort_retention.cohort_month', 'customers.acquisition_channel'],
+        meta: { alerts, worst_channel: worst },
+    });
+}
+// ── Detector 8: Canal com Alto LTV Subestimado ────────────────────────────────
+// Fonte: mv_campaign_ltv_performance (true_roi + avg_ltv vs média global + spend baixo)
+async function detectCanalAltoLtvUnderinvested(profileId) {
+    const { data: perfRows } = await supabase
+        .from('mv_campaign_ltv_performance')
+        .select('channel, campaign_name, true_roi, avg_ltv_brl, total_spend_brl, customers_acquired')
+        .eq('profile_id', profileId)
+        .not('true_roi', 'is', null)
+        .gt('customers_acquired', 5);
+    if (!perfRows?.length)
+        return;
+    // LTV médio global
+    const globalAvgLtv = perfRows.reduce((s, r) => s + Number(r.avg_ltv_brl), 0) / perfRows.length;
+    if (globalAvgLtv <= 0)
+        return;
+    const hidden = perfRows.filter(row => Number(row.true_roi) > 3 &&
+        Number(row.avg_ltv_brl) > globalAvgLtv * 2 &&
+        Number(row.total_spend_brl) < 1000);
+    if (!hidden.length)
+        return;
+    const best = hidden.sort((a, b) => Number(b.true_roi) - Number(a.true_roi))[0];
+    const channelLabel = best.channel === 'meta_ads' ? 'Meta Ads' : best.channel === 'google_ads' ? 'Google Ads' : best.channel;
+    const campaignLabel = best.campaign_name ? ` — campanha "${best.campaign_name}"` : '';
+    await upsertRecommendation(profileId, 'canal_alto_ltv_underinvested', {
+        title: `Canal subestimado: ${channelLabel}${campaignLabel} com ROI ${Number(best.true_roi).toFixed(1)}x`,
+        narrative: `O ${channelLabel}${campaignLabel} está gerando clientes com LTV médio de R$ ${Number(best.avg_ltv_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${Math.round((Number(best.avg_ltv_brl) / globalAvgLtv - 1) * 100)}% acima da média da sua base — com um ROI real de ${Number(best.true_roi).toFixed(1)}x. E você investiu apenas R$ ${Number(best.total_spend_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} nele. Esse é exatamente o canal que merece escala — não os que têm melhor ROAS superficial.`,
+        impact_estimate: `Potencial de escalar ${Number(best.true_roi).toFixed(1)}x de retorno real com aumento de investimento`,
+        sources: ['mv_campaign_ltv_performance.true_roi', 'mv_campaign_ltv_performance.avg_ltv_brl', 'mv_campaign_ltv_performance.total_spend_brl'],
+        meta: {
+            hidden_gems: hidden,
+            best_channel: best,
+            global_avg_ltv: globalAvgLtv,
+        },
+    });
+}
+// ── Detector 9: CAC vs LTV — Clientes Não Rentabilizados ─────────────────────
+// Fontes: customers.cac (calculado pelo RFM job) + customers.total_ltv
+// Lógica: se LTV < CAC, o cliente ainda não pagou seu custo de aquisição
+async function detectCacVsLtvDeficit(profileId) {
+    const { data: customers } = await supabase
+        .from('customers')
+        .select('id, email, total_ltv, cac, acquisition_channel, rfm_score')
+        .eq('profile_id', profileId)
+        .gt('cac', 0);
+    if (!customers?.length)
+        return;
+    const unprofitable = customers.filter(c => Number(c.total_ltv) < Number(c.cac));
+    if (unprofitable.length < 3)
+        return;
+    const totalDeficit = unprofitable.reduce((s, c) => s + (Number(c.cac) - Number(c.total_ltv)), 0);
+    const avgCac = unprofitable.reduce((s, c) => s + Number(c.cac), 0) / unprofitable.length;
+    const avgLtv = unprofitable.reduce((s, c) => s + Number(c.total_ltv), 0) / unprofitable.length;
+    const deficitPct = Math.round((unprofitable.length / customers.length) * 100);
+    await upsertRecommendation(profileId, 'cac_vs_ltv_deficit', {
+        title: `${unprofitable.length} clientes (${deficitPct}% da base) ainda não pagaram o CAC`,
+        narrative: `${unprofitable.length} clientes têm LTV médio de R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — abaixo do CAC médio de R$ ${avgCac.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. O déficit total acumulado é de R$ ${totalDeficit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Esses clientes foram adquiridos mas ainda não geraram retorno suficiente. Uma ação de recompra direcionada pode acelerar o payback antes que o churn os retire da equação.`,
+        impact_estimate: `Recuperar R$ ${(totalDeficit * 0.4).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em payback acelerado (estimativa de 40% de conversão em segunda compra)`,
+        sources: ['customers.cac', 'customers.total_ltv', 'customers.acquisition_channel'],
+        meta: {
+            unprofitable_count: unprofitable.length,
+            total_customers: customers.length,
+            deficit_pct: deficitPct,
+            total_deficit: totalDeficit,
+            avg_cac: avgCac,
+            avg_ltv: avgLtv,
+            customer_ids: unprofitable.map(c => c.id),
+            customer_emails: unprofitable.map(c => c.email),
+        },
+    });
+}
+// ── Detector 10: Em Risco de Alto Valor ───────────────────────────────────────
+// Fontes: customers.rfm_score + customers.churn_probability + customers.total_ltv
+// Lógica: clientes com M >= 3 (alto valor histórico) mas R <= 2 (pararam de comprar)
+// — são os mais valiosos que estão em sinal amarelo
+async function detectEmRiscoAltoValor(profileId) {
+    const { data: customers } = await supabase
+        .from('customers')
+        .select('id, email, total_ltv, rfm_score, churn_probability, last_purchase_at')
+        .eq('profile_id', profileId)
+        .not('rfm_score', 'is', null)
+        .limit(500);
+    if (!customers?.length)
+        return;
+    // Em Risco de Alto Valor: M >= 3 (compravam bem) mas R <= 2 (sumiram)
+    const atRisk = customers.filter(c => {
+        const rfmStr = c.rfm_score;
+        if (!rfmStr || rfmStr.length !== 3)
+            return false;
+        const r = parseInt(rfmStr[0]);
+        const m = parseInt(rfmStr[2]);
+        return r <= 2 && m >= 3;
+    });
+    if (atRisk.length < 3)
+        return;
+    const avgLtv = atRisk.reduce((s, c) => s + Number(c.total_ltv), 0) / atRisk.length;
+    const avgChurn = Math.round(atRisk.reduce((s, c) => s + Number(c.churn_probability), 0) / atRisk.length);
+    // LTV médio global para contexto
+    const globalAvgLtv = customers.reduce((s, c) => s + Number(c.total_ltv), 0) / customers.length;
+    const ltvMultiplier = globalAvgLtv > 0 ? Math.round(avgLtv / globalAvgLtv) : 1;
+    await upsertRecommendation(profileId, 'em_risco_alto_valor', {
+        title: `${atRisk.length} clientes de alto valor em silêncio — churn médio ${avgChurn}%`,
+        narrative: `${atRisk.length} clientes que historicamente compravam com alto valor (LTV médio de R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} — ${ltvMultiplier}x acima da média) estão há muito tempo sem comprar e com probabilidade de churn de ${avgChurn}%. Esses não são clientes comuns — são os que mais contribuíram para a receita. Cada um que churnar representa uma perda significativamente maior que um cliente médio.`,
+        impact_estimate: `~R$ ${(avgLtv * atRisk.length * 0.35).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em risco imediato (35% de chance de churn sem intervenção)`,
+        sources: ['customers.rfm_score', 'customers.churn_probability', 'customers.total_ltv', 'customers.last_purchase_at'],
+        meta: {
+            at_risk_count: atRisk.length,
+            avg_ltv: avgLtv,
+            avg_churn_probability: avgChurn,
+            global_avg_ltv: globalAvgLtv,
+            ltv_multiplier: ltvMultiplier,
+            customer_ids: atRisk.map(c => c.id),
+            customer_emails: atRisk.map(c => c.email),
+        },
+    });
+}
 // ── Runner ────────────────────────────────────────────────────────────────────
 async function runGrowthCorrelationsForAllProfiles() {
     console.log('[Growth] Running correlation detectors...');
@@ -347,6 +580,11 @@ async function runGrowthCorrelationsForAllProfiles() {
                 detectAudienceSyncChampions(profile.id),
                 detectReaLocacaoBudget(profile.id),
                 detectUpsellCohort(profile.id),
+                detectDivergenciaRoiCanal(profile.id),
+                detectQuedaRetencaoCohort(profile.id),
+                detectCanalAltoLtvUnderinvested(profile.id),
+                detectCacVsLtvDeficit(profile.id),
+                detectEmRiscoAltoValor(profile.id),
             ]);
         }
         catch (err) {

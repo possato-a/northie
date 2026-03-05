@@ -15,6 +15,8 @@ type RecType =
   | 'divergencia_roi_canal'
   | 'queda_retencao_cohort'
   | 'canal_alto_ltv_underinvested'
+  | 'cac_vs_ltv_deficit'
+  | 'em_risco_alto_valor'
 
 interface ExecutionStep {
   step: string
@@ -54,6 +56,8 @@ const TYPE_LABELS: Record<RecType, string> = {
   divergencia_roi_canal: 'ROI',
   queda_retencao_cohort: 'Retenção',
   canal_alto_ltv_underinvested: 'Oportunidade',
+  cac_vs_ltv_deficit: 'Payback',
+  em_risco_alto_valor: 'Em Risco',
 }
 
 const TYPE_COLORS: Record<RecType, string> = {
@@ -65,6 +69,8 @@ const TYPE_COLORS: Record<RecType, string> = {
   divergencia_roi_canal: '#F97316',
   queda_retencao_cohort: '#EF4444',
   canal_alto_ltv_underinvested: '#10B981',
+  cac_vs_ltv_deficit: '#F59E0B',
+  em_risco_alto_valor: '#EF4444',
 }
 
 const CHAT_CHIPS = [
