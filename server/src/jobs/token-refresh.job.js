@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
-async function checkAndRefreshAll() {
+export async function checkAndRefreshAll() {
     try {
         console.log('[Job] Checking integrations for renewals...');
         const { data: integrations, error } = await supabase

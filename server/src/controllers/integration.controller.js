@@ -12,6 +12,7 @@ import { runCapitalScoreForAllProfiles } from '../jobs/capital-score.job.js';
 import { runValuationForAllProfiles } from '../jobs/valuation-calc.job.js';
 import { runGrowthCorrelationsForAllProfiles } from '../jobs/growth-correlations.job.js';
 import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
+import { checkAndRefreshAll } from '../jobs/token-refresh.job.js';
 /**
  * Redirects the user to the platform's OAuth consent screen
  */
@@ -421,6 +422,8 @@ export async function cronSync(req, res) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
+        // Fase 0: renovar tokens antes de qualquer sync — tokens expirados causam falhas em cascata
+        await checkAndRefreshAll();
         // Fase 1: sync de dados de plataformas (paralelo)
         await Promise.allSettled([
             runAdsSyncForAllProfiles(),
