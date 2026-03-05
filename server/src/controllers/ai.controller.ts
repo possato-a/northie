@@ -216,8 +216,11 @@ export async function handleGrowthChatMessage(req: Request, res: Response) {
             true_roi: row.true_roi != null ? Number(row.true_roi) : null,
         }));
 
+        const growthModel = (req.body.model as string) || 'sonnet';
+
         const context: AIService.GrowthChatContext = {
             profileId,
+            model: growthModel,
             businessStats: { total_revenue: totalRevenue, avg_ltv: avgLtv, avg_churn: avgChurn, active_channels: channels },
             rfmSegments: rfmCounts,
             channelPerformance,

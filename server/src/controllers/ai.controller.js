@@ -200,8 +200,10 @@ export async function handleGrowthChatMessage(req, res) {
             total_spend_brl: Number(row.total_spend_brl || 0),
             true_roi: row.true_roi != null ? Number(row.true_roi) : null,
         }));
+        const growthModel = req.body.model || 'sonnet';
         const context = {
             profileId,
+            model: growthModel,
             businessStats: { total_revenue: totalRevenue, avg_ltv: avgLtv, avg_churn: avgChurn, active_channels: channels },
             rfmSegments: rfmCounts,
             channelPerformance,

@@ -100,7 +100,8 @@ REGRAS INVIOLÁVEIS:
     }
 }
 export async function generateGrowthAIResponse(message, context) {
-    console.log(`[AI] Generating Growth response for profile ${context.profileId}`);
+    const growthModelId = MODEL_MAP[context.model || 'sonnet'] ?? 'claude-sonnet-4-6';
+    console.log(`[AI] Generating Growth response for profile ${context.profileId} — model: ${growthModelId}`);
     const pendingRecsText = (context.pendingRecs || []).map(r => `- [${r.type}] "${r.title}"\n  Narrativa: ${r.narrative}\n  Impacto: ${r.impact_estimate}`).join('\n') || 'Nenhuma recomendação pendente no momento.';
     const recentRecsText = (context.recentRecs || []).map(r => `- [${r.status}] "${r.title}"`).join('\n') || 'Nenhuma ação recente.';
     const fmtG = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
@@ -134,12 +135,12 @@ ${pendingRecsText}
 AÇÕES RECENTES:
 ${recentRecsText}
 
-REGRAS:
-1. Quando perguntado sobre uma recomendação, explique exatamente os dados que a geraram — cite os números específicos do meta da recomendação.
-2. Se o founder quiser executar algo, ele precisa clicar em "Aprovar e executar" no card correspondente na tela. NUNCA execute ou simule execução via chat.
-3. Se o founder perguntar "por que essa recomendação?" ou "como isso foi gerado?", use a ferramenta explain_correlation.
-4. Se o founder perguntar sobre um segmento específico, use get_segment_preview.
-5. Nunca use linguagem vaga. "Seus 12 clientes Champions têm LTV 3x acima da média" é correto. "Você tem clientes valiosos" não é aceitável.
+REGRAS INVIOLÁVEIS:
+1. NUNCA use markdown: sem asteriscos, sem hashtags, sem backticks, sem negrito, sem itálico, sem tabelas markdown. Resposta em texto puro.
+2. NUNCA use emojis.
+3. Quando perguntado sobre uma recomendação, explique os dados exatos que a geraram — cite números do meta da recomendação.
+4. Se o founder quiser executar algo, ele precisa clicar em "Aprovar e executar" no card. NUNCA execute ou simule execução via chat.
+5. Nunca use linguagem vaga. "Seus 12 clientes Champions têm LTV 3x acima da média" é correto. "Você tem clientes valiosos" não é.
 6. Responda sempre em português brasileiro.`;
     const messages = [
         ...(context.history || []),
@@ -193,7 +194,7 @@ REGRAS:
     ];
     try {
         const response = await getAnthropic().messages.create({
-            model: 'claude-sonnet-4-6',
+            model: growthModelId,
             max_tokens: 2048,
             system: systemPrompt,
             messages,
@@ -228,7 +229,7 @@ REGRAS:
                 }
                 // Segunda chamada com resultado da tool
                 const followUp = await getAnthropic().messages.create({
-                    model: 'claude-sonnet-4-6',
+                    model: growthModelId,
                     max_tokens: 2048,
                     system: systemPrompt,
                     messages: [

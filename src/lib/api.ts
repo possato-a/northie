@@ -48,7 +48,7 @@ export const dataApi = {
 
 export const aiApi = {
     chat: (message: string, pageContext?: string, model?: string) => api.post('/ai/chat', { message, page_context: pageContext, model }),
-    growthChat: (message: string) => api.post('/ai/growth-chat', { message }),
+    growthChat: (message: string, model?: string) => api.post('/ai/growth-chat', { message, model }),
 };
 
 export const growthApi = {

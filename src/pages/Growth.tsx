@@ -89,6 +89,23 @@ const CHAT_CHIPS = [
   'Por que meu LTV caiu?',
 ]
 
+type AIModel = 'sonnet' | 'opus' | 'haiku'
+const MODELS: AIModel[] = ['sonnet', 'opus', 'haiku']
+const MODEL_LABELS: Record<AIModel, string> = { sonnet: 'Sonnet', opus: 'Opus', haiku: 'Haiku' }
+
+function TypewriterText({ text, onDone }: { text: string; onDone: () => void }) {
+  const [count, setCount] = useState(0)
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+  useEffect(() => { setCount(0) }, [text])
+  useEffect(() => {
+    if (count >= text.length) { onDoneRef.current(); return }
+    const t = setTimeout(() => setCount(c => c + 1), 7)
+    return () => clearTimeout(t)
+  }, [count, text])
+  return <>{text.slice(0, count)}</>
+}
+
 const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtInt = (n: number) => n.toLocaleString('pt-BR')
 
@@ -464,14 +481,12 @@ function ThinkingIndicator() {
 
 function GrowthChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: 'Olá! Estou conectado aos seus dados de crescimento e às recomendações pendentes. O que quer analisar?',
-    },
+    { id: '1', role: 'assistant', content: 'Conectado. Contexto: Growth. O que quer analisar?' },
   ])
   const [input, setInput] = useState('')
   const [isThinking, setIsThinking] = useState(false)
+  const [model, setModel] = useState<AIModel>('sonnet')
+  const [animatingId, setAnimatingId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -490,13 +505,11 @@ function GrowthChat() {
     setIsThinking(true)
 
     try {
-      const response = await aiApi.growthChat(messageText)
-      const aiMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response.data.content,
-      }
+      const response = await aiApi.growthChat(messageText, model)
+      const newId = (Date.now() + 1).toString()
+      const aiMsg: ChatMessage = { id: newId, role: 'assistant', content: response.data.content }
       setMessages(prev => [...prev, aiMsg])
+      setAnimatingId(newId)
     } catch {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -560,7 +573,10 @@ function GrowthChat() {
                   fontSize: 'var(--text-sm)', lineHeight: 1.65, color: 'var(--color-text-primary)',
                   whiteSpace: 'pre-wrap',
                 }}>
-                  {m.content}
+                  {animatingId === m.id
+                    ? <TypewriterText text={m.content} onDone={() => setAnimatingId(null)} />
+                    : m.content
+                  }
                 </div>
               </div>
             ) : (
@@ -618,6 +634,24 @@ function GrowthChat() {
               minHeight: 20, maxHeight: 100, padding: 0, lineHeight: 1.55,
             }}
           />
+          <motion.button
+            onClick={() => setModel(m => MODELS[(MODELS.indexOf(m) + 1) % MODELS.length])}
+            whileTap={{ scale: 0.93 }}
+            title="Trocar modelo de IA"
+            style={{
+              background: 'none', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)', padding: '2px 6px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
+              color: 'var(--color-text-tertiary)',
+            }}
+          >
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.04em' }}>
+              {MODEL_LABELS[model]}
+            </span>
+            <svg width="7" height="7" viewBox="0 0 8 8" fill="none">
+              <path d="M4 1L6.5 3.5M4 1L1.5 3.5M4 7L6.5 4.5M4 7L1.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </motion.button>
           <motion.button
             onClick={() => handleSend()}
             disabled={!input.trim() || isThinking}
