@@ -42,7 +42,7 @@ async function sendReportEmail(opts: {
     const freqLabel = FREQ_LABEL[opts.frequency] ?? opts.frequency;
 
     await resend.emails.send({
-        from: 'Northie <relatorios@northie.com.br>',
+        from: 'Northie <onboarding@resend.dev>',
         to: opts.to,
         subject: `Relatório ${freqLabel} — Northie`,
         html: `
