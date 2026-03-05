@@ -186,7 +186,7 @@ export async function generateReportNarrative(data) {
     try {
         const response = await getAnthropic().messages.create({
             model,
-            max_tokens: 2000,
+            max_tokens: 4000,
             system: 'Você é um CFO/CMO sênior especialista em negócios digitais brasileiros. Analise dados cruzados de múltiplas fontes e diagnostique problemas com precisão clínica — sintoma, causa raiz, consequência em R$, ação. Nunca inclua dados pessoais identificáveis (PII). Responda SOMENTE com JSON válido, sem nenhum texto antes ou depois.',
             messages: [{ role: 'user', content: buildUserMessage(data) }],
         });
