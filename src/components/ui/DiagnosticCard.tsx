@@ -19,10 +19,10 @@ export interface Diagnostico {
 // ── Severity config ───────────────────────────────────────────────────────────
 
 const SEV: Record<Severidade, { label: string; color: string; bg: string; border: string }> = {
-    critica: { label: 'CRÍTICA',  color: '#EF4444', bg: 'rgba(239,68,68,0.10)',  border: 'rgba(239,68,68,0.25)'  },
-    alta:    { label: 'ALTA',     color: '#F59E0B', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)' },
-    media:   { label: 'MÉDIA',    color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.20)' },
-    ok:      { label: 'OK',       color: '#22C55E', bg: 'rgba(34,197,94,0.10)',  border: 'rgba(34,197,94,0.25)'  },
+    critica: { label: 'CRÍTICA', color: '#EF4444', bg: 'rgba(239,68,68,0.10)',  border: 'rgba(239,68,68,0.25)'  },
+    alta:    { label: 'ALTA',    color: '#F59E0B', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)' },
+    media:   { label: 'MÉDIA',   color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.20)' },
+    ok:      { label: 'OK',      color: '#22C55E', bg: 'rgba(34,197,94,0.10)',  border: 'rgba(34,197,94,0.25)'  },
 }
 
 const PRAZO_LABEL: Record<Prazo, string> = {
@@ -38,8 +38,7 @@ const fmtBRL = (n: number) =>
 
 function FieldLabel({ children }: { children: string }) {
     return (
-        <span style={{
-            display: 'block',
+        <div style={{
             fontFamily: 'var(--font-sans)',
             fontSize: 10,
             fontWeight: 600,
@@ -49,21 +48,22 @@ function FieldLabel({ children }: { children: string }) {
             marginBottom: 5,
         }}>
             {children}
-        </span>
+        </div>
     )
 }
 
 function FieldValue({ children }: { children: React.ReactNode }) {
     return (
-        <span style={{
-            display: 'block',
+        <div style={{
             fontFamily: 'var(--font-sans)',
             fontSize: 13,
             color: 'var(--color-text-primary)',
             lineHeight: 1.5,
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
         }}>
             {children}
-        </span>
+        </div>
     )
 }
 
@@ -84,22 +84,36 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: index * 0.06, ease: [0.25, 0.1, 0.25, 1] }}
             style={{
+                // Containment obrigatório — isola o card completamente
+                position: 'relative',
+                overflow: 'hidden',
+                isolation: 'isolate',
+                width: '100%',
+                boxSizing: 'border-box',
+
                 padding: '20px 0',
                 borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
-                overflow: 'hidden',
-                position: 'relative',
             }}
         >
-            {/* ── Header: título + badge ─────────────────────────────────── */}
+            {/* ── Header: título (flex) + badge ────────────────────────────── */}
             <div style={{
                 display: 'flex',
                 alignItems: 'flex-start',
                 justifyContent: 'space-between',
                 gap: 12,
                 marginBottom: 16,
+                width: '100%',
+                minWidth: 0,
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {/* Accent bar */}
+                {/* Título com accent bar */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    minWidth: 0,
+                    flex: 1,
+                    overflow: 'hidden',
+                }}>
                     <div style={{
                         width: 3,
                         height: 18,
@@ -107,19 +121,23 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                         background: sev.color,
                         flexShrink: 0,
                     }} />
-                    <span style={{
+                    <div style={{
                         fontFamily: 'var(--font-sans)',
                         fontSize: 14,
                         fontWeight: 600,
                         color: 'var(--color-text-primary)',
                         letterSpacing: '0.01em',
+                        overflow: 'hidden',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        minWidth: 0,
                     }}>
                         {d.canal}
-                    </span>
+                    </div>
                 </div>
 
-                {/* Badge — fixo no canto direito, sem sobrepor texto */}
-                <span style={{
+                {/* Badge — flexShrink 0 garante que não encolhe nem vaza */}
+                <div style={{
                     flexShrink: 0,
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -135,35 +153,57 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                     whiteSpace: 'nowrap',
                 }}>
                     {sev.label}
-                </span>
+                </div>
             </div>
 
-            {/* ── SINTOMA — largura total ────────────────────────────────── */}
-            <div style={{ marginBottom: 16 }}>
+            {/* ── SINTOMA — largura total ───────────────────────────────────── */}
+            <div style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                marginBottom: 16,
+                overflow: 'hidden',
+            }}>
                 <FieldLabel>Sintoma</FieldLabel>
                 <FieldValue>{d.sintoma}</FieldValue>
             </div>
 
-            {/* ── CAUSA RAIZ + CONSEQUÊNCIA — 50/50 ─────────────────────── */}
+            {/* ── CAUSA RAIZ / CONSEQUÊNCIA — grid 50/50, FORA do sintoma ──── */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
                 gap: 24,
                 alignItems: 'start',
+                width: '100%',
                 marginBottom: 16,
+                // Sem overflow: hidden aqui — cada célula cuida do próprio
             }}>
-                <div style={{ overflow: 'hidden', wordBreak: 'break-word', minWidth: 0 }}>
+                {/* Célula esquerda */}
+                <div style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                }}>
                     <FieldLabel>Causa Raiz</FieldLabel>
                     <FieldValue>{d.causa_raiz}</FieldValue>
                 </div>
-                <div style={{ overflow: 'hidden', wordBreak: 'break-word', minWidth: 0 }}>
+
+                {/* Célula direita */}
+                <div style={{
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                }}>
                     <FieldLabel>Consequência</FieldLabel>
                     <FieldValue>{d.consequencia}</FieldValue>
                 </div>
             </div>
 
-            {/* ── RECOMENDAÇÃO — 100% largura, abaixo do grid ─────────── */}
+            {/* ── RECOMENDAÇÃO — 100% largura, FORA do grid ────────────────── */}
             <div style={{
+                width: '100%',
+                boxSizing: 'border-box',
                 background: '#F7F6F3',
                 borderLeft: `3px solid ${sev.color}`,
                 borderRadius: '0 4px 4px 0',
@@ -171,30 +211,35 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                 marginBottom: 12,
                 overflow: 'hidden',
                 wordBreak: 'break-word',
+                overflowWrap: 'break-word',
             }}>
                 <FieldLabel>Recomendação</FieldLabel>
                 <FieldValue>{d.acao_recomendada}</FieldValue>
             </div>
 
-            {/* ── Rodapé: impacto financeiro + prazo ───────────────────── */}
+            {/* ── Rodapé: impacto financeiro + prazo ───────────────────────── */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
                 paddingTop: 8,
                 borderTop: '1px solid var(--color-border)',
+                width: '100%',
+                minWidth: 0,
             }}>
-                <span style={{
+                <div style={{
                     fontFamily: 'var(--font-mono)',
                     fontSize: 13,
                     fontWeight: 600,
                     color: sev.color,
                     flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
                 }}>
                     {fmtBRL(d.consequencia_financeira_brl)}
-                </span>
+                </div>
 
-                <span style={{
+                <div style={{
                     flexShrink: 0,
                     fontFamily: 'var(--font-sans)',
                     fontSize: 11,
@@ -203,9 +248,10 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                     padding: '2px 8px',
                     borderRadius: 4,
                     border: '1px solid var(--color-border)',
+                    whiteSpace: 'nowrap',
                 }}>
                     {PRAZO_LABEL[d.prazo]}
-                </span>
+                </div>
             </div>
         </motion.div>
     )
@@ -224,10 +270,15 @@ export function DiagnosticList({ diagnosticos }: DiagnosticListProps) {
     if (sorted.length === 0) return null
 
     return (
-        <div>
+        <div style={{
+            width: '100%',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+        }}>
             {sorted.map((d, i) => (
                 <DiagnosticCard
-                    key={`${d.canal}-${d.severidade}`}
+                    key={`${d.canal}-${d.severidade}-${i}`}
                     diagnostico={d}
                     index={i}
                     isLast={i === sorted.length - 1}
