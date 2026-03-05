@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase.js';
 import { generateReportData, formatAsCsv, computeNextSendAt } from '../services/reports/report-generator.js';
 import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+import { sendReport } from '../services/reports/report-email.js';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const FREQ_MAP = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
@@ -88,10 +89,14 @@ export async function getReportPreview(req, res) {
         const aiAnalysis = await generateReportNarrative(reportData);
         return res.json({
             period: reportData.period,
+            business_type: reportData.business_type,
             summary: reportData.summary,
             channel_economics: reportData.channel_economics,
             rfm_distribution: reportData.rfm_distribution,
+            rfm_source: reportData.rfm_source,
             at_risk_customers: reportData.at_risk_customers,
+            top_products: reportData.top_products,
+            revenue_trend: reportData.revenue_trend,
             ai: {
                 situacao_geral: aiAnalysis.situacao_geral,
                 resumo_executivo: aiAnalysis.resumo_executivo,
@@ -165,5 +170,70 @@ export async function getReportLogs(req, res) {
     if (error)
         return res.status(500).json({ error: error.message });
     return res.json(data ?? []);
+}
+export async function sendReportByEmail(req, res) {
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId)
+        return res.status(400).json({ error: 'Missing x-profile-id' });
+    const freqRaw = req.body.frequency ?? 'monthly';
+    const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const format = req.body.format ?? 'pdf';
+    // Email: do body ou da config salva
+    let email = req.body.email ?? '';
+    if (!email) {
+        const { data: cfg } = await supabase
+            .from('report_configs')
+            .select('email')
+            .eq('profile_id', profileId)
+            .single();
+        email = cfg?.email ?? '';
+    }
+    if (!email)
+        return res.status(400).json({ error: 'Email não configurado. Configure em Relatórios > Envio automático.' });
+    try {
+        const reportData = await generateReportData(profileId, frequency);
+        const aiAnalysis = await generateReportNarrative(reportData);
+        const snapshot = buildSnapshot(reportData, aiAnalysis);
+        const dateStr = new Date().toISOString().split('T')[0];
+        let fileBuffer;
+        let filename;
+        if (format === 'pdf') {
+            fileBuffer = await generatePdf(reportData, aiAnalysis);
+            filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
+        }
+        else if (format === 'csv') {
+            fileBuffer = formatAsCsv(reportData, aiAnalysis);
+            filename = `northie-report-${freqRaw}-${dateStr}.csv`;
+        }
+        else {
+            fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
+            filename = `northie-report-${freqRaw}-${dateStr}.json`;
+        }
+        const resendEmailId = await sendReport({
+            to: email,
+            frequency: freqRaw,
+            format,
+            fileBuffer,
+            filename,
+            data: reportData,
+            ai: aiAnalysis,
+        });
+        await supabase.from('report_logs').insert({
+            profile_id: profileId,
+            frequency: freqRaw,
+            format,
+            period_start: reportData.period.start,
+            period_end: reportData.period.end,
+            status: 'generated',
+            situacao_geral: aiAnalysis.situacao_geral,
+            snapshot,
+            ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+        });
+        return res.json({ ok: true, to: email, email_id: resendEmailId });
+    }
+    catch (err) {
+        console.error('[Reports] sendReportByEmail error:', err);
+        return res.status(500).json({ error: 'Falha ao enviar relatório por email' });
+    }
 }
 //# sourceMappingURL=reports.controller.js.map

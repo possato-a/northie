@@ -21,6 +21,7 @@ import { startRfmCalcJob } from './jobs/rfm-calc.job.js';
 import { webhookQueue } from './lib/webhook-queue.js';
 import { startAlertsJob } from './jobs/alerts.job.js';
 import { startGrowthCorrelationsJob } from './jobs/growth-correlations.job.js';
+import { startCorrelationRefreshJob } from './jobs/correlation-refresh.job.js';
 import { startSafetyNetJob } from './jobs/safety-net.job.js';
 import { startCapitalScoreJob } from './jobs/capital-score.job.js';
 import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
@@ -73,6 +74,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         webhookQueue.recoverPending();
         startAlertsJob();
         startGrowthCorrelationsJob();
+        startCorrelationRefreshJob();
         startSafetyNetJob();
         startCapitalScoreJob();
         startValuationCalcJob();

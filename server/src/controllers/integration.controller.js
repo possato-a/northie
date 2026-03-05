@@ -10,6 +10,8 @@ import { runRfmForAllProfiles } from '../jobs/rfm-calc.job.js';
 import { runSafetyNet } from '../jobs/safety-net.job.js';
 import { runCapitalScoreForAllProfiles } from '../jobs/capital-score.job.js';
 import { runValuationForAllProfiles } from '../jobs/valuation-calc.job.js';
+import { runGrowthCorrelationsForAllProfiles } from '../jobs/growth-correlations.job.js';
+import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
 /**
  * Redirects the user to the platform's OAuth consent screen
  */
@@ -433,6 +435,9 @@ export async function cronSync(req, res) {
             runCapitalScoreForAllProfiles(), // Atualiza Capital Score mensal
             runValuationForAllProfiles(), // Atualiza Valuation mensal
         ]);
+        // Fase 3: camada de correlação (após RFM e dados analíticos)
+        await refreshCorrelationViews(); // Refresh das materialized views
+        await runGrowthCorrelationsForAllProfiles(); // Detecta oportunidades de growth
         return res.status(200).json({ message: 'Cron sync completed.' });
     }
     catch (error) {

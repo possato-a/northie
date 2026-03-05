@@ -107,10 +107,14 @@ export async function getReportPreview(req: Request, res: Response) {
         const aiAnalysis = await generateReportNarrative(reportData);
         return res.json({
             period: reportData.period,
+            business_type: reportData.business_type,
             summary: reportData.summary,
             channel_economics: reportData.channel_economics,
             rfm_distribution: reportData.rfm_distribution,
+            rfm_source: reportData.rfm_source,
             at_risk_customers: reportData.at_risk_customers,
+            top_products: reportData.top_products,
+            revenue_trend: reportData.revenue_trend,
             ai: {
                 situacao_geral: aiAnalysis.situacao_geral,
                 resumo_executivo: aiAnalysis.resumo_executivo,

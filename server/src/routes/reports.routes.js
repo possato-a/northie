@@ -6,5 +6,6 @@ router.post('/config', ReportsController.saveReportConfig);
 router.get('/preview', ReportsController.getReportPreview);
 router.post('/generate', ReportsController.generateReport);
 router.get('/logs', ReportsController.getReportLogs);
+router.post('/send-email', ReportsController.sendReportByEmail);
 export default router;
 //# sourceMappingURL=reports.routes.js.map

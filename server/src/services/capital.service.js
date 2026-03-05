@@ -10,7 +10,7 @@ export async function calculateCapitalScore(profileId) {
     const { data: txData } = await supabase
         .from('transactions')
         .select('amount_net, created_at')
-        .eq('user_id', profileId)
+        .eq('profile_id', profileId)
         .eq('status', 'approved')
         .gte('created_at', sixMonthsAgo.toISOString());
     // Group transactions by month to get monthly revenue
@@ -34,7 +34,7 @@ export async function calculateCapitalScore(profileId) {
     const { data: customerData } = await supabase
         .from('customers')
         .select('total_ltv, churn_probability')
-        .eq('user_id', profileId);
+        .eq('profile_id', profileId);
     const customers = customerData || [];
     const ltv_avg = customers.length > 0
         ? customers.reduce((a, c) => a + (c.total_ltv || 0), 0) / customers.length
@@ -47,13 +47,13 @@ export async function calculateCapitalScore(profileId) {
     const { data: adData } = await supabase
         .from('ad_metrics')
         .select('spend_brl, date')
-        .eq('user_id', profileId)
+        .eq('profile_id', profileId)
         .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
     const totalSpend = (adData || []).reduce((a, m) => a + (m.spend_brl || 0), 0);
     const { data: newCustomers } = await supabase
         .from('customers')
         .select('id')
-        .eq('user_id', profileId)
+        .eq('profile_id', profileId)
         .gte('created_at', sixMonthsAgo.toISOString());
     const newCustomerCount = (newCustomers || []).length;
     const cac = newCustomerCount > 0 && totalSpend > 0 ? totalSpend / newCustomerCount : 0;
