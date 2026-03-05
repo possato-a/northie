@@ -26,6 +26,16 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false)
   const [isChatFull, setIsChatFull] = useState(false)
 
+  // Listen for navigation events dispatched by TopBar
+  useEffect(() => {
+    function handleNav(e: Event) {
+      const page = (e as CustomEvent<string>).detail as Page
+      if (page) setActivePage(page)
+    }
+    window.addEventListener('northie:navigate', handleNav)
+    return () => window.removeEventListener('northie:navigate', handleNav)
+  }, [])
+
   // 1. Check for current session on load
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

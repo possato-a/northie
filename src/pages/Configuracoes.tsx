@@ -587,6 +587,12 @@ function NotificacoesPanel() {
 
 function SegurancaPanel() {
     const [twoFactor, setTwoFactor] = useState(false)
+    const [signingOut, setSigningOut] = useState(false)
+
+    const handleSignOut = async () => {
+        setSigningOut(true)
+        await supabase.auth.signOut()
+    }
 
     return (
         <div>
@@ -608,9 +614,30 @@ function SegurancaPanel() {
                 </button>
             </SettingRow>
 
-            <SettingRow title="Log de atividade" description="Histórico de acessos e ações da conta." divider={false}>
+            <SettingRow title="Log de atividade" description="Histórico de acessos e ações da conta.">
                 <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
                     Exportar log
+                </button>
+            </SettingRow>
+
+            <SettingRow title="Encerrar sessão" description="Sair da sua conta em todos os dispositivos." divider={false}>
+                <button
+                    onClick={handleSignOut}
+                    disabled={signingOut}
+                    style={{
+                        padding: '7px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-bg-secondary)',
+                        color: 'var(--color-text-secondary)',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: signingOut ? 'default' : 'pointer',
+                        opacity: signingOut ? 0.6 : 1,
+                    }}
+                >
+                    {signingOut ? 'Saindo...' : 'Sair da conta'}
                 </button>
             </SettingRow>
         </div>
