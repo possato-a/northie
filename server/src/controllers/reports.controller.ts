@@ -6,6 +6,7 @@ import {
 } from '../services/reports/report-generator.js';
 import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -151,12 +152,12 @@ export async function generateReport(req: Request, res: Response) {
 
     const freqRaw: string = req.body.frequency ?? 'monthly';
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
-    const format: ReportFormat = req.body.format ?? 'csv';
+    const format: ReportFormat = req.body.format ?? 'xlsx';
 
     try {
         const reportData = await generateReportData(profileId, frequency);
 
-        // IA só é chamada para PDF — CSV e JSON exportam rápido sem IA
+        // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
         const aiAnalysis = format === 'pdf'
             ? await generateReportNarrative(reportData)
             : { situacao_geral: 'atencao' as const, resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
@@ -176,12 +177,12 @@ export async function generateReport(req: Request, res: Response) {
 
         const dateStr = new Date().toISOString().split('T')[0];
 
-        if (format === 'csv') {
-            const csv = formatAsCsv(reportData, aiAnalysis);
-            const filename = `northie-report-${freqRaw}-${dateStr}.csv`;
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        if (format === 'xlsx') {
+            const xlsxBuffer = await generateXlsx(reportData, aiAnalysis);
+            const filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            return res.send('\ufeff' + csv);
+            return res.send(xlsxBuffer);
         }
 
         if (format === 'pdf') {
@@ -291,9 +292,9 @@ export async function sendReportByEmail(req: Request, res: Response) {
         if (format === 'pdf') {
             fileBuffer = await generatePdf(reportData, aiAnalysis);
             filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
-        } else if (format === 'csv') {
-            fileBuffer = formatAsCsv(reportData, aiAnalysis);
-            filename = `northie-report-${freqRaw}-${dateStr}.csv`;
+        } else if (format === 'xlsx') {
+            fileBuffer = Buffer.from(await generateXlsx(reportData, aiAnalysis));
+            filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
         } else {
             fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
             filename = `northie-report-${freqRaw}-${dateStr}.json`;

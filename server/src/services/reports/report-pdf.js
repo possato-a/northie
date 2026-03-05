@@ -2,10 +2,12 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PDFDocument = require('pdfkit');
-// ── Constants ─────────────────────────────────────────────────────────────────
-const MARGIN = 60;
+// ── Constants ────────────────────────────────────────────────────────────────
+const MARGIN = 50;
 const PAGE_WIDTH = 595.28; // A4
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const PAGE_HEIGHT = 841.89; // A4
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2; // 495.28
+const FOOTER_ZONE = PAGE_HEIGHT - MARGIN; // Reserve 50px at bottom for footer
 const C = {
     dark: '#1E1E1E',
     white: '#FFFFFF',
@@ -14,33 +16,32 @@ const C = {
     textSecondary: '#6B7280',
     success: '#22C55E',
     danger: '#EF4444',
+    warning: '#F59E0B',
     primary: '#1A7FE8',
-    accent: '#F59E0B',
-    warning: '#F97316',
 };
 const SEVERITY_COLOR = {
     critica: C.danger,
     alta: C.warning,
-    media: C.accent,
+    media: C.warning,
     ok: C.success,
 };
 const SEVERITY_LABEL = {
-    critica: 'CRÍTICA',
+    critica: 'CRITICA',
     alta: 'ALTA',
-    media: 'MÉDIA',
+    media: 'MEDIA',
     ok: 'OK',
 };
 const SITUACAO_COLOR = {
     saudavel: C.success,
-    atencao: C.accent,
+    atencao: C.warning,
     critica: C.danger,
 };
 const SITUACAO_LABEL = {
-    saudavel: 'SAUDÁVEL',
-    atencao: 'ATENÇÃO',
-    critica: 'CRÍTICA',
+    saudavel: 'SAUDAVEL',
+    atencao: 'ATENCAO',
+    critica: 'CRITICA',
 };
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function streamToBuffer(doc) {
     return new Promise((resolve, reject) => {
         const chunks = [];
@@ -62,9 +63,17 @@ function changeBadge(pct) {
     if (pct === null)
         return '';
     const sign = pct >= 0 ? '+' : '';
-    return ` (${sign}${fmtNum(pct)}%)`;
+    return `${sign}${fmtNum(pct)}%`;
 }
-// ── Section helpers ───────────────────────────────────────────────────────────
+// ── Page-break safety ────────────────────────────────────────────────────────
+function ensureSpace(doc, needed, ai, periodLabel, frequency) {
+    if (doc.y + needed > FOOTER_ZONE) {
+        doc.addPage();
+        drawPageHeader(doc, ai, periodLabel, frequency);
+        doc.y = 90;
+    }
+}
+// ── Drawing primitives ───────────────────────────────────────────────────────
 function drawHRule(doc, y, color = C.border) {
     doc.save()
         .moveTo(MARGIN, y)
@@ -74,103 +83,152 @@ function drawHRule(doc, y, color = C.border) {
         .stroke()
         .restore();
 }
-function sectionTitle(doc, title) {
-    const y = doc.y + 20;
+function sectionLabel(doc, title) {
     doc.font('Helvetica-Bold')
-        .fontSize(8)
+        .fontSize(7.5)
         .fillColor(C.textSecondary)
-        .text(title.toUpperCase(), MARGIN, y, { characterSpacing: 0.8 });
-    drawHRule(doc, doc.y + 6);
-    doc.moveDown(0.8);
-    return doc.y;
+        .text(title.toUpperCase(), MARGIN, doc.y, { characterSpacing: 1.2 });
+    drawHRule(doc, doc.y + 4);
+    doc.y = doc.y + 10;
 }
-function bulletList(doc, items, color, barWidth = 3) {
-    for (const item of items) {
-        const y = doc.y;
-        doc.save()
-            .rect(MARGIN, y, barWidth, 14)
-            .fillColor(color)
-            .fill()
-            .restore();
-        doc.font('Helvetica')
-            .fontSize(9.5)
-            .fillColor(C.dark)
-            .text(item, MARGIN + barWidth + 8, y, { width: CONTENT_WIDTH - barWidth - 8 });
-        doc.moveDown(0.3);
-    }
+// ── Shared header (drawn on every page) ──────────────────────────────────────
+function drawPageHeader(doc, ai, periodLabel, frequency) {
+    // Dark bar
+    doc.save()
+        .rect(0, 0, PAGE_WIDTH, 70)
+        .fillColor(C.dark)
+        .fill()
+        .restore();
+    // NORTHIE title
+    doc.font('Helvetica-Bold')
+        .fontSize(20)
+        .fillColor(C.white)
+        .text('NORTHIE', MARGIN, 22);
+    // Subtitle
+    doc.font('Helvetica')
+        .fontSize(8.5)
+        .fillColor('#999999')
+        .text(`Relatorio ${frequency} · ${periodLabel}`, MARGIN, 48);
+    // Situacao geral badge (pill shape, top-right)
+    const situacaoColor = SITUACAO_COLOR[ai.situacao_geral];
+    const situacaoLabel = SITUACAO_LABEL[ai.situacao_geral];
+    const badgeW = 72;
+    const badgeH = 18;
+    const badgeX = PAGE_WIDTH - MARGIN - badgeW;
+    const badgeY = 26;
+    const badgeR = 9;
+    doc.save()
+        .roundedRect(badgeX, badgeY, badgeW, badgeH, badgeR)
+        .fillColor(situacaoColor)
+        .fill()
+        .restore();
+    doc.font('Helvetica-Bold')
+        .fontSize(7.5)
+        .fillColor(C.white)
+        .text(situacaoLabel, badgeX, badgeY + 5, { width: badgeW, align: 'center' });
 }
-function kpiGrid(doc, items) {
+// ── KPI Grid (3 cols x 2 rows) ──────────────────────────────────────────────
+function drawKpiGrid(doc, items) {
     const cols = 3;
-    const cellW = CONTENT_WIDTH / cols;
+    const cardGap = 8;
+    const cardW = (CONTENT_WIDTH - cardGap * (cols - 1)) / cols;
+    const cardH = 58;
     const startY = doc.y;
     items.forEach((item, i) => {
         const col = i % cols;
         const row = Math.floor(i / cols);
-        const x = MARGIN + col * cellW;
-        const y = startY + row * 72;
+        const x = MARGIN + col * (cardW + cardGap);
+        const y = startY + row * (cardH + cardGap);
+        // Card border
         doc.save()
-            .rect(x, y, cellW - 8, 62)
+            .rect(x, y, cardW, cardH)
             .strokeColor(C.border)
             .lineWidth(0.5)
             .stroke()
             .restore();
+        // Label
         doc.font('Helvetica')
-            .fontSize(7.5)
+            .fontSize(7)
             .fillColor(C.textSecondary)
-            .text(item.label.toUpperCase(), x + 10, y + 10, { width: cellW - 26, characterSpacing: 0.5 });
+            .text(item.label.toUpperCase(), x + 10, y + 8, { width: cardW - 20, characterSpacing: 0.5 });
+        // Value
         doc.font('Helvetica-Bold')
-            .fontSize(15)
+            .fontSize(14)
             .fillColor(C.dark)
-            .text(item.value, x + 10, y + 24, { width: cellW - 26 });
+            .text(item.value, x + 10, y + 22, { width: cardW - 20 });
+        // Delta
         if (item.delta) {
             doc.font('Helvetica')
                 .fontSize(8)
                 .fillColor(item.deltaPositive ? C.success : C.danger)
-                .text(item.delta, x + 10, y + 46, { width: cellW - 26 });
+                .text(item.delta, x + 10, y + 42, { width: cardW - 20 });
         }
     });
     const rows = Math.ceil(items.length / cols);
-    doc.y = startY + rows * 72 + 10;
+    doc.y = startY + rows * (cardH + cardGap) + 4;
 }
-function threeColTable(doc, rows, colALabel, colBLabel, colCLabel, colCColor) {
-    const colA = CONTENT_WIDTH * 0.45;
-    const colB = CONTENT_WIDTH * 0.30;
-    const colC = CONTENT_WIDTH * 0.25;
-    const startY = doc.y;
-    doc.save()
-        .rect(MARGIN, startY, CONTENT_WIDTH, 20)
-        .fillColor(C.dark)
-        .fill()
-        .restore();
-    doc.font('Helvetica-Bold')
-        .fontSize(8)
-        .fillColor(C.white)
-        .text(colALabel, MARGIN + 8, startY + 6, { width: colA - 16 })
-        .text(colBLabel, MARGIN + colA + 8, startY + 6, { width: colB - 16, align: 'right' })
-        .text(colCLabel, MARGIN + colA + colB + 8, startY + 6, { width: colC - 16, align: 'right' });
-    let rowY = startY + 20;
-    rows.forEach(([a, b, c], idx) => {
-        const bg = idx % 2 === 1 ? '#F9F9F9' : C.white;
+function drawTable(doc, columns, rows, ai, periodLabel, frequency) {
+    const headerH = 22;
+    const rowH = 20;
+    const colWidths = columns.map(c => CONTENT_WIDTH * c.width);
+    // Draw header
+    function drawHeader(yPos) {
         doc.save()
-            .rect(MARGIN, rowY, CONTENT_WIDTH, 18)
+            .rect(MARGIN, yPos, CONTENT_WIDTH, headerH)
+            .fillColor(C.dark)
+            .fill()
+            .restore();
+        let hx = MARGIN + 8;
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(C.white);
+        columns.forEach((col, i) => {
+            const w = colWidths[i];
+            doc.text(col.label, hx, yPos + 7, { width: w - 12, align: col.align, characterSpacing: 0.4 });
+            hx += w;
+        });
+    }
+    // Check if at least header + 1 row fits
+    ensureSpace(doc, headerH + rowH + 4, ai, periodLabel, frequency);
+    const startY = doc.y;
+    drawHeader(startY);
+    let rowY = startY + headerH;
+    rows.forEach((row, idx) => {
+        // Page break check for each row
+        if (rowY + rowH > FOOTER_ZONE) {
+            // Draw outer border for what we have so far
+            doc.save()
+                .rect(MARGIN, startY, CONTENT_WIDTH, rowY - startY)
+                .strokeColor(C.border)
+                .lineWidth(0.5)
+                .stroke()
+                .restore();
+            doc.addPage();
+            drawPageHeader(doc, ai, periodLabel, frequency);
+            doc.y = 90;
+            drawHeader(90);
+            rowY = 90 + headerH;
+        }
+        // Alternating row background
+        const bg = idx % 2 === 1 ? '#F7F7F7' : C.white;
+        doc.save()
+            .rect(MARGIN, rowY, CONTENT_WIDTH, rowH)
             .fillColor(bg)
             .fill()
             .restore();
-        doc.font('Helvetica')
-            .fontSize(8.5)
-            .fillColor(C.dark)
-            .text(a, MARGIN + 8, rowY + 4, { width: colA - 16 });
-        doc.font('Courier')
-            .fontSize(8.5)
-            .fillColor(C.dark)
-            .text(b, MARGIN + colA + 8, rowY + 4, { width: colB - 16, align: 'right' });
-        const cColor = colCColor ? (colCColor(c) ?? C.dark) : C.dark;
-        doc.font('Courier')
-            .fontSize(8.5)
-            .fillColor(cColor)
-            .text(c, MARGIN + colA + colB + 8, rowY + 4, { width: colC - 16, align: 'right' });
-        rowY += 18;
+        let cx = MARGIN + 8;
+        columns.forEach((col, i) => {
+            const w = colWidths[i];
+            const cell = row.cells[i];
+            const font = cell.font ?? col.font ?? 'Helvetica';
+            const color = cell.color ?? C.dark;
+            doc.font(font)
+                .fontSize(8.5)
+                .fillColor(color)
+                .text(cell.text, cx, rowY + 6, { width: w - 12, align: col.align });
+            cx += w;
+        });
+        rowY += rowH;
     });
+    // Outer border
     doc.save()
         .rect(MARGIN, startY, CONTENT_WIDTH, rowY - startY)
         .strokeColor(C.border)
@@ -179,227 +237,210 @@ function threeColTable(doc, rows, colALabel, colBLabel, colCLabel, colCColor) {
         .restore();
     doc.y = rowY + 12;
 }
-function twoColTable(doc, rows, colALabel, colBLabel) {
-    const colA = CONTENT_WIDTH * 0.6;
-    const colB = CONTENT_WIDTH * 0.4;
-    const startY = doc.y;
-    doc.save()
-        .rect(MARGIN, startY, CONTENT_WIDTH, 20)
-        .fillColor(C.dark)
-        .fill()
-        .restore();
-    doc.font('Helvetica-Bold')
-        .fontSize(8)
-        .fillColor(C.white)
-        .text(colALabel, MARGIN + 8, startY + 6, { width: colA - 16 })
-        .text(colBLabel, MARGIN + colA + 8, startY + 6, { width: colB - 16, align: 'right' });
-    let rowY = startY + 20;
-    rows.forEach(([a, b], idx) => {
-        const bg = idx % 2 === 1 ? '#F9F9F9' : C.white;
-        doc.save()
-            .rect(MARGIN, rowY, CONTENT_WIDTH, 18)
-            .fillColor(bg)
-            .fill()
-            .restore();
-        doc.font('Helvetica')
-            .fontSize(8.5)
-            .fillColor(C.dark)
-            .text(a, MARGIN + 8, rowY + 4, { width: colA - 16 });
-        doc.font('Courier')
-            .fontSize(8.5)
-            .fillColor(C.dark)
-            .text(b, MARGIN + colA + 8, rowY + 4, { width: colB - 16, align: 'right' });
-        rowY += 18;
+// ── Channel economics table (6 cols for page 1, 7 cols for full) ─────────────
+function drawChannelTable(doc, channels, full, ai, periodLabel, frequency) {
+    const columns = full
+        ? [
+            { label: 'CANAL', width: 0.18, align: 'left' },
+            { label: 'CLIENTES', width: 0.09, align: 'right', font: 'Courier' },
+            { label: 'LTV MEDIO', width: 0.15, align: 'right', font: 'Courier' },
+            { label: 'CAC', width: 0.13, align: 'right', font: 'Courier' },
+            { label: 'LTV/CAC', width: 0.11, align: 'right', font: 'Courier' },
+            { label: 'VALOR CRIADO', width: 0.18, align: 'right', font: 'Courier' },
+            { label: 'STATUS', width: 0.16, align: 'right' },
+        ]
+        : [
+            { label: 'CANAL', width: 0.20, align: 'left' },
+            { label: 'CLIENTES', width: 0.12, align: 'right', font: 'Courier' },
+            { label: 'LTV MEDIO', width: 0.18, align: 'right', font: 'Courier' },
+            { label: 'CAC', width: 0.16, align: 'right', font: 'Courier' },
+            { label: 'LTV/CAC', width: 0.14, align: 'right', font: 'Courier' },
+            { label: 'STATUS', width: 0.20, align: 'right' },
+        ];
+    const rows = channels.map(ch => {
+        const statusColor = ch.status === 'lucrativo' ? C.success : ch.status === 'prejuizo' ? C.danger : C.textSecondary;
+        const statusLabel = ch.status === 'lucrativo' ? 'Lucrativo' : ch.status === 'prejuizo' ? 'Prejuizo' : 'Organico';
+        const ltvcacStr = ch.ltv_cac_ratio !== null ? `${fmtNum(ch.ltv_cac_ratio)}x` : '--';
+        const cacStr = ch.cac > 0 ? fmtBrl(ch.cac) : '--';
+        const valorColor = ch.value_created >= 0 ? C.success : C.danger;
+        const baseCells = [
+            { text: ch.channel },
+            { text: String(ch.new_customers) },
+            { text: fmtBrl(ch.avg_ltv) },
+            { text: cacStr },
+            { text: ltvcacStr },
+        ];
+        if (full) {
+            baseCells.push({ text: fmtBrl(ch.value_created), color: valorColor });
+        }
+        baseCells.push({ text: statusLabel, color: statusColor, font: 'Helvetica-Bold' });
+        return { cells: baseCells };
     });
-    doc.save()
-        .rect(MARGIN, startY, CONTENT_WIDTH, rowY - startY)
-        .strokeColor(C.border)
-        .lineWidth(0.5)
-        .stroke()
-        .restore();
-    doc.y = rowY + 12;
+    drawTable(doc, columns, rows, ai, periodLabel, frequency);
 }
-// ── Channel diagnosis card ────────────────────────────────────────────────────
-function drawDiagnosisCard(doc, d) {
+// ── Diagnosis card ───────────────────────────────────────────────────────────
+function drawDiagnosisCard(doc, d, ai, periodLabel, frequency) {
     const color = SEVERITY_COLOR[d.severidade];
+    const cardH = 110;
+    ensureSpace(doc, cardH + 10, ai, periodLabel, frequency);
     const startY = doc.y;
-    const cardHeight = 120;
+    const innerX = MARGIN + 14;
+    const innerW = CONTENT_WIDTH - 24;
+    // Card border
+    doc.save()
+        .rect(MARGIN, startY, CONTENT_WIDTH, cardH)
+        .strokeColor(C.border)
+        .lineWidth(0.5)
+        .stroke()
+        .restore();
     // Left accent bar
     doc.save()
-        .rect(MARGIN, startY, 4, cardHeight)
+        .rect(MARGIN, startY, 3, cardH)
         .fillColor(color)
         .fill()
         .restore();
-    // Card border
-    doc.save()
-        .rect(MARGIN, startY, CONTENT_WIDTH, cardHeight)
-        .strokeColor(color)
-        .lineWidth(0.5)
-        .stroke()
-        .restore();
-    const innerX = MARGIN + 14;
-    const innerW = CONTENT_WIDTH - 20;
-    // Canal + severity badge
+    // Channel name + severity badge
     doc.font('Helvetica-Bold')
         .fontSize(9)
         .fillColor(C.dark)
-        .text(d.canal.toUpperCase(), innerX, startY + 10, { width: innerW - 70, continued: false });
+        .text(d.canal.toUpperCase(), innerX, startY + 10, { width: innerW - 80 });
+    // Severity badge (pill)
+    const badgeW = 56;
+    const badgeH = 16;
+    const badgeX = PAGE_WIDTH - MARGIN - badgeW - 8;
+    const badgeY = startY + 8;
     doc.save()
-        .rect(PAGE_WIDTH - MARGIN - 65, startY + 8, 60, 14)
+        .roundedRect(badgeX, badgeY, badgeW, badgeH, 8)
         .fillColor(color)
         .fill()
         .restore();
     doc.font('Helvetica-Bold')
         .fontSize(7)
         .fillColor(C.white)
-        .text(SEVERITY_LABEL[d.severidade], PAGE_WIDTH - MARGIN - 63, startY + 11, { width: 56, align: 'center' });
+        .text(SEVERITY_LABEL[d.severidade], badgeX, badgeY + 4, { width: badgeW, align: 'center' });
     // Symptom
     doc.font('Helvetica-Bold')
-        .fontSize(7.5)
+        .fontSize(7)
         .fillColor(C.textSecondary)
         .text('SINTOMA', innerX, startY + 28);
     doc.font('Helvetica')
         .fontSize(8.5)
         .fillColor(C.dark)
-        .text(d.sintoma, innerX, startY + 38, { width: innerW });
-    // Causa raiz + consequência em 2 colunas
-    const halfW = (innerW - 10) / 2;
+        .text(d.sintoma, innerX, startY + 38, { width: innerW, lineGap: 1 });
+    // Causa raiz + consequencia (2 columns)
+    const halfW = (innerW - 12) / 2;
+    const colY = startY + 56;
     doc.font('Helvetica-Bold')
-        .fontSize(7.5)
+        .fontSize(7)
         .fillColor(C.textSecondary)
-        .text('CAUSA RAIZ', innerX, startY + 60);
+        .text('CAUSA RAIZ', innerX, colY);
     doc.font('Helvetica')
         .fontSize(8)
         .fillColor(C.dark)
-        .text(d.causa_raiz, innerX, startY + 70, { width: halfW });
+        .text(d.causa_raiz, innerX, colY + 10, { width: halfW, lineGap: 1 });
     doc.font('Helvetica-Bold')
-        .fontSize(7.5)
+        .fontSize(7)
         .fillColor(C.textSecondary)
-        .text('CONSEQUÊNCIA', innerX + halfW + 10, startY + 60);
+        .text('CONSEQUENCIA', innerX + halfW + 12, colY);
     doc.font('Helvetica')
         .fontSize(8)
         .fillColor(C.dark)
-        .text(d.consequencia, innerX + halfW + 10, startY + 70, { width: halfW });
-    // Financial impact + ação + prazo
-    const impactY = startY + 96;
+        .text(d.consequencia, innerX + halfW + 12, colY + 10, { width: halfW, lineGap: 1 });
+    // Financial impact + action + deadline
+    const bottomY = startY + 88;
+    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mes' }[d.prazo];
     doc.font('Helvetica-Bold')
         .fontSize(8)
         .fillColor(color)
-        .text(`Impacto: ${fmtBrl(d.consequencia_financeira_brl)}`, innerX, impactY);
-    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mês' }[d.prazo];
+        .text(`Impacto: ${fmtBrl(d.consequencia_financeira_brl)}`, innerX, bottomY);
+    doc.font('Helvetica')
+        .fontSize(7.5)
+        .fillColor(C.textSecondary)
+        .text(`${prazoLabel} · ${d.acao_recomendada}`, innerX + 140, bottomY, { width: innerW - 140, lineGap: 1 });
+    doc.y = startY + cardH + 10;
+}
+// ── Compact alert (page 1) ───────────────────────────────────────────────────
+function drawCompactAlert(doc, d) {
+    const color = SEVERITY_COLOR[d.severidade];
+    const y = doc.y;
+    const alertH = 30;
+    // Left color bar
+    doc.save()
+        .rect(MARGIN, y, 3, alertH)
+        .fillColor(color)
+        .fill()
+        .restore();
+    // Channel + severity
+    doc.font('Helvetica-Bold')
+        .fontSize(8.5)
+        .fillColor(C.dark)
+        .text(`${d.canal.toUpperCase()} -- ${SEVERITY_LABEL[d.severidade]}`, MARGIN + 12, y + 4, { width: CONTENT_WIDTH - 110 });
+    // Action
     doc.font('Helvetica')
         .fontSize(8)
         .fillColor(C.textSecondary)
-        .text(`Prazo: ${prazoLabel} · ${d.acao_recomendada}`, innerX + 100, impactY, { width: innerW - 100 });
-    doc.y = startY + cardHeight + 10;
-}
-// ── Channel economics table (7 colunas) ──────────────────────────────────────
-function channelEconTable(doc, channels) {
-    const W = CONTENT_WIDTH;
-    const cW = [W * 0.20, W * 0.08, W * 0.15, W * 0.14, W * 0.12, W * 0.16, W * 0.15]; // canal, cli, ltv, cac, ratio, criado, status
-    const headers = ['CANAL', 'CLIENTES', 'LTV MÉDIO', 'CAC', 'LTV/CAC', 'VALOR CRIADO', 'STATUS'];
-    const startY = doc.y;
-    const headerH = 20;
-    const rowH = 18;
-    // Header bar
-    doc.save().rect(MARGIN, startY, W, headerH).fillColor(C.dark).fill().restore();
-    let hx = MARGIN + 6;
-    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.white);
-    headers.forEach((h, i) => {
-        const align = i === 0 ? 'left' : 'right';
-        doc.text(h, hx, startY + 6, { width: cW[i] - 6, align, characterSpacing: 0.4 });
-        hx += cW[i];
-    });
-    let rowY = startY + headerH;
-    channels.forEach((ch, idx) => {
-        const bg = idx % 2 === 1 ? '#F7F7F7' : C.white;
-        doc.save().rect(MARGIN, rowY, W, rowH).fillColor(bg).fill().restore();
-        const statusColor = ch.status === 'lucrativo' ? C.success : ch.status === 'prejuizo' ? C.danger : C.textSecondary;
-        const statusLabel = ch.status === 'lucrativo' ? '✓ Lucrativo' : ch.status === 'prejuizo' ? '✗ Prejuízo' : '○ Orgânico';
-        const ltvcacStr = ch.ltv_cac_ratio !== null ? `${fmtNum(ch.ltv_cac_ratio)}x` : '—';
-        const cacStr = ch.cac > 0 ? fmtBrl(ch.cac) : '—';
-        const valorColor = ch.value_created >= 0 ? C.success : C.danger;
-        let cx = MARGIN + 6;
-        doc.font('Helvetica').fontSize(8).fillColor(C.dark)
-            .text(ch.channel, cx, rowY + 4, { width: cW[0] - 6 });
-        cx += cW[0];
-        doc.font('Courier').fontSize(8)
-            .text(String(ch.new_customers), cx, rowY + 4, { width: cW[1] - 6, align: 'right' });
-        cx += cW[1];
-        doc.font('Courier').fontSize(8)
-            .text(fmtBrl(ch.avg_ltv), cx, rowY + 4, { width: cW[2] - 6, align: 'right' });
-        cx += cW[2];
-        doc.font('Courier').fontSize(8)
-            .text(cacStr, cx, rowY + 4, { width: cW[3] - 6, align: 'right' });
-        cx += cW[3];
-        doc.font('Courier').fontSize(8)
-            .text(ltvcacStr, cx, rowY + 4, { width: cW[4] - 6, align: 'right' });
-        cx += cW[4];
-        doc.font('Courier').fontSize(8).fillColor(valorColor)
-            .text(fmtBrl(ch.value_created), cx, rowY + 4, { width: cW[5] - 6, align: 'right' });
-        cx += cW[5];
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(statusColor)
-            .text(statusLabel, cx, rowY + 5, { width: cW[6] - 6, align: 'right' });
-        rowY += rowH;
-    });
-    doc.save().rect(MARGIN, startY, W, rowY - startY).strokeColor(C.border).lineWidth(0.5).stroke().restore();
-    doc.y = rowY + 12;
-}
-// ── Shared header drawer ──────────────────────────────────────────────────────
-function drawPageHeader(doc, ai, periodLabel, frequency) {
-    doc.save()
-        .rect(0, 0, PAGE_WIDTH, 80)
-        .fillColor(C.dark)
-        .fill()
-        .restore();
-    doc.font('Helvetica-Bold')
-        .fontSize(22)
-        .fillColor(C.white)
-        .text('NORTHIE', MARGIN, 24);
-    doc.font('Helvetica')
-        .fontSize(9)
-        .fillColor('#AAAAAA')
-        .text(`Relatório ${frequency} · ${periodLabel}`, MARGIN, 52);
-    // Situação geral badge (top-right of header)
-    const situacaoColor = SITUACAO_COLOR[ai.situacao_geral];
-    const situacaoLabel = SITUACAO_LABEL[ai.situacao_geral];
-    doc.save()
-        .rect(PAGE_WIDTH - MARGIN - 80, 26, 76, 20)
-        .fillColor(situacaoColor)
-        .fill()
-        .restore();
+        .text(d.acao_recomendada, MARGIN + 12, y + 17, { width: CONTENT_WIDTH - 110 });
+    // Financial impact right-aligned
     doc.font('Helvetica-Bold')
         .fontSize(8)
-        .fillColor(C.white)
-        .text(situacaoLabel, PAGE_WIDTH - MARGIN - 78, 31, { width: 72, align: 'center' });
+        .fillColor(color)
+        .text(fmtBrl(d.consequencia_financeira_brl), PAGE_WIDTH - MARGIN - 90, y + 10, { width: 86, align: 'right' });
+    doc.y = y + alertH + 6;
 }
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Proximos passos with blue left bar ───────────────────────────────────────
+function drawProximosPassos(doc, steps) {
+    const barX = MARGIN;
+    const startY = doc.y;
+    const textX = MARGIN + 12;
+    const textW = CONTENT_WIDTH - 12;
+    for (let i = 0; i < steps.length; i++) {
+        const y = doc.y;
+        doc.font('Helvetica-Bold')
+            .fontSize(9)
+            .fillColor(C.primary)
+            .text(`${i + 1}.`, textX, y, { continued: true })
+            .font('Helvetica')
+            .fillColor(C.dark)
+            .text(` ${steps[i]}`, { width: textW - 20, lineGap: 2 });
+        doc.moveDown(0.3);
+    }
+    const endY = doc.y;
+    // Blue left bar spanning all items
+    doc.save()
+        .rect(barX, startY, 3, endY - startY)
+        .fillColor(C.primary)
+        .fill()
+        .restore();
+}
+// ── Main export ──────────────────────────────────────────────────────────────
 export async function generatePdf(data, ai) {
     const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
     const bufferPromise = streamToBuffer(doc);
-    const periodLabel = `${fmtDate(data.period.start)} — ${fmtDate(data.period.end)}`;
-    // ══════════════════════════════════════════════════════════════════════════
-    // PÁGINA 1 — SUMÁRIO EXECUTIVO
-    // ══════════════════════════════════════════════════════════════════════════
-    drawPageHeader(doc, ai, periodLabel, data.period.frequency);
-    doc.y = 100;
-    // ── Análise Executiva ─────────────────────────────────────────────────────
+    const periodLabel = `${fmtDate(data.period.start)} -- ${fmtDate(data.period.end)}`;
+    const freq = data.period.frequency;
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PAGE 1 -- SUMARIO EXECUTIVO
+    // ═══════════════════════════════════════════════════════════════════════════
+    drawPageHeader(doc, ai, periodLabel, freq);
+    doc.y = 90;
+    // 1. Resumo Executivo
     if (ai.resumo_executivo) {
-        sectionTitle(doc, 'Análise Executiva');
+        sectionLabel(doc, 'Resumo Executivo');
         doc.font('Helvetica')
-            .fontSize(10)
+            .fontSize(9.5)
             .fillColor(C.dark)
             .text(ai.resumo_executivo, MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 3 });
-        doc.moveDown(0.5);
+        doc.moveDown(1);
     }
-    // ── KPI Grid 3×2 ─────────────────────────────────────────────────────────
-    sectionTitle(doc, 'Resumo do Período');
+    // 2. KPI Grid
+    ensureSpace(doc, 140, ai, periodLabel, freq);
+    sectionLabel(doc, 'Indicadores do Periodo');
     const deltaRevenue = changeBadge(data.summary.revenue_change_pct);
     const revenuePositive = (data.summary.revenue_change_pct ?? 0) >= 0;
     const refundIsHigh = data.summary.refund_rate > 5;
-    kpiGrid(doc, [
+    drawKpiGrid(doc, [
         {
-            label: 'Receita Líquida',
+            label: 'Receita Liquida',
             value: fmtBrl(data.summary.revenue_net),
             ...(deltaRevenue ? { delta: deltaRevenue, deltaPositive: revenuePositive } : {}),
         },
@@ -409,7 +450,7 @@ export async function generatePdf(data, ai) {
             ...(data.summary.ad_spend > 0 ? { delta: `Spend ${fmtBrl(data.summary.ad_spend)}`, deltaPositive: true } : {}),
         },
         { label: 'Novos Clientes', value: String(data.summary.new_customers) },
-        { label: 'LTV Médio', value: fmtBrl(data.summary.ltv_avg) },
+        { label: 'LTV Medio', value: fmtBrl(data.summary.ltv_avg) },
         { label: 'Margem Bruta', value: `${fmtNum(data.summary.gross_margin_pct)}%` },
         {
             label: 'Taxa de Reembolso',
@@ -417,146 +458,142 @@ export async function generatePdf(data, ai) {
             ...(refundIsHigh ? { delta: `${fmtBrl(data.summary.refund_amount)} reembolsado`, deltaPositive: false } : {}),
         },
     ]);
-    // ── Economia por Canal (página 1 — top 4) ────────────────────────────────
+    doc.moveDown(0.5);
+    // 3. Economia por Canal (top 4, compact)
     const topChannels = data.channel_economics
         .filter(c => c.channel !== 'desconhecido')
         .slice(0, 4);
     if (topChannels.length > 0) {
-        sectionTitle(doc, 'Economia por Canal');
-        channelEconTable(doc, topChannels);
+        ensureSpace(doc, 120, ai, periodLabel, freq);
+        sectionLabel(doc, 'Economia por Canal');
+        drawChannelTable(doc, topChannels, false, ai, periodLabel, freq);
     }
-    // ── Top 3 alertas ─────────────────────────────────────────────────────────
+    // 4. Alertas (top 2-3 critical/alta)
     const criticalDiags = [...ai.diagnosticos]
         .filter(d => d.severidade === 'critica' || d.severidade === 'alta')
         .slice(0, 3);
     if (criticalDiags.length > 0) {
-        sectionTitle(doc, 'Alertas Críticos');
+        ensureSpace(doc, 50 + criticalDiags.length * 36, ai, periodLabel, freq);
+        sectionLabel(doc, 'Alertas Criticos');
         for (const d of criticalDiags) {
-            if (doc.y > 680)
-                break; // Página 1 tem limite
-            const color = SEVERITY_COLOR[d.severidade];
-            const y = doc.y;
-            doc.save()
-                .rect(MARGIN, y, 4, 28)
-                .fillColor(color)
-                .fill()
-                .restore();
-            doc.font('Helvetica-Bold')
-                .fontSize(8.5)
-                .fillColor(C.dark)
-                .text(`${d.canal.toUpperCase()} — ${SEVERITY_LABEL[d.severidade]}`, MARGIN + 12, y + 4, { width: CONTENT_WIDTH - 100 });
-            doc.font('Helvetica')
-                .fontSize(8)
-                .fillColor(C.textSecondary)
-                .text(d.acao_recomendada, MARGIN + 12, y + 16, { width: CONTENT_WIDTH - 100 });
-            doc.font('Helvetica-Bold')
-                .fontSize(8)
-                .fillColor(color)
-                .text(fmtBrl(d.consequencia_financeira_brl), PAGE_WIDTH - MARGIN - 80, y + 10, { width: 76, align: 'right' });
-            doc.y = y + 38;
+            if (doc.y + 36 > FOOTER_ZONE)
+                break;
+            drawCompactAlert(doc, d);
         }
     }
-    // ── Próximos 3 passos ──────────────────────────────────────────────────────
-    if (ai.proximos_passos.length > 0 && doc.y < 700) {
-        sectionTitle(doc, 'Próximos Passos');
-        bulletList(doc, ai.proximos_passos.slice(0, 3).map((p, i) => `${i + 1}. ${p}`), C.primary);
+    // 5. Proximos Passos (top 3)
+    if (ai.proximos_passos.length > 0) {
+        ensureSpace(doc, 60, ai, periodLabel, freq);
+        sectionLabel(doc, 'Proximos Passos');
+        drawProximosPassos(doc, ai.proximos_passos.slice(0, 3));
     }
-    // ══════════════════════════════════════════════════════════════════════════
-    // PÁGINA 2+ — RELATÓRIO DETALHADO
-    // ══════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PAGE 2+ -- DETALHADO
+    // ═══════════════════════════════════════════════════════════════════════════
     doc.addPage();
-    drawPageHeader(doc, ai, periodLabel, data.period.frequency);
-    // Sub-label para a segunda página
-    doc.save()
-        .rect(0, 80, PAGE_WIDTH, 20)
-        .fillColor('#F5F5F5')
-        .fill()
-        .restore();
-    doc.font('Helvetica-Bold')
-        .fontSize(7.5)
-        .fillColor(C.textSecondary)
-        .text('RELATÓRIO DETALHADO — CFO VIEW', MARGIN, 87, { characterSpacing: 0.8 });
-    doc.y = 118;
-    // ── Diagnósticos completos por Canal ──────────────────────────────────────
+    drawPageHeader(doc, ai, periodLabel, freq);
+    doc.y = 90;
+    // 6. Diagnosticos Completos
     if (ai.diagnosticos.length > 0) {
-        sectionTitle(doc, 'Diagnósticos por Canal');
+        sectionLabel(doc, 'Diagnosticos por Canal');
         const order = { critica: 0, alta: 1, media: 2, ok: 3 };
         const sorted = [...ai.diagnosticos].sort((a, b) => order[a.severidade] - order[b.severidade]);
         for (const d of sorted) {
-            if (doc.y > 680)
-                doc.addPage();
-            drawDiagnosisCard(doc, d);
+            drawDiagnosisCard(doc, d, ai, periodLabel, freq);
         }
     }
-    // ── Economia por Canal (página 2 — completo) ──────────────────────────────
+    // 7. Economia por Canal -- Completa
     const allChannels = data.channel_economics.filter(c => c.channel !== 'desconhecido');
     if (allChannels.length > 0) {
-        if (doc.y > 650)
-            doc.addPage();
-        sectionTitle(doc, 'Economia por Canal — Visão Completa (LTV × CAC)');
-        channelEconTable(doc, allChannels);
+        ensureSpace(doc, 60 + allChannels.length * 20, ai, periodLabel, freq);
+        sectionLabel(doc, 'Economia por Canal -- Visao Completa');
+        drawChannelTable(doc, allChannels, true, ai, periodLabel, freq);
     }
-    // ── Tendência de Receita (nova seção) ─────────────────────────────────────
+    // 8. Tendencia de Receita
     if (data.revenue_trend.length >= 2) {
-        if (doc.y > 650)
-            doc.addPage();
-        sectionTitle(doc, 'Tendência de Receita — Últimos 6 Meses');
-        const trendRows = data.revenue_trend.map((t) => {
-            const change = t.change_pct !== null
+        const trendColumns = [
+            { label: 'MES', width: 0.40, align: 'left' },
+            { label: 'RECEITA', width: 0.35, align: 'right', font: 'Courier' },
+            { label: 'VARIACAO', width: 0.25, align: 'right', font: 'Courier' },
+        ];
+        const trendRows = data.revenue_trend.map(t => {
+            const changeText = t.change_pct !== null
                 ? `${t.change_pct >= 0 ? '+' : ''}${fmtNum(t.change_pct)}%`
-                : '—';
-            return [t.month, fmtBrl(t.revenue), change];
+                : '--';
+            const changeColor = t.change_pct === null
+                ? C.textSecondary
+                : t.change_pct >= 0 ? C.success : C.danger;
+            return {
+                cells: [
+                    { text: t.month },
+                    { text: fmtBrl(t.revenue) },
+                    { text: changeText, color: changeColor },
+                ],
+            };
         });
-        threeColTable(doc, trendRows, 'Mês', 'Receita Líquida', 'Variação', (val) => {
-            if (val === '—')
-                return C.textSecondary;
-            return val.startsWith('+') ? C.success : C.danger;
-        });
+        ensureSpace(doc, 40 + trendRows.length * 20, ai, periodLabel, freq);
+        sectionLabel(doc, 'Tendencia de Receita');
+        drawTable(doc, trendColumns, trendRows, ai, periodLabel, freq);
     }
-    // ── Top Produtos (nova seção) ──────────────────────────────────────────────
+    // 9. Top Produtos
     if (data.top_products.length > 0) {
-        if (doc.y > 650)
-            doc.addPage();
-        sectionTitle(doc, 'Top Produtos por Receita');
-        const productRows = data.top_products.map((p) => [
-            p.product_name.length > 45 ? p.product_name.slice(0, 42) + '...' : p.product_name,
-            fmtBrl(p.revenue),
-            `${p.pct_of_total}%`,
-        ]);
-        threeColTable(doc, productRows, 'Produto', 'Receita', '% do Total');
+        const prodColumns = [
+            { label: 'PRODUTO', width: 0.50, align: 'left' },
+            { label: 'RECEITA', width: 0.30, align: 'right', font: 'Courier' },
+            { label: '% DO TOTAL', width: 0.20, align: 'right', font: 'Courier' },
+        ];
+        const prodRows = data.top_products.map(p => ({
+            cells: [
+                { text: p.product_name.length > 50 ? p.product_name.slice(0, 47) + '...' : p.product_name },
+                { text: fmtBrl(p.revenue) },
+                { text: `${p.pct_of_total}%` },
+            ],
+        }));
+        ensureSpace(doc, 40 + prodRows.length * 20, ai, periodLabel, freq);
+        sectionLabel(doc, 'Top Produtos por Receita');
+        drawTable(doc, prodColumns, prodRows, ai, periodLabel, freq);
     }
-    // ── RFM Distribution ──────────────────────────────────────────────────────
+    // 10. Qualidade da Base (RFM)
     if (data.rfm_distribution.length > 0 && data.rfm_distribution.some(s => s.count > 0)) {
-        if (doc.y > 650)
-            doc.addPage();
         const rfmTitle = data.rfm_source === 'estimated'
-            ? 'Qualidade da Base (RFM — estimado)'
+            ? 'Qualidade da Base (RFM -- estimado)'
             : 'Qualidade da Base (RFM)';
-        sectionTitle(doc, rfmTitle);
-        const rfmRows = data.rfm_distribution
-            .filter(s => s.count > 0)
-            .map((s) => [`${s.segment} · ${s.count} clientes`, fmtBrl(s.ltv)]);
-        twoColTable(doc, rfmRows, 'Segmento', 'LTV Total');
+        const rfmFiltered = data.rfm_distribution.filter(s => s.count > 0);
+        const rfmColumns = [
+            { label: 'SEGMENTO', width: 0.60, align: 'left' },
+            { label: 'LTV TOTAL', width: 0.40, align: 'right', font: 'Courier' },
+        ];
+        const rfmRows = rfmFiltered.map(s => ({
+            cells: [
+                { text: `${s.segment} · ${s.count} clientes` },
+                { text: fmtBrl(s.ltv) },
+            ],
+        }));
+        ensureSpace(doc, 40 + rfmRows.length * 20 + 20, ai, periodLabel, freq);
+        sectionLabel(doc, rfmTitle);
+        drawTable(doc, rfmColumns, rfmRows, ai, periodLabel, freq);
         if (data.rfm_source === 'estimated') {
             doc.font('Helvetica')
                 .fontSize(7.5)
                 .fillColor(C.textSecondary)
-                .text('* Segmentação estimada a partir dos dados disponíveis. Ative o job de RFM para precisão.', MARGIN, doc.y, { width: CONTENT_WIDTH });
+                .text('* Segmentacao estimada a partir dos dados disponiveis. Ative o job de RFM para precisao.', MARGIN, doc.y, { width: CONTENT_WIDTH });
             doc.moveDown(0.5);
         }
     }
-    // ── Footer em todas as páginas ────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FOOTER (all pages via bufferedPageRange)
+    // ═══════════════════════════════════════════════════════════════════════════
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        const footerY = doc.page.height - 36;
+        const footerY = PAGE_HEIGHT - 38;
         drawHRule(doc, footerY - 8);
         const pageNum = i - range.start + 1;
         const totalPages = range.count;
         doc.font('Helvetica')
-            .fontSize(7.5)
+            .fontSize(7)
             .fillColor(C.textSecondary)
-            .text(`Gerado em ${fmtDate(ai.generated_at)} · Análise por ${ai.model} · Northie · Pág. ${pageNum}/${totalPages}`, MARGIN, footerY, { width: CONTENT_WIDTH, align: 'center' });
+            .text(`Gerado em ${fmtDate(ai.generated_at)} · Analise por ${ai.model} · Northie · Pag ${pageNum}/${totalPages}`, MARGIN, footerY, { width: CONTENT_WIDTH, align: 'center' });
     }
     doc.end();
     return bufferPromise;

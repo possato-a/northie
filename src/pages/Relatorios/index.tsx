@@ -15,7 +15,7 @@ import {
 interface ReportConfig {
     enabled: boolean
     frequency: 'semanal' | 'mensal' | 'trimestral'
-    format: 'csv' | 'json' | 'pdf'
+    format: 'xlsx' | 'json' | 'pdf'
     email: string
     next_send_at?: string
 }
@@ -146,7 +146,7 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
-    const [generating, setGenerating] = useState<'csv' | 'json' | 'pdf' | null>(null)
+    const [generating, setGenerating] = useState<'xlsx' | 'json' | 'pdf' | null>(null)
     const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
     const [emailFeedback, setEmailFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -179,7 +179,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
     }
 
-    async function handleDownload(format: 'csv' | 'json' | 'pdf') {
+    async function handleDownload(format: 'xlsx' | 'json' | 'pdf') {
         setGenerating(format)
         setGeneratingStep(0)
 
@@ -196,7 +196,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         try {
             const response = await reportsApi.generate(genFrequency, format)
             const ext = format
-            const mime = { csv: 'text/csv', json: 'application/json', pdf: 'application/pdf' }[format]
+            const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', pdf: 'application/pdf' }[format]
             const url = URL.createObjectURL(new Blob([response.data as BlobPart], { type: mime }))
             const a = document.createElement('a')
             a.href = url; a.download = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${ext}`; a.click()
@@ -261,12 +261,12 @@ export default function Relatorios(_props: RelatoriosProps) {
                             />
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                            {(['csv', 'json', 'pdf'] as const).map(fmt => (
+                            {(['xlsx', 'json', 'pdf'] as const).map(fmt => (
                                 <Btn key={fmt} variant={fmt === 'pdf' ? 'primary' : 'secondary'}
                                     onClick={() => handleDownload(fmt)}
                                     disabled={generating !== null || sendingEmail}
                                     icon={<DownloadIcon />}>
-                                    {generating === fmt ? 'Gerando...' : fmt === 'pdf' ? 'PDF com IA' : fmt.toUpperCase()}
+                                    {generating === fmt ? 'Gerando...' : fmt === 'pdf' ? 'PDF com IA' : fmt === 'xlsx' ? 'Excel' : 'JSON'}
                                 </Btn>
                             ))}
                             <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
@@ -349,9 +349,9 @@ export default function Relatorios(_props: RelatoriosProps) {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato</span>
-                                <SegmentedControl options={['pdf', 'csv', 'json'] as const} value={config.format}
+                                <SegmentedControl options={['pdf', 'xlsx', 'json'] as const} value={config.format}
                                     onChange={v => setConfig(c => ({ ...c, format: v }))}
-                                    labels={{ pdf: 'PDF com IA', csv: 'CSV', json: 'JSON' }} />
+                                    labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }} />
                             </div>
                         </div>
 

@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 
 export type ReportFrequency = 'weekly' | 'monthly' | 'quarterly';
-export type ReportFormat = 'csv' | 'json' | 'pdf';
+export type ReportFormat = 'xlsx' | 'json' | 'pdf';
 
 export function getPeriodDays(frequency: ReportFrequency): number {
     switch (frequency) {

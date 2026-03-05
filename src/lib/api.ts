@@ -70,7 +70,7 @@ export const reportsApi = {
     generate: (frequency: string, format: string) =>
         api.post('/reports/generate', { frequency, format }, {
             responseType: 'blob',
-            timeout: format === 'pdf' ? 90000 : 15000,
+            timeout: format === 'pdf' ? 90000 : 20000,
         }),
     getLogs: () => api.get('/reports/logs'),
     getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 15000 }),
