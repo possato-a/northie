@@ -1181,8 +1181,8 @@ function PlanosPanel({ user }: { user?: any }) {
                         setMemberSince(new Date(data.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))
                     }
                 }
-            })
-            .finally(() => setLoading(false))
+                setLoading(false)
+            }, () => setLoading(false))
     }, [user?.id])
 
     const planLabel = plan === 'pro' ? 'Northie Pro' : plan === 'growth' ? 'Northie Growth' : 'Acesso Beta'
