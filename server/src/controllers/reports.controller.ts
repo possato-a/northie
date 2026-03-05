@@ -6,6 +6,7 @@ import {
 } from '../services/reports/report-generator.js';
 import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export async function saveReportConfig(req: Request, res: Response) {
     return res.json(data);
 }
 
+// Preview rápido — só dados, sem IA (responde em ~2-3s)
 export async function getReportPreview(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
@@ -104,7 +106,6 @@ export async function getReportPreview(req: Request, res: Response) {
 
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
         return res.json({
             period: reportData.period,
             business_type: reportData.business_type,
@@ -115,16 +116,33 @@ export async function getReportPreview(req: Request, res: Response) {
             at_risk_customers: reportData.at_risk_customers,
             top_products: reportData.top_products,
             revenue_trend: reportData.revenue_trend,
-            ai: {
-                situacao_geral: aiAnalysis.situacao_geral,
-                resumo_executivo: aiAnalysis.resumo_executivo,
-                diagnosticos: aiAnalysis.diagnosticos,
-                proximos_passos: aiAnalysis.proximos_passos,
-            },
         });
     } catch (err) {
         console.error('[Reports] preview error:', err);
         return res.status(500).json({ error: 'Failed to generate preview' });
+    }
+}
+
+// Análise de IA separada — chamada lazy pelo frontend após carregar dados (pode levar ~30-60s)
+export async function getReportAIAnalysis(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const freqRaw: string = (req.query.frequency as string) ?? 'monthly';
+    const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+
+    try {
+        const reportData = await generateReportData(profileId, frequency);
+        const aiAnalysis = await generateReportNarrative(reportData);
+        return res.json({
+            situacao_geral: aiAnalysis.situacao_geral,
+            resumo_executivo: aiAnalysis.resumo_executivo,
+            diagnosticos: aiAnalysis.diagnosticos,
+            proximos_passos: aiAnalysis.proximos_passos,
+        });
+    } catch (err) {
+        console.error('[Reports] AI analysis error:', err);
+        return res.status(500).json({ error: 'Failed to generate AI analysis' });
     }
 }
 
@@ -134,11 +152,16 @@ export async function generateReport(req: Request, res: Response) {
 
     const freqRaw: string = req.body.frequency ?? 'monthly';
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
-    const format: ReportFormat = req.body.format ?? 'csv';
+    const format: ReportFormat = req.body.format ?? 'xlsx';
 
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
+
+        // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
+        const aiAnalysis = format === 'pdf'
+            ? await generateReportNarrative(reportData)
+            : { situacao_geral: 'atencao' as const, resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
+
         const snapshot = buildSnapshot(reportData, aiAnalysis);
 
         await supabase.from('report_logs').insert({
@@ -154,12 +177,12 @@ export async function generateReport(req: Request, res: Response) {
 
         const dateStr = new Date().toISOString().split('T')[0];
 
-        if (format === 'csv') {
-            const csv = formatAsCsv(reportData, aiAnalysis);
-            const filename = `northie-report-${freqRaw}-${dateStr}.csv`;
-            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        if (format === 'xlsx') {
+            const xlsxBuffer = await generateXlsx(reportData, aiAnalysis);
+            const filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-            return res.send('\ufeff' + csv);
+            return res.send(xlsxBuffer);
         }
 
         if (format === 'pdf') {
@@ -170,11 +193,51 @@ export async function generateReport(req: Request, res: Response) {
             return res.send(pdfBuffer);
         }
 
-        // JSON
+        // JSON — estruturado em seções
         const filename = `northie-report-${freqRaw}-${dateStr}.json`;
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.json({ ...reportData, ai_analysis: aiAnalysis });
+        return res.json({
+            northie_relatorio: {
+                gerado_em: new Date().toISOString(),
+                frequencia: freqRaw,
+                periodo: reportData.period,
+                tipo_negocio: reportData.business_type ?? null,
+            },
+            resumo: {
+                receita_liquida: reportData.summary.revenue_net,
+                receita_bruta: reportData.summary.revenue_gross,
+                margem_bruta_pct: reportData.summary.gross_margin_pct,
+                variacao_receita_pct: reportData.summary.revenue_change_pct,
+                transacoes: reportData.summary.transactions,
+                ticket_medio: reportData.summary.aov,
+                gasto_ads: reportData.summary.ad_spend,
+                roas: reportData.summary.roas,
+                novos_clientes: reportData.summary.new_customers,
+                ltv_medio: reportData.summary.ltv_avg,
+                taxa_reembolso_pct: reportData.summary.refund_rate,
+                valor_reembolsado: reportData.summary.refund_amount,
+                total_clientes_base: reportData.summary.total_customers,
+            },
+            economia_por_canal: reportData.channel_economics.map(ch => ({
+                canal: ch.channel,
+                novos_clientes: ch.new_customers,
+                ltv_medio: ch.avg_ltv,
+                cac: ch.cac,
+                ltv_cac_ratio: ch.ltv_cac_ratio,
+                receita_total_ltv: ch.total_ltv,
+                gasto_canal: ch.total_spend,
+                valor_criado: ch.value_created,
+                status: ch.status,
+            })),
+            tendencia_receita: reportData.revenue_trend,
+            top_produtos: reportData.top_products,
+            segmentacao_rfm: {
+                fonte: reportData.rfm_source,
+                segmentos: reportData.rfm_distribution,
+            },
+            clientes_em_risco: reportData.at_risk_customers,
+        });
 
     } catch (err) {
         console.error('[Reports] generateReport error:', err);
@@ -229,9 +292,9 @@ export async function sendReportByEmail(req: Request, res: Response) {
         if (format === 'pdf') {
             fileBuffer = await generatePdf(reportData, aiAnalysis);
             filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
-        } else if (format === 'csv') {
-            fileBuffer = formatAsCsv(reportData, aiAnalysis);
-            filename = `northie-report-${freqRaw}-${dateStr}.csv`;
+        } else if (format === 'xlsx') {
+            fileBuffer = Buffer.from(await generateXlsx(reportData, aiAnalysis));
+            filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
         } else {
             fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
             filename = `northie-report-${freqRaw}-${dateStr}.json`;

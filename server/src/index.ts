@@ -67,8 +67,8 @@ app.use('/api/valuation', valuationRoutes);
 app.use('/api/reports', reportsRoutes);
 
 // Basic Route
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'northie-backend', version: 'v11-debug' });
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
 });
 
 // TEMP — migration endpoint, remove after use

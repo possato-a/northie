@@ -13,7 +13,7 @@ const FREQ_MAP: Record<string, ReportFrequency> = {
     weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
 };
 
-async function processScheduledReports() {
+export async function processScheduledReports() {
     const now = new Date().toISOString();
 
     const { data: configs } = await supabase

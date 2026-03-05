@@ -60,8 +60,8 @@ app.use('/api/card', cardRoutes);
 app.use('/api/valuation', valuationRoutes);
 app.use('/api/reports', reportsRoutes);
 // Basic Route
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'northie-backend', version: 'v11-debug' });
+app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
 });
 // Start server only if not in Vercel (Production)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
