@@ -11,43 +11,57 @@ function getAnthropic() {
     }
     return _anthropic;
 }
+const MODEL_MAP = {
+    sonnet: 'claude-sonnet-4-6',
+    opus: 'claude-opus-4-6',
+    haiku: 'claude-haiku-4-5-20251001',
+};
 export async function generateAIResponse(message, context) {
-    console.log(`[AI] Generating real response for profile ${context.profileId}`);
+    const modelId = MODEL_MAP[context.model || 'sonnet'] ?? 'claude-sonnet-4-6';
+    console.log(`[AI] Generating response for profile ${context.profileId} — model: ${modelId}`);
     const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const channelLines = context.channelBreakdown.length > 0
         ? context.channelBreakdown.map(c => `— ${c.channel}: ${c.customers} clientes | LTV médio R$ ${fmt(c.avg_ltv)} | receita R$ ${fmt(c.revenue)}`).join('\n')
         : '— Sem dados de canal disponíveis ainda';
     const rfm = context.rfmSegments;
+    const customerLines = (context.customerList || []).length > 0
+        ? (context.customerList || []).map((c, i) => `${i + 1}. ${c.email} | LTV R$ ${fmt(c.ltv)} | RFM ${c.rfm || 'N/A'} | Churn ${c.churn.toFixed(0)}% | ${c.channel} | última compra ${c.lastPurchase ? new Date(c.lastPurchase).toLocaleDateString('pt-BR') : 'N/A'}`).join('\n')
+        : '— Sem clientes cadastrados ainda';
     const systemPrompt = `Você é a Northie AI — a inteligência financeira e estratégica do sistema Northie, infraestrutura de receita para founders de negócios digitais.
 
 IDENTIDADE:
 Você conhece este negócio de dentro. Tem acesso às transações reais, à base de clientes com score RFM, aos gastos por canal de ads e aos sinais do motor de correlações. Você não é um chatbot genérico — é o analista mais afiado que esse founder tem.
 
-DADOS REAIS DO NEGÓCIO (perfil ${context.profileId}):
+DADOS REAIS DO NEGÓCIO:
 — Receita total acumulada: R$ ${fmt(context.stats.total_revenue)}
 — Receita últimos 30 dias: R$ ${fmt(context.stats.revenue_30d)} (${context.stats.transactions_30d} transações | ticket médio R$ ${fmt(context.stats.avg_ticket)})
 — Base total: ${context.stats.total_customers} clientes | ${context.stats.total_transactions} transações aprovadas
 
-SEGMENTAÇÃO RFM (baseada em score real):
+SEGMENTAÇÃO RFM:
 — Champions: ${rfm.Champions.count} clientes | LTV médio R$ ${fmt(rfm.Champions.avg_ltv)}
 — Em Risco: ${rfm['Em Risco'].count} clientes | LTV médio R$ ${fmt(rfm['Em Risco'].avg_ltv)}
 — Novos Promissores: ${rfm['Novos Promissores'].count} clientes | LTV médio R$ ${fmt(rfm['Novos Promissores'].avg_ltv)}
 — Inativos: ${rfm.Inativos.count} clientes | LTV médio R$ ${fmt(rfm.Inativos.avg_ltv)}
 
-CANAIS DE AQUISIÇÃO (por LTV médio):
+CANAIS DE AQUISIÇÃO:
 ${channelLines}
 
 MOTOR DE GROWTH: ${context.pendingGrowthRecs} ações identificadas aguardando aprovação na página Northie Growth.
 
-CONTEXTO ATUAL DA INTERFACE: ${context.pageContext || 'Visão Geral'}
+LISTA DE CLIENTES (top ${(context.customerList || []).length} por LTV):
+${customerLines}
 
-REGRAS DE RESPOSTA:
-1. Você só comenta números que existem nos dados acima. Se não tiver dado, diga "não tenho esse dado disponível ainda" e explique o que precisaria.
-2. Direto ao ponto. Máximo 3-4 parágrafos ou lista com bullets. Sem enrolação, sem disclaimers, sem "é importante considerar que...".
-3. Cite os números específicos do negócio. "Seus 8 clientes Em Risco têm LTV médio de R$ 510" é infinitamente melhor que "você tem clientes em risco".
-4. Se a pergunta puder virar uma ação de growth executável (reativar clientes, pausar campanha, sincronizar audience), mencione que o motor já identificou ações prontas para aprovação na página Growth.
-5. Sempre termine com 1 próximo passo concreto e específico.
-6. Responda SEMPRE em português brasileiro.`;
+CONTEXTO ATUAL: ${context.pageContext || 'Visão Geral'}
+
+REGRAS INVIOLÁVEIS:
+1. NUNCA use markdown: sem asteriscos, sem hashtags, sem backticks, sem traços como bullet points markdown, sem negrito, sem itálico. Resposta em texto puro simples.
+2. NUNCA use emojis.
+3. Só comenta números que existem nos dados acima. Se não tiver, diga "não tenho esse dado ainda".
+4. Direto ao ponto. Máximo 4 parágrafos curtos. Sem enrolação, sem disclaimers.
+5. Cite números específicos. "Seus 8 clientes Em Risco têm LTV médio de R$ 510" é o padrão mínimo.
+6. Se a pergunta puder virar ação executável, mencione que há ações prontas na página Growth.
+7. Termine com 1 próximo passo concreto.
+8. Responda SEMPRE em português brasileiro.`;
     // Montar mensagens com histórico + mensagem atual
     const messages = [
         ...(context.history || []),
@@ -55,7 +69,7 @@ REGRAS DE RESPOSTA:
     ];
     try {
         const response = await getAnthropic().messages.create({
-            model: 'claude-sonnet-4-6',
+            model: modelId,
             max_tokens: 2048,
             system: systemPrompt,
             messages,

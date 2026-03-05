@@ -3,10 +3,35 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { AskNorthieIcon } from '../../icons'
 import { aiApi } from '../../lib/api'
 
+type AIModel = 'sonnet' | 'opus' | 'haiku'
+const MODELS: AIModel[] = ['sonnet', 'opus', 'haiku']
+const MODEL_LABELS: Record<AIModel, string> = { sonnet: 'Sonnet', opus: 'Opus', haiku: 'Haiku' }
+
 interface Message {
     id: string
     role: 'user' | 'assistant' | 'system'
     content: string
+}
+
+function TypewriterText({ text, onDone }: { text: string; onDone: () => void }) {
+    const [count, setCount] = useState(0)
+    const onDoneRef = useRef(onDone)
+    onDoneRef.current = onDone
+
+    useEffect(() => {
+        setCount(0)
+    }, [text])
+
+    useEffect(() => {
+        if (count >= text.length) {
+            onDoneRef.current()
+            return
+        }
+        const timer = setTimeout(() => setCount(c => c + 1), 7)
+        return () => clearTimeout(timer)
+    }, [count, text])
+
+    return <>{text.slice(0, count)}</>
 }
 
 interface ChatSidebarProps {
@@ -81,10 +106,12 @@ function SuggestionChip({ label, onClick }: { label: string; onClick: () => void
 
 export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggleFull }: ChatSidebarProps) {
     const [messages, setMessages] = useState<Message[]>([
-        { id: '1', role: 'assistant', content: `Olá! Estou conectado aos seus dados de **${context}**. O que vamos analisar?` }
+        { id: '1', role: 'assistant', content: `Conectado. Contexto: ${context}. O que vamos analisar?` }
     ])
     const [isThinking, setIsThinking] = useState(false)
     const [input, setInput] = useState('')
+    const [model, setModel] = useState<AIModel>('sonnet')
+    const [animatingId, setAnimatingId] = useState<string | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
 
     const suggestions = useMemo(() => {
@@ -114,13 +141,15 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
         setIsThinking(true)
 
         try {
-            const response = await aiApi.chat(messageText, context)
+            const response = await aiApi.chat(messageText, context, model)
+            const newId = Date.now().toString()
             const aiMsg: Message = {
-                id: Date.now().toString(),
+                id: newId,
                 role: 'assistant',
                 content: response.data.content
             }
             setMessages(prev => [...prev, aiMsg])
+            setAnimatingId(newId)
         } catch {
             setMessages(prev => [...prev, {
                 id: Date.now().toString(),
@@ -262,7 +291,10 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
                                                 color: 'var(--color-text-primary)',
                                                 whiteSpace: 'pre-wrap',
                                             }}>
-                                                {m.content}
+                                                {animatingId === m.id
+                                                    ? <TypewriterText text={m.content} onDone={() => setAnimatingId(null)} />
+                                                    : m.content
+                                                }
                                             </div>
                                         </div>
                                     ) : (
@@ -350,6 +382,32 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
                                         lineHeight: 1.55,
                                     }}
                                 />
+                                    {/* Model switcher */}
+                                    <motion.button
+                                        onClick={() => setModel(m => MODELS[(MODELS.indexOf(m) + 1) % MODELS.length])}
+                                        whileTap={{ scale: 0.93 }}
+                                        title="Trocar modelo de IA"
+                                        style={{
+                                            background: 'none',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            padding: '3px 7px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            flexShrink: 0,
+                                            color: 'var(--color-text-tertiary)',
+                                        }}
+                                    >
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.04em' }}>
+                                            {MODEL_LABELS[model]}
+                                        </span>
+                                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                            <path d="M4 1L6.5 3.5M4 1L1.5 3.5M4 7L6.5 4.5M4 7L1.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    </motion.button>
+
                                 <motion.button
                                     onClick={() => handleSend()}
                                     disabled={!input.trim() || isThinking}

@@ -16,7 +16,7 @@ export async function handleChatMessage(req, res) {
         const [historyResult, transResult, customersResult, rfmResult, recsCountResult] = await Promise.all([
             supabase.from('ai_chat_history').select('role, content').eq('profile_id', profileId).order('created_at', { ascending: false }).limit(HISTORY_LIMIT),
             supabase.from('transactions').select('amount_net, created_at').eq('profile_id', profileId).eq('status', 'approved'),
-            supabase.from('customers').select('acquisition_channel, total_ltv, churn_probability, rfm_score').eq('profile_id', profileId),
+            supabase.from('customers').select('email, acquisition_channel, total_ltv, churn_probability, rfm_score, last_purchase_at').eq('profile_id', profileId),
             supabase.from('customers').select('rfm_score, total_ltv').eq('profile_id', profileId).not('rfm_score', 'is', null),
             supabase.from('growth_recommendations').select('id', { count: 'exact', head: true }).eq('profile_id', profileId).eq('status', 'pending'),
         ]);
@@ -72,9 +72,24 @@ export async function handleChatMessage(req, res) {
             .sort((a, b) => b.avg_ltv - a.avg_ltv);
         const pendingGrowthRecs = recsCountResult.count || 0;
         const pageContext = req.body.page_context || 'Visão Geral';
+        const model = req.body.model || 'sonnet';
+        // Top 30 customers by LTV for individual lookup
+        const customerList = [...customers]
+            .sort((a, b) => Number(b.total_ltv) - Number(a.total_ltv))
+            .slice(0, 30)
+            .map(c => ({
+            email: c.email,
+            ltv: Number(c.total_ltv),
+            rfm: c.rfm_score,
+            churn: Number(c.churn_probability || 0),
+            channel: c.acquisition_channel,
+            lastPurchase: c.last_purchase_at,
+        }));
         const context = {
             profileId,
             pageContext,
+            model,
+            customerList,
             stats: {
                 total_revenue: totalRevenue,
                 total_customers: customers.length,
