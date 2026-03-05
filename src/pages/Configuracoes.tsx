@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../ThemeContext'
 import { supabase } from '../lib/supabase'
@@ -617,13 +617,158 @@ function SegurancaPanel() {
     )
 }
 
-function WorkspacePanel() {
-    const [wsName, setWsName] = useState('Northie')
+const TIMEZONES = [
+    'América/São Paulo (UTC-3)',
+    'América/Manaus (UTC-4)',
+    'América/Belém (UTC-3)',
+    'América/Fortaleza (UTC-3)',
+    'América/Recife (UTC-3)',
+    'GMT (UTC+0)',
+    'Europa/Lisboa (UTC+0)',
+    'Europa/Londres (UTC+0)',
+    'América/Nova Iorque (UTC-5)',
+    'América/Los Angeles (UTC-8)',
+]
+
+const CURRENCIES = ['BRL (R$)', 'USD ($)', 'EUR (€)', 'GBP (£)']
+
+function WorkspacePanel({ user }: { user?: any }) {
+    const [wsName, setWsName] = useState('')
+    const [timezone, setTimezone] = useState('América/São Paulo (UTC-3)')
+    const [currency, setCurrency] = useState('BRL (R$)')
+    const [logoUrl, setLogoUrl] = useState<string | null>(null)
     const [focused, setFocused] = useState(false)
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+    const [saved, setSaved] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (!user?.id) { setLoading(false); return }
+        supabase
+            .from('profiles')
+            .select('business_name, timezone, currency, logo_url')
+            .eq('id', user.id)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    setWsName(data.business_name || '')
+                    if (data.timezone) setTimezone(data.timezone)
+                    if (data.currency) setCurrency(data.currency)
+                    if (data.logo_url) setLogoUrl(data.logo_url)
+                }
+            })
+            .finally(() => setLoading(false))
+    }, [user?.id])
+
+    const handleSave = async () => {
+        if (!user?.id) return
+        setSaving(true)
+        try {
+            await supabase
+                .from('profiles')
+                .update({ business_name: wsName.trim() || null, timezone, currency })
+                .eq('id', user.id)
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2000)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file || !user?.id) return
+        setUploading(true)
+        try {
+            const ext = file.name.split('.').pop() || 'png'
+            const path = `${user.id}/logo.${ext}`
+            const { error: uploadError } = await supabase.storage
+                .from('workspace-logos')
+                .upload(path, file, { upsert: true, contentType: file.type })
+            if (uploadError) throw uploadError
+            const { data: urlData } = supabase.storage.from('workspace-logos').getPublicUrl(path)
+            const publicUrl = `${urlData.publicUrl}?t=${Date.now()}` // bust cache
+            await supabase.from('profiles').update({ logo_url: publicUrl }).eq('id', user.id)
+            setLogoUrl(publicUrl)
+        } catch (err) {
+            console.error('Logo upload error:', err)
+        } finally {
+            setUploading(false)
+            // reset input so same file can be re-selected
+            if (fileInputRef.current) fileInputRef.current.value = ''
+        }
+    }
+
+    if (loading) return (
+        <div style={{ padding: '60px 0', textAlign: 'center', fontFamily: 'var(--font-sans)', color: 'var(--color-text-tertiary)' }}>
+            Carregando...
+        </div>
+    )
+
+    const logoInitial = wsName?.[0]?.toUpperCase() || 'N'
 
     return (
         <div>
             <SectionHeading>Workspace</SectionHeading>
+
+            {/* Preview card — logo + name */}
+            <div style={{
+                padding: '20px 0',
+                borderBottom: '1px solid var(--color-border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                marginBottom: 8,
+            }}>
+                <div
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Clique para trocar o logo"
+                    style={{
+                        width: 48, height: 48,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--color-bg-tertiary)',
+                        border: '1px solid var(--color-border)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        position: 'relative',
+                        transition: 'border-color var(--transition-base)',
+                    }}
+                >
+                    {logoUrl ? (
+                        <img src={logoUrl} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 400, color: 'var(--color-text-secondary)' }}>
+                            {logoInitial}
+                        </span>
+                    )}
+                    {uploading && (
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                            </svg>
+                        </div>
+                    )}
+                </div>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={handleLogoUpload}
+                />
+                <div>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-md)', color: 'var(--color-text-primary)', margin: 0 }}>
+                        {wsName || 'Sem nome'}
+                    </p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>
+                        Clique no logo para trocar — PNG, JPG ou SVG
+                    </p>
+                </div>
+            </div>
 
             <SettingRow title="Nome do workspace" description="O nome aparece na sidebar e em notificações.">
                 <input
@@ -631,6 +776,7 @@ function WorkspacePanel() {
                     onChange={e => setWsName(e.target.value)}
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
+                    placeholder="Nome da sua empresa"
                     style={{
                         padding: '7px 12px',
                         background: 'var(--color-bg-secondary)',
@@ -647,34 +793,45 @@ function WorkspacePanel() {
                 />
             </SettingRow>
 
-            <SettingRow title="Fuso horário" description="Horário padrão do workspace para relatórios e agendamentos.">
-                <Select
-                    value="América/São Paulo (UTC-3)"
-                    options={['América/São Paulo (UTC-3)', 'GMT (UTC+0)', 'América/Nova Iorque (UTC-5)']}
-                    onChange={() => { }}
-                />
+            <SettingRow title="Fuso horário" description="Horário padrão para relatórios e agendamentos.">
+                <Select value={timezone} options={TIMEZONES} onChange={setTimezone} />
             </SettingRow>
 
-            <SettingRow title="Moeda padrão" description="Usada em relatórios e metas financeiras.">
-                <Select
-                    value="BRL (R$)"
-                    options={['BRL (R$)', 'USD ($)', 'EUR (€)']}
-                    onChange={() => { }}
-                />
+            <SettingRow title="Moeda padrão" description="Usada em relatórios e metas financeiras." divider={false}>
+                <Select value={currency} options={CURRENCIES} onChange={setCurrency} />
             </SettingRow>
 
-            <SettingRow title="Logo do workspace" description="Aparece na sidebar. Recomendado: 100x100px, PNG ou SVG." divider={false}>
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Fazer upload
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 20 }}>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{
+                        padding: '7px 20px',
+                        borderRadius: 'var(--radius-md)',
+                        border: 'none',
+                        background: saved ? 'var(--color-success, #22c55e)' : 'var(--color-primary)',
+                        color: 'white',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: saving ? 'default' : 'pointer',
+                        opacity: saving ? 0.7 : 1,
+                        transition: 'background 0.2s',
+                    }}
+                >
+                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar alterações'}
                 </button>
-            </SettingRow>
+            </div>
         </div>
     )
 }
 
-function MembrosPanel() {
+function MembrosPanel({ user }: { user?: any }) {
+    const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Founder'
+    const email = user?.email || ''
+    const initial = name?.[0]?.toUpperCase() || 'F'
     const members = [
-        { name: 'Francisco Possato', email: 'francisco@empresa.com', role: 'Admin', initials: 'F' },
+        { name, email, role: 'Admin', initials: initial },
     ]
 
     return (
@@ -923,8 +1080,8 @@ export default function Configuracoes({ user, onGoToAppStore }: { user?: any; on
             case 'preferencias': return <PreferenciasPanel />
             case 'notificacoes': return <NotificacoesPanel />
             case 'seguranca': return <SegurancaPanel />
-            case 'workspace': return <WorkspacePanel />
-            case 'membros': return <MembrosPanel />
+            case 'workspace': return <WorkspacePanel user={user} />
+            case 'membros': return <MembrosPanel user={user} />
             case 'planos': return <PlanosPanel />
         }
     }
