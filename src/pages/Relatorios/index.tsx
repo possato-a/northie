@@ -40,6 +40,19 @@ interface Diagnosis {
     prazo: 'imediato' | 'esta_semana' | 'este_mes'
 }
 
+interface TopProduct {
+    product_name: string
+    revenue: number
+    transactions: number
+    pct_of_total: number
+}
+
+interface RevenueTrend {
+    month: string
+    revenue: number
+    change_pct: number | null
+}
+
 interface PreviewData {
     period: { start: string; end: string; days: number; frequency: string }
     summary: {
@@ -53,9 +66,16 @@ interface PreviewData {
         revenue_change_pct: number | null
         aov: number
         transactions: number
+        refund_rate: number
+        refund_amount: number
+        total_customers: number
     }
     channel_economics: ChannelEcon[]
     at_risk_customers: { ltv: number; churn_probability: number | null }[]
+    top_products: TopProduct[]
+    revenue_trend: RevenueTrend[]
+    rfm_source?: 'calculated' | 'estimated'
+    business_type?: string | null
     ai: {
         situacao_geral: 'saudavel' | 'atencao' | 'critica'
         resumo_executivo: string
@@ -210,6 +230,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [generating, setGenerating] = useState<'csv' | 'json' | 'pdf' | null>(null)
+    const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
     const [emailFeedback, setEmailFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
 
@@ -252,6 +273,18 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     async function handleDownload(format: 'csv' | 'json' | 'pdf') {
         setGenerating(format)
+        setGeneratingStep(0)
+
+        // Progress animation for PDF only
+        let stepTimers: ReturnType<typeof setTimeout>[] = []
+        if (format === 'pdf') {
+            stepTimers = [
+                setTimeout(() => setGeneratingStep(1), 100),
+                setTimeout(() => setGeneratingStep(2), 8000),
+                setTimeout(() => setGeneratingStep(3), 16000),
+            ]
+        }
+
         try {
             const response = await reportsApi.generate(genFrequency, format)
             const ext = format
@@ -263,7 +296,9 @@ export default function Relatorios(_props: RelatoriosProps) {
             // Refresh logs
             reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
         } finally {
+            stepTimers.forEach(clearTimeout)
             setGenerating(null)
+            setGeneratingStep(0)
         }
     }
 
@@ -280,8 +315,16 @@ export default function Relatorios(_props: RelatoriosProps) {
             await reportsApi.sendEmail(genFrequency, config.format ?? 'pdf', email)
             setEmailFeedback({ ok: true, msg: `Enviado para ${email} ✓` })
             reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
-        } catch {
-            setEmailFeedback({ ok: false, msg: 'Falha ao enviar. Tente novamente.' })
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { error?: string } } }
+            const serverMsg = (axiosErr.response?.data?.error ?? '').toLowerCase()
+            const isResendMissing = serverMsg.includes('resend') || serverMsg.includes('api_key') || serverMsg.includes('não configurado')
+            setEmailFeedback({
+                ok: false,
+                msg: isResendMissing
+                    ? 'Serviço de email não configurado. Adicione RESEND_API_KEY nas variáveis de ambiente do servidor (Vercel → Settings → Env Vars).'
+                    : 'Falha ao enviar. Tente novamente.',
+            })
         } finally {
             setSendingEmail(false)
             setTimeout(() => setEmailFeedback(null), 5000)
@@ -330,16 +373,22 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 </div>
                             </div>
 
-                            {/* KPIs principais */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0, borderBottom: '1px solid var(--color-border)' }}>
+                            {/* KPIs principais — 6 colunas */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0, borderBottom: '1px solid var(--color-border)' }}>
                                 {[
                                     { label: 'Receita Líquida', value: fmtBRL(preview.summary.revenue_net), sub: preview.summary.revenue_change_pct !== null ? `${preview.summary.revenue_change_pct >= 0 ? '+' : ''}${fmtNum(preview.summary.revenue_change_pct)}% vs anterior` : undefined, color: preview.summary.revenue_change_pct !== null ? (preview.summary.revenue_change_pct >= 0 ? undefined : '#EF4444') : undefined },
-                                    { label: 'ROAS', value: `${fmtNum(preview.summary.roas)}x`, sub: preview.summary.ad_spend > 0 ? `Spend ${fmtBRL(preview.summary.ad_spend)}` : 'Sem investimento em ads' },
+                                    { label: 'ROAS', value: `${fmtNum(preview.summary.roas)}x`, sub: preview.summary.ad_spend > 0 ? `Spend ${fmtBRL(preview.summary.ad_spend)}` : 'Sem ads' },
                                     { label: 'LTV Médio', value: fmtBRL(preview.summary.ltv_avg), sub: `${preview.summary.new_customers} novos clientes` },
                                     { label: 'Ticket Médio', value: fmtBRL(preview.summary.aov), sub: `${preview.summary.transactions} transações` },
-                                    { label: 'Margem Bruta', value: `${fmtNum(preview.summary.gross_margin_pct)}%`, sub: `Receita bruta ${fmtBRL(preview.summary.revenue_gross)}` },
+                                    { label: 'Margem Bruta', value: `${fmtNum(preview.summary.gross_margin_pct)}%`, sub: `Bruto ${fmtBRL(preview.summary.revenue_gross)}` },
+                                    {
+                                        label: 'Reembolsos',
+                                        value: `${fmtNum(preview.summary.refund_rate ?? 0)}%`,
+                                        sub: fmtBRL(preview.summary.refund_amount ?? 0),
+                                        color: (preview.summary.refund_rate ?? 0) > 5 ? '#EF4444' : undefined,
+                                    },
                                 ].map((kpi, i) => (
-                                    <div key={i} style={{ padding: '20px 24px', borderRight: i < 4 ? '1px solid var(--color-border)' : 'none' }}>
+                                    <div key={i} style={{ padding: '16px 20px', borderRight: i < 5 ? '1px solid var(--color-border)' : 'none' }}>
                                         <KpiMini {...kpi} />
                                     </div>
                                 ))}
@@ -403,6 +452,54 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 </div>
                             </div>
 
+                            {/* Tendência de receita */}
+                            {(preview.revenue_trend?.length ?? 0) >= 2 && (
+                                <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)' }}>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tendência</span>
+                                    <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                        {preview.revenue_trend!.map((t, i) => {
+                                            const hasChange = t.change_pct !== null
+                                            const isUp = (t.change_pct ?? 0) >= 0
+                                            return (
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    {i > 0 && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>→</span>}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{fmtBRL(t.revenue)}</span>
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: hasChange ? (isUp ? '#22C55E' : '#EF4444') : 'var(--color-text-secondary)' }}>
+                                                            {t.month}{hasChange ? ` ${isUp ? '↑' : '↓'}${fmtNum(Math.abs(t.change_pct!))}%` : ''}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Top produtos */}
+                            {(preview.top_products?.length ?? 0) > 0 && (
+                                <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)' }}>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Top Produtos</span>
+                                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {preview.top_products!.slice(0, 3).map((p, i) => (
+                                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {p.product_name}
+                                                    </span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                                                        {fmtBRL(p.revenue)} <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>({p.pct_of_total}%)</span>
+                                                    </span>
+                                                </div>
+                                                <div style={{ height: 3, borderRadius: 2, background: 'var(--color-border)', overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: `${p.pct_of_total}%`, background: '#1a7fe8', borderRadius: 2 }} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Próximos passos */}
                             {preview.ai.proximos_passos.length > 0 && (
                                 <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -457,10 +554,38 @@ export default function Relatorios(_props: RelatoriosProps) {
                     </div>
                     <AnimatePresence>
                         {generating === 'pdf' && (
-                            <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                                style={{ margin: '16px 0 0', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                Pode levar até 20 segundos — a IA está analisando dados de todas as suas integrações...
-                            </motion.p>
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                style={{ margin: '16px 0 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                                    {([
+                                        'Coletando dados das integrações...',
+                                        'Cruzando fontes e analisando com IA...',
+                                        'Gerando PDF...',
+                                    ] as const).map((label, idx) => {
+                                        const step = idx + 1
+                                        const done = generatingStep > step
+                                        const active = generatingStep === step
+                                        return (
+                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <div style={{
+                                                    width: 18, height: 18, borderRadius: '50%',
+                                                    border: done ? 'none' : `2px solid ${active ? '#1a7fe8' : 'var(--color-border)'}`,
+                                                    background: done ? '#1a7fe8' : 'transparent',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    animation: active ? 'spin 0.8s linear infinite' : 'none',
+                                                    borderTopColor: active ? '#1a7fe8' : undefined,
+                                                    flexShrink: 0,
+                                                }}>
+                                                    {done && <span style={{ color: 'white', fontSize: 10, lineHeight: 1 }}>✓</span>}
+                                                </div>
+                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: active ? '#1a7fe8' : done ? '#22C55E' : 'var(--color-text-secondary)', fontWeight: active ? 500 : 400 }}>
+                                                    {step}/{3}: {label}
+                                                </span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </motion.div>
                         )}
                         {emailFeedback && (
                             <motion.p key="email-feedback" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
