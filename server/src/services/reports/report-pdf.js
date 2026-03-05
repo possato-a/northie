@@ -293,6 +293,58 @@ function drawDiagnosisCard(doc, d) {
         .text(`Prazo: ${prazoLabel} · ${d.acao_recomendada}`, innerX + 100, impactY, { width: innerW - 100 });
     doc.y = startY + cardHeight + 10;
 }
+// ── Channel economics table (7 colunas) ──────────────────────────────────────
+function channelEconTable(doc, channels) {
+    const W = CONTENT_WIDTH;
+    const cW = [W * 0.20, W * 0.08, W * 0.15, W * 0.14, W * 0.12, W * 0.16, W * 0.15]; // canal, cli, ltv, cac, ratio, criado, status
+    const headers = ['CANAL', 'CLIENTES', 'LTV MÉDIO', 'CAC', 'LTV/CAC', 'VALOR CRIADO', 'STATUS'];
+    const startY = doc.y;
+    const headerH = 20;
+    const rowH = 18;
+    // Header bar
+    doc.save().rect(MARGIN, startY, W, headerH).fillColor(C.dark).fill().restore();
+    let hx = MARGIN + 6;
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.white);
+    headers.forEach((h, i) => {
+        const align = i === 0 ? 'left' : 'right';
+        doc.text(h, hx, startY + 6, { width: cW[i] - 6, align, characterSpacing: 0.4 });
+        hx += cW[i];
+    });
+    let rowY = startY + headerH;
+    channels.forEach((ch, idx) => {
+        const bg = idx % 2 === 1 ? '#F7F7F7' : C.white;
+        doc.save().rect(MARGIN, rowY, W, rowH).fillColor(bg).fill().restore();
+        const statusColor = ch.status === 'lucrativo' ? C.success : ch.status === 'prejuizo' ? C.danger : C.textSecondary;
+        const statusLabel = ch.status === 'lucrativo' ? '✓ Lucrativo' : ch.status === 'prejuizo' ? '✗ Prejuízo' : '○ Orgânico';
+        const ltvcacStr = ch.ltv_cac_ratio !== null ? `${fmtNum(ch.ltv_cac_ratio)}x` : '—';
+        const cacStr = ch.cac > 0 ? fmtBrl(ch.cac) : '—';
+        const valorColor = ch.value_created >= 0 ? C.success : C.danger;
+        let cx = MARGIN + 6;
+        doc.font('Helvetica').fontSize(8).fillColor(C.dark)
+            .text(ch.channel, cx, rowY + 4, { width: cW[0] - 6 });
+        cx += cW[0];
+        doc.font('Courier').fontSize(8)
+            .text(String(ch.new_customers), cx, rowY + 4, { width: cW[1] - 6, align: 'right' });
+        cx += cW[1];
+        doc.font('Courier').fontSize(8)
+            .text(fmtBrl(ch.avg_ltv), cx, rowY + 4, { width: cW[2] - 6, align: 'right' });
+        cx += cW[2];
+        doc.font('Courier').fontSize(8)
+            .text(cacStr, cx, rowY + 4, { width: cW[3] - 6, align: 'right' });
+        cx += cW[3];
+        doc.font('Courier').fontSize(8)
+            .text(ltvcacStr, cx, rowY + 4, { width: cW[4] - 6, align: 'right' });
+        cx += cW[4];
+        doc.font('Courier').fontSize(8).fillColor(valorColor)
+            .text(fmtBrl(ch.value_created), cx, rowY + 4, { width: cW[5] - 6, align: 'right' });
+        cx += cW[5];
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(statusColor)
+            .text(statusLabel, cx, rowY + 5, { width: cW[6] - 6, align: 'right' });
+        rowY += rowH;
+    });
+    doc.save().rect(MARGIN, startY, W, rowY - startY).strokeColor(C.border).lineWidth(0.5).stroke().restore();
+    doc.y = rowY + 12;
+}
 // ── Shared header drawer ──────────────────────────────────────────────────────
 function drawPageHeader(doc, ai, periodLabel, frequency) {
     doc.save()
@@ -365,19 +417,13 @@ export async function generatePdf(data, ai) {
             ...(refundIsHigh ? { delta: `${fmtBrl(data.summary.refund_amount)} reembolsado`, deltaPositive: false } : {}),
         },
     ]);
-    // ── Canais — termômetro rápido ────────────────────────────────────────────
+    // ── Economia por Canal (página 1 — top 4) ────────────────────────────────
     const topChannels = data.channel_economics
         .filter(c => c.channel !== 'desconhecido')
-        .slice(0, 3);
+        .slice(0, 4);
     if (topChannels.length > 0) {
-        sectionTitle(doc, 'Canais — Visão Geral');
-        const channelRows = topChannels.map((e) => {
-            const ltv_cac = e.ltv_cac_ratio !== null ? `LTV/CAC ${fmtNum(e.ltv_cac_ratio)}x` : 'orgânico';
-            const statusLabel = e.status === 'lucrativo' ? '✓ Lucrativo'
-                : e.status === 'prejuizo' ? '✗ Prejuízo' : '○ Orgânico';
-            return [`${e.channel} · ${e.new_customers} clientes · ${ltv_cac}`, statusLabel];
-        });
-        twoColTable(doc, channelRows, 'Canal', 'Status');
+        sectionTitle(doc, 'Economia por Canal');
+        channelEconTable(doc, topChannels);
     }
     // ── Top 3 alertas ─────────────────────────────────────────────────────────
     const criticalDiags = [...ai.diagnosticos]
@@ -442,37 +488,13 @@ export async function generatePdf(data, ai) {
             drawDiagnosisCard(doc, d);
         }
     }
-    // ── Receita por Plataforma ────────────────────────────────────────────────
-    const revRows = Object.entries(data.revenue_by_platform)
-        .sort(([, a], [, b]) => b - a)
-        .map(([k, v]) => [k, fmtBrl(v)]);
-    if (revRows.length > 0) {
+    // ── Economia por Canal (página 2 — completo) ──────────────────────────────
+    const allChannels = data.channel_economics.filter(c => c.channel !== 'desconhecido');
+    if (allChannels.length > 0) {
         if (doc.y > 650)
             doc.addPage();
-        sectionTitle(doc, 'Receita por Plataforma');
-        twoColTable(doc, revRows, 'Plataforma', 'Receita Líquida');
-    }
-    // ── Investimento em Ads ───────────────────────────────────────────────────
-    const spendRows = Object.entries(data.spend_by_platform)
-        .sort(([, a], [, b]) => b - a)
-        .map(([k, v]) => [k, fmtBrl(v)]);
-    if (spendRows.length > 0) {
-        if (doc.y > 650)
-            doc.addPage();
-        sectionTitle(doc, 'Investimento em Ads');
-        twoColTable(doc, spendRows, 'Plataforma', 'Gasto');
-    }
-    // ── Channel Economics ─────────────────────────────────────────────────────
-    if (data.channel_economics.length > 0) {
-        if (doc.y > 650)
-            doc.addPage();
-        sectionTitle(doc, 'Economia por Canal (LTV × CAC)');
-        const econRows = data.channel_economics.map((e) => {
-            const ltv_cac = e.ltv_cac_ratio !== null ? `${fmtNum(e.ltv_cac_ratio)}x` : '-';
-            const statusLabel = e.status === 'lucrativo' ? '✓ Lucrativo' : e.status === 'prejuizo' ? '✗ Prejuízo' : 'Orgânico';
-            return [`${e.channel} · ${e.new_customers} clientes · CAC ${e.cac > 0 ? fmtBrl(e.cac) : '-'} · LTV/CAC ${ltv_cac}`, statusLabel];
-        });
-        twoColTable(doc, econRows, 'Canal', 'Status');
+        sectionTitle(doc, 'Economia por Canal — Visão Completa (LTV × CAC)');
+        channelEconTable(doc, allChannels);
     }
     // ── Tendência de Receita (nova seção) ─────────────────────────────────────
     if (data.revenue_trend.length >= 2) {

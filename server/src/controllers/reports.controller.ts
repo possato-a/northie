@@ -192,11 +192,51 @@ export async function generateReport(req: Request, res: Response) {
             return res.send(pdfBuffer);
         }
 
-        // JSON
+        // JSON — estruturado em seções
         const filename = `northie-report-${freqRaw}-${dateStr}.json`;
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.json({ ...reportData, ai_analysis: aiAnalysis });
+        return res.json({
+            northie_relatorio: {
+                gerado_em: new Date().toISOString(),
+                frequencia: freqRaw,
+                periodo: reportData.period,
+                tipo_negocio: reportData.business_type ?? null,
+            },
+            resumo: {
+                receita_liquida: reportData.summary.revenue_net,
+                receita_bruta: reportData.summary.revenue_gross,
+                margem_bruta_pct: reportData.summary.gross_margin_pct,
+                variacao_receita_pct: reportData.summary.revenue_change_pct,
+                transacoes: reportData.summary.transactions,
+                ticket_medio: reportData.summary.aov,
+                gasto_ads: reportData.summary.ad_spend,
+                roas: reportData.summary.roas,
+                novos_clientes: reportData.summary.new_customers,
+                ltv_medio: reportData.summary.ltv_avg,
+                taxa_reembolso_pct: reportData.summary.refund_rate,
+                valor_reembolsado: reportData.summary.refund_amount,
+                total_clientes_base: reportData.summary.total_customers,
+            },
+            economia_por_canal: reportData.channel_economics.map(ch => ({
+                canal: ch.channel,
+                novos_clientes: ch.new_customers,
+                ltv_medio: ch.avg_ltv,
+                cac: ch.cac,
+                ltv_cac_ratio: ch.ltv_cac_ratio,
+                receita_total_ltv: ch.total_ltv,
+                gasto_canal: ch.total_spend,
+                valor_criado: ch.value_created,
+                status: ch.status,
+            })),
+            tendencia_receita: reportData.revenue_trend,
+            top_produtos: reportData.top_products,
+            segmentacao_rfm: {
+                fonte: reportData.rfm_source,
+                segmentos: reportData.rfm_distribution,
+            },
+            clientes_em_risco: reportData.at_risk_customers,
+        });
 
     } catch (err) {
         console.error('[Reports] generateReport error:', err);

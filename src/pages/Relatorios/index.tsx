@@ -3,7 +3,7 @@
  * Página de Relatórios — preview ao vivo, histórico rico e configuração automática.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { reportsApi } from '../../lib/api'
 import {
@@ -18,71 +18,6 @@ interface ReportConfig {
     format: 'csv' | 'json' | 'pdf'
     email: string
     next_send_at?: string
-}
-
-interface ChannelEcon {
-    channel: string
-    new_customers: number
-    avg_ltv: number
-    cac: number
-    ltv_cac_ratio: number | null
-    value_created: number
-    status: 'lucrativo' | 'prejuizo' | 'organico'
-}
-
-interface Diagnosis {
-    canal: string
-    severidade: 'critica' | 'alta' | 'media' | 'ok'
-    sintoma: string
-    causa_raiz: string
-    acao_recomendada: string
-    consequencia_financeira_brl: number
-    prazo: 'imediato' | 'esta_semana' | 'este_mes'
-}
-
-interface TopProduct {
-    product_name: string
-    revenue: number
-    transactions: number
-    pct_of_total: number
-}
-
-interface RevenueTrend {
-    month: string
-    revenue: number
-    change_pct: number | null
-}
-
-interface PreviewData {
-    period: { start: string; end: string; days: number; frequency: string }
-    summary: {
-        revenue_net: number
-        revenue_gross: number
-        ad_spend: number
-        roas: number
-        new_customers: number
-        ltv_avg: number
-        gross_margin_pct: number
-        revenue_change_pct: number | null
-        aov: number
-        transactions: number
-        refund_rate: number
-        refund_amount: number
-        total_customers: number
-    }
-    channel_economics: ChannelEcon[]
-    at_risk_customers: { ltv: number; churn_probability: number | null }[]
-    top_products: TopProduct[]
-    revenue_trend: RevenueTrend[]
-    rfm_source?: 'calculated' | 'estimated'
-    business_type?: string | null
-}
-
-interface AIAnalysis {
-    situacao_geral: 'saudavel' | 'atencao' | 'critica'
-    resumo_executivo: string
-    diagnosticos: Diagnosis[]
-    proximos_passos: string[]
 }
 
 interface ReportLog {
@@ -106,7 +41,6 @@ interface ReportLog {
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-const fmtNum = (n: number, d = 2) => n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 const fmtDateShort = (iso: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(iso))
 
@@ -128,9 +62,6 @@ const SITUACAO_CONFIG = {
     critica:  { label: 'Crítica',  color: '#EF4444', bg: 'rgba(239,68,68,0.12)'  },
 }
 
-const SEVERIDADE_COLOR = {
-    critica: '#EF4444', alta: '#F97316', media: '#F59E0B', ok: '#22C55E',
-}
 
 function SituacaoBadge({ value, size = 'sm' }: { value: 'saudavel' | 'atencao' | 'critica'; size?: 'sm' | 'md' }) {
     const cfg = SITUACAO_CONFIG[value]
@@ -176,16 +107,6 @@ function SegmentedControl<T extends string>({ options, value, onChange, labels }
     )
 }
 
-function KpiMini({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 500, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color: color ?? 'var(--color-text-primary)', letterSpacing: '-0.5px' }}>{value}</span>
-            {sub && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>{sub}</span>}
-        </div>
-    )
-}
-
 // ── Download helper ───────────────────────────────────────────────────────────
 
 function DownloadIcon() {
@@ -223,13 +144,6 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [savingConfig, setSavingConfig] = useState(false)
     const [savedFeedback, setSavedFeedback] = useState(false)
 
-    // Preview state
-    const [preview, setPreview] = useState<PreviewData | null>(null)
-    const [loadingPreview, setLoadingPreview] = useState(true)
-    const [aiData, setAiData] = useState<AIAnalysis | null>(null)
-    const [loadingAI, setLoadingAI] = useState(false)
-    const [previewFreq, setPreviewFreq] = useState<ReportConfig['frequency']>('mensal')
-
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [generating, setGenerating] = useState<'csv' | 'json' | 'pdf' | null>(null)
@@ -241,21 +155,6 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [logs, setLogs] = useState<ReportLog[]>([])
     const [loadingLogs, setLoadingLogs] = useState(true)
 
-    const loadPreview = useCallback((freq: string) => {
-        setLoadingPreview(true)
-        setAiData(null)
-        reportsApi.getPreview(freq)
-            .then(res => {
-                setPreview(res.data as PreviewData)
-                setLoadingPreview(false)
-                setLoadingAI(true)
-                reportsApi.getAIAnalysis(freq)
-                    .then(aiRes => { setAiData(aiRes.data as AIAnalysis); setLoadingAI(false) })
-                    .catch(() => setLoadingAI(false))
-            })
-            .catch(() => setLoadingPreview(false))
-    }, [])
-
     useEffect(() => {
         reportsApi.getConfig()
             .then(res => {
@@ -266,9 +165,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         reportsApi.getLogs()
             .then(res => setLogs((res.data as ReportLog[]) || []))
             .then(() => setLoadingLogs(false), () => setLoadingLogs(false))
-
-        loadPreview(previewFreq)
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [])
 
     async function handleSaveConfig() {
         setSavingConfig(true)
@@ -342,203 +239,10 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
     }
 
-    // Derivados do preview
-    const atRiskLtv = preview?.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0) ?? 0
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
             <PageHeader title="Relatórios" subtitle="Análise completa do seu negócio com cruzamento de dados e diagnóstico de IA." />
 
-            {/* ── Preview ao vivo ─────────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(1), ease: [0.25, 0.1, 0.25, 1] }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <SectionLabel>Visão atual do negócio</SectionLabel>
-                    <SegmentedControl
-                        options={['semanal', 'mensal', 'trimestral'] as const}
-                        value={previewFreq}
-                        onChange={v => { setPreviewFreq(v); loadPreview(v) }}
-                        labels={{ semanal: 'Semana', mensal: 'Mês', trimestral: 'Trimestre' }}
-                    />
-                </div>
-
-                <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-                    {loadingPreview ? (
-                        <div style={{ padding: 32, display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--color-border)', borderTopColor: '#1a7fe8', animation: 'spin 0.8s linear infinite' }} />
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>Carregando dados...</span>
-                        </div>
-                    ) : preview ? (
-                        <>
-                            {/* Header do preview com situação geral */}
-                            <div style={{ padding: '20px 28px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        {aiData ? (
-                                            <SituacaoBadge value={aiData.situacao_geral} size="md" />
-                                        ) : (
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 500 }}>
-                                                {loadingAI ? (
-                                                    <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid var(--color-border)', borderTopColor: '#1a7fe8', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />Analisando...</>
-                                                ) : 'IA indisponível'}
-                                            </span>
-                                        )}
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                            {fmtDateShort(preview.period.start)} – {fmtDateShort(preview.period.end)}
-                                        </span>
-                                    </div>
-                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', maxWidth: 600, lineHeight: 1.5 }}>
-                                        {aiData?.resumo_executivo ?? (loadingAI ? 'Análise em processamento...' : '')}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* KPIs principais — 6 colunas */}
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 0, borderBottom: '1px solid var(--color-border)' }}>
-                                {[
-                                    { label: 'Receita Líquida', value: fmtBRL(preview.summary.revenue_net), sub: preview.summary.revenue_change_pct !== null ? `${preview.summary.revenue_change_pct >= 0 ? '+' : ''}${fmtNum(preview.summary.revenue_change_pct)}% vs anterior` : undefined, color: preview.summary.revenue_change_pct !== null ? (preview.summary.revenue_change_pct >= 0 ? undefined : '#EF4444') : undefined },
-                                    { label: 'ROAS', value: `${fmtNum(preview.summary.roas)}x`, sub: preview.summary.ad_spend > 0 ? `Spend ${fmtBRL(preview.summary.ad_spend)}` : 'Sem ads' },
-                                    { label: 'LTV Médio', value: fmtBRL(preview.summary.ltv_avg), sub: `${preview.summary.new_customers} novos clientes` },
-                                    { label: 'Ticket Médio', value: fmtBRL(preview.summary.aov), sub: `${preview.summary.transactions} transações` },
-                                    { label: 'Margem Bruta', value: `${fmtNum(preview.summary.gross_margin_pct)}%`, sub: `Bruto ${fmtBRL(preview.summary.revenue_gross)}` },
-                                    {
-                                        label: 'Reembolsos',
-                                        value: `${fmtNum(preview.summary.refund_rate ?? 0)}%`,
-                                        sub: fmtBRL(preview.summary.refund_amount ?? 0),
-                                        color: (preview.summary.refund_rate ?? 0) > 5 ? '#EF4444' : undefined,
-                                    },
-                                ].map((kpi, i) => (
-                                    <div key={i} style={{ padding: '16px 20px', borderRight: i < 5 ? '1px solid var(--color-border)' : 'none' }}>
-                                        <KpiMini {...kpi} />
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Canais + diagnósticos */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
-                                {/* Canais */}
-                                <div style={{ padding: '20px 24px', borderRight: '1px solid var(--color-border)' }}>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canais</span>
-                                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                        {preview.channel_economics.filter(c => c.channel !== 'desconhecido').slice(0, 4).map(ch => (
-                                            <div key={ch.channel} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: ch.status === 'lucrativo' ? '#22C55E' : ch.status === 'prejuizo' ? '#EF4444' : '#6B7280' }} />
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)' }}>{ch.channel}</span>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                                        {ch.ltv_cac_ratio !== null ? `LTV/CAC ${fmtNum(ch.ltv_cac_ratio)}x` : 'Orgânico'}
-                                                    </span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: ch.value_created >= 0 ? '#22C55E' : '#EF4444' }}>
-                                                        {ch.value_created >= 0 ? '+' : ''}{fmtBRL(ch.value_created)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        {preview.channel_economics.length === 0 && (
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>Sem dados de canais no período</span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Diagnósticos */}
-                                <div style={{ padding: '20px 24px' }}>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diagnósticos</span>
-                                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                        {loadingAI && !aiData && (
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>Analisando com IA...</span>
-                                        )}
-                                        {(aiData?.diagnosticos ?? []).slice(0, 3).map((d, i) => (
-                                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: SEVERIDADE_COLOR[d.severidade], flexShrink: 0, marginTop: 5 }} />
-                                                <div>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>{d.canal}</span>
-                                                    <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{d.sintoma}</p>
-                                                </div>
-                                                <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 11, color: SEVERIDADE_COLOR[d.severidade], fontWeight: 600, flexShrink: 0 }}>
-                                                    {fmtBRL(d.consequencia_financeira_brl)}
-                                                </span>
-                                            </div>
-                                        ))}
-                                        {!loadingAI && aiData && aiData.diagnosticos.length === 0 && (
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#22C55E' }}>Nenhum problema crítico identificado ✓</span>
-                                        )}
-                                        {preview.at_risk_customers.length > 0 && (
-                                            <div style={{ marginTop: 4, padding: '8px 12px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.2)' }}>
-                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: '#F59E0B' }}>
-                                                    {preview.at_risk_customers.length} clientes em risco de churn — {fmtBRL(atRiskLtv)} em LTV
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Tendência de receita */}
-                            {(preview.revenue_trend?.length ?? 0) >= 2 && (
-                                <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)' }}>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tendência</span>
-                                    <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                        {preview.revenue_trend!.map((t, i) => {
-                                            const hasChange = t.change_pct !== null
-                                            const isUp = (t.change_pct ?? 0) >= 0
-                                            return (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    {i > 0 && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>→</span>}
-                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{fmtBRL(t.revenue)}</span>
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: hasChange ? (isUp ? '#22C55E' : '#EF4444') : 'var(--color-text-secondary)' }}>
-                                                            {t.month}{hasChange ? ` ${isUp ? '↑' : '↓'}${fmtNum(Math.abs(t.change_pct!))}%` : ''}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Top produtos */}
-                            {(preview.top_products?.length ?? 0) > 0 && (
-                                <div style={{ padding: '14px 24px', borderTop: '1px solid var(--color-border)' }}>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Top Produtos</span>
-                                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                        {preview.top_products!.slice(0, 3).map((p, i) => (
-                                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {p.product_name}
-                                                    </span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                                                        {fmtBRL(p.revenue)} <span style={{ fontWeight: 400, color: 'var(--color-text-secondary)' }}>({p.pct_of_total}%)</span>
-                                                    </span>
-                                                </div>
-                                                <div style={{ height: 3, borderRadius: 2, background: 'var(--color-border)', overflow: 'hidden' }}>
-                                                    <div style={{ height: '100%', width: `${p.pct_of_total}%`, background: '#1a7fe8', borderRadius: 2 }} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Próximos passos */}
-                            {(aiData?.proximos_passos?.length ?? 0) > 0 && (
-                                <div style={{ padding: '16px 24px', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Próximos passos</span>
-                                    {aiData!.proximos_passos.slice(0, 3).map((p, i) => (
-                                        <span key={i} style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)' }}>
-                                            <span style={{ color: '#1a7fe8', marginRight: 6, fontWeight: 600 }}>{i + 1}.</span>{p}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <EmptyState title="Sem dados suficientes" description="Conecte integrações para gerar a análise do período." />
-                    )}
-                </div>
-            </motion.div>
 
             {/* ── Gerar relatório ─────────────────────────────────────────── */}
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(2), ease: [0.25, 0.1, 0.25, 1] }}>
