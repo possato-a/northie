@@ -38,6 +38,36 @@ interface ReportLog {
     }
 }
 
+interface ChannelEconomics {
+    channel: string
+    new_customers: number
+    avg_ltv: number
+    cac: number
+    ltv_cac_ratio: number | null
+    total_spend: number
+    value_created: number
+    status: 'lucrativo' | 'prejuizo' | 'organico'
+}
+
+interface PreviewData {
+    period: { start: string; end: string; days: number }
+    summary: {
+        revenue_net: number
+        revenue_gross: number
+        gross_margin_pct: number
+        aov: number
+        ad_spend: number
+        roas: number
+        new_customers: number
+        ltv_avg: number
+        revenue_change_pct: number | null
+        transactions: number
+        total_customers: number
+    }
+    channel_economics: ChannelEconomics[]
+    at_risk_customers: { ltv: number | null }[]
+}
+
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -107,6 +137,69 @@ function SegmentedControl<T extends string>({ options, value, onChange, labels }
     )
 }
 
+// ── Preview components ────────────────────────────────────────────────────────
+
+const CHANNEL_LABEL: Record<string, string> = {
+    meta_ads: 'Meta Ads', google_ads: 'Google Ads', hotmart: 'Hotmart',
+    stripe: 'Stripe', shopify: 'Shopify', organico: 'Orgânico',
+    email: 'Email', direto: 'Direto', afiliado: 'Afiliado',
+}
+
+const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+    lucrativo: { color: '#22C55E', bg: 'rgba(34,197,94,0.10)',  label: 'Lucrativo' },
+    prejuizo:  { color: '#EF4444', bg: 'rgba(239,68,68,0.10)',  label: 'Prejuízo'  },
+    organico:  { color: '#6B7280', bg: 'rgba(107,114,128,0.10)', label: 'Orgânico' },
+}
+
+function PreviewKpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column', gap: 4,
+            padding: '14px 16px',
+            background: 'var(--color-bg-secondary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 8,
+            minWidth: 0,
+        }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                {label}
+            </span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
+                {value}
+            </span>
+            {sub && (
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: subColor ?? 'var(--color-text-secondary)' }}>
+                    {sub}
+                </span>
+            )}
+        </div>
+    )
+}
+
+function PreviewSkeleton() {
+    const bar = (w: string, h = 12) => (
+        <div style={{ width: w, height: h, borderRadius: 4, background: 'var(--color-bg-tertiary)', animation: 'pulse 1.4s ease-in-out infinite' }} />
+    )
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                {[0,1,2,3].map(i => (
+                    <div key={i} style={{ padding: '14px 16px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {bar('50%', 10)}{bar('70%', 20)}
+                    </div>
+                ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[0,1].map(i => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
+                        {bar('120px')}{bar('80px')}{bar('60px')}
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 // ── Download helper ───────────────────────────────────────────────────────────
 
 function DownloadIcon() {
@@ -144,6 +237,11 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [savingConfig, setSavingConfig] = useState(false)
     const [savedFeedback, setSavedFeedback] = useState(false)
 
+    // Preview
+    const [preview, setPreview] = useState<PreviewData | null>(null)
+    const [loadingPreview, setLoadingPreview] = useState(true)
+    const [previewError, setPreviewError] = useState(false)
+
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'json'>('pdf')
@@ -167,6 +265,15 @@ export default function Relatorios(_props: RelatoriosProps) {
             .then(res => setLogs((res.data as ReportLog[]) || []))
             .then(() => setLoadingLogs(false), () => setLoadingLogs(false))
     }, [])
+
+    useEffect(() => {
+        setLoadingPreview(true)
+        setPreviewError(false)
+        reportsApi.getPreview(genFrequency)
+            .then(res => { setPreview(res.data as PreviewData) })
+            .catch(() => setPreviewError(true))
+            .finally(() => setLoadingPreview(false))
+    }, [genFrequency])
 
     async function handleSaveConfig() {
         setSavingConfig(true)
@@ -244,6 +351,139 @@ export default function Relatorios(_props: RelatoriosProps) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
             <PageHeader title="Relatórios" subtitle="Análise completa do seu negócio com cruzamento de dados e diagnóstico de IA." />
 
+
+            {/* ── Prévia dos dados ────────────────────────────────────────── */}
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(1), ease: [0.25, 0.1, 0.25, 1] }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <SectionLabel gutterBottom={0}>Prévia dos dados</SectionLabel>
+                    {preview && !loadingPreview && (
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                            {fmtDateShort(preview.period.start)} – {fmtDateShort(preview.period.end)} · {preview.period.days} dias
+                        </span>
+                    )}
+                </div>
+                <div style={card}>
+                    <AnimatePresence mode="wait">
+                        {loadingPreview ? (
+                            <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <PreviewSkeleton />
+                            </motion.div>
+                        ) : previewError ? (
+                            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ textAlign: 'center', padding: '24px 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                Não foi possível carregar a prévia. Verifique as integrações.
+                            </motion.div>
+                        ) : preview ? (
+                            <motion.div key="data" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                                {/* KPI grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                                    <PreviewKpi
+                                        label="Receita Líquida"
+                                        value={fmtBRL(preview.summary.revenue_net)}
+                                        sub={preview.summary.revenue_change_pct !== null
+                                            ? `${preview.summary.revenue_change_pct >= 0 ? '+' : ''}${preview.summary.revenue_change_pct.toFixed(1)}% vs período anterior`
+                                            : `${preview.summary.transactions} transações`}
+                                        subColor={preview.summary.revenue_change_pct !== null
+                                            ? preview.summary.revenue_change_pct >= 0 ? '#22C55E' : '#EF4444'
+                                            : undefined}
+                                    />
+                                    <PreviewKpi
+                                        label="ROAS"
+                                        value={`${preview.summary.roas.toFixed(2)}x`}
+                                        sub={`Gasto em ads: ${fmtBRL(preview.summary.ad_spend)}`}
+                                    />
+                                    <PreviewKpi
+                                        label="Novos Clientes"
+                                        value={String(preview.summary.new_customers)}
+                                        sub={`Base total: ${preview.summary.total_customers}`}
+                                    />
+                                    <PreviewKpi
+                                        label="LTV Médio"
+                                        value={fmtBRL(preview.summary.ltv_avg)}
+                                        sub={`Margem bruta: ${preview.summary.gross_margin_pct.toFixed(1)}%`}
+                                    />
+                                </div>
+
+                                {/* Canais */}
+                                {preview.channel_economics.filter(c => c.channel !== 'desconhecido').length > 0 && (
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                                                Canais
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            {preview.channel_economics
+                                                .filter(c => c.channel !== 'desconhecido')
+                                                .sort((a, b) => b.value_created - a.value_created)
+                                                .map((ch, i, arr) => {
+                                                    const st = STATUS_STYLE[ch.status] ?? STATUS_STYLE.organico
+                                                    return (
+                                                        <div key={ch.channel} style={{
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '160px 1fr 90px 90px 80px',
+                                                            alignItems: 'center',
+                                                            gap: 16,
+                                                            padding: '10px 0',
+                                                            borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
+                                                        }}>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                                {CHANNEL_LABEL[ch.channel] ?? ch.channel}
+                                                            </span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                                                                    {ch.new_customers} clientes
+                                                                </span>
+                                                            </div>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+                                                                LTV {fmtBRL(ch.avg_ltv)}
+                                                            </span>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+                                                                CAC {ch.cac > 0 ? fmtBRL(ch.cac) : '—'}
+                                                            </span>
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                                <span style={{
+                                                                    fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600,
+                                                                    padding: '2px 8px', borderRadius: 4,
+                                                                    background: st.bg, color: st.color,
+                                                                }}>
+                                                                    {st.label}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Clientes em risco */}
+                                {preview.at_risk_customers.length > 0 && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: 10,
+                                        padding: '10px 14px',
+                                        background: 'rgba(239,68,68,0.06)',
+                                        border: '1px solid rgba(239,68,68,0.20)',
+                                        borderRadius: 8,
+                                    }}>
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', flexShrink: 0 }} />
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)' }}>
+                                            <strong style={{ color: '#EF4444' }}>{preview.at_risk_customers.length}</strong>
+                                            {' '}clientes com risco de churn acima de 60% —{' '}
+                                            <span style={{ fontFamily: 'var(--font-mono)', color: '#EF4444' }}>
+                                                {fmtBRL(preview.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0))}
+                                            </span>
+                                            {' '}em LTV em risco
+                                        </span>
+                                    </div>
+                                )}
+                            </motion.div>
+                        ) : null}
+                    </AnimatePresence>
+                </div>
+            </motion.div>
 
             {/* ── Gerar relatório ─────────────────────────────────────────── */}
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(2), ease: [0.25, 0.1, 0.25, 1] }}>
