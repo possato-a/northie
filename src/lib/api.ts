@@ -42,7 +42,7 @@ export const campaignApi = {
 };
 
 export const dataApi = {
-    getTransactions: () => api.get('/data/transactions'),
+    getTransactions: (days = 30) => api.get('/data/transactions', { params: { days } }),
     getCustomers: () => api.get('/data/customers'),
 };
 

@@ -65,13 +65,6 @@ const CHAT_CHIPS = [
   'Por que meu LTV caiu?',
 ]
 
-const MOCK_STEPS: Record<RecType, string[]> = {
-  reativacao_alto_ltv: ['Buscando segmento de clientes', 'Obtendo token Meta Ads', 'Identificando conta de anúncios', 'Criando Custom Audience no Meta'],
-  pausa_campanha_ltv_baixo: ['Identificando campanhas para pausar', 'Obtendo token Meta Ads', 'Pausando campanhas via Meta API'],
-  audience_sync_champions: ['Buscando segmento Champions', 'Obtendo token Meta Ads', 'Identificando conta de anúncios', 'Criando Northie Champions Audience'],
-  realocacao_budget: ['Calculando nova distribuição de budget', 'Obtendo token Meta Ads', 'Ajustando budgets via Meta API'],
-  upsell_cohort: ['Buscando clientes na janela de recompra', 'Obtendo token Meta Ads', 'Identificando conta de anúncios', 'Criando Upsell Cohort Audience'],
-}
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -739,27 +732,6 @@ export default function Growth() {
     }, 2000)
   }, [stopPolling])
 
-  // Simulação local de execução (funciona com ou sem backend)
-  const simulateExecution = useCallback(async (id: string, type: RecType) => {
-    const steps = MOCK_STEPS[type] || []
-    for (let i = 0; i < steps.length; i++) {
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 700))
-      setRecommendations(prev => prev.map(r => {
-        if (r.id !== id) return r
-        const log = [...r.execution_log]
-        // Marca step anterior como done
-        if (log.length > 0) log[log.length - 1] = { ...log[log.length - 1]!, status: 'done' }
-        // Adiciona próximo step como running
-        log.push({ step: steps[i]!, status: i === steps.length - 1 ? 'done' : 'running', timestamp: new Date().toISOString() })
-        return { ...r, execution_log: log }
-      }))
-    }
-    await new Promise(r => setTimeout(r, 500))
-    setRecommendations(prev => prev.map(r =>
-      r.id === id ? { ...r, status: 'completed' } : r
-    ))
-  }, [])
-
   const handleApprove = async (id: string) => {
     const rec = recommendations.find(r => r.id === id)
     if (!rec) return
@@ -772,8 +744,10 @@ export default function Growth() {
       await growthApi.approve(id)
       startPolling(id)
     } catch {
-      // Backend não disponível — simula localmente
-      simulateExecution(id, rec.type)
+      // Backend indisponível — reverte para estado de falha
+      setRecommendations(prev => prev.map(r =>
+        r.id === id ? { ...r, status: 'failed', execution_log: [{ step: 'Falha ao conectar com o backend', status: 'failed', timestamp: new Date().toISOString() }] } : r
+      ))
     }
   }
 

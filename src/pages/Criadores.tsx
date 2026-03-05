@@ -7,7 +7,7 @@ import { fmtBR } from '../lib/utils'
 import type { Creator } from '../types'
 import {
     PageHeader, SectionLabel, TH, Divider,
-    Btn, Modal, Input, Textarea, SelectField,
+    Btn, Modal, Input, Textarea,
     EmptyState, LoadingRow, FilterPills
 } from '../components/ui/shared'
 
@@ -160,7 +160,7 @@ function CampaignDetails({
 function NewCampaignModal({ onClose, onCreate }: { onClose: () => void; onCreate: (c: any) => void }) {
     const [formData, setFormData] = useState({
         name: '',
-        product_name: 'Northie Pro Plan',
+        product_name: '',
         type: 'percentual',
         commission_rate: 20,
         start_date: '',
@@ -181,15 +181,12 @@ function NewCampaignModal({ onClose, onCreate }: { onClose: () => void; onCreate
                     onChange={e => set('name', e.target.value)}
                     placeholder="Ex: Lançamento Coleção Verão"
                 />
-                <SelectField
+                <Input
                     label="Produto vinculado"
                     value={formData.product_name}
                     onChange={e => set('product_name', e.target.value)}
-                >
-                    <option>Northie Pro Plan</option>
-                    <option>Módulo Analytics</option>
-                    <option>Mentoria Individual</option>
-                </SelectField>
+                    placeholder="Nome do produto ou serviço"
+                />
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 12 }}>
                     <SelectField
                         label="Tipo de comissão"

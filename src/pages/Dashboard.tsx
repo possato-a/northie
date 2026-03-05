@@ -70,7 +70,7 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
     }
   }
 
-  const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Francisco'
+  const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Você'
 
   if (loading && !stats) {
     return (

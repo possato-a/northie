@@ -10,9 +10,14 @@ const PERIODS = [
   'Este ano',
 ]
 
-export default function DatePicker() {
+interface DatePickerProps {
+  value?: string | null
+  onChange?: (period: string, days: number) => void
+}
+
+export default function DatePicker({ value, onChange }: DatePickerProps = {}) {
   const [open, setOpen] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(value ?? null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -80,7 +85,20 @@ export default function DatePicker() {
             {PERIODS.map(period => (
               <button
                 key={period}
-                onClick={() => { setSelected(period); setOpen(false) }}
+                onClick={() => {
+                  setSelected(period)
+                  setOpen(false)
+                  if (onChange) {
+                    const daysMap: Record<string, number> = {
+                      'Últimos 7 dias': 7,
+                      'Últimos 30 dias': 30,
+                      'Este mês': 30,
+                      'Último trimestre': 90,
+                      'Este ano': 365,
+                    }
+                    onChange(period, daysMap[period] ?? 30)
+                  }
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   width: '100%', textAlign: 'left',

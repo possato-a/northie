@@ -20,6 +20,8 @@ interface ValuationSnapshot {
     gross_margin: number
     methodology: string
     benchmark_percentile: number
+    segment_median_brl?: number
+    segment_sample_size?: number
 }
 
 // ── Gráfico de histórico de valuation ────────────────────────────
@@ -188,6 +190,8 @@ export default function Valuation({ onToggleChat }: PageProps) {
                 gross_margin: 0,
                 methodology: d.methodology ?? 'arr_multiple',
                 benchmark_percentile: d.benchmark_percentile ?? 50,
+                segment_median_brl: d.segment_median_brl ?? 0,
+                segment_sample_size: d.segment_sample_size ?? 0,
             })
         }).catch(console.error)
 
@@ -344,8 +348,8 @@ export default function Valuation({ onToggleChat }: PageProps) {
                                     borderTop: '1px solid var(--color-border)',
                                 }}>
                                     {[
-                                        { label: 'Mediana do segmento', value: 'R$ 680k' },
-                                        { label: 'Negócios na amostra', value: '47' },
+                                        { label: 'Mediana do segmento', value: current.segment_median_brl && current.segment_median_brl > 0 ? `R$ ${(current.segment_median_brl / 1_000).toFixed(0)}k` : '—' },
+                                        { label: 'Negócios na amostra', value: current.segment_sample_size && current.segment_sample_size > 0 ? String(current.segment_sample_size) : '—' },
                                     ].map((item) => (
                                         <div key={item.label}>
                                             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', margin: '0 0 4px' }}>

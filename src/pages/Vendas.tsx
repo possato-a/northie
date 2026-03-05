@@ -161,9 +161,10 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<{ label: string; days: number }>({ label: 'Últimos 30 dias', days: 30 })
 
   useEffect(() => {
-    const txPromise = dataApi.getTransactions().catch(() => ({ data: [] }))
+    const txPromise = dataApi.getTransactions(period.days).catch(() => ({ data: [] }))
     const statsPromise = dashboardApi.getStats().catch(() => ({ data: {} }))
     const campaignsPromise = dashboardApi.getAdCampaigns(30).catch(() => ({ data: [] }))
 
@@ -187,7 +188,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
 
       setStats({ ...(statsRes.data as any), convRate })
     }).finally(() => setLoading(false))
-  }, [])
+  }, [period.days])
 
   return (
     <div style={{ paddingTop: 28, paddingBottom: 80 }}>
@@ -196,7 +197,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
       <PageHeader
         title="Vendas"
         subtitle="Analise cada transação e o desempenho de seus produtos em tempo real."
-        actions={<DatePicker />}
+        actions={<DatePicker value={period.label} onChange={(label, days) => setPeriod({ label, days })} />}
       />
 
       <div style={{ display: 'flex', gap: 48, marginTop: 40, flexWrap: 'wrap' }}>
