@@ -24,9 +24,10 @@ const FREQ_LABEL: Record<string, string> = {
     semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral',
 };
 
+const SITUACAO_FALLBACK = { label: 'Atenção', color: '#b45309', bg: '#fffbeb' };
 const SITUACAO: Record<string, { label: string; color: string; bg: string }> = {
     saudavel: { label: 'Saudável',  color: '#16a34a', bg: '#f0fdf4' },
-    atencao:  { label: 'Atenção',   color: '#b45309', bg: '#fffbeb' },
+    atencao:  SITUACAO_FALLBACK,
     critica:  { label: 'Crítica',   color: '#dc2626', bg: '#fef2f2' },
 };
 
@@ -44,7 +45,7 @@ function buildEmailHtml(opts: {
 }): string {
     const { frequency, data, ai, format } = opts;
     const freqLabel = FREQ_LABEL[frequency] ?? frequency;
-    const situacao = SITUACAO[ai.situacao_geral] ?? SITUACAO.atencao;
+    const situacao = SITUACAO[ai.situacao_geral] ?? SITUACAO_FALLBACK;
 
     const fmtDate = (iso: string) =>
         new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
