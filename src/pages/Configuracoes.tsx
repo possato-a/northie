@@ -659,7 +659,7 @@ function WorkspacePanel({ user }: { user?: any }) {
                     if (data.logo_url) setLogoUrl(data.logo_url)
                 }
             })
-            .finally(() => setLoading(false))
+            .then(() => setLoading(false), () => setLoading(false))
     }, [user?.id])
 
     const handleSave = async () => {

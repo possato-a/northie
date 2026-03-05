@@ -200,8 +200,7 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     // Generate on-demand state
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
-    const [genFormat, setGenFormat] = useState<ReportConfig['format']>('csv')
-    const [generatingCsv, setGeneratingCsv] = useState(false)
+const [generatingCsv, setGeneratingCsv] = useState(false)
     const [generatingJson, setGeneratingJson] = useState(false)
 
     // History state
