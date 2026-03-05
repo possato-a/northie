@@ -13,7 +13,12 @@ type RecType =
     | 'pausa_campanha_ltv_baixo'
     | 'audience_sync_champions'
     | 'realocacao_budget'
-    | 'upsell_cohort';
+    | 'upsell_cohort'
+    | 'divergencia_roi_canal'
+    | 'queda_retencao_cohort'
+    | 'canal_alto_ltv_underinvested'
+    | 'cac_vs_ltv_deficit'
+    | 'em_risco_alto_valor';
 
 interface ExecutionStep {
     step: string;
@@ -289,6 +294,155 @@ async function executeUpsellCohort(profileId: string, recId: string, meta: any):
     await updateStatus(recId, 'completed');
 }
 
+// ── Executores dos novos tipos (análise e/ou audience sync) ───────────────────
+
+async function executeDivergenciaRoiCanal(profileId: string, recId: string, meta: any): Promise<void> {
+    const worst = meta.worst_channel;
+    await appendLog(recId, {
+        step: 'Análise de divergência ROI concluída',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: worst ? `${worst.channel}: ROI caiu ${worst.roi_drop_pct}% com spend +${Math.round(((worst.current_spend - worst.historic_spend) / worst.historic_spend) * 100)}%` : 'Ver detalhes acima',
+    });
+    await appendLog(recId, {
+        step: 'Recomendação: revisar criativos e segmentação',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: 'Acesse o Meta Ads Manager para pausar anúncios com frequência alta ou CTR em queda',
+    });
+    await updateStatus(recId, 'completed');
+}
+
+async function executeQuedaRetencaoCohort(profileId: string, recId: string, meta: any): Promise<void> {
+    const worst = meta.worst_channel;
+    await appendLog(recId, {
+        step: 'Análise de retenção de cohort concluída',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: worst ? `Cohort ${worst.cohort_month?.substring(0, 7)}: retenção ${worst.current_retention}% vs média histórica ${worst.historic_avg}%` : 'Ver detalhes acima',
+    });
+    await appendLog(recId, {
+        step: 'Recomendação: revisar onboarding e experiência pós-compra',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: 'Envie pesquisa de satisfação para o cohort afetado e revise a sequência de e-mails pós-compra',
+    });
+    await updateStatus(recId, 'completed');
+}
+
+async function executeCanalAltoLtvUnderinvested(profileId: string, recId: string, meta: any): Promise<void> {
+    const best = meta.best_channel;
+    await appendLog(recId, {
+        step: 'Canal de alto LTV identificado',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: best ? `${best.channel}: ROI ${Number(best.true_roi).toFixed(1)}x, LTV médio R$ ${Number(best.avg_ltv_brl).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Ver detalhes acima',
+    });
+    await appendLog(recId, {
+        step: 'Recomendação: aumentar orçamento no canal identificado',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: 'Aumente o orçamento diário do canal/campanha de forma gradual (20-30% por semana) para não impactar o CPM',
+    });
+    await updateStatus(recId, 'completed');
+}
+
+async function executeCacVsLtvDeficit(profileId: string, recId: string, meta: any): Promise<void> {
+    await appendLog(recId, {
+        step: 'Segmento com déficit CAC vs LTV identificado',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: `${meta.unprofitable_count} clientes | Déficit total: R$ ${Number(meta.total_deficit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+    });
+
+    const accessToken = await getMetaToken(profileId);
+    if (!accessToken) {
+        await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'failed', timestamp: new Date().toISOString(), detail: 'Integração Meta não encontrada' });
+        await updateStatus(recId, 'failed');
+        return;
+    }
+    await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'done', timestamp: new Date().toISOString() });
+
+    const adAccountId = await getMetaAdAccountId(accessToken);
+    if (!adAccountId) {
+        await appendLog(recId, { step: 'Identificando conta de anúncios', status: 'failed', timestamp: new Date().toISOString() });
+        await updateStatus(recId, 'failed');
+        return;
+    }
+    await appendLog(recId, { step: 'Identificando conta de anúncios', status: 'done', timestamp: new Date().toISOString() });
+
+    const emails: string[] = meta.customer_emails || [];
+    await appendLog(recId, { step: 'Criando Audience de Payback Acelerado', status: 'running', timestamp: new Date().toISOString() });
+
+    const audience = await createMetaCustomAudience(
+        adAccountId, accessToken,
+        `Northie Payback — Recompra ${new Date().toLocaleDateString('pt-BR')}`,
+        emails
+    );
+
+    if (!audience) {
+        await appendLog(recId, { step: 'Criando Audience de Payback Acelerado', status: 'failed', timestamp: new Date().toISOString() });
+        await updateStatus(recId, 'failed');
+        return;
+    }
+
+    await appendLog(recId, {
+        step: 'Audience criada — direcione oferta de segunda compra',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: `Audience ID: ${audience.id} • ${emails.length} emails • Use desconto progressivo para acelerar payback`,
+    });
+    await updateStatus(recId, 'completed');
+}
+
+async function executeEmRiscoAltoValor(profileId: string, recId: string, meta: any): Promise<void> {
+    await appendLog(recId, {
+        step: 'Segmento Em Risco de Alto Valor identificado',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: `${meta.at_risk_count} clientes | LTV médio R$ ${Number(meta.avg_ltv || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Churn médio ${meta.avg_churn_probability}%`,
+    });
+
+    const accessToken = await getMetaToken(profileId);
+    if (!accessToken) {
+        await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'failed', timestamp: new Date().toISOString(), detail: 'Integração Meta não encontrada' });
+        await updateStatus(recId, 'failed');
+        return;
+    }
+    await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'done', timestamp: new Date().toISOString() });
+
+    const adAccountId = await getMetaAdAccountId(accessToken);
+    if (!adAccountId) {
+        await appendLog(recId, { step: 'Identificando conta de anúncios', status: 'failed', timestamp: new Date().toISOString() });
+        await updateStatus(recId, 'failed');
+        return;
+    }
+    await appendLog(recId, { step: 'Identificando conta de anúncios', status: 'done', timestamp: new Date().toISOString() });
+
+    const emails: string[] = meta.customer_emails || [];
+    await appendLog(recId, { step: 'Criando Audience de Reativação — Alto Valor', status: 'running', timestamp: new Date().toISOString() });
+
+    const audience = await createMetaCustomAudience(
+        adAccountId, accessToken,
+        `Northie Em Risco Alto Valor ${new Date().toLocaleDateString('pt-BR')}`,
+        emails
+    );
+
+    if (!audience) {
+        await appendLog(recId, { step: 'Criando Audience de Reativação — Alto Valor', status: 'failed', timestamp: new Date().toISOString() });
+        await updateStatus(recId, 'failed');
+        return;
+    }
+
+    await appendLog(recId, {
+        step: 'Audience criada — ative campanha de reativação exclusiva',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: `Audience ID: ${audience.id} • ${emails.length} emails • Priorize oferta personalizada de alto valor`,
+    });
+    await updateStatus(recId, 'completed');
+}
+
 // ── Interface pública ─────────────────────────────────────────────────────────
 
 export async function executeRecommendation(profileId: string, recId: string): Promise<void> {
@@ -323,6 +477,21 @@ export async function executeRecommendation(profileId: string, recId: string): P
                 break;
             case 'upsell_cohort':
                 await executeUpsellCohort(profileId, recId, meta);
+                break;
+            case 'divergencia_roi_canal':
+                await executeDivergenciaRoiCanal(profileId, recId, meta);
+                break;
+            case 'queda_retencao_cohort':
+                await executeQuedaRetencaoCohort(profileId, recId, meta);
+                break;
+            case 'canal_alto_ltv_underinvested':
+                await executeCanalAltoLtvUnderinvested(profileId, recId, meta);
+                break;
+            case 'cac_vs_ltv_deficit':
+                await executeCacVsLtvDeficit(profileId, recId, meta);
+                break;
+            case 'em_risco_alto_valor':
+                await executeEmRiscoAltoValor(profileId, recId, meta);
                 break;
         }
     } catch (err: any) {

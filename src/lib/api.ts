@@ -56,6 +56,7 @@ export const growthApi = {
     approve: (id: string) => api.post(`/growth/recommendations/${id}/approve`),
     dismiss: (id: string) => api.post(`/growth/recommendations/${id}/dismiss`),
     getStatus: (id: string) => api.get(`/growth/recommendations/${id}/status`),
+    getMetrics: () => api.get('/growth/metrics'),
 };
 
 export const pixelApi = {

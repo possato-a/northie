@@ -39,6 +39,30 @@ interface Recommendation {
   updated_at: string
 }
 
+interface ChannelPerf {
+  channel: string
+  customers_acquired: number
+  total_ltv_brl: number
+  avg_ltv_brl: number
+  total_spend_brl: number
+  true_roi: number | null
+  high_churn_count: number
+  avg_churn_probability: number
+}
+
+interface GrowthMetrics {
+  channel_performance: ChannelPerf[]
+  segments: { Champions: number; 'Em Risco': number; 'Novos Promissores': number; Inativos: number }
+  summary: {
+    total_customers: number
+    avg_ltv_brl: number
+    avg_cac_brl: number
+    cac_deficit_count: number
+    high_churn_count: number
+    best_roi: number
+  }
+}
+
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -73,6 +97,15 @@ const TYPE_COLORS: Record<RecType, string> = {
   em_risco_alto_valor: '#EF4444',
 }
 
+const CHANNEL_LABELS: Record<string, string> = {
+  meta_ads: 'Meta Ads',
+  google_ads: 'Google Ads',
+  organico: 'Orgânico',
+  email: 'E-mail',
+  direto: 'Direto',
+  afiliado: 'Afiliado',
+}
+
 const CHAT_CHIPS = [
   'Explica essa recomendação',
   'Qual o impacto de pausar?',
@@ -80,6 +113,8 @@ const CHAT_CHIPS = [
   'Por que meu LTV caiu?',
 ]
 
+const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtInt = (n: number) => n.toLocaleString('pt-BR')
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -129,6 +164,88 @@ function StepIcon({ status }: { status: 'done' | 'running' | 'failed' }) {
   )
 }
 
+// Mini-tabela de dados inline extraídos do meta da recomendação
+function RecMetaInline({ type, meta }: { type: RecType; meta: any }) {
+  if (!meta) return null
+
+  const rows: { label: string; value: string }[] = []
+
+  if (type === 'reativacao_alto_ltv') {
+    if (meta.segment_count) rows.push({ label: 'Clientes', value: fmtInt(meta.segment_count) })
+    if (meta.avg_ltv) rows.push({ label: 'LTV médio', value: `R$ ${fmt(meta.avg_ltv)}` })
+    if (meta.global_avg_ltv) rows.push({ label: 'LTV global', value: `R$ ${fmt(meta.global_avg_ltv)}` })
+  } else if (type === 'pausa_campanha_ltv_baixo') {
+    if (meta.total_spend_14d) rows.push({ label: 'Gasto 14d', value: `R$ ${fmt(meta.total_spend_14d)}` })
+    if (meta.global_avg_ltv) rows.push({ label: 'LTV global', value: `R$ ${fmt(meta.global_avg_ltv)}` })
+    if (meta.campaigns?.length) rows.push({ label: 'Campanhas', value: fmtInt(meta.campaigns.length) })
+  } else if (type === 'audience_sync_champions') {
+    if (meta.champion_count) rows.push({ label: 'Champions', value: fmtInt(meta.champion_count) })
+    if (meta.avg_ltv) rows.push({ label: 'LTV médio', value: `R$ ${fmt(meta.avg_ltv)}` })
+  } else if (type === 'realocacao_budget') {
+    if (meta.best_channel) rows.push({ label: 'Melhor canal', value: CHANNEL_LABELS[meta.best_channel.platform] || meta.best_channel.platform })
+    if (meta.ltv_diff_pct) rows.push({ label: 'Diferença LTV', value: `+${meta.ltv_diff_pct}%` })
+  } else if (type === 'upsell_cohort') {
+    if (meta.segment_count) rows.push({ label: 'Na janela', value: fmtInt(meta.segment_count) })
+    if (meta.avg_interval_days) rows.push({ label: 'Intervalo médio', value: `${meta.avg_interval_days} dias` })
+    if (meta.avg_ltv) rows.push({ label: 'LTV médio', value: `R$ ${fmt(meta.avg_ltv)}` })
+  } else if (type === 'divergencia_roi_canal') {
+    const w = meta.worst_channel
+    if (w) {
+      rows.push({ label: 'ROI atual', value: `${Number(w.current_roi).toFixed(2)}x` })
+      rows.push({ label: 'ROI anterior', value: `${Number(w.historic_roi).toFixed(2)}x` })
+      rows.push({ label: 'Queda', value: `-${w.roi_drop_pct}%` })
+    }
+  } else if (type === 'queda_retencao_cohort') {
+    const w = meta.worst_channel
+    if (w) {
+      rows.push({ label: 'Retenção atual', value: `${w.current_retention}%` })
+      rows.push({ label: 'Média histórica', value: `${w.historic_avg}%` })
+      rows.push({ label: 'Cohort', value: w.cohort_month?.substring(0, 7) || '—' })
+    }
+  } else if (type === 'canal_alto_ltv_underinvested') {
+    const b = meta.best_channel
+    if (b) {
+      rows.push({ label: 'ROI real', value: `${Number(b.true_roi).toFixed(1)}x` })
+      rows.push({ label: 'LTV médio', value: `R$ ${fmt(Number(b.avg_ltv_brl))}` })
+      rows.push({ label: 'Gasto atual', value: `R$ ${fmt(Number(b.total_spend_brl))}` })
+    }
+  } else if (type === 'cac_vs_ltv_deficit') {
+    if (meta.unprofitable_count) rows.push({ label: 'Clientes', value: fmtInt(meta.unprofitable_count) })
+    if (meta.total_deficit) rows.push({ label: 'Déficit total', value: `R$ ${fmt(meta.total_deficit)}` })
+    if (meta.avg_cac) rows.push({ label: 'CAC médio', value: `R$ ${fmt(meta.avg_cac)}` })
+    if (meta.avg_ltv) rows.push({ label: 'LTV médio', value: `R$ ${fmt(meta.avg_ltv)}` })
+  } else if (type === 'em_risco_alto_valor') {
+    if (meta.at_risk_count) rows.push({ label: 'Em risco', value: fmtInt(meta.at_risk_count) })
+    if (meta.avg_ltv) rows.push({ label: 'LTV médio', value: `R$ ${fmt(meta.avg_ltv)}` })
+    if (meta.avg_churn_probability) rows.push({ label: 'Churn médio', value: `${meta.avg_churn_probability}%` })
+  }
+
+  if (!rows.length) return null
+
+  return (
+    <div style={{
+      display: 'flex',
+      gap: 8,
+      flexWrap: 'wrap' as const,
+      padding: '8px 12px',
+      background: `${TYPE_COLORS[type]}08`,
+      border: `1px solid ${TYPE_COLORS[type]}20`,
+      borderRadius: 'var(--radius-md)',
+    }}>
+      {rows.map(row => (
+        <div key={row.label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+            {row.label}
+          </span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: TYPE_COLORS[type], fontWeight: 500 }}>
+            {row.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function RecommendationCard({ rec, onApprove, onDismiss }: {
   rec: Recommendation
   onApprove: (id: string) => void
@@ -169,44 +286,30 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
         </div>
         {rec.status === 'completed' && (
           <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            color: '#10B981',
-            background: '#10B98115',
-            border: '1px solid #10B98130',
-            borderRadius: 'var(--radius-full)',
-            padding: '2px 8px',
-            whiteSpace: 'nowrap',
-          }}>
-            Concluído
-          </span>
+            fontFamily: 'var(--font-mono)', fontSize: 10, color: '#10B981',
+            background: '#10B98115', border: '1px solid #10B98130',
+            borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
+          }}>Concluído</span>
         )}
         {rec.status === 'failed' && (
           <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            color: '#EF4444',
-            background: '#EF444415',
-            border: '1px solid #EF444430',
-            borderRadius: 'var(--radius-full)',
-            padding: '2px 8px',
-            whiteSpace: 'nowrap',
-          }}>
-            Falhou
-          </span>
+            fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EF4444',
+            background: '#EF444415', border: '1px solid #EF444430',
+            borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
+          }}>Falhou</span>
         )}
       </div>
 
-      {/* Pending state: narrative + actions */}
+      {/* Dados inline da correlação */}
+      {!isActive && <RecMetaInline type={rec.type} meta={rec.meta} />}
+
+      {/* Pending: narrative + actions */}
       {!isActive && (
         <>
           <div>
             <p style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)',
-              lineHeight: 1.6,
-              margin: 0,
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+              color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0,
               display: expanded ? 'block' : '-webkit-box',
               WebkitLineClamp: expanded ? 'unset' : 3,
               WebkitBoxOrient: 'vertical' as any,
@@ -218,14 +321,9 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
               <button
                 onClick={() => setExpanded(!expanded)}
                 style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--color-primary)',
-                  marginTop: 4,
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
+                  color: 'var(--color-primary)', marginTop: 4,
                 }}
               >
                 {expanded ? 'Menos' : 'Ler mais'}
@@ -235,21 +333,13 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
 
           {rec.impact_estimate && (
             <div style={{
-              padding: '8px 12px',
-              background: 'var(--color-bg-secondary)',
-              borderRadius: 'var(--radius-md)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
+              padding: '8px 12px', background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
                 <path d="M7 1L8.5 5.5H13.5L9.5 8.5L11 13L7 10L3 13L4.5 8.5L0.5 5.5H5.5L7 1Z" fill="var(--color-primary)" fillOpacity="0.6"/>
               </svg>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 'var(--text-xs)',
-                color: 'var(--color-text-secondary)',
-              }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
                 {rec.impact_estimate}
               </span>
             </div>
@@ -261,16 +351,11 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               style={{
-                flex: 1,
-                padding: '8px 0',
-                background: 'var(--color-primary)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontFamily: 'var(--font-sans)',
-                fontSize: 'var(--text-sm)',
-                fontWeight: 500,
-                cursor: 'pointer',
+                flex: 1, padding: '8px 0',
+                background: 'var(--color-primary)', color: 'white',
+                border: 'none', borderRadius: 'var(--radius-md)',
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                fontWeight: 500, cursor: 'pointer',
               }}
             >
               Aprovar e executar
@@ -280,14 +365,10 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               style={{
-                padding: '8px 14px',
-                background: 'transparent',
-                color: 'var(--color-text-tertiary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                fontFamily: 'var(--font-sans)',
-                fontSize: 'var(--text-sm)',
-                cursor: 'pointer',
+                padding: '8px 14px', background: 'transparent',
+                color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                fontSize: 'var(--text-sm)', cursor: 'pointer',
               }}
             >
               Descartar
@@ -296,7 +377,7 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
         </>
       )}
 
-      {/* Active state: execution log */}
+      {/* Active: execution log */}
       {isActive && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           {(rec.execution_log || []).map((step, i) => (
@@ -312,30 +393,18 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
               </div>
               <div style={{ flex: 1 }}>
                 <span style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)',
+                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
                   color: step.status === 'failed' ? '#EF4444' : 'var(--color-text-primary)',
                 }}>
                   {step.step}
                 </span>
                 {step.detail && (
-                  <p style={{
-                    margin: '2px 0 0',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 10,
-                    color: 'var(--color-text-tertiary)',
-                  }}>
+                  <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
                     {step.detail}
                   </p>
                 )}
               </div>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'var(--color-text-tertiary)',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 {new Date(step.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             </motion.div>
@@ -353,16 +422,12 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
 
       {/* Sources */}
       {rec.sources?.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const, marginTop: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const, marginTop: 2 }}>
           {rec.sources.map(s => (
             <span key={s} style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              color: 'var(--color-text-tertiary)',
-              background: 'var(--color-bg-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '1px 6px',
+              fontFamily: 'var(--font-mono)', fontSize: 9,
+              color: 'var(--color-text-tertiary)', background: 'var(--color-bg-secondary)',
+              border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1px 6px',
             }}>
               {s}
             </span>
@@ -373,76 +438,184 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
   )
 }
 
-function GrowthEmptyState({ hasIntegrations }: { hasIntegrations: boolean }) {
-  if (!hasIntegrations) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        style={{
-          padding: 'var(--space-10)',
-          textAlign: 'center' as const,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-        }}
-      >
-        <div style={{
-          width: 48, height: 48, borderRadius: 'var(--radius-full)',
-          background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M2 14L7 9L11 13L18 6" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-        <div>
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500,
-            color: 'var(--color-text-primary)', margin: '0 0 4px',
-          }}>
-            Conecte suas integrações
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-tertiary)', margin: 0, maxWidth: 280,
-          }}>
-            O motor de correlações precisa de pelo menos 2 fontes de dados para identificar oportunidades de crescimento.
-          </p>
-        </div>
-      </motion.div>
-    )
-  }
+// ── Painel de Métricas ────────────────────────────────────────────────────────
 
+function MetricsPanel({ metrics }: { metrics: GrowthMetrics | null }) {
+  if (!metrics) return null
+
+  const { summary, channel_performance, segments } = metrics
+
+  const kpis = [
+    {
+      label: 'LTV Médio',
+      value: `R$ ${fmt(summary.avg_ltv_brl)}`,
+      sub: `${fmtInt(summary.total_customers)} clientes`,
+      color: '#6366F1',
+    },
+    {
+      label: 'CAC Médio',
+      value: summary.avg_cac_brl > 0 ? `R$ ${fmt(summary.avg_cac_brl)}` : '—',
+      sub: summary.cac_deficit_count > 0 ? `${summary.cac_deficit_count} sem payback` : 'todos lucrativos',
+      color: summary.cac_deficit_count > 0 ? '#F59E0B' : '#10B981',
+    },
+    {
+      label: 'Melhor ROI',
+      value: summary.best_roi > 0 ? `${summary.best_roi.toFixed(2)}x` : '—',
+      sub: channel_performance[0] ? `via ${CHANNEL_LABELS[channel_performance[0].channel] || channel_performance[0].channel}` : 'nenhum canal ativo',
+      color: '#10B981',
+    },
+    {
+      label: 'Alto Churn',
+      value: fmtInt(summary.high_churn_count),
+      sub: `de ${fmtInt(summary.total_customers)} clientes`,
+      color: summary.high_churn_count > 3 ? '#EF4444' : '#10B981',
+    },
+  ]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {kpis.map(kpi => (
+          <motion.div
+            key={kpi.label}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              padding: '12px 14px',
+              background: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
+          >
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
+              {kpi.label}
+            </span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 600, color: kpi.color, letterSpacing: '-0.5px' }}>
+              {kpi.value}
+            </span>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+              {kpi.sub}
+            </span>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Segmentos RFM + Canal */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {/* Segmentos */}
+        <div style={{
+          padding: '12px 14px',
+          background: 'var(--color-bg-primary)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+        }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.07em', textTransform: 'uppercase' as const, margin: '0 0 10px' }}>
+            Segmentos RFM
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              { key: 'Champions', color: '#10B981' },
+              { key: 'Em Risco', color: '#EF4444' },
+              { key: 'Novos Promissores', color: '#6366F1' },
+              { key: 'Inativos', color: '#6B7280' },
+            ].map(({ key, color }) => {
+              const count = segments[key as keyof typeof segments] || 0
+              const pct = summary.total_customers > 0 ? Math.round((count / summary.total_customers) * 100) : 0
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', flex: 1, whiteSpace: 'nowrap' }}>
+                    {key}
+                  </span>
+                  <div style={{ flex: 1, height: 3, background: 'var(--color-bg-secondary)', borderRadius: 2, overflow: 'hidden' }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+                      style={{ height: '100%', background: color, borderRadius: 2 }}
+                    />
+                  </div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-primary)', minWidth: 20, textAlign: 'right' as const }}>
+                    {count}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Performance por canal */}
+        <div style={{
+          padding: '12px 14px',
+          background: 'var(--color-bg-primary)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+        }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.07em', textTransform: 'uppercase' as const, margin: '0 0 10px' }}>
+            Performance de Canais
+          </p>
+          {channel_performance.length === 0 ? (
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+              Nenhum dado de canal disponível
+            </span>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {channel_performance.slice(0, 3).map(ch => (
+                <div key={ch.channel} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-primary)', fontWeight: 500 }}>
+                      {CHANNEL_LABELS[ch.channel] || ch.channel}
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: ch.true_roi && ch.true_roi > 1 ? '#10B981' : '#EF4444' }}>
+                      {ch.true_roi != null ? `${Number(ch.true_roi).toFixed(1)}x ROI` : '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                      {fmtInt(ch.customers_acquired)} clientes
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                      LTV R$ {fmt(Number(ch.avg_ltv_brl))}
+                    </span>
+                    {Number(ch.total_spend_brl) > 0 && (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                        Gasto R$ {fmt(Number(ch.total_spend_brl))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GrowthEmptyState() {
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       style={{
-        padding: 'var(--space-8)',
-        textAlign: 'center' as const,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 'var(--space-2)',
+        padding: 'var(--space-8)', textAlign: 'center' as const,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-2)',
       }}
     >
       <div style={{
         width: 8, height: 8, borderRadius: 'var(--radius-full)',
-        background: '#10B981', marginBottom: 8,
-        boxShadow: '0 0 0 4px #10B98120',
+        background: '#10B981', marginBottom: 8, boxShadow: '0 0 0 4px #10B98120',
       }} />
-      <p style={{
-        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500,
-        color: 'var(--color-text-primary)', margin: 0,
-      }}>
+      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>
         Nenhuma ação crítica identificada
       </p>
-      <p style={{
-        fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
-        color: 'var(--color-text-tertiary)', margin: 0,
-      }}>
+      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0 }}>
         Próxima análise em &lt;30min
       </p>
     </motion.div>
@@ -462,11 +635,7 @@ function ThinkingIndicator() {
             key={i}
             animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.1, 1] }}
             transition={{ duration: 1, repeat: Infinity, delay: i * 0.18 }}
-            style={{
-              width: 5, height: 5,
-              borderRadius: 'var(--radius-full)',
-              background: 'var(--color-primary)',
-            }}
+            style={{ width: 5, height: 5, borderRadius: 'var(--radius-full)', background: 'var(--color-primary)' }}
           />
         ))}
       </div>
@@ -524,30 +693,18 @@ function GrowthChat() {
   }
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      borderLeft: '1px solid var(--color-border)',
-    }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--color-border)' }}>
       {/* Chat Header */}
       <div style={{
-        padding: '16px 20px',
-        borderBottom: '1px solid var(--color-border)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        background: 'var(--color-bg-primary)',
-        flexShrink: 0,
+        padding: '16px 20px', borderBottom: '1px solid var(--color-border)',
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: 'var(--color-bg-primary)', flexShrink: 0,
       }}>
         <motion.div animate={{ rotate: isThinking ? [0, 8, -8, 0] : 0 }} transition={{ repeat: Infinity, duration: 2 }}>
           <AskNorthieIcon />
         </motion.div>
         <div>
-          <span style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500,
-            color: 'var(--color-text-primary)', letterSpacing: '-0.2px', display: 'block',
-          }}>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-0.2px', display: 'block' }}>
             Northie AI
           </span>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
@@ -560,13 +717,8 @@ function GrowthChat() {
       <div
         ref={scrollRef}
         style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: 'var(--space-4)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-4)',
-          scrollbarWidth: 'thin',
+          flex: 1, overflowY: 'auto', padding: 'var(--space-4)',
+          display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', scrollbarWidth: 'thin',
         }}
       >
         {messages.map(m => (
@@ -587,11 +739,9 @@ function GrowthChat() {
                 </p>
                 <div style={{
                   padding: 'var(--space-3) var(--space-4)',
-                  background: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-lg)',
-                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                  lineHeight: 1.65, color: 'var(--color-text-primary)',
+                  background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)', fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--text-sm)', lineHeight: 1.65, color: 'var(--color-text-primary)',
                   whiteSpace: 'pre-wrap',
                 }}>
                   {m.content}
@@ -600,12 +750,10 @@ function GrowthChat() {
             ) : (
               <div style={{ textAlign: 'right' as const }}>
                 <div style={{
-                  display: 'inline-block',
-                  padding: 'var(--space-3) var(--space-4)',
+                  display: 'inline-block', padding: 'var(--space-3) var(--space-4)',
                   background: 'var(--inv)', color: 'var(--on-inv)',
                   borderRadius: 'var(--radius-lg)', fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)', lineHeight: 1.55,
-                  maxWidth: '85%', textAlign: 'left' as const,
+                  fontSize: 'var(--text-sm)', lineHeight: 1.55, maxWidth: '85%', textAlign: 'left' as const,
                 }}>
                   {m.content}
                 </div>
@@ -617,17 +765,8 @@ function GrowthChat() {
       </div>
 
       {/* Footer */}
-      <div style={{
-        padding: 'var(--space-3) var(--space-4)',
-        borderTop: '1px solid var(--color-border)',
-        background: 'var(--color-bg-primary)',
-        flexShrink: 0,
-      }}>
-        {/* Chips */}
-        <div style={{
-          display: 'flex', gap: 6, overflowX: 'auto',
-          marginBottom: 'var(--space-3)', scrollbarWidth: 'none', paddingBottom: 2,
-        }}>
+      <div style={{ padding: 'var(--space-3) var(--space-4)', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-primary)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 'var(--space-3)', scrollbarWidth: 'none', paddingBottom: 2 }}>
           {CHAT_CHIPS.map(chip => (
             <button
               key={chip}
@@ -646,20 +785,15 @@ function GrowthChat() {
             </button>
           ))}
         </div>
-
-        {/* Input */}
         <div style={{
           display: 'flex', gap: 'var(--space-2)',
           background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)', padding: 'var(--space-2) var(--space-3)',
-          alignItems: 'flex-end',
+          borderRadius: 'var(--radius-lg)', padding: 'var(--space-2) var(--space-3)', alignItems: 'flex-end',
         }}>
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-            }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
             placeholder="Pergunte sobre suas métricas de crescimento..."
             style={{
               flex: 1, border: 'none', background: 'transparent', outline: 'none',
@@ -696,14 +830,19 @@ function GrowthChat() {
 
 export default function Growth() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [metrics, setMetrics] = useState<GrowthMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
 
-  const fetchRecommendations = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const res = await growthApi.listRecommendations()
-      setRecommendations(res.data ?? [])
+      const [recRes, metRes] = await Promise.all([
+        growthApi.listRecommendations(),
+        growthApi.getMetrics(),
+      ])
+      setRecommendations(recRes.data ?? [])
+      setMetrics(metRes.data ?? null)
       setLastAnalysis(new Date())
     } catch {
       setRecommendations([])
@@ -713,10 +852,10 @@ export default function Growth() {
   }, [])
 
   useEffect(() => {
-    fetchRecommendations()
-    const interval = setInterval(fetchRecommendations, 60 * 1000)
+    fetchData()
+    const interval = setInterval(fetchData, 60 * 1000)
     return () => clearInterval(interval)
-  }, [fetchRecommendations])
+  }, [fetchData])
 
   useEffect(() => {
     const refs = pollingRefs.current
@@ -738,28 +877,19 @@ export default function Growth() {
         setRecommendations(prev => prev.map(r =>
           r.id === id ? { ...r, status, execution_log: execution_log || [] } : r
         ))
-        if (status === 'completed' || status === 'failed') {
-          stopPolling(id)
-        }
-      } catch {
-        // erro de rede durante polling — continua tentando
-      }
+        if (status === 'completed' || status === 'failed') stopPolling(id)
+      } catch { /* rede instável — continua tentando */ }
     }, 2000)
   }, [stopPolling])
 
   const handleApprove = async (id: string) => {
-    const rec = recommendations.find(r => r.id === id)
-    if (!rec) return
-
     setRecommendations(prev => prev.map(r =>
       r.id === id ? { ...r, status: 'executing', execution_log: [] } : r
     ))
-
     try {
       await growthApi.approve(id)
       startPolling(id)
     } catch {
-      // Backend indisponível — reverte para estado de falha
       setRecommendations(prev => prev.map(r =>
         r.id === id ? { ...r, status: 'failed', execution_log: [{ step: 'Falha ao conectar com o backend', status: 'failed', timestamp: new Date().toISOString() }] } : r
       ))
@@ -773,7 +903,6 @@ export default function Growth() {
 
   const pendingRecs = recommendations.filter(r => r.status === 'pending')
   const activeRecs = recommendations.filter(r => ['approved', 'executing', 'completed', 'failed'].includes(r.status))
-
   const minutesSinceAnalysis = Math.round((new Date().getTime() - lastAnalysis.getTime()) / 60000)
 
   return (
@@ -785,12 +914,8 @@ export default function Growth() {
     >
       {/* Header */}
       <div style={{
-        padding: '28px 32px 20px',
-        borderBottom: '1px solid var(--color-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
+        padding: '28px 32px 20px', borderBottom: '1px solid var(--color-border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
       }}>
         <div>
           <h1 style={{
@@ -799,53 +924,42 @@ export default function Growth() {
           }}>
             Northie Growth
           </h1>
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-tertiary)', margin: '4px 0 0',
-          }}>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>
             Execução automática de crescimento baseada em cruzamento de dados
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 6, height: 6, borderRadius: 'var(--radius-full)',
-            background: '#10B981', boxShadow: '0 0 0 3px #10B98120',
-          }} />
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
-            color: 'var(--color-text-secondary)',
-          }}>
-            Motor ativo • última análise há {minutesSinceAnalysis}min
+          <div style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', background: '#10B981', boxShadow: '0 0 0 3px #10B98120' }} />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+            Motor ativo · última análise há {minutesSinceAnalysis}min
           </span>
         </div>
       </div>
 
       {/* Split Layout */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Left panel: recommendations */}
+        {/* Left panel: metrics + recommendations */}
         <div style={{
-          flex: '0 0 55%',
-          overflowY: 'auto',
-          padding: '24px 32px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-6)',
-          scrollbarWidth: 'thin',
+          flex: '0 0 55%', overflowY: 'auto', padding: '24px 32px',
+          display: 'flex', flexDirection: 'column', scrollbarWidth: 'thin',
         }}>
           {loading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {[1, 2].map(i => (
+              {[1, 2, 3].map(i => (
                 <div key={i} style={{
-                  height: 120, borderRadius: 'var(--radius-lg)',
-                  background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
-                  opacity: 0.6,
+                  height: i === 1 ? 100 : 120, borderRadius: 'var(--radius-lg)',
+                  background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', opacity: 0.6,
                 }} />
               ))}
             </div>
           ) : (
             <>
+              {/* Métricas de correlação */}
+              <MetricsPanel metrics={metrics} />
+
+              {/* Seção: Em execução */}
               {activeRecs.length > 0 && (
-                <div>
+                <div style={{ marginBottom: 24 }}>
                   <p style={{
                     fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em',
                     textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)',
@@ -856,18 +970,14 @@ export default function Growth() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     <AnimatePresence>
                       {activeRecs.map(rec => (
-                        <RecommendationCard
-                          key={rec.id}
-                          rec={rec}
-                          onApprove={handleApprove}
-                          onDismiss={handleDismiss}
-                        />
+                        <RecommendationCard key={rec.id} rec={rec} onApprove={handleApprove} onDismiss={handleDismiss} />
                       ))}
                     </AnimatePresence>
                   </div>
                 </div>
               )}
 
+              {/* Seção: Pendentes */}
               {pendingRecs.length > 0 ? (
                 <div>
                   <p style={{
@@ -875,23 +985,18 @@ export default function Growth() {
                     textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)',
                     marginBottom: 12, marginTop: 0,
                   }}>
-                    Aguardando aprovação
+                    Aguardando aprovação — {pendingRecs.length} ação{pendingRecs.length > 1 ? 'ões' : ''}
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     <AnimatePresence>
                       {pendingRecs.map(rec => (
-                        <RecommendationCard
-                          key={rec.id}
-                          rec={rec}
-                          onApprove={handleApprove}
-                          onDismiss={handleDismiss}
-                        />
+                        <RecommendationCard key={rec.id} rec={rec} onApprove={handleApprove} onDismiss={handleDismiss} />
                       ))}
                     </AnimatePresence>
                   </div>
                 </div>
               ) : activeRecs.length === 0 && (
-                <GrowthEmptyState hasIntegrations={true} />
+                <GrowthEmptyState />
               )}
             </>
           )}
