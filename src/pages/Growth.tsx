@@ -39,30 +39,6 @@ interface Recommendation {
   updated_at: string
 }
 
-interface ChannelPerf {
-  channel: string
-  customers_acquired: number
-  total_ltv_brl: number
-  avg_ltv_brl: number
-  total_spend_brl: number
-  true_roi: number | null
-  high_churn_count: number
-  avg_churn_probability: number
-}
-
-interface GrowthMetrics {
-  channel_performance: ChannelPerf[]
-  segments: { Champions: number; 'Em Risco': number; 'Novos Promissores': number; Inativos: number }
-  summary: {
-    total_customers: number
-    avg_ltv_brl: number
-    avg_cac_brl: number
-    cac_deficit_count: number
-    high_churn_count: number
-    best_roi: number
-  }
-}
-
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -438,166 +414,6 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
   )
 }
 
-// ── Painel de Métricas ────────────────────────────────────────────────────────
-
-function MetricsPanel({ metrics }: { metrics: GrowthMetrics | null }) {
-  if (!metrics) return null
-
-  const { summary, channel_performance, segments } = metrics
-
-  const kpis = [
-    {
-      label: 'LTV Médio',
-      value: `R$ ${fmt(summary.avg_ltv_brl)}`,
-      sub: `${fmtInt(summary.total_customers)} clientes`,
-      color: '#6366F1',
-    },
-    {
-      label: 'CAC Médio',
-      value: summary.avg_cac_brl > 0 ? `R$ ${fmt(summary.avg_cac_brl)}` : '—',
-      sub: summary.cac_deficit_count > 0 ? `${summary.cac_deficit_count} sem payback` : 'todos lucrativos',
-      color: summary.cac_deficit_count > 0 ? '#F59E0B' : '#10B981',
-    },
-    {
-      label: 'Melhor ROI',
-      value: summary.best_roi > 0 ? `${summary.best_roi.toFixed(2)}x` : '—',
-      sub: channel_performance[0] ? `via ${CHANNEL_LABELS[channel_performance[0].channel] || channel_performance[0].channel}` : 'nenhum canal ativo',
-      color: '#10B981',
-    },
-    {
-      label: 'Alto Churn',
-      value: fmtInt(summary.high_churn_count),
-      sub: `de ${fmtInt(summary.total_customers)} clientes`,
-      color: summary.high_churn_count > 3 ? '#EF4444' : '#10B981',
-    },
-  ]
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {kpis.map(kpi => (
-          <motion.div
-            key={kpi.label}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            style={{
-              padding: '12px 14px',
-              background: 'var(--color-bg-primary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 4,
-            }}
-          >
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
-              {kpi.label}
-            </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 600, color: kpi.color, letterSpacing: '-0.5px' }}>
-              {kpi.value}
-            </span>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-              {kpi.sub}
-            </span>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Segmentos RFM + Canal */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {/* Segmentos */}
-        <div style={{
-          padding: '12px 14px',
-          background: 'var(--color-bg-primary)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-        }}>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.07em', textTransform: 'uppercase' as const, margin: '0 0 10px' }}>
-            Segmentos RFM
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {[
-              { key: 'Champions', color: '#10B981' },
-              { key: 'Em Risco', color: '#EF4444' },
-              { key: 'Novos Promissores', color: '#6366F1' },
-              { key: 'Inativos', color: '#6B7280' },
-            ].map(({ key, color }) => {
-              const count = segments[key as keyof typeof segments] || 0
-              const pct = summary.total_customers > 0 ? Math.round((count / summary.total_customers) * 100) : 0
-              return (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', flex: 1, whiteSpace: 'nowrap' }}>
-                    {key}
-                  </span>
-                  <div style={{ flex: 1, height: 3, background: 'var(--color-bg-secondary)', borderRadius: 2, overflow: 'hidden' }}>
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-                      style={{ height: '100%', background: color, borderRadius: 2 }}
-                    />
-                  </div>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-primary)', minWidth: 20, textAlign: 'right' as const }}>
-                    {count}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Performance por canal */}
-        <div style={{
-          padding: '12px 14px',
-          background: 'var(--color-bg-primary)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-        }}>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.07em', textTransform: 'uppercase' as const, margin: '0 0 10px' }}>
-            Performance de Canais
-          </p>
-          {channel_performance.length === 0 ? (
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-              Nenhum dado de canal disponível
-            </span>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {channel_performance.slice(0, 3).map(ch => (
-                <div key={ch.channel} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-primary)', fontWeight: 500 }}>
-                      {CHANNEL_LABELS[ch.channel] || ch.channel}
-                    </span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: ch.true_roi && ch.true_roi > 1 ? '#10B981' : '#EF4444' }}>
-                      {ch.true_roi != null ? `${Number(ch.true_roi).toFixed(1)}x ROI` : '—'}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                      {fmtInt(ch.customers_acquired)} clientes
-                    </span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                      LTV R$ {fmt(Number(ch.avg_ltv_brl))}
-                    </span>
-                    {Number(ch.total_spend_brl) > 0 && (
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                        Gasto R$ {fmt(Number(ch.total_spend_brl))}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function GrowthEmptyState() {
   return (
     <motion.div
@@ -830,19 +646,14 @@ function GrowthChat() {
 
 export default function Growth() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
-  const [metrics, setMetrics] = useState<GrowthMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
 
   const fetchData = useCallback(async () => {
     try {
-      const [recRes, metRes] = await Promise.all([
-        growthApi.listRecommendations(),
-        growthApi.getMetrics(),
-      ])
+      const recRes = await growthApi.listRecommendations()
       setRecommendations(recRes.data ?? [])
-      setMetrics(metRes.data ?? null)
       setLastAnalysis(new Date())
     } catch {
       setRecommendations([])
@@ -938,7 +749,7 @@ export default function Growth() {
 
       {/* Split Layout */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Left panel: metrics + recommendations */}
+        {/* Left panel: recommendations */}
         <div style={{
           flex: '0 0 55%', overflowY: 'auto', padding: '24px 32px',
           display: 'flex', flexDirection: 'column', scrollbarWidth: 'thin',
@@ -954,9 +765,6 @@ export default function Growth() {
             </div>
           ) : (
             <>
-              {/* Métricas de correlação */}
-              <MetricsPanel metrics={metrics} />
-
               {/* Seção: Em execução */}
               {activeRecs.length > 0 && (
                 <div style={{ marginBottom: 24 }}>

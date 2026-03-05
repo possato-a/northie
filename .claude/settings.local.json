@@ -26,7 +26,9 @@
       "Bash(git push)",
       "Bash(echo:*)",
       "Bash(cd \"C:\\\\Users\\\\Possato\\\\Documents\\\\northie\" && git checkout -b feat/francisco-fase-a-e-product-pages 2>&1)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(node:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

@@ -5,6 +5,7 @@ const router = Router();
  * @route GET /api/growth/recommendations
  * @desc Lista recomendações pending + recentes
  */
+router.get('/metrics', GrowthController.getGrowthMetrics);
 router.get('/recommendations', GrowthController.listRecommendations);
 /**
  * @route POST /api/growth/recommendations/:id/approve

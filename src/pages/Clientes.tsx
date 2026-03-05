@@ -5,11 +5,23 @@ import TopBar from '../components/layout/TopBar'
 import DatePicker from '../components/ui/DatePicker'
 import CohortHeatmap from '../components/charts/CohortHeatmap'
 import RFMCards from '../components/ui/RFMCards'
-import AIActions from '../components/ui/AIActions'
 import ClientProfile from '../components/ui/ClientProfile'
 import { dataApi, dashboardApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
 import type { ClientUI, ClientStatus, AcquisitionChannel, RFMSegment } from '../types'
+
+// Deriva o segmento RFM a partir do rfm_score (ex: "345" → 'Em Risco')
+function rfmSegmentFromScore(rfmScore: string | null | undefined): RFMSegment {
+    if (!rfmScore || rfmScore.length !== 3) return 'Novos Promissores'
+    const r = parseInt(rfmScore[0])
+    const f = parseInt(rfmScore[1])
+    const m = parseInt(rfmScore[2])
+    const avg = (r + f + m) / 3
+    if (r >= 4 && f >= 3 && m >= 3) return 'Champions'
+    if ((r <= 2 && m >= 3) || (r <= 2 && f >= 3)) return 'Em Risco'
+    if (avg <= 2) return 'Inativos'
+    return 'Novos Promissores'
+}
 
 // Mapeia o valor da DB (snake_case) para o nome de exibição da UI
 function mapChannel(raw: string | undefined): AcquisitionChannel {
@@ -271,7 +283,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                     ltv,
                     margin,
                     status,
-                    segment: (c.rfm_segment as RFMSegment) || 'Novos Promissores',
+                    segment: rfmSegmentFromScore(c.rfm_score),
                     lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
                     purchases,
                     churnProb: Number(c.churn_probability || 0),
@@ -334,14 +346,12 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
 
             <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 12, marginBottom: 48 }} />
 
-            {/* Row 2: RFM + AI Actions */}
+            {/* Row 2: RFM */}
             <motion.div
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64 }}
             >
                 <RFMCards clients={clients} />
-                <AIActions />
             </motion.div>
 
             {/* Client profile drawer */}
