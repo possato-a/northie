@@ -3,7 +3,11 @@ import type { generateReportData } from './report-generator.js';
 import type { ReportAIAnalysis, ChannelDiagnosis } from './report-ai-analyst.js';
 
 const require = createRequire(import.meta.url);
-const PDFDocument = require('pdfkit') as typeof import('pdfkit');
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PDFDoc = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PDFDocument: new (options?: Record<string, unknown>) => PDFDoc = require('pdfkit');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +56,7 @@ const SITUACAO_LABEL: Record<ReportAIAnalysis['situacao_geral'], string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function streamToBuffer(doc: InstanceType<typeof PDFDocument>): Promise<Buffer> {
+function streamToBuffer(doc: PDFDoc): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
         doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -81,7 +85,7 @@ function changeBadge(pct: number | null): string {
 
 // ── Section helpers ───────────────────────────────────────────────────────────
 
-function drawHRule(doc: InstanceType<typeof PDFDocument>, y: number, color = C.border) {
+function drawHRule(doc: PDFDoc, y: number, color = C.border) {
     doc.save()
         .moveTo(MARGIN, y)
         .lineTo(PAGE_WIDTH - MARGIN, y)
@@ -91,7 +95,7 @@ function drawHRule(doc: InstanceType<typeof PDFDocument>, y: number, color = C.b
         .restore();
 }
 
-function sectionTitle(doc: InstanceType<typeof PDFDocument>, title: string): number {
+function sectionTitle(doc: PDFDoc, title: string): number {
     const y = doc.y + 20;
     doc.font('Helvetica-Bold')
         .fontSize(8)
@@ -103,7 +107,7 @@ function sectionTitle(doc: InstanceType<typeof PDFDocument>, title: string): num
 }
 
 function bulletList(
-    doc: InstanceType<typeof PDFDocument>,
+    doc: PDFDoc,
     items: string[],
     color: string,
     barWidth = 3,
@@ -124,7 +128,7 @@ function bulletList(
 }
 
 function kpiGrid(
-    doc: InstanceType<typeof PDFDocument>,
+    doc: PDFDoc,
     items: Array<{ label: string; value: string; delta?: string; deltaPositive?: boolean }>,
 ) {
     const cols = 3;
@@ -167,7 +171,7 @@ function kpiGrid(
 }
 
 function twoColTable(
-    doc: InstanceType<typeof PDFDocument>,
+    doc: PDFDoc,
     rows: Array<[string, string]>,
     colALabel: string,
     colBLabel: string,
@@ -220,7 +224,7 @@ function twoColTable(
 
 // ── Channel diagnosis card ────────────────────────────────────────────────────
 
-function drawDiagnosisCard(doc: InstanceType<typeof PDFDocument>, d: ChannelDiagnosis) {
+function drawDiagnosisCard(doc: PDFDoc, d: ChannelDiagnosis) {
     const color = SEVERITY_COLOR[d.severidade];
     const startY = doc.y;
     const cardHeight = 120;
