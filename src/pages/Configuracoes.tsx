@@ -298,6 +298,7 @@ function PerfilPanel({ user }: { user?: any }) {
     const [focused, setFocused] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [pwResetState, setPwResetState] = useState<'idle' | 'sending' | 'sent'>('idle')
 
     const handleSave = async () => {
         if (!user?.id || !name.trim()) return
@@ -310,6 +311,16 @@ function PerfilPanel({ user }: { user?: any }) {
         } finally {
             setSaving(false)
         }
+    }
+
+    const handlePasswordReset = async () => {
+        if (!email || pwResetState !== 'idle') return
+        setPwResetState('sending')
+        await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/?reset_password=true`,
+        })
+        setPwResetState('sent')
+        setTimeout(() => setPwResetState('idle'), 5000)
     }
 
     const initial = name?.[0]?.toUpperCase() || email?.[0]?.toUpperCase() || 'N'
@@ -382,9 +393,18 @@ function PerfilPanel({ user }: { user?: any }) {
                 </span>
             </SettingRow>
 
-            <SettingRow title="Senha" description="Altere sua senha de acesso.">
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Alterar senha
+            <SettingRow title="Senha" description={pwResetState === 'sent' ? 'Email enviado! Verifique sua caixa de entrada.' : 'Altere sua senha de acesso.'}>
+                <button
+                    className="notion-btn"
+                    onClick={handlePasswordReset}
+                    disabled={pwResetState !== 'idle'}
+                    style={{
+                        border: '1px solid var(--color-border)',
+                        opacity: pwResetState !== 'idle' ? 0.7 : 1,
+                        transition: 'opacity 0.2s',
+                    }}
+                >
+                    {pwResetState === 'sending' ? 'Enviando...' : pwResetState === 'sent' ? 'Email enviado ✓' : 'Alterar senha'}
                 </button>
             </SettingRow>
 
@@ -446,13 +466,45 @@ function PerfilPanel({ user }: { user?: any }) {
     )
 }
 
-function PreferenciasPanel() {
+function PreferenciasPanel({ user }: { user?: any }) {
     const { isDark, toggleTheme } = useTheme()
     const [language, setLanguage] = useState('Português (Brasil)')
     const [dateFormat, setDateFormat] = useState('DD/MM/AAAA')
     const [startWeekMonday, setStartWeekMonday] = useState(true)
     const [autoTimezone, setAutoTimezone] = useState(true)
     const [compactMode, setCompactMode] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [saved, setSaved] = useState(false)
+
+    useEffect(() => {
+        if (!user?.id) return
+        supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
+            .then(({ data }) => {
+                const prefs = data?.workspace_config?.preferences
+                if (!prefs) return
+                if (prefs.language) setLanguage(prefs.language)
+                if (prefs.dateFormat) setDateFormat(prefs.dateFormat)
+                if (prefs.startWeekMonday !== undefined) setStartWeekMonday(prefs.startWeekMonday)
+                if (prefs.autoTimezone !== undefined) setAutoTimezone(prefs.autoTimezone)
+                if (prefs.compactMode !== undefined) setCompactMode(prefs.compactMode)
+            })
+    }, [user?.id])
+
+    const handleSave = async () => {
+        if (!user?.id) return
+        setSaving(true)
+        try {
+            const { data } = await supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
+            const current = data?.workspace_config || {}
+            await supabase.from('profiles').update({
+                workspace_config: { ...current, preferences: { language, dateFormat, startWeekMonday, autoTimezone, compactMode } }
+            }).eq('id', user.id)
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2000)
+        } finally {
+            setSaving(false)
+        }
+    }
 
     return (
         <div>
@@ -519,41 +571,106 @@ function PreferenciasPanel() {
             <SettingRow title="Detectar fuso horário automaticamente" description="Lembretes e notificações serão enviados no seu horário local." divider={false}>
                 <Toggle value={autoTimezone} onChange={setAutoTimezone} />
             </SettingRow>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
+                <button
+                    onClick={handleSave}
+                    disabled={saving || !user?.id}
+                    style={{
+                        padding: '7px 20px',
+                        borderRadius: 'var(--radius-md)',
+                        border: 'none',
+                        background: saved ? 'var(--color-success, #22c55e)' : 'var(--color-primary)',
+                        color: 'white',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: saving ? 'default' : 'pointer',
+                        opacity: saving ? 0.7 : 1,
+                        transition: 'background 0.2s',
+                    }}
+                >
+                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar preferências'}
+                </button>
+            </div>
         </div>
     )
 }
 
-function NotificacoesPanel() {
-    const [email, setEmail] = useState(true)
+function NotificacoesPanel({ user }: { user?: any }) {
+    const [emailNotif, setEmailNotif] = useState(true)
     const [browser, setBrowser] = useState(false)
     const [weeklySummary, setWeeklySummary] = useState(true)
     const [alertCac, setAlertCac] = useState(true)
     const [alertRoas, setAlertRoas] = useState(true)
     const [alertBudget, setAlertBudget] = useState(false)
+    const [saving, setSaving] = useState(false)
+
+    useEffect(() => {
+        if (!user?.id) return
+        supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
+            .then(({ data }) => {
+                const notif = data?.workspace_config?.notifications
+                if (!notif) return
+                if (notif.email !== undefined) setEmailNotif(notif.email)
+                if (notif.browser !== undefined) setBrowser(notif.browser)
+                if (notif.weeklySummary !== undefined) setWeeklySummary(notif.weeklySummary)
+                if (notif.alertCac !== undefined) setAlertCac(notif.alertCac)
+                if (notif.alertRoas !== undefined) setAlertRoas(notif.alertRoas)
+                if (notif.alertBudget !== undefined) setAlertBudget(notif.alertBudget)
+            })
+    }, [user?.id])
+
+    const saveNotifications = async (patch: Record<string, boolean>) => {
+        if (!user?.id) return
+        setSaving(true)
+        try {
+            const { data } = await supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
+            const current = data?.workspace_config || {}
+            const currentNotif = current.notifications || {}
+            await supabase.from('profiles').update({
+                workspace_config: { ...current, notifications: { ...currentNotif, ...patch } }
+            }).eq('id', user.id)
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const handleToggle = (key: string, setter: (v: boolean) => void) => (v: boolean) => {
+        setter(v)
+        saveNotifications({ [key]: v })
+    }
 
     return (
         <div>
-            <SectionHeading>Notificações</SectionHeading>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+                <SectionHeading>Notificações</SectionHeading>
+                {saving && (
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                        Salvando...
+                    </span>
+                )}
+            </div>
 
             <SettingRow
                 title="Email"
                 description="Receba resumos e alertas por email."
             >
-                <Toggle value={email} onChange={setEmail} />
+                <Toggle value={emailNotif} onChange={handleToggle('email', setEmailNotif)} />
             </SettingRow>
 
             <SettingRow
                 title="Navegador"
                 description="Notificações push no navegador (quando a aba estiver aberta)."
             >
-                <Toggle value={browser} onChange={setBrowser} />
+                <Toggle value={browser} onChange={handleToggle('browser', setBrowser)} />
             </SettingRow>
 
             <SettingRow
                 title="Resumo semanal"
                 description="Receba um resumo de performance toda segunda-feira às 08h."
             >
-                <Toggle value={weeklySummary} onChange={setWeeklySummary} />
+                <Toggle value={weeklySummary} onChange={handleToggle('weeklySummary', setWeeklySummary)} />
             </SettingRow>
 
             <div style={{ marginTop: 32, marginBottom: 8 }}>
@@ -564,14 +681,14 @@ function NotificacoesPanel() {
                 title="Alerta de CAC elevado"
                 description="Notificar quando o custo de aquisição ultrapassar o limite definido."
             >
-                <Toggle value={alertCac} onChange={setAlertCac} />
+                <Toggle value={alertCac} onChange={handleToggle('alertCac', setAlertCac)} />
             </SettingRow>
 
             <SettingRow
                 title="Alerta de ROAS baixo"
                 description="Notificar quando o ROAS de uma campanha cair abaixo de 2x."
             >
-                <Toggle value={alertRoas} onChange={setAlertRoas} />
+                <Toggle value={alertRoas} onChange={handleToggle('alertRoas', setAlertRoas)} />
             </SettingRow>
 
             <SettingRow
@@ -579,7 +696,7 @@ function NotificacoesPanel() {
                 description="Notificar quando o gasto diário atingir 90% do orçamento."
                 divider={false}
             >
-                <Toggle value={alertBudget} onChange={setAlertBudget} />
+                <Toggle value={alertBudget} onChange={handleToggle('alertBudget', setAlertBudget)} />
             </SettingRow>
         </div>
     )
@@ -659,8 +776,17 @@ const TIMEZONES = [
 
 const CURRENCIES = ['BRL (R$)', 'USD ($)', 'EUR (€)', 'GBP (£)']
 
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+    saas: 'SaaS',
+    ecommerce: 'E-commerce',
+    infoprodutor_perpetuo: 'Infoproduto Perpétuo',
+    infoprodutor_lancamento: 'Infoproduto Lançamento',
+}
+const BUSINESS_TYPE_OPTIONS = Object.keys(BUSINESS_TYPE_LABELS)
+
 function WorkspacePanel({ user }: { user?: any }) {
     const [wsName, setWsName] = useState('')
+    const [businessType, setBusinessType] = useState('infoprodutor_perpetuo')
     const [timezone, setTimezone] = useState('América/São Paulo (UTC-3)')
     const [currency, setCurrency] = useState('BRL (R$)')
     const [logoUrl, setLogoUrl] = useState<string | null>(null)
@@ -675,12 +801,13 @@ function WorkspacePanel({ user }: { user?: any }) {
         if (!user?.id) { setLoading(false); return }
         supabase
             .from('profiles')
-            .select('business_name, timezone, currency, logo_url')
+            .select('business_name, business_type, timezone, currency, logo_url')
             .eq('id', user.id)
             .single()
             .then(({ data }) => {
                 if (data) {
                     setWsName(data.business_name || '')
+                    if (data.business_type) setBusinessType(data.business_type)
                     if (data.timezone) setTimezone(data.timezone)
                     if (data.currency) setCurrency(data.currency)
                     if (data.logo_url) setLogoUrl(data.logo_url)
@@ -695,7 +822,7 @@ function WorkspacePanel({ user }: { user?: any }) {
         try {
             await supabase
                 .from('profiles')
-                .update({ business_name: wsName.trim() || null, timezone, currency })
+                .update({ business_name: wsName.trim() || null, business_type: businessType, timezone, currency })
                 .eq('id', user.id)
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)
@@ -796,6 +923,17 @@ function WorkspacePanel({ user }: { user?: any }) {
                     </p>
                 </div>
             </div>
+
+            <SettingRow title="Tipo de negócio" description="Afeta como métricas e produtos são calculados na plataforma.">
+                <Select
+                    value={BUSINESS_TYPE_LABELS[businessType] || businessType}
+                    options={BUSINESS_TYPE_OPTIONS.map(k => BUSINESS_TYPE_LABELS[k])}
+                    onChange={v => {
+                        const key = Object.entries(BUSINESS_TYPE_LABELS).find(([, label]) => label === v)?.[0] || 'infoprodutor_perpetuo'
+                        setBusinessType(key)
+                    }}
+                />
+            </SettingRow>
 
             <SettingRow title="Nome do workspace" description="O nome aparece na sidebar e em notificações.">
                 <input
@@ -1024,7 +1162,42 @@ function IntegracoesPanel({ onGoToAppStore }: { onGoToAppStore?: () => void }) {
     )
 }
 
-function PlanosPanel() {
+function PlanosPanel({ user }: { user?: any }) {
+    const [plan, setPlan] = useState<string | null>(null)
+    const [memberSince, setMemberSince] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        if (!user?.id) { setLoading(false); return }
+        supabase
+            .from('profiles')
+            .select('workspace_config, created_at')
+            .eq('id', user.id)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    setPlan(data.workspace_config?.plan || 'beta')
+                    if (data.created_at) {
+                        setMemberSince(new Date(data.created_at).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))
+                    }
+                }
+            })
+            .finally(() => setLoading(false))
+    }, [user?.id])
+
+    const planLabel = plan === 'pro' ? 'Northie Pro' : plan === 'growth' ? 'Northie Growth' : 'Acesso Beta'
+    const planDescription = plan === 'pro'
+        ? 'Acesso completo a todos os módulos, integrações ilimitadas e suporte prioritário.'
+        : plan === 'growth'
+        ? 'Módulo Growth + integrações de Ads. Northie Card e Valuation em breve.'
+        : 'Você faz parte do grupo fundador com acesso total durante o período beta.'
+
+    if (loading) return (
+        <div style={{ padding: '60px 0', textAlign: 'center', fontFamily: 'var(--font-sans)', color: 'var(--color-text-tertiary)' }}>
+            Carregando...
+        </div>
+    )
+
     return (
         <div>
             <SectionHeading>Plano atual</SectionHeading>
@@ -1032,37 +1205,80 @@ function PlanosPanel() {
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)',
                 padding: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 24,
                 background: 'var(--color-bg-secondary)',
                 marginBottom: 32,
             }}>
-                <div>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--text-lg)', color: 'var(--color-text-primary)', margin: 0 }}>
-                        Northie Pro
-                    </p>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>
-                        Acesso completo a todos os módulos, integrações ilimitadas e suporte prioritário.
-                    </p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, marginBottom: plan === 'beta' ? 20 : 0 }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--text-lg)', color: 'var(--color-text-primary)', margin: 0 }}>
+                                {planLabel}
+                            </p>
+                            <span className={plan === 'beta' ? 'tag tag-progress' : 'tag tag-complete'} style={{ fontSize: 10 }}>
+                                {plan === 'beta' ? 'Beta' : 'Ativo'}
+                            </span>
+                        </div>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.55 }}>
+                            {planDescription}
+                        </p>
+                        {memberSince && (
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-tertiary)', margin: '8px 0 0' }}>
+                                Membro desde {memberSince}
+                            </p>
+                        )}
+                    </div>
                 </div>
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Gerenciar assinatura
-                </button>
+
+                {plan === 'beta' && (
+                    <div style={{
+                        borderTop: '1px solid var(--color-border)',
+                        paddingTop: 16,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                    }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
+                            Durante o beta, o acesso é gratuito e irrestrito. Planos pagos serão apresentados antes do lançamento oficial.
+                        </p>
+                    </div>
+                )}
             </div>
 
-            <SectionHeading>Faturamento</SectionHeading>
-            <SettingRow title="Cartão de crédito" description="Visa terminado em ••••">
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Alterar
-                </button>
-            </SettingRow>
-            <SettingRow title="Próxima cobrança" description="26 de março de 2026" divider={false}>
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Ver faturas
-                </button>
-            </SettingRow>
+            <SectionHeading>O que está incluído</SectionHeading>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                {[
+                    { label: 'Northie Growth', desc: 'Motor de correlações e execução de ações de crescimento', included: true },
+                    { label: 'Northie Card', desc: 'Capital Score e acesso ao cartão corporativo', included: true },
+                    { label: 'Northie Valuation', desc: 'Cálculo mensal de valuation com benchmark interno', included: true },
+                    { label: 'Integrações', desc: 'Meta Ads, Google Ads, Hotmart, Stripe e Shopify', included: true },
+                    { label: 'Relatórios automáticos', desc: 'PDF, XLSX e envio por email agendado', included: true },
+                    { label: 'Ask Northie', desc: 'IA contextual com memória do seu negócio', included: true },
+                ].map((item, i, arr) => (
+                    <div key={item.label} style={{
+                        display: 'flex', alignItems: 'center', gap: 14,
+                        padding: '14px 0',
+                        borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
+                    }}>
+                        <div style={{
+                            width: 20, height: 20, borderRadius: '50%',
+                            background: item.included ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0,
+                        }}>
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>{item.label}</p>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>{item.desc}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     )
 }
@@ -1104,12 +1320,12 @@ export default function Configuracoes({ user, onGoToAppStore }: { user?: any; on
         switch (active) {
             case 'perfil': return <PerfilPanel user={user} />
             case 'integracoes': return <IntegracoesPanel onGoToAppStore={onGoToAppStore} />
-            case 'preferencias': return <PreferenciasPanel />
-            case 'notificacoes': return <NotificacoesPanel />
+            case 'preferencias': return <PreferenciasPanel user={user} />
+            case 'notificacoes': return <NotificacoesPanel user={user} />
             case 'seguranca': return <SegurancaPanel />
             case 'workspace': return <WorkspacePanel user={user} />
             case 'membros': return <MembrosPanel user={user} />
-            case 'planos': return <PlanosPanel />
+            case 'planos': return <PlanosPanel user={user} />
         }
     }
 
