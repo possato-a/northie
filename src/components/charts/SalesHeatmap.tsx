@@ -10,11 +10,12 @@ interface DayData {
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-export default function SalesHeatmap() {
-    const [counts, setCounts] = useState<Record<string, number>>({})
-    const [loading, setLoading] = useState(true)
+export default function SalesHeatmap({ initialData }: { initialData?: Record<string, number> } = {}) {
+    const [counts, setCounts] = useState<Record<string, number>>(initialData ?? {})
+    const [loading, setLoading] = useState(!initialData)
 
     useEffect(() => {
+        if (initialData) return
         dashboardApi.getHeatmap()
             .then(res => setCounts(res.data))
             .catch(console.error)

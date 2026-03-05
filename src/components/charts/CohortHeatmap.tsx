@@ -25,11 +25,12 @@ function cellColor(v: number | null): string {
     return v > 50 ? 'var(--on-inv)' : 'var(--fg)'
 }
 
-export default function CohortHeatmap() {
-    const [data, setData] = useState<CohortRow[]>([])
-    const [loading, setLoading] = useState(true)
+export default function CohortHeatmap({ initialData }: { initialData?: CohortRow[] } = {}) {
+    const [data, setData] = useState<CohortRow[]>(initialData ?? [])
+    const [loading, setLoading] = useState(!initialData)
 
     useEffect(() => {
+        if (initialData) return
         dashboardApi.getRetention()
             .then(res => setData(res.data))
             .catch(console.error)

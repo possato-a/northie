@@ -509,6 +509,172 @@ export async function getAdCampaigns(req: Request, res: Response) {
 }
 
 /**
+ * Returns all dashboard data in a single request.
+ * Runs all queries in parallel — a failure in one returns null for that field.
+ * Replaces 8 separate requests with 1 cold start on the Vercel serverless edge.
+ */
+export async function getFullDashboard(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+
+    const days = Number(req.query.days ?? 30);
+    const now = new Date();
+
+    const [statsR, growthR, chartR, attributionR, heatmapR, topCustomersR, adCampaignsR] = await Promise.allSettled([
+
+        // ── Stats ─────────────────────────────────────────────────────────────
+        (async () => {
+            const [transResult, custCountR, txCountR] = await Promise.all([
+                supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
+                supabase.from('customers').select('*', { count: 'exact', head: true }).eq('profile_id', profileId),
+                supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('profile_id', profileId).eq('status', 'approved'),
+            ]);
+            if (transResult.error) throw transResult.error;
+            const totalRevenue = transResult.data?.reduce((s, t) => s + Number(t.amount_net), 0) || 0;
+            const transactionCount = txCountR.count || 0;
+            return {
+                total_revenue: totalRevenue,
+                total_customers: custCountR.count || 0,
+                total_transactions: transactionCount,
+                average_ticket: Number((transactionCount > 0 ? totalRevenue / transactionCount : 0).toFixed(2)),
+                currency: 'BRL',
+            };
+        })(),
+
+        // ── Growth ────────────────────────────────────────────────────────────
+        (async () => {
+            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+            const [curR, prevR] = await Promise.all([
+                supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', thirtyDaysAgo.toISOString()),
+                supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', sixtyDaysAgo.toISOString()).lt('created_at', thirtyDaysAgo.toISOString()),
+            ]);
+            const cur = (curR.data || []).reduce((s, t) => s + Number(t.amount_net), 0);
+            const prev = (prevR.data || []).reduce((s, t) => s + Number(t.amount_net), 0);
+            return {
+                current_revenue: cur,
+                previous_revenue: prev,
+                growth_percentage: Number((prev > 0 ? ((cur - prev) / prev) * 100 : 100).toFixed(2)),
+            };
+        })(),
+
+        // ── Revenue Chart ─────────────────────────────────────────────────────
+        (async () => {
+            const fifteenDaysAgo = new Date();
+            fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+            const { data: txs } = await supabase.from('transactions').select('amount_net, created_at').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', fifteenDaysAgo.toISOString()).order('created_at', { ascending: true });
+            const dailyMap: Record<string, number> = {};
+            for (let i = 0; i < 15; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                dailyMap[d.toISOString().split('T')[0]!] = 0;
+            }
+            txs?.forEach(t => {
+                const k = t.created_at.split('T')[0];
+                if (dailyMap[k] !== undefined) dailyMap[k] += Number(t.amount_net);
+            });
+            return Object.entries(dailyMap).map(([date, amount]) => ({ date, amount })).sort((a, b) => a.date.localeCompare(b.date));
+        })(),
+
+        // ── Attribution ───────────────────────────────────────────────────────
+        (async () => {
+            const [campR, custR] = await Promise.all([
+                supabase.from('ad_campaigns').select('platform, spend_brl, purchase_value, purchases, leads').eq('profile_id', profileId).eq('level', 'campaign'),
+                supabase.from('customers').select('acquisition_channel, total_ltv').eq('profile_id', profileId),
+            ]);
+            if (campR.error) throw campR.error;
+            const channelStats: Record<string, { spend: number; revenue: number; purchases: number; ltv_sum: number; customers: number }> = {};
+            const ensure = (ch: string) => { if (!channelStats[ch]) channelStats[ch] = { spend: 0, revenue: 0, purchases: 0, ltv_sum: 0, customers: 0 }; };
+            for (const row of campR.data || []) {
+                const ch = row.platform === 'meta' ? 'Meta Ads' : row.platform === 'google' ? 'Google Ads' : row.platform;
+                ensure(ch);
+                channelStats[ch]!.spend += Number(row.spend_brl || 0);
+                channelStats[ch]!.revenue += Number(row.purchase_value || 0);
+                channelStats[ch]!.purchases += Number(row.purchases || 0);
+            }
+            for (const c of custR.data || []) {
+                const raw = (c.acquisition_channel || 'desconhecido').toLowerCase();
+                const ch = raw.includes('meta') ? 'Meta Ads' : raw.includes('google') ? 'Google Ads' : raw.includes('hotmart') ? 'Hotmart' : raw === 'desconhecido' ? 'Direto / Outros' : (c.acquisition_channel || 'Direto / Outros');
+                ensure(ch);
+                channelStats[ch]!.ltv_sum += Number(c.total_ltv || 0);
+                channelStats[ch]!.customers += 1;
+            }
+            return Object.entries(channelStats).map(([name, s]) => ({
+                channel: name,
+                revenue: Number(s.revenue.toFixed(2)),
+                spend: Number(s.spend.toFixed(2)),
+                purchases: s.purchases,
+                customers: s.customers,
+                roas: Number((s.spend > 0 ? s.revenue / s.spend : 0).toFixed(2)),
+                cac: Number((s.purchases > 0 ? s.spend / s.purchases : 0).toFixed(2)),
+                ltv: Number((s.customers > 0 ? s.ltv_sum / s.customers : 0).toFixed(2)),
+            })).filter(d => d.spend > 0 || d.revenue > 0 || d.customers > 0).sort((a, b) => b.spend - a.spend);
+        })(),
+
+        // ── Heatmap ───────────────────────────────────────────────────────────
+        (async () => {
+            const startOfYear = new Date(now.getFullYear(), 0, 1);
+            const { data: txs } = await supabase.from('transactions').select('created_at').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', startOfYear.toISOString());
+            const dayCounts: Record<string, number> = {};
+            txs?.forEach(t => { const k = t.created_at.split('T')[0]; dayCounts[k] = (dayCounts[k] || 0) + 1; });
+            return dayCounts;
+        })(),
+
+        // ── Top Customers ─────────────────────────────────────────────────────
+        (async () => {
+            const { data, error } = await supabase.from('customers').select('name, email, total_ltv, acquisition_channel').eq('profile_id', profileId).order('total_ltv', { ascending: false }).limit(10);
+            if (error) throw error;
+            return data;
+        })(),
+
+        // ── Ad Campaigns ──────────────────────────────────────────────────────
+        (async () => {
+            let query = supabase.from('ad_campaigns').select('campaign_id, campaign_name, platform, account_name, objective, status, date, spend_brl, impressions, reach, clicks, frequency, purchases, purchase_value, leads, link_clicks, landing_page_views, video_views').eq('profile_id', profileId).eq('level', 'campaign').order('date', { ascending: false });
+            if (days > 0) {
+                const since = new Date();
+                since.setDate(since.getDate() - days);
+                query = query.gte('date', since.toISOString().split('T')[0]);
+            }
+            const { data, error } = await query;
+            if (error) throw error;
+            const map: Record<string, any> = {};
+            for (const row of data || []) {
+                if (!map[row.campaign_id]) {
+                    map[row.campaign_id] = { campaign_id: row.campaign_id, campaign_name: row.campaign_name, platform: row.platform, account_name: row.account_name, objective: row.objective, status: row.status, spend_brl: 0, impressions: 0, reach: 0, clicks: 0, freq_impressions_sum: 0, purchases: 0, purchase_value: 0, leads: 0, link_clicks: 0, landing_page_views: 0, video_views: 0 };
+                }
+                const c = map[row.campaign_id];
+                c.spend_brl += Number(row.spend_brl); c.impressions += Number(row.impressions); c.reach += Number(row.reach); c.clicks += Number(row.clicks);
+                c.freq_impressions_sum += Number(row.frequency) * Number(row.impressions);
+                c.purchases += Number(row.purchases || 0); c.purchase_value += Number(row.purchase_value || 0); c.leads += Number(row.leads || 0);
+                c.link_clicks += Number(row.link_clicks || 0); c.landing_page_views += Number(row.landing_page_views || 0); c.video_views += Number(row.video_views || 0);
+                if (row.status) c.status = row.status;
+                if (row.objective) c.objective = row.objective;
+            }
+            return Object.values(map).map((c: any) => {
+                const frequency = c.impressions > 0 ? Number((c.freq_impressions_sum / c.impressions).toFixed(2)) : 0;
+                const results = c.purchases > 0 ? c.purchases : c.leads > 0 ? c.leads : c.link_clicks;
+                const result_type = c.purchases > 0 ? 'purchase' : c.leads > 0 ? 'lead' : 'link_click';
+                const cost_per_result = results > 0 ? Number((c.spend_brl / results).toFixed(2)) : 0;
+                const roas = c.purchase_value > 0 && c.spend_brl > 0 ? Number((c.purchase_value / c.spend_brl).toFixed(2)) : 0;
+                return { campaign_id: c.campaign_id, campaign_name: c.campaign_name, platform: c.platform, account_name: c.account_name, objective: c.objective, status: c.status, spend_brl: Number(c.spend_brl.toFixed(2)), impressions: c.impressions, reach: c.reach, clicks: c.clicks, ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0, cpc_brl: c.clicks > 0 ? Number((c.spend_brl / c.clicks).toFixed(2)) : 0, cpm_brl: c.impressions > 0 ? Number((c.spend_brl / c.impressions * 1000).toFixed(2)) : 0, frequency, purchases: c.purchases, purchase_value: Number(c.purchase_value.toFixed(2)), leads: c.leads, link_clicks: c.link_clicks, landing_page_views: c.landing_page_views, video_views: c.video_views, results, result_type, cost_per_result, roas };
+            }).sort((a: any, b: any) => b.spend_brl - a.spend_brl);
+        })(),
+    ]);
+
+    const ok = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
+
+    res.status(200).json({
+        stats: ok(statsR),
+        growth: ok(growthR),
+        chart: ok(chartR),
+        attribution: ok(attributionR),
+        heatmap: ok(heatmapR),
+        topCustomers: ok(topCustomersR),
+        adCampaigns: ok(adCampaignsR),
+    });
+}
+
+/**
  * Returns adsets and ads for a specific campaign.
  * GET /dashboard/ad-campaigns/:campaignId?days=30
  */

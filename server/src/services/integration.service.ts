@@ -216,12 +216,20 @@ export class IntegrationService {
             } catch (error: any) {
                 const detail = error.response?.data ?? error.message;
                 console.error(`[IntegrationService] Meta re-exchange failed for ${profileId}:`, detail);
-                // Mark integration as inactive so the user knows to reconnect
-                await supabase
-                    .from('integrations')
-                    .update({ status: 'inactive' })
-                    .eq('profile_id', profileId)
-                    .eq('platform', 'meta');
+                const httpStatus = error.response?.status;
+                const errCode = error.response?.data?.error?.code;
+                const errType = error.response?.data?.error?.type;
+                const isPermanent =
+                    (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
+                    (httpStatus === 400 && errType === 'OAuthException' && [190, 102, 467, 458].includes(errCode)) ||
+                    (httpStatus === 401);
+                if (isPermanent) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'inactive' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'meta');
+                }
                 throw error;
             }
         }
@@ -256,11 +264,17 @@ export class IntegrationService {
                 return newTokens;
             } catch (error: any) {
                 console.error(`[IntegrationService] Google refresh failed for ${profileId}:`, error.response?.data ?? error.message);
-                await supabase
-                    .from('integrations')
-                    .update({ status: 'inactive' })
-                    .eq('profile_id', profileId)
-                    .eq('platform', 'google');
+                const httpStatus = error.response?.status;
+                const isPermanent =
+                    (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
+                    (httpStatus === 401);
+                if (isPermanent) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'inactive' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'google');
+                }
                 throw error;
             }
         }
@@ -299,11 +313,18 @@ export class IntegrationService {
                 return newTokens;
             } catch (error: any) {
                 console.error(`[IntegrationService] Hotmart refresh failed for ${profileId}:`, error.response?.data ?? error.message);
-                await supabase
-                    .from('integrations')
-                    .update({ status: 'inactive' })
-                    .eq('profile_id', profileId)
-                    .eq('platform', 'hotmart');
+                const httpStatus = error.response?.status;
+                const errData = error.response?.data;
+                const isPermanent =
+                    (httpStatus === 400 && (errData?.error === 'invalid_grant' || errData?.error === 'invalid_token')) ||
+                    (httpStatus === 401);
+                if (isPermanent) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'inactive' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'hotmart');
+                }
                 throw error;
             }
         }

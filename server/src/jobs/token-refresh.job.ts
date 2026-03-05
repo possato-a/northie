@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 
-async function checkAndRefreshAll(): Promise<void> {
+export async function checkAndRefreshAll(): Promise<void> {
     try {
         console.log('[Job] Checking integrations for renewals...');
 

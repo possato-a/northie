@@ -13,11 +13,12 @@ function fmtBR(v: number) {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
 }
 
-export default function TopClients() {
-  const [clients, setClients] = useState<TopCustomer[]>([])
-  const [loading, setLoading] = useState(true)
+export default function TopClients({ initialData }: { initialData?: TopCustomer[] } = {}) {
+  const [clients, setClients] = useState<TopCustomer[]>(initialData ?? [])
+  const [loading, setLoading] = useState(!initialData)
 
   useEffect(() => {
+    if (initialData) return
     dashboardApi.getTopCustomers()
       .then((res: { data: TopCustomer[] }) => setClients(res.data))
       .catch(console.error)

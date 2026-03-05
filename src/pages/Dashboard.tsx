@@ -17,6 +17,10 @@ interface DashboardProps {
 export default function Dashboard({ onToggleChat, user }: DashboardProps) {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<any>(null)
+  const [chartData, setChartData] = useState<any>(null)
+  const [attribution, setAttribution] = useState<any>(null)
+  const [heatmap, setHeatmap] = useState<any>(null)
+  const [topCustomers, setTopCustomers] = useState<any>(null)
 
   useEffect(() => {
     if (user?.id) {
@@ -27,30 +31,24 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      const [statsRes, campaignsRes, growthRes] = await Promise.all([
-        dashboardApi.getStats(),
-        dashboardApi.getAdCampaigns(30),
-        dashboardApi.getGrowth(),
-      ])
+      const { data: full } = await dashboardApi.getFull(30)
 
-      const data = statsRes.data
-      const campaigns: any[] = campaignsRes.data || []
-      const growth = growthRes.data
+      const data = full.stats ?? {}
+      const campaigns: any[] = full.adCampaigns ?? []
+      const growth = full.growth
 
       const calcRoas = (platform: string) => {
-        const filtered = campaigns.filter(c => c.platform === platform)
-        const spend = filtered.reduce((s, c) => s + (c.spend_brl || 0), 0)
-        const revenue = filtered.reduce((s, c) => s + (c.purchase_value || 0), 0)
+        const filtered = campaigns.filter((c: any) => c.platform === platform)
+        const spend = filtered.reduce((s: number, c: any) => s + (c.spend_brl || 0), 0)
+        const revenue = filtered.reduce((s: number, c: any) => s + (c.purchase_value || 0), 0)
         return spend > 0 ? revenue / spend : 0
       }
 
-      const totalSpend = campaigns.reduce((s, c) => s + (c.spend_brl || 0), 0)
-      const totalRevenue = campaigns.reduce((s, c) => s + (c.purchase_value || 0), 0)
+      const totalSpend = campaigns.reduce((s: number, c: any) => s + (c.spend_brl || 0), 0)
+      const totalRevenue = campaigns.reduce((s: number, c: any) => s + (c.purchase_value || 0), 0)
 
       const growthPct = growth?.growth_percentage ?? null
-      const growthTrend = growthPct !== null
-        ? `${Math.abs(growthPct).toFixed(1)}%`
-        : undefined
+      const growthTrend = growthPct !== null ? `${Math.abs(growthPct).toFixed(1)}%` : undefined
 
       setStats({
         faturamento: data.total_revenue || 0,
@@ -62,6 +60,10 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
         growthTrend,
         growthPositive: growthPct !== null ? growthPct >= 0 : undefined,
       })
+      setChartData(full.chart ?? undefined)
+      setAttribution(full.attribution ?? undefined)
+      setHeatmap(full.heatmap ?? undefined)
+      setTopCustomers(full.topCustomers ?? undefined)
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
       setStats({ faturamento: 0, ticketMedio: 0, pedidos: 0, roi: 0, roasMeta: 0, roasGoogle: 0 })
@@ -120,13 +122,13 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
         style={{ marginTop: 64 }}
       >
         <Divider margin="0 0 56px" />
-        <SalesHeatmap />
+        <SalesHeatmap initialData={heatmap} />
         <div style={{ marginTop: 64 }}>
-          <RevenueChart />
+          <RevenueChart initialData={chartData} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, marginTop: 64 }}>
-          <ChannelChart />
-          <TopClients />
+          <ChannelChart initialData={attribution} />
+          <TopClients initialData={topCustomers} />
         </div>
       </motion.div>
     </div>

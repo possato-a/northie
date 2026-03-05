@@ -44,6 +44,7 @@ router.get('/retention', DashboardController.getRetentionCohort);
  * @desc Top customers by LTV
  */
 router.get('/top-customers', DashboardController.getTopCustomers);
+router.get('/full', DashboardController.getFullDashboard);
 router.get('/channel-trends', DashboardController.getChannelTrends);
 router.get('/ad-campaigns', DashboardController.getAdCampaigns);
 router.get('/ad-campaigns/:campaignId', DashboardController.getAdCampaignDetail);

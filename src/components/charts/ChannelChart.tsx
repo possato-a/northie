@@ -24,11 +24,12 @@ const CHANNEL_COLORS: Record<string, string> = {
   'direto / outros': 'var(--color-text-tertiary)',
 }
 
-export default function ChannelChart() {
-  const [channels, setChannels] = useState<ChannelData[]>([])
-  const [loading, setLoading] = useState(true)
+export default function ChannelChart({ initialData }: { initialData?: ChannelData[] } = {}) {
+  const [channels, setChannels] = useState<ChannelData[]>(initialData ?? [])
+  const [loading, setLoading] = useState(!initialData)
 
   useEffect(() => {
+    if (initialData) return
     dashboardApi.getAttribution()
       .then(res => setChannels(res.data))
       .catch(console.error)

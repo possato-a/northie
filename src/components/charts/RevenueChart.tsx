@@ -29,12 +29,13 @@ function buildCurve(pts: { x: number; y: number }[]) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function RevenueChart() {
-  const [data, setData] = useState<{ date: string; amount: number }[]>([])
+export default function RevenueChart({ initialData }: { initialData?: { date: string; amount: number }[] } = {}) {
+  const [data, setData] = useState<{ date: string; amount: number }[]>(initialData ?? [])
   const [hovered, setHovered] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!initialData)
 
   useEffect(() => {
+    if (initialData) return
     dashboardApi.getChart()
       .then(res => setData(res.data))
       .catch(console.error)
