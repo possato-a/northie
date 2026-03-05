@@ -66,7 +66,10 @@ export const reportsApi = {
     getConfig: () => api.get('/reports/config'),
     saveConfig: (data: any) => api.post('/reports/config', data),
     generate: (frequency: string, format: string) =>
-        api.post('/reports/generate', { frequency, format }, { responseType: 'blob' }),
+        api.post('/reports/generate', { frequency, format }, {
+            responseType: 'blob',
+            timeout: format === 'pdf' ? 45000 : 20000,
+        }),
     getLogs: () => api.get('/reports/logs'),
 };
 

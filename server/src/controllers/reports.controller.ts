@@ -4,6 +4,8 @@ import {
     generateReportData, formatAsCsv, computeNextSendAt,
     type ReportFrequency, type ReportFormat
 } from '../services/reports/report-generator.js';
+import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
+import { generatePdf } from '../services/reports/report-pdf.js';
 
 export async function getReportConfig(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
@@ -72,10 +74,21 @@ export async function generateReport(req: Request, res: Response) {
             return res.send('\ufeff' + csv);
         }
 
+        if (format === 'pdf') {
+            const aiAnalysis = await generateReportNarrative(reportData);
+            const pdfBuffer = await generatePdf(reportData, aiAnalysis);
+            const filename = `northie-report-${frequency}-${dateStr}.pdf`;
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            return res.send(pdfBuffer);
+        }
+
+        // JSON — inclui análise de IA opcionalmente
+        const aiAnalysis = await generateReportNarrative(reportData);
         const filename = `northie-report-${frequency}-${dateStr}.json`;
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.json(reportData);
+        return res.json({ ...reportData, ai_analysis: aiAnalysis });
     } catch (err: any) {
         console.error('[Reports] generateReport error:', err);
         return res.status(500).json({ error: 'Failed to generate report' });

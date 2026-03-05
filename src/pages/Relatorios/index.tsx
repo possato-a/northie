@@ -200,8 +200,7 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     // Generate on-demand state
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
-const [generatingCsv, setGeneratingCsv] = useState(false)
-    const [generatingJson, setGeneratingJson] = useState(false)
+    const [generating, setGenerating] = useState<'csv' | 'json' | 'pdf' | null>(null)
 
     // History state
     const [logs, setLogs] = useState<ReportLog[]>([])
@@ -247,14 +246,15 @@ const [generatingCsv, setGeneratingCsv] = useState(false)
     }
 
     // Download report
-    async function handleDownload(format: 'csv' | 'json') {
-        const setLoading = format === 'csv' ? setGeneratingCsv : setGeneratingJson
-        setLoading(true)
+    async function handleDownload(format: 'csv' | 'json' | 'pdf') {
+        setGenerating(format)
         try {
             const response = await reportsApi.generate(genFrequency, format)
-            const ext = format === 'csv' ? 'csv' : 'json'
+            const extMap = { csv: 'csv', json: 'json', pdf: 'pdf' }
+            const ext = extMap[format]
             const filename = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${ext}`
-            const url = URL.createObjectURL(new Blob([response.data]))
+            const mimeMap = { csv: 'text/csv', json: 'application/json', pdf: 'application/pdf' }
+            const url = URL.createObjectURL(new Blob([response.data], { type: mimeMap[format] }))
             const a = document.createElement('a')
             a.href = url
             a.download = filename
@@ -263,7 +263,7 @@ const [generatingCsv, setGeneratingCsv] = useState(false)
         } catch {
             // Silently fail — production would show a toast
         } finally {
-            setLoading(false)
+            setGenerating(null)
         }
     }
 
@@ -491,11 +491,11 @@ const [generatingCsv, setGeneratingCsv] = useState(false)
                         </div>
 
                         {/* Download buttons */}
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                             <Btn
                                 variant="secondary"
                                 onClick={() => handleDownload('csv')}
-                                disabled={generatingCsv}
+                                disabled={generating !== null}
                                 icon={
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -504,12 +504,12 @@ const [generatingCsv, setGeneratingCsv] = useState(false)
                                     </svg>
                                 }
                             >
-                                {generatingCsv ? 'Gerando...' : 'Baixar CSV'}
+                                {generating === 'csv' ? 'Gerando...' : 'Baixar CSV'}
                             </Btn>
                             <Btn
                                 variant="secondary"
                                 onClick={() => handleDownload('json')}
-                                disabled={generatingJson}
+                                disabled={generating !== null}
                                 icon={
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -518,9 +518,40 @@ const [generatingCsv, setGeneratingCsv] = useState(false)
                                     </svg>
                                 }
                             >
-                                {generatingJson ? 'Gerando...' : 'Baixar JSON'}
+                                {generating === 'json' ? 'Gerando...' : 'Baixar JSON'}
+                            </Btn>
+                            <Btn
+                                variant="primary"
+                                onClick={() => handleDownload('pdf')}
+                                disabled={generating !== null}
+                                icon={
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                        <polyline points="14 2 14 8 20 8" />
+                                        <line x1="16" y1="13" x2="8" y2="13" />
+                                        <line x1="16" y1="17" x2="8" y2="17" />
+                                        <polyline points="10 9 9 9 8 9" />
+                                    </svg>
+                                }
+                            >
+                                {generating === 'pdf' ? 'Gerando PDF...' : 'PDF com IA'}
                             </Btn>
                         </div>
+                        {generating === 'pdf' && (
+                            <motion.p
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                style={{
+                                    fontFamily: 'var(--font-sans)',
+                                    fontSize: 'var(--text-xs)',
+                                    color: 'var(--color-text-secondary)',
+                                    margin: 0,
+                                    marginTop: -8,
+                                }}
+                            >
+                                Pode levar até 15 segundos — a IA está analisando seus dados...
+                            </motion.p>
+                        )}
                     </div>
                 </div>
             </motion.div>
