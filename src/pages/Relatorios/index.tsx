@@ -21,7 +21,7 @@ import {
 interface ReportConfig {
     enabled: boolean
     frequency: 'semanal' | 'mensal' | 'trimestral'
-    format: 'csv' | 'json'
+    format: 'csv' | 'json' | 'pdf'
     email: string
 }
 
@@ -191,7 +191,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [config, setConfig] = useState<ReportConfig>({
         enabled: false,
         frequency: 'mensal',
-        format: 'csv',
+        format: 'pdf',
         email: '',
     })
     const [savedConfig, setSavedConfig] = useState<ReportConfig | null>(null)
@@ -221,13 +221,8 @@ export default function Relatorios(_props: RelatoriosProps) {
             })
 
         reportsApi.getLogs()
-            .then(res => {
-                setLogs(res.data || [])
-            })
-            .catch(() => {
-                setLogs([])
-            })
-            .finally(() => setLoadingLogs(false))
+            .then(res => { setLogs(res.data || []) })
+            .then(() => setLoadingLogs(false), () => { setLogs([]); setLoadingLogs(false) })
     }, [])
 
     // Save configuration
@@ -357,10 +352,10 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 Formato
                             </span>
                             <SegmentedControl
-                                options={['csv', 'json'] as const}
+                                options={['pdf', 'csv', 'json'] as const}
                                 value={config.format}
                                 onChange={v => setConfig(c => ({ ...c, format: v }))}
-                                labels={{ csv: 'CSV', json: 'JSON' }}
+                                labels={{ pdf: 'PDF com IA', csv: 'CSV', json: 'JSON' }}
                             />
                         </div>
 

@@ -49,7 +49,13 @@ export async function generateReport(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
-    const frequency: ReportFrequency = req.body.frequency ?? 'monthly';
+    // Normaliza frequência pt-BR → en (suporte a ambos os formatos)
+    const freqRaw: string = req.body.frequency ?? 'monthly';
+    const freqMap: Record<string, ReportFrequency> = {
+        semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
+        weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
+    };
+    const frequency: ReportFrequency = freqMap[freqRaw] ?? 'monthly';
     const format: ReportFormat = req.body.format ?? 'csv';
 
     try {
