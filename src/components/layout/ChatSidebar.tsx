@@ -114,7 +114,7 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
         setIsThinking(true)
 
         try {
-            const response = await aiApi.chat(messageText)
+            const response = await aiApi.chat(messageText, context)
             const aiMsg: Message = {
                 id: Date.now().toString(),
                 role: 'assistant',

@@ -8,36 +8,27 @@ export async function getGeneralStats(req, res) {
         return res.status(400).json({ error: 'Missing x-profile-id header' });
     }
     try {
-        // 1. Total Revenue & LTV (from approved transactions)
-        const { data: transactions, error: tError } = await supabase
-            .from('transactions')
-            .select('amount_net')
-            .eq('profile_id', profileId)
-            .eq('status', 'approved');
-        if (tError)
-            throw tError;
-        const totalRevenue = transactions?.reduce((sum, t) => sum + Number(t.amount_net), 0) || 0;
-        // 2. Customer Count
-        const { count: customerCount, error: cError } = await supabase
-            .from('customers')
-            .select('*', { count: 'exact', head: true })
-            .eq('profile_id', profileId);
-        if (cError)
-            throw cError;
-        // 3. Transaction Count (correct denominator for AOV)
-        const { count: transactionCount, error: txCountError } = await supabase
-            .from('transactions')
-            .select('*', { count: 'exact', head: true })
-            .eq('profile_id', profileId)
-            .eq('status', 'approved');
-        if (txCountError)
-            throw txCountError;
-        // 4. Average Ticket (AOV) — revenue / number of transactions
-        const averageTicket = transactionCount && transactionCount > 0 ? totalRevenue / transactionCount : 0;
+        // Parallel fetch: revenue data, customer count, transaction count
+        const [transResult, customerCountResult, txCountResult] = await Promise.all([
+            supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
+            supabase.from('customers').select('*', { count: 'exact', head: true }).eq('profile_id', profileId),
+            supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('profile_id', profileId).eq('status', 'approved'),
+        ]);
+        if (transResult.error)
+            throw transResult.error;
+        if (customerCountResult.error)
+            throw customerCountResult.error;
+        if (txCountResult.error)
+            throw txCountResult.error;
+        const totalRevenue = transResult.data?.reduce((sum, t) => sum + Number(t.amount_net), 0) || 0;
+        const customerCount = customerCountResult.count || 0;
+        const transactionCount = txCountResult.count || 0;
+        // Average Ticket (AOV) — revenue / number of transactions
+        const averageTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
         res.status(200).json({
             total_revenue: totalRevenue,
-            total_customers: customerCount || 0,
-            total_transactions: transactionCount || 0,
+            total_customers: customerCount,
+            total_transactions: transactionCount,
             average_ticket: Number(averageTicket.toFixed(2)),
             currency: 'BRL'
         });

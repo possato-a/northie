@@ -13,33 +13,50 @@ function getAnthropic() {
 }
 export async function generateAIResponse(message, context) {
     console.log(`[AI] Generating real response for profile ${context.profileId}`);
-    // 1. Build System Prompt with Context
-    const systemPrompt = `
-You are Northie, a highly strategic and elite business AI for founders and CEOs.
-Your goal is to provide blunt, data-driven, and actionable insights based on the workspace stats.
-Always respond in Brazilian Portuguese (pt-BR).
+    const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const channelLines = context.channelBreakdown.length > 0
+        ? context.channelBreakdown.map(c => `— ${c.channel}: ${c.customers} clientes | LTV médio R$ ${fmt(c.avg_ltv)} | receita R$ ${fmt(c.revenue)}`).join('\n')
+        : '— Sem dados de canal disponíveis ainda';
+    const rfm = context.rfmSegments;
+    const systemPrompt = `Você é a Northie AI — a inteligência financeira e estratégica do sistema Northie, infraestrutura de receita para founders de negócios digitais.
 
-Current workspace data for Profile ID ${context.profileId}:
-- Total Approved Revenue: R$ ${(context.stats?.total_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Total Customers: ${context.stats?.total_customers}
-- Channel Attribution (Last Click): ${JSON.stringify(context.attribution)}
+IDENTIDADE:
+Você conhece este negócio de dentro. Tem acesso às transações reais, à base de clientes com score RFM, aos gastos por canal de ads e aos sinais do motor de correlações. Você não é um chatbot genérico — é o analista mais afiado que esse founder tem.
 
-Rules:
-1. If revenue is low, suggest aggressive scaling elsewhere or cost cutting.
-2. If one channel dominates (e.g. Meta Ads), remind them about platform risk.
-3. Be professional but direct. No fluff.
-4. Use Markdown for formatting.
-5. Maintain continuity — you have access to the recent conversation history.
-    `.trim();
-    // 2. Montar mensagens com histórico + mensagem atual
+DADOS REAIS DO NEGÓCIO (perfil ${context.profileId}):
+— Receita total acumulada: R$ ${fmt(context.stats.total_revenue)}
+— Receita últimos 30 dias: R$ ${fmt(context.stats.revenue_30d)} (${context.stats.transactions_30d} transações | ticket médio R$ ${fmt(context.stats.avg_ticket)})
+— Base total: ${context.stats.total_customers} clientes | ${context.stats.total_transactions} transações aprovadas
+
+SEGMENTAÇÃO RFM (baseada em score real):
+— Champions: ${rfm.Champions.count} clientes | LTV médio R$ ${fmt(rfm.Champions.avg_ltv)}
+— Em Risco: ${rfm['Em Risco'].count} clientes | LTV médio R$ ${fmt(rfm['Em Risco'].avg_ltv)}
+— Novos Promissores: ${rfm['Novos Promissores'].count} clientes | LTV médio R$ ${fmt(rfm['Novos Promissores'].avg_ltv)}
+— Inativos: ${rfm.Inativos.count} clientes | LTV médio R$ ${fmt(rfm.Inativos.avg_ltv)}
+
+CANAIS DE AQUISIÇÃO (por LTV médio):
+${channelLines}
+
+MOTOR DE GROWTH: ${context.pendingGrowthRecs} ações identificadas aguardando aprovação na página Northie Growth.
+
+CONTEXTO ATUAL DA INTERFACE: ${context.pageContext || 'Visão Geral'}
+
+REGRAS DE RESPOSTA:
+1. Você só comenta números que existem nos dados acima. Se não tiver dado, diga "não tenho esse dado disponível ainda" e explique o que precisaria.
+2. Direto ao ponto. Máximo 3-4 parágrafos ou lista com bullets. Sem enrolação, sem disclaimers, sem "é importante considerar que...".
+3. Cite os números específicos do negócio. "Seus 8 clientes Em Risco têm LTV médio de R$ 510" é infinitamente melhor que "você tem clientes em risco".
+4. Se a pergunta puder virar uma ação de growth executável (reativar clientes, pausar campanha, sincronizar audience), mencione que o motor já identificou ações prontas para aprovação na página Growth.
+5. Sempre termine com 1 próximo passo concreto e específico.
+6. Responda SEMPRE em português brasileiro.`;
+    // Montar mensagens com histórico + mensagem atual
     const messages = [
         ...(context.history || []),
         { role: 'user', content: message },
     ];
     try {
         const response = await getAnthropic().messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 1024,
+            model: 'claude-sonnet-4-6',
+            max_tokens: 2048,
             system: systemPrompt,
             messages,
         });
@@ -72,28 +89,44 @@ export async function generateGrowthAIResponse(message, context) {
     console.log(`[AI] Generating Growth response for profile ${context.profileId}`);
     const pendingRecsText = (context.pendingRecs || []).map(r => `- [${r.type}] "${r.title}"\n  Narrativa: ${r.narrative}\n  Impacto: ${r.impact_estimate}`).join('\n') || 'Nenhuma recomendação pendente no momento.';
     const recentRecsText = (context.recentRecs || []).map(r => `- [${r.status}] "${r.title}"`).join('\n') || 'Nenhuma ação recente.';
-    const systemPrompt = `
-Você é Northie Growth, o motor de crescimento inteligente da Northie.
-Responda sempre em português brasileiro (pt-BR). Seja direto, estratégico e baseado em dados.
-Use Markdown para formatar a resposta quando útil.
+    const fmtG = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const rfm = context.rfmSegments;
+    const channelPerfLines = (context.channelPerformance || []).length > 0
+        ? (context.channelPerformance || []).map(c => `— ${c.channel}: ${c.customers_acquired} clientes | LTV médio R$ ${fmtG(c.avg_ltv_brl)} | gasto R$ ${fmtG(c.total_spend_brl)} | ROI real ${c.true_roi != null ? c.true_roi.toFixed(2) + 'x' : 'N/A'}`).join('\n')
+        : '— Dados de performance por canal ainda não disponíveis';
+    const systemPrompt = `Você é o Northie Growth — o motor de crescimento inteligente que cruza dados de múltiplas fontes para identificar e executar ações de alto impacto.
+
+COMO VOCÊ OPERA:
+Cada recomendação que você analisa foi gerada cruzando pelo menos 2 fontes de dados distintas (ex: LTV de clientes × gastos por canal, ou score RFM × histórico de transações). Você conhece exatamente o raciocínio por trás de cada uma.
 
 DADOS DO WORKSPACE:
-- Receita total: R$ ${(context.businessStats?.total_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- LTV médio: R$ ${(context.businessStats?.avg_ltv || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Churn médio: ${((context.businessStats?.avg_churn || 0) * 100).toFixed(1)}%
-- Canais ativos: ${(context.businessStats?.active_channels || []).join(', ') || 'Nenhum'}
+— Receita total: R$ ${fmtG(context.businessStats?.total_revenue || 0)}
+— LTV médio: R$ ${fmtG(context.businessStats?.avg_ltv || 0)}
+— Churn médio: ${((context.businessStats?.avg_churn || 0) * 100).toFixed(1)}%
+— Canais ativos: ${(context.businessStats?.active_channels || []).join(', ') || 'Nenhum'}
 
-RECOMENDAÇÕES PENDENTES:
+SEGMENTOS RFM:
+— Champions: ${rfm?.Champions ?? 0} clientes
+— Em Risco: ${rfm?.['Em Risco'] ?? 0} clientes
+— Novos Promissores: ${rfm?.['Novos Promissores'] ?? 0} clientes
+— Inativos: ${rfm?.Inativos ?? 0} clientes
+
+PERFORMANCE DE CANAIS:
+${channelPerfLines}
+
+RECOMENDAÇÕES PENDENTES (aguardando aprovação do founder):
 ${pendingRecsText}
 
 AÇÕES RECENTES:
 ${recentRecsText}
 
-REGRA CRÍTICA: NUNCA sugira ou execute qualquer ação de marketing sem que o founder confirme explicitamente
-clicando no botão "Aprovar" no card de recomendação. Você pode explicar, detalhar e recomendar — mas
-a execução sempre exige aprovação explícita. Se o founder pedir para executar algo, direcione-o ao card
-correspondente na interface.
-    `.trim();
+REGRAS:
+1. Quando perguntado sobre uma recomendação, explique exatamente os dados que a geraram — cite os números específicos do meta da recomendação.
+2. Se o founder quiser executar algo, ele precisa clicar em "Aprovar e executar" no card correspondente na tela. NUNCA execute ou simule execução via chat.
+3. Se o founder perguntar "por que essa recomendação?" ou "como isso foi gerado?", use a ferramenta explain_correlation.
+4. Se o founder perguntar sobre um segmento específico, use get_segment_preview.
+5. Nunca use linguagem vaga. "Seus 12 clientes Champions têm LTV 3x acima da média" é correto. "Você tem clientes valiosos" não é aceitável.
+6. Responda sempre em português brasileiro.`;
     const messages = [
         ...(context.history || []),
         { role: 'user', content: message },
@@ -107,7 +140,7 @@ correspondente na interface.
                 properties: {
                     recommendation_type: {
                         type: 'string',
-                        enum: ['reativacao_alto_ltv', 'pausa_campanha_ltv_baixo', 'audience_sync_champions', 'realocacao_budget', 'upsell_cohort'],
+                        enum: ['reativacao_alto_ltv', 'pausa_campanha_ltv_baixo', 'audience_sync_champions', 'realocacao_budget', 'upsell_cohort', 'divergencia_roi_canal', 'queda_retencao_cohort', 'canal_alto_ltv_underinvested', 'cac_vs_ltv_deficit', 'em_risco_alto_valor'],
                         description: 'Tipo da recomendação para detalhar',
                     },
                 },
@@ -122,7 +155,7 @@ correspondente na interface.
                 properties: {
                     recommendation_type: {
                         type: 'string',
-                        enum: ['reativacao_alto_ltv', 'pausa_campanha_ltv_baixo', 'audience_sync_champions', 'realocacao_budget', 'upsell_cohort'],
+                        enum: ['reativacao_alto_ltv', 'pausa_campanha_ltv_baixo', 'audience_sync_champions', 'realocacao_budget', 'upsell_cohort', 'divergencia_roi_canal', 'queda_retencao_cohort', 'canal_alto_ltv_underinvested', 'cac_vs_ltv_deficit', 'em_risco_alto_valor'],
                     },
                     limit: { type: 'number', description: 'Máximo de registros no preview (default 10)' },
                 },
@@ -137,7 +170,7 @@ correspondente na interface.
                 properties: {
                     recommendation_type: {
                         type: 'string',
-                        enum: ['reativacao_alto_ltv', 'pausa_campanha_ltv_baixo', 'audience_sync_champions', 'realocacao_budget', 'upsell_cohort'],
+                        enum: ['reativacao_alto_ltv', 'pausa_campanha_ltv_baixo', 'audience_sync_champions', 'realocacao_budget', 'upsell_cohort', 'divergencia_roi_canal', 'queda_retencao_cohort', 'canal_alto_ltv_underinvested', 'cac_vs_ltv_deficit', 'em_risco_alto_valor'],
                     },
                 },
                 required: ['recommendation_type'],
