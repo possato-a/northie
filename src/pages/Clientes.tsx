@@ -227,7 +227,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
     useEffect(() => {
         const custPromise = dataApi.getCustomers().catch(() => ({ data: [] }))
         const attrPromise = dashboardApi.getAttribution().catch(() => ({ data: [] }))
-        const txPromise = dataApi.getTransactions().catch(() => ({ data: [] }))
+        const txPromise = dataApi.getTransactions(365).catch(() => ({ data: [] }))
 
         Promise.all([custPromise, attrPromise, txPromise]).then(([custRes, attrRes, txRes]) => {
             // Monta mapa canal → CAC a partir dos dados de Meta/Google Ads

@@ -309,7 +309,6 @@ export default function Valuation({ onToggleChat }: PageProps) {
                                     <MetricRow label="MRR" value={`R$ ${current.mrr_brl.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`} />
                                     <MetricRow label="LTV/CAC ratio" value={`${current.ltv_cac_ratio.toFixed(1)}x`} benchmark="> 3x" good={current.ltv_cac_ratio >= 3} />
                                     <MetricRow label="Churn rate" value={`${(current.churn_rate * 100).toFixed(1)}%`} benchmark="< 5%" good={current.churn_rate < 0.05} />
-                                    <MetricRow label="Margem bruta" value={`${(current.gross_margin * 100).toFixed(0)}%`} benchmark="> 60%" good={current.gross_margin >= 0.6} />
                                     <MetricRow label="Múltiplo aplicado" value={`${current.multiple}x`} benchmark="ARR SaaS BR" />
                                 </div>
                             </div>

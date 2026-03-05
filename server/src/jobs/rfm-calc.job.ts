@@ -185,7 +185,6 @@ async function calcRfmForProfile(profileId: string): Promise<void> {
                 email: c.email,
                 profile_id: profileId,
                 rfm_score: rfmScore,
-                rfm_segment: rfmSegment(rfmScore),
                 cac,
                 churn_probability: churnProb,
                 rfm_updated_at: new Date().toISOString(),

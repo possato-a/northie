@@ -30,7 +30,7 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
     const { data: txData } = await supabase
         .from('transactions')
         .select('amount_net')
-        .eq('user_id', profileId)
+        .eq('profile_id', profileId)
         .eq('status', 'approved')
         .gte('created_at', twelveMonthsAgo.toISOString());
 
@@ -41,7 +41,7 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
     const { data: customerData } = await supabase
         .from('customers')
         .select('total_ltv, churn_probability')
-        .eq('user_id', profileId);
+        .eq('profile_id', profileId);
 
     const customers = customerData || [];
     const ltv_avg_brl = customers.length > 0
@@ -55,14 +55,14 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
     const { data: adData } = await supabase
         .from('ad_metrics')
         .select('spend_brl')
-        .eq('user_id', profileId)
+        .eq('profile_id', profileId)
         .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
     const totalSpend = (adData || []).reduce((a, m) => a + (m.spend_brl || 0), 0);
 
     const { data: newCustomers } = await supabase
         .from('customers')
         .select('id')
-        .eq('user_id', profileId)
+        .eq('profile_id', profileId)
         .gte('created_at', sixMonthsAgo.toISOString());
     const newCustomerCount = (newCustomers || []).length;
     const cac_avg_brl = newCustomerCount > 0 && totalSpend > 0 ? totalSpend / newCustomerCount : 0;
@@ -94,6 +94,16 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
     } else if (businessType === 'ecommerce' || businessType === 'dtc') {
         // Range 1.5-4x based on LTV/CAC ratio
         multiple = clamp(1.5 + (ltv_cac_ratio / 3) * 2.5, 1.5, 4);
+        valuation_brl = arr_brl * multiple;
+        methodology = 'arr_multiple';
+    } else if (businessType === 'infoprodutor_perpetuo') {
+        // Same logic as ecommerce/dtc — recurring revenue from evergreen offers
+        multiple = clamp(1.5 + (ltv_cac_ratio / 3) * 2.5, 1.5, 4);
+        valuation_brl = arr_brl * multiple;
+        methodology = 'arr_multiple';
+    } else if (businessType === 'infoprodutor_lancamento') {
+        // Conservative multiple: launch revenue is episodic, not recurring
+        multiple = clamp(1 + (ltv_cac_ratio / 4) * 1.5, 1, 2.5);
         valuation_brl = arr_brl * multiple;
         methodology = 'arr_multiple';
     } else if (businessType === 'startup') {
