@@ -6,6 +6,7 @@ import {
 } from '../services/reports/report-generator.js';
 import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+import { sendReport } from '../services/reports/report-email.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -190,4 +191,73 @@ export async function getReportLogs(req: Request, res: Response) {
 
     if (error) return res.status(500).json({ error: error.message });
     return res.json(data ?? []);
+}
+
+export async function sendReportByEmail(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const freqRaw: string = req.body.frequency ?? 'monthly';
+    const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const format: ReportFormat = req.body.format ?? 'pdf';
+
+    // Email: do body ou da config salva
+    let email: string = req.body.email ?? '';
+    if (!email) {
+        const { data: cfg } = await supabase
+            .from('report_configs')
+            .select('email')
+            .eq('profile_id', profileId)
+            .single();
+        email = cfg?.email ?? '';
+    }
+    if (!email) return res.status(400).json({ error: 'Email não configurado. Configure em Relatórios > Envio automático.' });
+
+    try {
+        const reportData = await generateReportData(profileId, frequency);
+        const aiAnalysis = await generateReportNarrative(reportData);
+        const snapshot = buildSnapshot(reportData, aiAnalysis);
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        let fileBuffer: Buffer | string;
+        let filename: string;
+
+        if (format === 'pdf') {
+            fileBuffer = await generatePdf(reportData, aiAnalysis);
+            filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
+        } else if (format === 'csv') {
+            fileBuffer = formatAsCsv(reportData, aiAnalysis);
+            filename = `northie-report-${freqRaw}-${dateStr}.csv`;
+        } else {
+            fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
+            filename = `northie-report-${freqRaw}-${dateStr}.json`;
+        }
+
+        const resendEmailId = await sendReport({
+            to: email,
+            frequency: freqRaw,
+            format,
+            fileBuffer,
+            filename,
+            data: reportData,
+            ai: aiAnalysis,
+        });
+
+        await supabase.from('report_logs').insert({
+            profile_id: profileId,
+            frequency: freqRaw,
+            format,
+            period_start: reportData.period.start,
+            period_end: reportData.period.end,
+            status: 'generated',
+            situacao_geral: aiAnalysis.situacao_geral,
+            snapshot,
+            ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+        });
+
+        return res.json({ ok: true, to: email, email_id: resendEmailId });
+    } catch (err) {
+        console.error('[Reports] sendReportByEmail error:', err);
+        return res.status(500).json({ error: 'Falha ao enviar relatório por email' });
+    }
 }

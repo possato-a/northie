@@ -72,6 +72,8 @@ export const reportsApi = {
         }),
     getLogs: () => api.get('/reports/logs'),
     getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 30000 }),
+    sendEmail: (frequency: string, format: string, email?: string) =>
+        api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 60000 }),
 };
 
 export default api;

@@ -175,6 +175,14 @@ function DownloadIcon() {
     )
 }
 
+function EmailIcon() {
+    return (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+    )
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface RelatoriosProps {
@@ -202,6 +210,8 @@ export default function Relatorios(_props: RelatoriosProps) {
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [generating, setGenerating] = useState<'csv' | 'json' | 'pdf' | null>(null)
+    const [sendingEmail, setSendingEmail] = useState(false)
+    const [emailFeedback, setEmailFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
 
     // History
     const [logs, setLogs] = useState<ReportLog[]>([])
@@ -254,6 +264,27 @@ export default function Relatorios(_props: RelatoriosProps) {
             reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
         } finally {
             setGenerating(null)
+        }
+    }
+
+    async function handleSendEmail() {
+        const email = config.email || savedConfig?.email || ''
+        if (!email) {
+            setEmailFeedback({ ok: false, msg: 'Configure um email na seção "Envio automático" abaixo.' })
+            setTimeout(() => setEmailFeedback(null), 4000)
+            return
+        }
+        setSendingEmail(true)
+        setEmailFeedback(null)
+        try {
+            await reportsApi.sendEmail(genFrequency, config.format ?? 'pdf', email)
+            setEmailFeedback({ ok: true, msg: `Enviado para ${email} ✓` })
+            reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
+        } catch {
+            setEmailFeedback({ ok: false, msg: 'Falha ao enviar. Tente novamente.' })
+        } finally {
+            setSendingEmail(false)
+            setTimeout(() => setEmailFeedback(null), 5000)
         }
     }
 
@@ -410,11 +441,18 @@ export default function Relatorios(_props: RelatoriosProps) {
                             {(['csv', 'json', 'pdf'] as const).map(fmt => (
                                 <Btn key={fmt} variant={fmt === 'pdf' ? 'primary' : 'secondary'}
                                     onClick={() => handleDownload(fmt)}
-                                    disabled={generating !== null}
+                                    disabled={generating !== null || sendingEmail}
                                     icon={<DownloadIcon />}>
                                     {generating === fmt ? 'Gerando...' : fmt === 'pdf' ? 'PDF com IA' : fmt.toUpperCase()}
                                 </Btn>
                             ))}
+                            <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
+                            <Btn variant="secondary"
+                                onClick={handleSendEmail}
+                                disabled={generating !== null || sendingEmail}
+                                icon={<EmailIcon />}>
+                                {sendingEmail ? 'Enviando...' : 'Enviar por email'}
+                            </Btn>
                         </div>
                     </div>
                     <AnimatePresence>
@@ -422,6 +460,12 @@ export default function Relatorios(_props: RelatoriosProps) {
                             <motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                                 style={{ margin: '16px 0 0', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
                                 Pode levar até 20 segundos — a IA está analisando dados de todas as suas integrações...
+                            </motion.p>
+                        )}
+                        {emailFeedback && (
+                            <motion.p key="email-feedback" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                style={{ margin: '12px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: emailFeedback.ok ? '#22C55E' : '#EF4444' }}>
+                                {emailFeedback.msg}
                             </motion.p>
                         )}
                     </AnimatePresence>
