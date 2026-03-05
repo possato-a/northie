@@ -614,13 +614,13 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                 return (
                                                     <div key={i} style={{
                                                         display: 'grid',
-                                                        gridTemplateColumns: '140px 1fr auto',
+                                                        gridTemplateColumns: 'minmax(120px, 160px) 1fr auto',
                                                         alignItems: 'start',
                                                         gap: 16,
                                                         padding: '12px 0',
                                                         borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
                                                     }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, wordBreak: 'break-word' }}>
                                                             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
                                                                 {CHANNEL_LABEL[d.canal] ?? d.canal}
                                                             </span>
@@ -628,7 +628,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                 {sev.label}
                                                             </span>
                                                         </div>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                                                             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
                                                                 {d.sintoma}
                                                             </span>
@@ -636,7 +636,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                 → {d.acao_recomendada}
                                                             </span>
                                                         </div>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: sev.color, whiteSpace: 'nowrap' }}>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: sev.color, whiteSpace: 'nowrap', minWidth: 0 }}>
                                                             {fmtBRL(d.consequencia_financeira_brl)}
                                                         </span>
                                                     </div>
