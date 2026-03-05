@@ -333,31 +333,43 @@ export default function Relatorios(_props: RelatoriosProps) {
     async function handleDownload(format: 'xlsx' | 'json' | 'pdf') {
         setGenerating(format)
         setGeneratingStep(0)
-
-        // Progress animation for PDF only
-        let stepTimers: ReturnType<typeof setTimeout>[] = []
-        if (format === 'pdf') {
-            stepTimers = [
-                setTimeout(() => setGeneratingStep(1), 100),
-                setTimeout(() => setGeneratingStep(2), 8000),
-                setTimeout(() => setGeneratingStep(3), 16000),
-            ]
-        }
+        setEmailFeedback(null)
 
         try {
             const response = await reportsApi.generate(genFrequency, format)
-            const ext = format
             const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', pdf: 'application/pdf' }[format]
             const url = URL.createObjectURL(new Blob([response.data as BlobPart], { type: mime }))
             const a = document.createElement('a')
-            a.href = url; a.download = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${ext}`; a.click()
+            a.href = url; a.download = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${format}`; a.click()
             URL.revokeObjectURL(url)
-            // Refresh logs
             reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
+        } catch {
+            setEmailFeedback({ ok: false, msg: `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.` })
+            setTimeout(() => setEmailFeedback(null), 5000)
         } finally {
-            stepTimers.forEach(clearTimeout)
             setGenerating(null)
             setGeneratingStep(0)
+        }
+    }
+
+    async function handleRedownload(log: ReportLog) {
+        const freqMap: Record<string, 'mensal' | 'semanal' | 'trimestral'> = {
+            semanal: 'semanal', mensal: 'mensal', trimestral: 'trimestral',
+            weekly: 'semanal', monthly: 'mensal', quarterly: 'trimestral',
+        }
+        const format = (log.format === 'pdf' || log.format === 'xlsx' || log.format === 'json') ? log.format : 'pdf'
+        const freq = freqMap[log.frequency] ?? 'mensal'
+        const periodMap: Record<string, '30d' | '90d'> = { semanal: '30d', mensal: '30d', trimestral: '90d' }
+        const period = periodMap[freq] ?? '30d'
+        const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', pdf: 'application/pdf' }[format]
+        try {
+            const res = await reportsApi.export(format as 'pdf' | 'xlsx', period)
+            const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: mime }))
+            const a = document.createElement('a')
+            a.href = url; a.download = `northie-relatorio-${freq}-${new Date().toISOString().slice(0, 10)}.${format}`; a.click()
+            URL.revokeObjectURL(url)
+        } catch {
+            // falha silenciosa — download é best-effort
         }
     }
 
@@ -711,38 +723,17 @@ export default function Relatorios(_props: RelatoriosProps) {
                         </div>
                     </div>
                     <AnimatePresence>
-                        {generating === 'pdf' && (
+                        {generating !== null && (
                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                                style={{ margin: '16px 0 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-                                    {([
-                                        'Coletando dados das integrações...',
-                                        'Cruzando fontes e analisando com IA...',
-                                        'Gerando PDF...',
-                                    ] as const).map((label, idx) => {
-                                        const step = idx + 1
-                                        const done = generatingStep > step
-                                        const active = generatingStep === step
-                                        return (
-                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <div style={{
-                                                    width: 18, height: 18, borderRadius: '50%',
-                                                    border: done ? 'none' : `2px solid ${active ? '#1a7fe8' : 'var(--color-border)'}`,
-                                                    background: done ? '#1a7fe8' : 'transparent',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    animation: active ? 'spin 0.8s linear infinite' : 'none',
-                                                    borderTopColor: active ? '#1a7fe8' : undefined,
-                                                    flexShrink: 0,
-                                                }}>
-                                                    {done && <span style={{ color: 'white', fontSize: 10, lineHeight: 1 }}>✓</span>}
-                                                </div>
-                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: active ? '#1a7fe8' : done ? '#22C55E' : 'var(--color-text-secondary)', fontWeight: active ? 500 : 400 }}>
-                                                    {step}/{3}: {label}
-                                                </span>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
+                                style={{ margin: '16px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                </svg>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                    {generating === 'pdf'
+                                        ? 'Gerando PDF com análise de IA — pode levar até 90 segundos...'
+                                        : `Gerando ${generating.toUpperCase()}...`}
+                                </span>
                             </motion.div>
                         )}
                         {emailFeedback && (
@@ -831,13 +822,14 @@ export default function Relatorios(_props: RelatoriosProps) {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(4), ease: [0.25, 0.1, 0.25, 1] }} style={{ paddingBottom: 40 }}>
                 <SectionLabel gutterBottom={16}>Histórico de relatórios</SectionLabel>
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 90px', padding: '12px 20px', borderBottom: '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', padding: '12px 20px', borderBottom: '1px solid var(--color-border)' }}>
                         <TH>Período</TH>
                         <TH>Frequência</TH>
                         <TH>Formato</TH>
                         <TH>Receita</TH>
                         <TH>Situação</TH>
                         <TH align="right">Email</TH>
+                        <TH align="right"></TH>
                     </div>
 
                     {loadingLogs ? <LoadingRow /> : logs.length === 0 ? (
@@ -854,9 +846,10 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     delayed: { label: 'Atrasado', color: '#F59E0B' },
                                 }
                                 const emailSt = log.email_status ? emailStatusLabel[log.email_status] : null
+                                const canRedownload = log.format === 'pdf' || log.format === 'xlsx'
                                 return (
                                     <NotionRow key={log.id} style={{ padding: '0 20px' }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 90px', width: '100%', alignItems: 'center', minHeight: 52 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', width: '100%', alignItems: 'center', minHeight: 52 }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
                                                     {fmtDate(log.created_at)}
@@ -886,6 +879,17 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: emailSt.color, fontWeight: 500 }}>{emailSt.label}</span>
                                                 ) : (
                                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
+                                                )}
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                {canRedownload && (
+                                                    <motion.button
+                                                        whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
+                                                        onClick={() => handleRedownload(log)}
+                                                        title="Baixar novamente"
+                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
+                                                        <DownloadIcon />
+                                                    </motion.button>
                                                 )}
                                             </div>
                                         </div>
