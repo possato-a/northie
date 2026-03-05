@@ -32,16 +32,16 @@ async function sendReportEmail(opts: {
     fileBuffer: Buffer | string;
     filename: string;
     mimeType: string;
-}) {
+}): Promise<string | null> {
     const resend = getResend();
     if (!resend) {
         console.warn('[Reports] RESEND_API_KEY não configurado — email pulado');
-        return;
+        return null;
     }
 
     const freqLabel = FREQ_LABEL[opts.frequency] ?? opts.frequency;
 
-    await resend.emails.send({
+    const { data } = await resend.emails.send({
         from: 'Northie <onboarding@resend.dev>',
         to: opts.to,
         subject: `Relatório ${freqLabel} — Northie`,
@@ -71,6 +71,7 @@ async function sendReportEmail(opts: {
             },
         ],
     });
+    return data?.id ?? null;
 }
 
 async function processScheduledReports() {
@@ -113,9 +114,10 @@ async function processScheduledReports() {
                 mimeType = 'application/json';
             }
 
-            // Envia email se configurado
+            // Envia email se configurado e captura o ID do Resend
+            let resendEmailId: string | null = null;
             if (config.email) {
-                await sendReportEmail({
+                resendEmailId = await sendReportEmail({
                     to: config.email,
                     frequency: config.frequency,
                     format,
@@ -134,6 +136,7 @@ async function processScheduledReports() {
                 period_start: reportData.period.start,
                 period_end: reportData.period.end,
                 status: 'success',
+                ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
             });
 
             // Agenda próximo envio
