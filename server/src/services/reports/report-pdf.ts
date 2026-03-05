@@ -586,11 +586,12 @@ export async function generatePdf(data: ReportData, ai?: ReportAIAnalysis): Prom
         const pageNum    = i - range.start + 1;
         const totalPages = range.count;
 
+        // lineBreak: false impede o pdfkit de avançar o cursor e criar página extra
         doc.font('Helvetica').fontSize(7).fillColor(C.textSecondary)
-            .text(`Gerado por Northie em ${today}`, MARGIN, footerY);
+            .text(`Gerado por Northie em ${today}`, MARGIN, footerY, { lineBreak: false });
 
         doc.font('Helvetica').fontSize(7).fillColor(C.textSecondary)
-            .text(`Página ${pageNum} de ${totalPages}`, 0, footerY, { width: PAGE_WIDTH - MARGIN, align: 'right' });
+            .text(`Página ${pageNum} de ${totalPages}`, 0, footerY, { width: PAGE_WIDTH - MARGIN, align: 'right', lineBreak: false });
     }
 
     doc.end();

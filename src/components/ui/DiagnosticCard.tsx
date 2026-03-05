@@ -162,13 +162,26 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                 </div>
             </div>
 
-            {/* ── Rodapé: impacto + ação + prazo ────────────────────────── */}
+            {/* ── RECOMENDAÇÃO — 100% largura, abaixo do grid ─────────── */}
+            <div style={{
+                background: '#F7F6F3',
+                borderLeft: `3px solid ${sev.color}`,
+                borderRadius: '0 4px 4px 0',
+                padding: 12,
+                marginBottom: 12,
+                overflow: 'hidden',
+                wordBreak: 'break-word',
+            }}>
+                <FieldLabel>Recomendação</FieldLabel>
+                <FieldValue>{d.acao_recomendada}</FieldValue>
+            </div>
+
+            {/* ── Rodapé: impacto financeiro + prazo ───────────────────── */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 20,
-                flexWrap: 'wrap',
-                paddingTop: 12,
+                gap: 12,
+                paddingTop: 8,
                 borderTop: '1px solid var(--color-border)',
             }}>
                 <span style={{
@@ -176,18 +189,9 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
                     fontSize: 13,
                     fontWeight: 600,
                     color: sev.color,
+                    flex: 1,
                 }}>
                     {fmtBRL(d.consequencia_financeira_brl)}
-                </span>
-
-                <span style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 12,
-                    color: 'var(--color-text-secondary)',
-                    flex: 1,
-                    minWidth: 0,
-                }}>
-                    {d.acao_recomendada}
                 </span>
 
                 <span style={{
