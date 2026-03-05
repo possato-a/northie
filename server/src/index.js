@@ -60,8 +60,33 @@ app.use('/api/card', cardRoutes);
 app.use('/api/valuation', valuationRoutes);
 app.use('/api/reports', reportsRoutes);
 // Basic Route
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', service: 'northie-backend', version: 'v11-debug' });
+app.get('/api/health', async (req, res) => {
+    const info = {
+        status: 'ok',
+        service: 'northie-backend',
+        version: 'v12-diag',
+        env: {
+            SUPABASE_URL: process.env.SUPABASE_URL ? `${process.env.SUPABASE_URL.substring(0, 30)}...` : 'MISSING',
+            SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
+        },
+    };
+    if (req.query.db === '1') {
+        try {
+            const { supabase } = await import('./lib/supabase.js');
+            const start = Date.now();
+            const { data, error } = await supabase.from('profiles').select('id').limit(1);
+            info.supabase = {
+                latency_ms: Date.now() - start,
+                success: !error,
+                error: error?.message || null,
+                rows: data?.length ?? 0,
+            };
+        }
+        catch (e) {
+            info.supabase = { success: false, error: e.message };
+        }
+    }
+    res.json(info);
 });
 // Start server only if not in Vercel (Production)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
