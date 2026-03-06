@@ -1,3 +1,39 @@
+@import "tailwindcss";
+
+/* ── shadcn/ui theme — mapeado sobre os tokens Northie ───────────────────── */
+
+@theme inline {
+  --color-background:          var(--bg);
+  --color-foreground:          var(--fg);
+  --color-card:                var(--color-bg-primary);
+  --color-card-foreground:     var(--color-text-primary);
+  --color-popover:             var(--color-bg-primary);
+  --color-popover-foreground:  var(--color-text-primary);
+  --color-primary:             #2383E2;
+  --color-primary-foreground:  #ffffff;
+  --color-secondary:           var(--color-bg-secondary);
+  --color-secondary-foreground:var(--color-text-primary);
+  --color-muted:               var(--color-bg-secondary);
+  --color-muted-foreground:    var(--color-text-tertiary);
+  --color-accent:              var(--color-bg-tertiary);
+  --color-accent-foreground:   var(--color-text-primary);
+  --color-destructive:         #E03E3E;
+  --color-destructive-foreground: #ffffff;
+  --color-border:              var(--color-border);
+  --color-input:               var(--color-border);
+  --color-ring:                #2383E2;
+  --radius-sm:                 3px;
+  --radius-md:                 4px;
+  --radius-lg:                 8px;
+  --radius-xl:                 12px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+}
+
 *,
 *::before,
 *::after {
