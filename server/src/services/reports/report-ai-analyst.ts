@@ -289,14 +289,12 @@ export async function generateReportNarrative(
 
     // Legacy: prompt único (default)
     const generatedAt = new Date().toISOString();
-    // Haiku é ~5-8x mais rápido que Sonnet para análise estruturada de relatórios.
-    // Override via REPORT_AI_MODEL env var para usar Sonnet quando precisar de análise mais profunda.
-    const model = process.env.REPORT_AI_MODEL ?? 'claude-haiku-4-5-20251014';
+    const model = 'claude-sonnet-4-6';
 
     try {
         const aiPromise = getAnthropic().messages.create({
             model,
-            max_tokens: 2000,
+            max_tokens: 4000,
             system: 'Você é um CFO/CMO sênior especialista em negócios digitais brasileiros. Analise dados cruzados de múltiplas fontes e diagnostique problemas com precisão clínica — sintoma, causa raiz, consequência em R$, ação. Nunca inclua dados pessoais identificáveis (PII). Responda SOMENTE com JSON válido, sem nenhum texto antes ou depois.',
             messages: [{ role: 'user', content: buildUserMessage(data) }],
         });

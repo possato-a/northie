@@ -12,22 +12,6 @@ const FREQ_MAP = {
 // ── Preview data cache — evita dupla chamada generateReportData entre preview e IA ─
 const previewCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
-// ── AI analysis cache — evita rechamar a IA para o mesmo perfil/período ──────
-const aiCache = new Map();
-const AI_CACHE_TTL = 30 * 60 * 1000; // 30 min
-function getAiCached(key) {
-    const e = aiCache.get(key);
-    if (!e)
-        return null;
-    if (Date.now() - e.ts > AI_CACHE_TTL) {
-        aiCache.delete(key);
-        return null;
-    }
-    return e.data;
-}
-function setAiCached(key, data) {
-    aiCache.set(key, { data, ts: Date.now() });
-}
 function getCached(key) {
     const e = previewCache.get(key);
     if (!e)
@@ -212,11 +196,7 @@ export async function getReportAIAnalysis(req, res) {
             reportData = await generateReportData(profileId, frequency, customDates);
             setCached(cacheKey, reportData);
         }
-        let aiAnalysis = getAiCached(cacheKey);
-        if (!aiAnalysis) {
-            aiAnalysis = await generateReportNarrative(reportData, profileId);
-            setAiCached(cacheKey, aiAnalysis);
-        }
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
         return res.json({
             situacao_geral: aiAnalysis.situacao_geral,
             resumo_executivo: aiAnalysis.resumo_executivo,
@@ -242,18 +222,9 @@ export async function generateReport(req, res) {
     try {
         const reportData = await generateReportData(profileId, frequency, customDates);
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
-        let aiAnalysis;
-        if (format === 'pdf') {
-            const aiKey = `${profileId}:${FREQ_MAP[freqRaw] ?? 'monthly'}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
-            aiAnalysis = getAiCached(aiKey) ?? await (async () => {
-                const result = await generateReportNarrative(reportData, profileId);
-                setAiCached(aiKey, result);
-                return result;
-            })();
-        }
-        else {
-            aiAnalysis = { situacao_geral: 'atencao', resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
-        }
+        const aiAnalysis = format === 'pdf'
+            ? await generateReportNarrative(reportData, profileId)
+            : { situacao_geral: 'atencao', resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         if (format === 'xlsx') {
             const xlsxBuffer = await generateXlsx(reportData, aiAnalysis);
@@ -444,11 +415,7 @@ export async function sendReportByEmail(req, res) {
             reportData = await generateReportData(profileId, frequency);
             setCached(cacheKey, reportData);
         }
-        let aiAnalysis = getAiCached(cacheKey);
-        if (!aiAnalysis) {
-            aiAnalysis = await generateReportNarrative(reportData, profileId);
-            setAiCached(cacheKey, aiAnalysis);
-        }
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         const dateStr = new Date().toISOString().split('T')[0];
         let fileBuffer;
