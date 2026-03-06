@@ -315,13 +315,16 @@ export async function generateReport(req: Request, res: Response) {
     const customDates = parseDateRange(req.body);
 
     try {
+        console.log('[Reports] Starting report generation', { profileId, format, frequency });
         const reportData = await generateReportData(profileId, frequency, customDates);
+        console.log('[Reports] Data fetched', { revenue: reportData.summary.revenue_net, transactions: reportData.summary.transactions });
 
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
         const aiAnalysis = format === 'pdf'
             ? await generateReportNarrative(reportData, profileId)
             : { situacao_geral: 'atencao' as const, resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
 
+        console.log('[Reports] AI done, generating file', { format });
         const snapshot = buildSnapshot(reportData, aiAnalysis);
 
         if (format === 'xlsx') {
@@ -388,15 +391,18 @@ export async function generateReport(req: Request, res: Response) {
         return res.json(jsonBody);
 
     } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const errStack = err instanceof Error ? err.stack : undefined;
         console.error('[PDF Generation Error]', {
             userId: profileId,
             format,
             frequency,
-            error: err instanceof Error
-                ? { message: err.message, stack: err.stack }
-                : String(err),
+            error: { message: errMsg, stack: errStack },
         });
-        return res.status(500).json({ error: 'Failed to generate report' });
+        return res.status(500).json({
+            error: 'Failed to generate report',
+            debug: { message: errMsg, format, frequency },
+        });
     }
 }
 
