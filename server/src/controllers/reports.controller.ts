@@ -133,7 +133,7 @@ export async function getReportAIAnalysis(req: Request, res: Response) {
 
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
         return res.json({
             situacao_geral: aiAnalysis.situacao_geral,
             resumo_executivo: aiAnalysis.resumo_executivo,
@@ -159,7 +159,7 @@ export async function generateReport(req: Request, res: Response) {
 
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
         const aiAnalysis = format === 'pdf'
-            ? await generateReportNarrative(reportData)
+            ? await generateReportNarrative(reportData, profileId)
             : { situacao_geral: 'atencao' as const, resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
 
         const snapshot = buildSnapshot(reportData, aiAnalysis);
@@ -317,7 +317,7 @@ export async function sendReportByEmail(req: Request, res: Response) {
 
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         const dateStr = new Date().toISOString().split('T')[0];
 

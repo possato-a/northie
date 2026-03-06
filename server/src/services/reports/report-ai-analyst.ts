@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { generateReportData } from './report-generator.js';
+import { runOrchestratorPipeline } from './report-ai-orchestrator.js';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -232,8 +233,15 @@ function parseAnalysis(raw: string): Omit<ReportAIAnalysis, 'generated_at' | 'mo
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function generateReportNarrative(
-    data: Awaited<ReturnType<typeof generateReportData>>
+    data: Awaited<ReturnType<typeof generateReportData>>,
+    profileId?: string,
 ): Promise<ReportAIAnalysis> {
+    // Agente V2: pipeline de dois agentes com tool_use + extended thinking
+    if (process.env.AI_AGENT_V2 === 'true' && profileId) {
+        return runOrchestratorPipeline(data, profileId);
+    }
+
+    // Legacy: prompt único (default)
     const generatedAt = new Date().toISOString();
     const model = 'claude-sonnet-4-6';
 

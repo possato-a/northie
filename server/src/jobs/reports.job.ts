@@ -73,7 +73,7 @@ export async function processScheduledReports() {
 
         try {
             const reportData = await generateReportData(config.profile_id, frequency);
-            const aiAnalysis = await generateReportNarrative(reportData);
+            const aiAnalysis = await generateReportNarrative(reportData, config.profile_id);
 
             // Gera arquivo
             let fileBuffer: Buffer | string;
