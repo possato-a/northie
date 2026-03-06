@@ -536,6 +536,8 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
     const anySyncing = isSyncing || isSyncingFull
     const [copied, setCopied] = useState(false)
     const [copiedShopify, setCopiedShopify] = useState(false)
+    const [shopifyDomainError, setShopifyDomainError] = useState('')
+    const [shopifyConnecting, setShopifyConnecting] = useState(false)
     const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const copyShopifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -577,6 +579,35 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
         copyShopifyTimeoutRef.current = setTimeout(() => setCopiedShopify(false), 2000)
     }
 
+    const handleShopifyConnect = () => {
+        let domain = (shopifyDomain ?? '').trim()
+        if (!domain) {
+            setShopifyDomainError('Informe o domínio da sua loja antes de conectar.')
+            return
+        }
+        // Auto-completa .myshopify.com se o usuário digitou só o nome
+        if (!domain.includes('.')) domain = `${domain}.myshopify.com`
+        // Normaliza: remove protocolo se colou a URL inteira
+        domain = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+        onShopifyDomainChange?.(domain)
+        setShopifyDomainError('')
+        setShopifyConnecting(true)
+
+        const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
+        const width = 600, height = 700
+        const left = window.screen.width / 2 - width / 2
+        const top = window.screen.height / 2 - height / 2
+
+        fetch(`${apiBase}/api/integrations/connect/shopify?profileId=${userId}&shop=${encodeURIComponent(domain)}`)
+            .then(r => { if (!r.ok) throw new Error(`Server error ${r.status}`); return r.json() })
+            .then(({ authUrl }) => {
+                if (!authUrl) throw new Error('authUrl não retornado')
+                window.open(authUrl, 'NorthieShopifyAuth', `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`)
+            })
+            .catch(() => setShopifyDomainError('Não foi possível iniciar a conexão. Verifique o domínio e tente novamente.'))
+            .finally(() => setShopifyConnecting(false))
+    }
+
     return (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
             {isExpired && (
@@ -601,15 +632,18 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                 breadcrumb={{ label: 'Voltar para App Store', onClick: onBack }}
                 actions={plugin.id === 'northie-pixel' ? undefined : (
                     <div style={{ display: 'flex', gap: 12 }}>
+                        {/* Shopify não conectado: botão fica junto ao input de domínio, não aqui */}
+                        {!(plugin.id === 'shopify' && !isConnected && !isExpired) && (
                         <Btn
                             variant={isExpired ? 'danger' : isConnected ? 'secondary' : 'primary'}
                             size="md"
-                            onClick={onInstall}
+                            onClick={plugin.id === 'shopify' && isExpired ? handleShopifyConnect : onInstall}
                             disabled={isConnected}
                             icon={isConnected ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : undefined}
                         >
                             {isExpired ? 'Reconectar' : isConnected ? 'Conectado' : plugin.status}
                         </Btn>
+                        )}
                         {isConnected && supportsSync && (
                             <>
                                 <Btn variant="ghost" size="md" onClick={onSync} disabled={anySyncing}
@@ -682,25 +716,61 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
 
                         {plugin.id === 'shopify' && !isConnected && !isExpired && (
                             <div style={{ marginTop: 40 }}>
-                                <SectionLabel gutterBottom={12}>Domínio da sua loja</SectionLabel>
-                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
-                                    Informe o endereço da sua loja Shopify para iniciar a conexão.
+                                <SectionLabel gutterBottom={12}>Conectar sua loja Shopify</SectionLabel>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 20, lineHeight: 1.6, maxWidth: 520 }}>
+                                    Informe o domínio da sua loja para iniciar o processo de autorização via OAuth. Você será redirecionado para o Shopify para aprovar a integração.
                                 </p>
-                                <Input
-                                    type="text"
-                                    placeholder="minhaloja.myshopify.com"
-                                    value={shopifyDomain ?? ''}
-                                    onChange={e => onShopifyDomainChange?.(e.target.value)}
-                                    style={{ maxWidth: 360 }}
-                                />
+                                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', maxWidth: 520 }}>
+                                    <div style={{ flex: 1 }}>
+                                        <Input
+                                            type="text"
+                                            placeholder="minhaloja.myshopify.com"
+                                            value={shopifyDomain ?? ''}
+                                            onChange={e => { onShopifyDomainChange?.(e.target.value); setShopifyDomainError('') }}
+                                            onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleShopifyConnect()}
+                                            style={{ width: '100%' }}
+                                        />
+                                        {shopifyDomainError && (
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--status-critical)', marginTop: 6 }}>
+                                                {shopifyDomainError}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <Btn
+                                        variant="primary"
+                                        size="md"
+                                        onClick={handleShopifyConnect}
+                                        disabled={shopifyConnecting}
+                                        icon={shopifyConnecting ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                                        )}
+                                    >
+                                        {shopifyConnecting ? 'Conectando...' : 'Conectar via OAuth'}
+                                    </Btn>
+                                </div>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: 12, lineHeight: 1.5 }}>
+                                    Dica: você pode digitar só o nome da loja (ex: <code style={{ fontFamily: 'var(--font-mono)', background: 'var(--color-bg-secondary)', padding: '1px 4px', borderRadius: 3 }}>minhaloja</code>) que completamos o endereço automaticamente.
+                                </p>
                             </div>
                         )}
 
                         {plugin.id === 'shopify' && isConnected && shopifyWebhookUrl && (
                             <div style={{ marginTop: 40 }}>
-                                <SectionLabel gutterBottom={12}>Webhooks Configurados</SectionLabel>
+                                <SectionLabel gutterBottom={12}>Sincronização em Tempo Real</SectionLabel>
+                                <div style={{
+                                    background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.25)',
+                                    borderRadius: 'var(--radius-lg)', padding: '14px 18px', marginBottom: 20,
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 500 }}>
+                                        Webhooks registrados automaticamente na sua loja — nenhuma configuração manual necessária.
+                                    </span>
+                                </div>
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
-                                    Webhooks registrados automaticamente na sua loja. Pedidos, reembolsos e clientes são sincronizados em tempo real.
+                                    Endpoint ativo que recebe eventos da sua loja em tempo real:
                                 </p>
                                 <div style={{
                                     background: 'var(--color-bg-secondary)', padding: '16px 20px',
