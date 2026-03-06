@@ -16,6 +16,10 @@ import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
 import { checkAndRefreshAll } from '../jobs/token-refresh.job.js';
 import { processScheduledReports } from '../jobs/reports.job.js';
 
+function escapeHtml(str: string): string {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const SHOPIFY_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 
 function validateShopDomain(shop: string): string | null {
@@ -73,7 +77,7 @@ export async function handleCallback(req: Request, res: Response) {
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #fab1a0; background: #fff5f5; color: #d63031; border-radius: 8px;">
                 <h3>Sessão Expirada ou Inválida</h3>
                 <p>O link de conexão expirou (limite de 10 min) ou é inválido.</p>
-                <p style="font-size: 12px; color: #636E72;">Erro: ${stateErr.message}</p>
+                <p style="font-size: 12px; color: #636E72;">Erro: ${escapeHtml(stateErr.message)}</p>
                 <small style="color: #636E72;">Por favor, tente fechar esta janela e clicar no link de conexão novamente.</small>
             </div>
         `);
@@ -115,7 +119,7 @@ export async function handleCallback(req: Request, res: Response) {
                     <div style="font-family: sans-serif; padding: 40px; text-align: center;">
                         <h2 style="color: #d63031;">⚠️ Erro ao preparar perfil</h2>
                         <p>Houve um problema técnico ao criar o seu perfil de integração.</p>
-                        <p>Erro: ${insertError.message}</p>
+                        <p>Erro: ${escapeHtml(insertError.message)}</p>
                     </div>
                 `);
             }
@@ -447,9 +451,9 @@ export async function handleCallback(req: Request, res: Response) {
                 <h3>Erro Crítico na Integração</h3>
                 <p>Ocorreu um erro ao processar a resposta de <b>${platform}</b>.</p>
                 <div style="background: #fdf2f2; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 10px 0; border: 1px solid #f9d6d6;">
-                    <b>Mensagem:</b> ${error.message}<br>
+                    <b>Mensagem:</b> ${escapeHtml(error.message)}<br>
                     <b>Status:</b> ${status}<br>
-                    <b>Detalhes:</b> ${details}
+                    <b>Detalhes:</b> ${escapeHtml(typeof details === 'string' ? details : JSON.stringify(details))}
                 </div>
                 <small style="color: #636E72;">Por favor, feche esta janela e tente novamente. Se o erro persistir, informe ao suporte.</small>
             </div>

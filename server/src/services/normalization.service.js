@@ -69,8 +69,22 @@ async function handleStripeNormalization(payload, profileId) {
     }
     // Subscription lifecycle — atualiza status do cliente para cálculo de MRR/churn
     if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.updated') {
-        const customerEmail = obj.customer_email || obj.metadata?.email;
         const status = obj.status; // active, canceled, past_due, unpaid
+        // Stripe subscription object não tem email direto — busca via customer ID no nosso banco
+        // O external_id da transação original contém o payment_intent/checkout que linkamos ao customer
+        const stripeCustomerId = typeof obj.customer === 'string' ? obj.customer : null;
+        let customerEmail = obj.metadata?.email || null;
+        // Se não tem email no metadata, tenta buscar pelo stripe customer ID nas transações existentes
+        if (!customerEmail && stripeCustomerId) {
+            const { data: existingTx } = await supabase
+                .from('transactions')
+                .select('customer_id, customers!inner(email)')
+                .eq('profile_id', profileId)
+                .eq('platform', 'stripe')
+                .limit(1)
+                .single();
+            customerEmail = existingTx?.customers?.email || null;
+        }
         if (customerEmail) {
             const churnStatuses = ['canceled', 'unpaid'];
             const isChurned = churnStatuses.includes(status);
@@ -83,6 +97,9 @@ async function handleStripeNormalization(payload, profileId) {
                 .eq('profile_id', profileId)
                 .eq('email', customerEmail);
             console.log(`[Stripe] Subscription ${eventType} for ${customerEmail}: status=${status}`);
+        }
+        else {
+            console.warn(`[Stripe] Subscription ${eventType}: could not resolve customer email for ${stripeCustomerId}`);
         }
         return;
     }
