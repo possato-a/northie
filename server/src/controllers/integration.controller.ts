@@ -116,7 +116,7 @@ export async function handleCallback(req: Request, res: Response) {
 
         if (platform === 'meta') {
             const redirectUri = IntegrationService.getRedirectUri('meta');
-            const tokenRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+            const tokenRes = await axios.get('https://graph.facebook.com/v25.0/oauth/access_token', {
                 params: {
                     client_id: process.env.META_APP_ID,
                     client_secret: process.env.META_APP_SECRET,
@@ -127,7 +127,7 @@ export async function handleCallback(req: Request, res: Response) {
 
             tokens = tokenRes.data;
             // Exchange for a long-lived token (usually 60 days)
-            const longLivedRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+            const longLivedRes = await axios.get('https://graph.facebook.com/v25.0/oauth/access_token', {
                 params: {
                     grant_type: 'fb_exchange_token',
                     client_id: process.env.META_APP_ID,
@@ -242,24 +242,50 @@ export async function handleCallback(req: Request, res: Response) {
                     .eq('profile_id', profileId)
                     .eq('platform', 'shopify');
 
-                // Registra webhooks automaticamente — elimina configuração manual
+                // Registra webhooks automaticamente via GraphQL Admin API (REST é legado desde out/2024)
                 const backendUrl = process.env.BACKEND_URL || 'https://northie.vercel.app';
                 const webhookAddress = `${backendUrl}/api/webhooks/shopify/${profileId}`;
-                const topics = ['orders/paid', 'orders/refunded', 'orders/cancelled', 'customers/create', 'customers/update'];
+                const SHOPIFY_WEBHOOK_TOPICS = [
+                    'ORDERS_PAID',
+                    'ORDERS_REFUNDED',
+                    'ORDERS_CANCELLED',
+                    'CUSTOMERS_CREATE',
+                    'CUSTOMERS_UPDATE',
+                ];
 
-                for (const topic of topics) {
+                for (const topic of SHOPIFY_WEBHOOK_TOPICS) {
                     try {
-                        await axios.post(
-                            `https://${shop}/admin/api/2024-01/webhooks.json`,
-                            { webhook: { topic, address: webhookAddress, format: 'json' } },
-                            { headers: { 'X-Shopify-Access-Token': shopifyToken }, timeout: 10000 }
+                        const mutation = `
+                            mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+                                webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+                                    webhookSubscription { id }
+                                    userErrors { field message }
+                                }
+                            }
+                        `;
+                        const gqlRes = await axios.post(
+                            `https://${shop}/admin/api/2026-01/graphql.json`,
+                            {
+                                query: mutation,
+                                variables: {
+                                    topic,
+                                    webhookSubscription: { callbackUrl: webhookAddress, format: 'JSON' },
+                                },
+                            },
+                            { headers: { 'X-Shopify-Access-Token': shopifyToken, 'Content-Type': 'application/json' }, timeout: 10000 }
                         );
-                        console.log(`[Shopify] Webhook registrado: ${topic}`);
-                    } catch (whErr: any) {
-                        // Ignora erro 422 (webhook já existe) — idempotente
-                        if (whErr.response?.status !== 422) {
-                            console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data?.errors ?? whErr.message);
+                        const userErrors = gqlRes.data?.data?.webhookSubscriptionCreate?.userErrors;
+                        if (userErrors?.length) {
+                            // Ignora erro de webhook já existente — idempotente
+                            const isDuplicate = userErrors.some((e: any) => e.message?.toLowerCase().includes('already'));
+                            if (!isDuplicate) {
+                                console.warn(`[Shopify] GraphQL webhook error para ${topic}:`, userErrors);
+                            }
+                        } else {
+                            console.log(`[Shopify] Webhook registrado via GraphQL: ${topic}`);
                         }
+                    } catch (whErr: any) {
+                        console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data ?? whErr.message);
                     }
                 }
             }
@@ -271,7 +297,7 @@ export async function handleCallback(req: Request, res: Response) {
             if (devToken) {
                 try {
                     const customersRes = await axios.get(
-                        'https://googleads.googleapis.com/v20/customers:listAccessibleCustomers',
+                        'https://googleads.googleapis.com/v23/customers:listAccessibleCustomers',
                         {
                             headers: {
                                 Authorization: `Bearer ${tokens.access_token}`,
@@ -289,7 +315,7 @@ export async function handleCallback(req: Request, res: Response) {
                     for (const cid of allIds) {
                         try {
                             const checkRes = await axios.post(
-                                `https://googleads.googleapis.com/v20/customers/${cid}/googleAds:searchStream`,
+                                `https://googleads.googleapis.com/v23/customers/${cid}/googleAds:searchStream`,
                                 { query: 'SELECT customer.id, customer.manager FROM customer' },
                                 {
                                     headers: {

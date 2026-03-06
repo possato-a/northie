@@ -18,7 +18,7 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 
-const GRAPH_URL = 'https://graph.facebook.com/v18.0';
+const GRAPH_URL = 'https://graph.facebook.com/v25.0';
 
 interface MetaLeadField {
     name: string;

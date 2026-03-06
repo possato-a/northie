@@ -57,7 +57,7 @@ async function getMetaToken(profileId: string): Promise<string | null> {
 
 async function getMetaAdAccountId(accessToken: string): Promise<string | null> {
     try {
-        const res = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts?fields=id&access_token=${accessToken}`);
+        const res = await fetch(`https://graph.facebook.com/v25.0/me/adaccounts?fields=id&access_token=${accessToken}`);
         const json = await res.json() as any;
         return json.data?.[0]?.id || null;
     } catch {
@@ -80,7 +80,7 @@ async function createMetaCustomAudience(
     try {
         // 1. Criar audience
         const createRes = await fetch(
-            `https://graph.facebook.com/v18.0/${adAccountId}/customaudiences`,
+            `https://graph.facebook.com/v25.0/${adAccountId}/customaudiences`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -99,7 +99,7 @@ async function createMetaCustomAudience(
         // 2. Adicionar usuários com hashed emails
         const hashedEmails = hashEmails(emails);
         await fetch(
-            `https://graph.facebook.com/v18.0/${audience.id}/users`,
+            `https://graph.facebook.com/v25.0/${audience.id}/users`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -179,7 +179,7 @@ async function executePausaCampanhaLtvBaixo(profileId: string, recId: string, me
     for (const campaign of (meta.campaigns || [])) {
         if (!campaign.campaign_id_external || campaign.platform !== 'meta') continue;
         try {
-            await fetch(`https://graph.facebook.com/v18.0/${campaign.campaign_id_external}`, {
+            await fetch(`https://graph.facebook.com/v25.0/${campaign.campaign_id_external}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'PAUSED', access_token: accessToken }),

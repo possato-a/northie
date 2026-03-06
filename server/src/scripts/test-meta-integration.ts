@@ -193,7 +193,7 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
 
             // Testa listagem de ad accounts
             const accountsRes = await axios.get(
-                `https://graph.facebook.com/v18.0/me/adaccounts?access_token=${accessToken}&fields=id,name&limit=5`,
+                `https://graph.facebook.com/v25.0/me/adaccounts?access_token=${accessToken}&fields=id,name&limit=5`,
                 { timeout: 10000 }
             ).catch(e => ({ data: { data: [] }, _error: e.response?.data?.error?.message }));
 

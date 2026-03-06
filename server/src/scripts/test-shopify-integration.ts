@@ -180,7 +180,7 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
         if (shopToken && shopDomain) {
             try {
                 const shopRes = await axios.get(
-                    `https://${shopDomain}/admin/api/2024-01/shop.json`,
+                    `https://${shopDomain}/admin/api/2026-01/shop.json`,
                     { headers: { 'X-Shopify-Access-Token': shopToken }, timeout: 10000 }
                 );
                 const shop = shopRes.data?.shop;
@@ -211,7 +211,7 @@ if (!shopToken || !shopDomain) {
 } else {
     try {
         const whRes = await axios.get(
-            `https://${shopDomain}/admin/api/2024-01/webhooks.json`,
+            `https://${shopDomain}/admin/api/2026-01/webhooks.json`,
             { headers: { 'X-Shopify-Access-Token': shopToken }, timeout: 10000 }
         );
         const webhooks: any[] = whRes.data?.webhooks ?? [];
@@ -246,7 +246,7 @@ if (!shopToken || !shopDomain) {
     try {
         const createdAtMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const ordersRes = await axios.get(
-            `https://${shopDomain}/admin/api/2024-01/orders.json`,
+            `https://${shopDomain}/admin/api/2026-01/orders.json`,
             {
                 headers: { 'X-Shopify-Access-Token': shopToken },
                 params: { status: 'any', limit: 5, created_at_min: createdAtMin },
@@ -270,7 +270,7 @@ if (!shopToken || !shopDomain) {
 
         // Testa endpoint de contagem
         const countRes = await axios.get(
-            `https://${shopDomain}/admin/api/2024-01/orders/count.json`,
+            `https://${shopDomain}/admin/api/2026-01/orders/count.json`,
             {
                 headers: { 'X-Shopify-Access-Token': shopToken },
                 params: { financial_status: 'paid' },

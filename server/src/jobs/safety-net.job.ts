@@ -161,7 +161,7 @@ async function getShopifyApiCount(
     createdAtMax: string
 ): Promise<number> {
     const res = await axios.get(
-        `https://${shop}/admin/api/2024-01/orders/count.json`,
+        `https://${shop}/admin/api/2026-01/orders/count.json`,
         {
             headers: { 'X-Shopify-Access-Token': token },
             params: { financial_status: 'paid', created_at_min: createdAtMin, created_at_max: createdAtMax },

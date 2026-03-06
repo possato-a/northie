@@ -71,7 +71,7 @@ export class IntegrationService {
         switch (platform) {
             case 'meta':
                 const appId = process.env.META_APP_ID;
-                return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=ads_read,business_management&state=${encodeURIComponent(state)}`;
+                return `https://www.facebook.com/v25.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=ads_management,ads_read,business_management&state=${encodeURIComponent(state)}`;
 
             case 'google':
                 const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -195,7 +195,7 @@ export class IntegrationService {
 
             console.log(`[IntegrationService] Meta token near expiry for profile ${profileId} — re-exchanging.`);
             try {
-                const res = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+                const res = await axios.get('https://graph.facebook.com/v25.0/oauth/access_token', {
                     params: {
                         grant_type: 'fb_exchange_token',
                         client_id: process.env.META_APP_ID,

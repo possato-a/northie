@@ -24,22 +24,44 @@ function getStripe(): Stripe {
  */
 function verifyPlatformToken(platform: string, req: Request): boolean {
     if (platform === 'hotmart') {
+        // Método 1 (preferido): HMAC-SHA256 via x-hotmart-signature (Hotmart API v2.0)
+        const hmacSignature = req.headers['x-hotmart-signature'] as string | undefined;
+        const hmacSecret = process.env.HOTMART_WEBHOOK_SECRET;
+
+        if (hmacSignature && hmacSecret) {
+            try {
+                const expected = crypto
+                    .createHmac('sha256', hmacSecret)
+                    .update(JSON.stringify(req.body))
+                    .digest('hex');
+                const expectedBuf = Buffer.from(expected, 'hex');
+                const receivedBuf = Buffer.from(hmacSignature, 'hex');
+                if (expectedBuf.length === receivedBuf.length && crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
+                    return true;
+                }
+                console.warn('[Webhook] Hotmart: HMAC inválido');
+                return false;
+            } catch {
+                return false;
+            }
+        }
+
+        // Método 2 (fallback): hottok estático via x-hotmart-hottok
         const expected = process.env.HOTMART_WEBHOOK_TOKEN;
         if (!expected) {
-            console.error('[Webhook] HOTMART_WEBHOOK_TOKEN não configurado — rejeitando request');
+            console.error('[Webhook] Hotmart: nem HOTMART_WEBHOOK_SECRET (HMAC) nem HOTMART_WEBHOOK_TOKEN configurados — rejeitando');
             return false;
         }
         const received = req.headers['x-hotmart-hottok'] as string | undefined;
         if (!received) {
-            console.warn('[Webhook] Hotmart: header x-hotmart-hottok ausente');
+            console.warn('[Webhook] Hotmart: header x-hotmart-hottok ausente e sem HMAC');
             return false;
         }
-        // Comparação timing-safe para prevenir timing attacks
         try {
             const expectedBuf = Buffer.from(expected, 'utf8');
             const receivedBuf = Buffer.from(received, 'utf8');
             if (expectedBuf.length !== receivedBuf.length || !crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
-                console.warn('[Webhook] Hotmart: token inválido');
+                console.warn('[Webhook] Hotmart: token hottok inválido');
                 return false;
             }
         } catch {

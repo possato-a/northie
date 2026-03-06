@@ -179,7 +179,7 @@ if (!userAccessToken) {
 } else {
     try {
         const customersRes = await axios.get(
-            'https://googleads.googleapis.com/v20/customers:listAccessibleCustomers',
+            'https://googleads.googleapis.com/v23/customers:listAccessibleCustomers',
             {
                 headers: {
                     Authorization: `Bearer ${userAccessToken}`,
@@ -218,7 +218,7 @@ async function testGoogleLevel(
 ): Promise<void> {
     try {
         const res = await axios.post(
-            `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`,
+            `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`,
             { query },
             {
                 headers: {

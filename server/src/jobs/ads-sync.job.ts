@@ -226,7 +226,7 @@ async function fetchMetaObjectStatuses(
 
     const statusMap = new Map<string, string>();
     let url: string | null =
-        `https://graph.facebook.com/v18.0/${accountId}/${endpointMap[level]}`;
+        `https://graph.facebook.com/v25.0/${accountId}/${endpointMap[level]}`;
     const params: Record<string, any> = {
         access_token: accessToken,
         fields: 'id,effective_status',
@@ -278,7 +278,7 @@ async function fetchMetaInsights(
 
     const rows: MetaInsightRow[] = [];
     let url: string | null =
-        `https://graph.facebook.com/v18.0/${accountId}/insights`;
+        `https://graph.facebook.com/v25.0/${accountId}/insights`;
 
     while (url !== null) {
         const currentUrl: string = url;
@@ -399,7 +399,7 @@ async function syncMetaAccount(
     // Busca objetivos das campanhas uma única vez (só existe no nível campaign)
     const objectiveMap = new Map<string, string>();
     try {
-        let url: string | null = `https://graph.facebook.com/v18.0/${account.id}/campaigns`;
+        let url: string | null = `https://graph.facebook.com/v25.0/${account.id}/campaigns`;
         const objParams = { access_token: accessToken, fields: 'id,objective', limit: 500 };
         while (url !== null) {
             const currentUrl: string = url;
@@ -532,7 +532,7 @@ async function syncMetaAds(
         // Listar ad accounts
         let accountsRes;
         try {
-            accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
+            accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v25.0/me/adaccounts', {
                 params: { access_token: accessToken, fields: 'id,name', limit: 50 },
             }));
         } catch (err: any) {
@@ -612,7 +612,7 @@ async function fetchGoogleRows(
         headers['login-customer-id'] = loginCustomerId;
     }
     const res = await withRetry(() => axios.post(
-        `https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`,
+        `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`,
         { query },
         { headers, timeout: 30000 }
     ));

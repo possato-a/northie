@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 import { syncTransaction } from '../services/normalization.service.js';
 
-const SHOPIFY_API_VERSION = '2024-01';
+const SHOPIFY_API_VERSION = '2026-01';
 
 // ── Retry com backoff exponencial ─────────────────────────────────────────────
 
