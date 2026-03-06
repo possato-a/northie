@@ -134,6 +134,7 @@ export async function getAttributionStats(req: Request, res: Response) {
  */
 export async function getGrowthMetrics(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
         const now = new Date();
@@ -180,6 +181,7 @@ export async function getGrowthMetrics(req: Request, res: Response) {
  */
 export async function getRevenueChart(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
         const fifteenDaysAgo = new Date();
@@ -226,6 +228,7 @@ export async function getRevenueChart(req: Request, res: Response) {
  */
 export async function getSalesHeatmap(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
         const startOfYear = new Date(new Date().getFullYear(), 0, 1);
@@ -256,6 +259,7 @@ export async function getSalesHeatmap(req: Request, res: Response) {
  */
 export async function getRetentionCohort(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
         // Fetch all customers and their first purchase date
@@ -324,6 +328,7 @@ export async function getRetentionCohort(req: Request, res: Response) {
  */
 export async function getTopCustomers(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
         const { data: customers, error } = await supabase
@@ -347,6 +352,7 @@ export async function getTopCustomers(req: Request, res: Response) {
  */
 export async function getChannelTrends(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
         const fifteenDaysAgo = new Date();

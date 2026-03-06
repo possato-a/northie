@@ -14,6 +14,8 @@ import campaignRoutes from './routes/campaign.routes.js';
 import growthRoutes from './routes/growth.routes.js';
 import cardRoutes from './routes/card.routes.js';
 import valuationRoutes from './routes/valuation.routes.js';
+import { authMiddleware } from './middleware/auth.middleware.js';
+import { generalRateLimiter, aiRateLimiter } from './middleware/rate-limit.middleware.js';
 import { startTokenRefreshJob } from './jobs/token-refresh.job.js';
 import { startAdsSyncJob } from './jobs/ads-sync.job.js';
 import { startHotmartSyncJob } from './jobs/hotmart-sync.job.js';
@@ -38,7 +40,24 @@ const PORT = process.env.PORT || 3001;
 
 // Middlewares
 app.use(helmet());
-app.use(cors());
+
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.BACKEND_URL,
+    'http://localhost:5173',
+    'http://localhost:3001',
+].filter(Boolean) as string[];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow server-to-server requests (no origin) and known origins
+        if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+        else callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+}));
+
+app.use(generalRateLimiter);
 app.use(morgan('dev'));
 
 // Webhooks com raw body DEVEM ser montados antes do express.json()
@@ -52,21 +71,21 @@ app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), (req
     next();
 }, handleResendWebhook);
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Routes
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/pixel', pixelRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/ai', aiRoutes);
-app.use('/api/integrations', integrationRoutes);
-app.use('/api/cron', cronRoutes);
-app.use('/api/data', dataRoutes);
-app.use('/api/campaigns', campaignRoutes);
-app.use('/api/growth', growthRoutes);
-app.use('/api/card', cardRoutes);
-app.use('/api/valuation', valuationRoutes);
-app.use('/api/reports', reportsRoutes);
+app.use('/api/dashboard', authMiddleware, dashboardRoutes);
+app.use('/api/ai', authMiddleware, aiRateLimiter, aiRoutes);
+app.use('/api/integrations', integrationRoutes); // auth handled per-route in integration.routes.ts
+app.use('/api/cron', cronRoutes);                // protected by CRON_SECRET internally
+app.use('/api/data', authMiddleware, dataRoutes);
+app.use('/api/campaigns', authMiddleware, campaignRoutes);
+app.use('/api/growth', authMiddleware, growthRoutes);
+app.use('/api/card', authMiddleware, cardRoutes);
+app.use('/api/valuation', authMiddleware, valuationRoutes);
+app.use('/api/reports', authMiddleware, reportsRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {

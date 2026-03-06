@@ -10,6 +10,10 @@ import type { OAuthTokens } from '../types/index.js';
 // Tokens expire after 10 minutes to limit replay window.
 
 const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.CRON_SECRET || '';
+if (!OAUTH_STATE_SECRET) {
+    console.error('[IntegrationService] OAUTH_STATE_SECRET (ou CRON_SECRET) deve ser configurado para proteger tokens de estado OAuth CSRF.');
+    process.exit(1);
+}
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function hmacState(profileId: string, ts: number): string {
