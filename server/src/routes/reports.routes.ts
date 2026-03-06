@@ -6,6 +6,7 @@ router.get('/config', ReportsController.getReportConfig);
 router.post('/config', ReportsController.saveReportConfig);
 router.get('/preview', ReportsController.getReportPreview);
 router.get('/ai-analysis', ReportsController.getReportAIAnalysis);
+router.get('/ai-stream', ReportsController.streamReportAIAnalysis);
 router.post('/generate', ReportsController.generateReport);
 router.get('/export', ReportsController.exportReport);
 router.get('/logs', ReportsController.getReportLogs);

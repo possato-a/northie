@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import { generateReportData, computeNextSendAt } from '../services/reports/report-generator.js';
-import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
+import { generateReportNarrative, streamReportNarrative } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
 import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
@@ -208,6 +208,43 @@ export async function getReportAIAnalysis(req, res) {
     catch (err) {
         console.error('[Reports] AI analysis error:', err);
         return res.status(500).json({ error: 'Failed to generate AI analysis' });
+    }
+}
+// Streaming SSE da análise de IA — o cliente recebe chunks em tempo real
+export async function streamReportAIAnalysis(req, res) {
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId)
+        return res.status(400).json({ error: 'Missing x-profile-id' });
+    const freqRaw = req.query.frequency ?? 'monthly';
+    const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const customDates = parseDateRange(req.query);
+    // Headers SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    try {
+        const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
+        let reportData = getCached(cacheKey);
+        if (!reportData) {
+            reportData = await generateReportData(profileId, frequency, customDates);
+            setCached(cacheKey, reportData);
+        }
+        send({ type: 'ready' }); // sinal de que os dados estão carregados, IA vai começar
+        for await (const event of streamReportNarrative(reportData)) {
+            send(event);
+            if (event.type === 'done' || event.type === 'error')
+                break;
+        }
+    }
+    catch (err) {
+        console.error('[Reports] streamReportAIAnalysis error:', err);
+        send({ type: 'error', message: 'Falha ao gerar análise' });
+    }
+    finally {
+        res.end();
     }
 }
 export async function generateReport(req, res) {

@@ -369,6 +369,8 @@ export default function Relatorios(_props: RelatoriosProps) {
     // AI Analysis (lazy — só carrega quando o usuário pede)
     const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
     const [loadingAI, setLoadingAI] = useState(false)
+    const [aiStreamText, setAiStreamText] = useState('')   // texto acumulado durante stream
+    const [aiReady, setAiReady] = useState(false)          // dados carregados, IA iniciou
     const [aiError, setAiError] = useState(false)
     const [aiTimedOut, setAiTimedOut] = useState(false)
 
@@ -474,16 +476,59 @@ export default function Relatorios(_props: RelatoriosProps) {
         setLoadingAI(true)
         setAiError(false)
         setAiTimedOut(false)
+        setAiStreamText('')
+        setAiReady(false)
+        setAiAnalysis(null)
+
+        const params = new URLSearchParams({ frequency: genFrequency, ...getCustomDates() as Record<string, string> })
+        const { supabase } = await import('../../lib/supabase')
+        const { data: { user } } = await supabase.auth.getUser()
+        const profileId = user?.id ?? ''
+
         try {
-            const res = await reportsApi.getAIAnalysis(genFrequency, getCustomDates())
-            setAiAnalysis(res.data as AIAnalysis)
+            const res = await fetch(`/api/reports/ai-stream?${params}`, {
+                headers: { 'x-profile-id': profileId },
+            })
+            if (!res.ok || !res.body) throw new Error('stream_failed')
+
+            const reader = res.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                buffer += decoder.decode(value, { stream: true })
+
+                // Processa linhas SSE completas
+                const lines = buffer.split('\n')
+                buffer = lines.pop() ?? ''
+
+                for (const line of lines) {
+                    if (!line.startsWith('data: ')) continue
+                    try {
+                        const event = JSON.parse(line.slice(6))
+                        if (event.type === 'ready') {
+                            setAiReady(true)
+                        } else if (event.type === 'chunk') {
+                            setAiStreamText(prev => prev + event.text)
+                        } else if (event.type === 'done') {
+                            setAiAnalysis(event.result as AIAnalysis)
+                            setLoadingAI(false)
+                        } else if (event.type === 'error') {
+                            throw new Error('stream_error')
+                        }
+                    } catch { /* linha malformada — ignorar */ }
+                }
+            }
         } catch (err: unknown) {
-            const e = err as { code?: string; message?: string }
-            const isTimeout = e?.code === 'ECONNABORTED' || (e?.message ?? '').toLowerCase().includes('timeout')
-            setAiTimedOut(isTimeout)
+            const e = err as { message?: string }
+            setAiTimedOut((e?.message ?? '').includes('timeout'))
             setAiError(true)
-        } finally {
             setLoadingAI(false)
+        } finally {
+            setAiStreamText('')
+            setAiReady(false)
         }
     }
 
@@ -936,18 +981,33 @@ export default function Relatorios(_props: RelatoriosProps) {
 
                         {loadingAI && (
                             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '8px 0' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
-                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                </svg>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                        Analisando dados com IA...
-                                    </span>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                        Cruzando fontes e diagnosticando cada canal. Isso pode levar até 60 segundos.
+                                style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                    </svg>
+                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                        {!aiReady ? 'Carregando dados...' : 'Analisando com IA...'}
                                     </span>
                                 </div>
+                                {/* Texto streamado em tempo real */}
+                                {aiStreamText && (
+                                    <div style={{
+                                        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)',
+                                        lineHeight: 1.6, maxHeight: 160, overflow: 'hidden',
+                                        padding: '10px 14px',
+                                        background: 'var(--color-bg-secondary)',
+                                        borderRadius: 8,
+                                        border: '1px solid var(--color-border)',
+                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                        position: 'relative',
+                                    }}>
+                                        {aiStreamText.slice(-600)}
+                                        <span style={{ animation: 'pulse 0.8s ease-in-out infinite', color: '#1a7fe8' }}>▋</span>
+                                        {/* fade out no topo */}
+                                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32, background: 'linear-gradient(to bottom, var(--color-bg-secondary), transparent)', borderRadius: '8px 8px 0 0', pointerEvents: 'none' }} />
+                                    </div>
+                                )}
                             </motion.div>
                         )}
 

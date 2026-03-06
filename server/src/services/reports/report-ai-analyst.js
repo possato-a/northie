@@ -215,6 +215,35 @@ function parseAnalysis(raw) {
         proximos_passos: Array.isArray(parsed.proximos_passos) ? parsed.proximos_passos.map(String) : [],
     };
 }
+// ── Streaming export ──────────────────────────────────────────────────────────
+// Retorna um async generator que emite chunks de texto conforme a IA os produz.
+// Quem consome este generator é responsável por enviar os chunks ao cliente (SSE).
+export async function* streamReportNarrative(data) {
+    const generatedAt = new Date().toISOString();
+    const model = 'claude-sonnet-4-6';
+    let fullText = '';
+    try {
+        const stream = getAnthropic().messages.stream({
+            model,
+            max_tokens: 4000,
+            system: 'Você é um CFO/CMO sênior especialista em negócios digitais brasileiros. Analise dados cruzados de múltiplas fontes e diagnostique problemas com precisão clínica — sintoma, causa raiz, consequência em R$, ação. Nunca inclua dados pessoais identificáveis (PII). Responda SOMENTE com JSON válido, sem nenhum texto antes ou depois.',
+            messages: [{ role: 'user', content: buildUserMessage(data) }],
+        });
+        for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                fullText += event.delta.text;
+                yield { type: 'chunk', text: event.delta.text };
+            }
+        }
+        const result = parseAnalysis(fullText);
+        yield { type: 'done', result: { ...result, generated_at: generatedAt, model } };
+    }
+    catch (err) {
+        console.error('[ReportAI] Streaming error:', err);
+        const fallback = generateFallbackNarrative(data);
+        yield { type: 'done', result: { ...fallback, generated_at: generatedAt, model: 'fallback' } };
+    }
+}
 // ── Main export ───────────────────────────────────────────────────────────────
 export async function generateReportNarrative(data, profileId) {
     // Agente V2: pipeline de dois agentes com tool_use + extended thinking
