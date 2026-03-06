@@ -12,16 +12,21 @@ export async function listRecommendations(req: Request, res: Response) {
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await supabase
-        .from('growth_recommendations')
-        .select('id, type, status, title, narrative, impact_estimate, sources, execution_log, meta, created_at, updated_at')
-        .eq('profile_id', profileId)
-        .or(`status.in.(pending,approved,executing),and(status.in.(completed,failed,dismissed),created_at.gte.${sevenDaysAgo})`)
-        .order('created_at', { ascending: false })
-        .limit(20);
+    try {
+        const { data, error } = await supabase
+            .from('growth_recommendations')
+            .select('id, type, status, title, narrative, impact_estimate, sources, execution_log, meta, created_at, updated_at')
+            .eq('profile_id', profileId)
+            .or(`status.in.(pending,approved,executing),and(status.in.(completed,failed,dismissed),created_at.gte.${sevenDaysAgo})`)
+            .order('created_at', { ascending: false })
+            .limit(20);
 
-    if (error) return res.status(500).json({ error: 'Failed to fetch recommendations' });
-    res.json(data);
+        if (error) return res.status(500).json({ error: 'Failed to fetch recommendations' });
+        res.json(data);
+    } catch (err) {
+        console.error('[Growth] listRecommendations error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
 }
 
 /**
@@ -84,72 +89,77 @@ export async function getGrowthMetrics(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
-    // 1. Performance por canal (materialized view)
-    const { data: channelPerf } = await supabase
-        .from('mv_campaign_ltv_performance')
-        .select('channel, customers_acquired, total_ltv_brl, avg_ltv_brl, total_spend_brl, true_roi, high_churn_count, avg_churn_probability')
-        .eq('profile_id', profileId)
-        .gt('customers_acquired', 0);
+    try {
+        // 1. Performance por canal (materialized view)
+        const { data: channelPerf } = await supabase
+            .from('mv_campaign_ltv_performance')
+            .select('channel, customers_acquired, total_ltv_brl, avg_ltv_brl, total_spend_brl, true_roi, high_churn_count, avg_churn_probability')
+            .eq('profile_id', profileId)
+            .gt('customers_acquired', 0);
 
-    // 2. Dados de customers para segmentos e métricas
-    const { data: customers } = await supabase
-        .from('customers')
-        .select('rfm_score, total_ltv, cac, churn_probability, acquisition_channel')
-        .eq('profile_id', profileId);
+        // 2. Dados de customers para segmentos e métricas
+        const { data: customers } = await supabase
+            .from('customers')
+            .select('rfm_score, total_ltv, cac, churn_probability, acquisition_channel')
+            .eq('profile_id', profileId);
 
-    if (!customers) return res.json({ channel_performance: [], segments: {}, summary: {} });
+        if (!customers) return res.json({ channel_performance: [], segments: {}, summary: {} });
 
-    // Segmentos RFM
-    const segments = { Champions: 0, 'Em Risco': 0, 'Novos Promissores': 0, Inativos: 0 };
-    let totalLtv = 0;
-    let totalCac = 0;
-    let cacCount = 0;
-    let cacDeficitCount = 0;
-    let highChurnCount = 0;
+        // Segmentos RFM
+        const segments = { Champions: 0, 'Em Risco': 0, 'Novos Promissores': 0, Inativos: 0 };
+        let totalLtv = 0;
+        let totalCac = 0;
+        let cacCount = 0;
+        let cacDeficitCount = 0;
+        let highChurnCount = 0;
 
-    for (const c of customers) {
-        totalLtv += Number(c.total_ltv) || 0;
-        if (Number(c.cac) > 0) {
-            totalCac += Number(c.cac);
-            cacCount++;
-            if (Number(c.total_ltv) < Number(c.cac)) cacDeficitCount++;
+        for (const c of customers) {
+            totalLtv += Number(c.total_ltv) || 0;
+            if (Number(c.cac) > 0) {
+                totalCac += Number(c.cac);
+                cacCount++;
+                if (Number(c.total_ltv) < Number(c.cac)) cacDeficitCount++;
+            }
+            if (Number(c.churn_probability) >= 60) highChurnCount++;
+
+            const rfm = c.rfm_score as string | null;
+            if (rfm && rfm.length === 3) {
+                const r = parseInt(rfm[0]!);
+                const f = parseInt(rfm[1]!);
+                const m = parseInt(rfm[2]!);
+                const avg = (r + f + m) / 3;
+                if (r >= 4 && f >= 3 && m >= 3) segments['Champions']++;
+                else if ((r <= 2 && m >= 3) || (r <= 2 && f >= 3)) segments['Em Risco']++;
+                else if (avg <= 2) segments['Inativos']++;
+                else segments['Novos Promissores']++;
+            }
         }
-        if (Number(c.churn_probability) >= 60) highChurnCount++;
 
-        const rfm = c.rfm_score as string | null;
-        if (rfm && rfm.length === 3) {
-            const r = parseInt(rfm[0]!);
-            const f = parseInt(rfm[1]!);
-            const m = parseInt(rfm[2]!);
-            const avg = (r + f + m) / 3;
-            if (r >= 4 && f >= 3 && m >= 3) segments['Champions']++;
-            else if ((r <= 2 && m >= 3) || (r <= 2 && f >= 3)) segments['Em Risco']++;
-            else if (avg <= 2) segments['Inativos']++;
-            else segments['Novos Promissores']++;
-        }
+        const avgLtv = customers.length > 0 ? totalLtv / customers.length : 0;
+        const avgCac = cacCount > 0 ? totalCac / cacCount : 0;
+
+        // ROI global da view
+        const globalRoi = (channelPerf || []).reduce((best, row) => {
+            const roi = Number(row.true_roi);
+            return roi > best ? roi : best;
+        }, 0);
+
+        res.json({
+            channel_performance: channelPerf || [],
+            segments,
+            summary: {
+                total_customers: customers.length,
+                avg_ltv_brl: Math.round(avgLtv * 100) / 100,
+                avg_cac_brl: Math.round(avgCac * 100) / 100,
+                cac_deficit_count: cacDeficitCount,
+                high_churn_count: highChurnCount,
+                best_roi: Math.round(globalRoi * 100) / 100,
+            },
+        });
+    } catch (err) {
+        console.error('[Growth] getGrowthMetrics error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
     }
-
-    const avgLtv = customers.length > 0 ? totalLtv / customers.length : 0;
-    const avgCac = cacCount > 0 ? totalCac / cacCount : 0;
-
-    // ROI global da view
-    const globalRoi = (channelPerf || []).reduce((best, row) => {
-        const roi = Number(row.true_roi);
-        return roi > best ? roi : best;
-    }, 0);
-
-    res.json({
-        channel_performance: channelPerf || [],
-        segments,
-        summary: {
-            total_customers: customers.length,
-            avg_ltv_brl: Math.round(avgLtv * 100) / 100,
-            avg_cac_brl: Math.round(avgCac * 100) / 100,
-            cac_deficit_count: cacDeficitCount,
-            high_churn_count: highChurnCount,
-            best_roi: Math.round(globalRoi * 100) / 100,
-        },
-    });
 }
 
 /**

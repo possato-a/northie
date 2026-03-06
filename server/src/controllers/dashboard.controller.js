@@ -376,6 +376,8 @@ export async function getChannelTrends(req, res) {
  */
 export async function getAdCampaigns(req, res) {
     const profileId = req.headers['x-profile-id'];
+    if (!profileId)
+        return res.status(400).json({ error: 'Missing x-profile-id header' });
     const days = Number(req.query.days ?? 365);
     try {
         let query = supabase

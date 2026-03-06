@@ -43,7 +43,6 @@ app.use(helmet());
 
 const allowedOrigins = [
     process.env.FRONTEND_URL,
-    process.env.BACKEND_URL,
     'http://localhost:5173',
     'http://localhost:3001',
 ].filter(Boolean) as string[];

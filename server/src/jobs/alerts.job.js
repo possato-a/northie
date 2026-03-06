@@ -10,6 +10,8 @@
  *  - Novo canal orgânico significativo (>10 clientes no mês via 'organico')
  */
 import { supabase } from '../lib/supabase.js';
+// ── Mutex — impede execução simultânea ────────────────────────────────────────
+let isRunning = false;
 async function createAlert(alert) {
     // Evitar duplicatas: não criar o mesmo tipo de alerta se já existe um não lido nas últimas 24h
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -54,13 +56,15 @@ async function checkRoasDrop(profileId) {
         return;
     const { data: txs } = await supabase
         .from('transactions')
-        .select('platform, amount_net, created_at')
+        .select('amount_net, created_at, customers!inner(acquisition_channel)')
         .eq('profile_id', profileId)
         .eq('status', 'approved')
         .gte('created_at', sevenDaysAgo + 'T00:00:00Z');
+    const channelMap = { meta: 'meta_ads', google: 'google_ads' };
     for (const platform of ['meta', 'google']) {
         const platformMetrics = metrics.filter(m => m.platform === platform);
-        const platformTxs = txs?.filter(t => t.platform === platform) || [];
+        const channelKey = channelMap[platform] || platform;
+        const platformTxs = txs?.filter(t => t.customers?.acquisition_channel === channelKey) || [];
         if (!platformMetrics.length)
             continue;
         // ROAS de hoje
@@ -187,10 +191,23 @@ async function runAlertsForAllProfiles() {
     }
     console.log('[Alerts] Check complete.');
 }
+async function runAlertsWithMutex() {
+    if (isRunning) {
+        console.log('[AlertsJob] Já em execução, pulando ciclo');
+        return;
+    }
+    isRunning = true;
+    try {
+        await runAlertsForAllProfiles();
+    }
+    finally {
+        isRunning = false;
+    }
+}
 export function startAlertsJob() {
     console.log('[Alerts] Job registered — will run every hour.');
-    runAlertsForAllProfiles();
-    setInterval(runAlertsForAllProfiles, 60 * 60 * 1000);
+    runAlertsWithMutex();
+    setInterval(runAlertsWithMutex, 60 * 60 * 1000);
 }
 export { runAlertsForAllProfiles };
 //# sourceMappingURL=alerts.job.js.map

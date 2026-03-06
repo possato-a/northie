@@ -414,6 +414,7 @@ export default function Card({ onToggleChat }: PageProps) {
     const [submittingRequest, setSubmittingRequest] = useState(false)
     const [cards, setCards] = useState<NorthieCard[]>([])
     const [pageState, setPageState] = useState<CardPageState>('not_eligible')
+    const [pageError, setPageError] = useState<string | null>(null)
     const [scoreData, setScoreData] = useState<{
         total: number; revenue: number; ltv_churn: number; cac_ltv: number; platform_age: number;
         max_limit_brl: number; snapshot_month: string;
@@ -428,8 +429,11 @@ export default function Card({ onToggleChat }: PageProps) {
     })
 
     useEffect(() => {
+        let mounted = true
+
         // Score + histórico em paralelo
         api.get('/card/score').then(r => {
+            if (!mounted) return
             const d = r.data
             const total = d.score ?? 0
             const dims = d.dimensions ?? {}
@@ -447,6 +451,7 @@ export default function Card({ onToggleChat }: PageProps) {
 
             // Consulta o estado da aplicação para sobrepor pageState
             api.get('/card/application').then(ar => {
+                if (!mounted) return
                 const app = ar.data
                 if (app?.status === 'active') {
                     setPageState('active')
@@ -456,18 +461,28 @@ export default function Card({ onToggleChat }: PageProps) {
                     setPageState(total >= 70 ? 'eligible' : 'not_eligible')
                 }
             }).catch(() => {
+                if (!mounted) return
                 setPageState(total >= 70 ? 'eligible' : 'not_eligible')
             })
-        }).catch(console.error)
+        }).catch(() => {
+            if (!mounted) return
+            setPageError('Não foi possível carregar o Capital Score. Verifique as integrações.')
+        })
 
         api.get('/card/history').then(r => {
+            if (!mounted) return
             const rows: { snapshot_month: string; score: number }[] = r.data ?? []
             const mapped = rows.slice().reverse().map(row => ({
                 m: new Date(row.snapshot_month + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'short' }),
                 s: row.score,
             }))
             if (mapped.length > 0) setHistory(mapped)
-        }).catch(console.error)
+        }).catch(() => {
+            if (!mounted) return
+            setPageError('Não foi possível carregar o histórico do score.')
+        })
+
+        return () => { mounted = false }
     }, [])
 
     const score = scoreData
@@ -496,6 +511,7 @@ export default function Card({ onToggleChat }: PageProps) {
             setShowRequestModal(false)
         } catch (err) {
             console.error('[Card] Erro ao solicitar crédito:', err)
+            setPageError('Erro ao enviar solicitação de crédito. Tente novamente.')
         } finally {
             setSubmittingRequest(false)
         }

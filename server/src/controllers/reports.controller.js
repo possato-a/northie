@@ -12,6 +12,15 @@ const FREQ_MAP = {
 // ── Preview data cache — evita dupla chamada generateReportData entre preview e IA ─
 const previewCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
+// Limpeza periódica — remove entradas expiradas para evitar acúmulo indefinido
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of previewCache.entries()) {
+        if (now - entry.ts > CACHE_TTL) {
+            previewCache.delete(key);
+        }
+    }
+}, 5 * 60 * 1000);
 function getCached(key) {
     const e = previewCache.get(key);
     if (!e)
@@ -224,6 +233,10 @@ export async function streamReportAIAnalysis(req, res) {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
+    const abortController = new AbortController();
+    req.on('close', () => {
+        abortController.abort();
+    });
     const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
     try {
         const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
@@ -232,16 +245,25 @@ export async function streamReportAIAnalysis(req, res) {
             reportData = await generateReportData(profileId, frequency, customDates);
             setCached(cacheKey, reportData);
         }
+        if (abortController.signal.aborted)
+            return;
         send({ type: 'ready' }); // sinal de que os dados estão carregados, IA vai começar
-        for await (const event of streamReportNarrative(reportData)) {
+        for await (const event of streamReportNarrative(reportData, abortController.signal)) {
+            if (abortController.signal.aborted)
+                break;
             send(event);
             if (event.type === 'done' || event.type === 'error')
                 break;
         }
     }
     catch (err) {
-        console.error('[Reports] streamReportAIAnalysis error:', err);
-        send({ type: 'error', message: 'Falha ao gerar análise' });
+        if (err?.name === 'AbortError') {
+            console.log('[Reports] streamReportAIAnalysis: cliente desconectou, geração interrompida');
+        }
+        else {
+            console.error('[Reports] streamReportAIAnalysis error:', err);
+            send({ type: 'error', message: 'Falha ao gerar análise' });
+        }
     }
     finally {
         res.end();

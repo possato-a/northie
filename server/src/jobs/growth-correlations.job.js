@@ -5,6 +5,8 @@
  * Roda imediatamente ao iniciar + a cada 30 minutos.
  */
 import { supabase } from '../lib/supabase.js';
+// ── Mutex — impede execução simultânea ────────────────────────────────────────
+let isRunning = false;
 async function upsertRecommendation(profileId, type, payload) {
     // Deduplicação: não criar nova rec do mesmo tipo se já existe pending/approved nas últimas 24h
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -593,10 +595,23 @@ async function runGrowthCorrelationsForAllProfiles() {
     }
     console.log('[Growth] Correlation check complete.');
 }
+async function runGrowthCorrelationsWithMutex() {
+    if (isRunning) {
+        console.log('[GrowthCorrelationsJob] Já em execução, pulando ciclo');
+        return;
+    }
+    isRunning = true;
+    try {
+        await runGrowthCorrelationsForAllProfiles();
+    }
+    finally {
+        isRunning = false;
+    }
+}
 export function startGrowthCorrelationsJob() {
     console.log('[Growth] Job registered — will run every 30 minutes.');
-    runGrowthCorrelationsForAllProfiles();
-    setInterval(runGrowthCorrelationsForAllProfiles, 30 * 60 * 1000);
+    runGrowthCorrelationsWithMutex();
+    setInterval(runGrowthCorrelationsWithMutex, 30 * 60 * 1000);
 }
 export { runGrowthCorrelationsForAllProfiles };
 //# sourceMappingURL=growth-correlations.job.js.map

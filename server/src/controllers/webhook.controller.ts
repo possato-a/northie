@@ -64,9 +64,9 @@ function verifyPlatformToken(platform: string, req: Request): boolean {
             }
         }
 
-        // Sem token configurado — aceita baseado no profileId UUID na URL (segurança suficiente para beta)
-        // O UUID tem 2^122 combinações possíveis + validamos integração ativa no banco
-        console.log('[Webhook] Hotmart: sem token configurado, autenticando via profileId');
+        // Sem token configurado — rejeitar para prevenir injeção de vendas falsas
+        console.warn('[Webhook] Hotmart: nenhum segredo configurado (HOTMART_WEBHOOK_SECRET ou HOTMART_WEBHOOK_TOKEN). Configure um dos dois para ativar o webhook.');
+        return false;
     }
     return true;
 }

@@ -12,6 +12,9 @@
 
 import { supabase } from '../lib/supabase.js';
 
+// ── Mutex — impede execução simultânea ────────────────────────────────────────
+let isRunning = false;
+
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
 type AlertType = 'roas_drop' | 'high_churn' | 'revenue_zero' | 'organic_spike';
@@ -230,10 +233,23 @@ async function runAlertsForAllProfiles(): Promise<void> {
     console.log('[Alerts] Check complete.');
 }
 
+async function runAlertsWithMutex(): Promise<void> {
+    if (isRunning) {
+        console.log('[AlertsJob] Já em execução, pulando ciclo');
+        return;
+    }
+    isRunning = true;
+    try {
+        await runAlertsForAllProfiles();
+    } finally {
+        isRunning = false;
+    }
+}
+
 export function startAlertsJob(): void {
     console.log('[Alerts] Job registered — will run every hour.');
-    runAlertsForAllProfiles();
-    setInterval(runAlertsForAllProfiles, 60 * 60 * 1000);
+    runAlertsWithMutex();
+    setInterval(runAlertsWithMutex, 60 * 60 * 1000);
 }
 
 export { runAlertsForAllProfiles };

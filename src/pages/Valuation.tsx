@@ -176,6 +176,7 @@ export default function Valuation({ onToggleChat }: PageProps) {
     const [tab, setTab] = useState<'atual' | 'historico'>('atual')
     const [current, setCurrent] = useState<ValuationSnapshot | null>(null)
     const [history, setHistory] = useState<ValuationSnapshot[]>([])
+    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
         api.get('/valuation/current').then(r => {
@@ -194,7 +195,7 @@ export default function Valuation({ onToggleChat }: PageProps) {
                 segment_median_brl: d.segment_median_brl ?? 0,
                 segment_sample_size: d.segment_sample_size ?? 0,
             })
-        }).catch(console.error)
+        }).catch(() => setError('Não foi possível carregar o valuation atual.'))
 
         api.get('/valuation/history').then(r => {
             const rows = (r.data ?? []) as ValuationSnapshot[]
@@ -210,15 +211,15 @@ export default function Valuation({ onToggleChat }: PageProps) {
                 methodology: d.methodology ?? 'arr_multiple',
                 benchmark_percentile: d.benchmark_percentile,
             })))
-        }).catch(console.error)
+        }).catch(() => setError('Não foi possível carregar o histórico de valuation.'))
     }, [])
 
     if (!current) {
         return (
             <div style={{ paddingTop: 28, paddingBottom: 80 }}>
                 <TopBar onToggleChat={onToggleChat} />
-                <div style={{ paddingTop: 80, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
-                    Calculando valuation...
+                <div style={{ paddingTop: 80, fontFamily: 'var(--font-mono)', fontSize: 13, color: error ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>
+                    {error ?? 'Calculando valuation...'}
                 </div>
             </div>
         )

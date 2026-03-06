@@ -113,6 +113,12 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
     const [model, setModel] = useState<AIModel>('sonnet')
     const [animatingId, setAnimatingId] = useState<string | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const mountedRef = useRef(true)
+
+    useEffect(() => {
+        mountedRef.current = true
+        return () => { mountedRef.current = false }
+    }, [])
 
     const suggestions = useMemo(() => {
         switch (context) {
@@ -142,6 +148,7 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
 
         try {
             const response = await aiApi.chat(messageText, context, model)
+            if (!mountedRef.current) return
             const newId = Date.now().toString()
             const aiMsg: Message = {
                 id: newId,
@@ -151,13 +158,14 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
             setMessages(prev => [...prev, aiMsg])
             setAnimatingId(newId)
         } catch {
+            if (!mountedRef.current) return
             setMessages(prev => [...prev, {
                 id: Date.now().toString(),
                 role: 'assistant',
                 content: 'Desculpe, tive um problema. Verifique se o servidor está rodando.'
             }])
         } finally {
-            setIsThinking(false)
+            if (mountedRef.current) setIsThinking(false)
         }
     }
 

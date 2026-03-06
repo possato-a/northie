@@ -72,6 +72,15 @@ export async function createCampaign(req, res) {
  */
 export async function listCampaignCreators(req, res) {
     const { id: campaignId } = req.params;
+    const profileId = req.headers['x-profile-id'];
+    const { data: ownerCheck } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('id', campaignId)
+        .eq('profile_id', profileId)
+        .single();
+    if (!ownerCheck)
+        return res.status(403).json({ error: 'Campanha não encontrada' });
     try {
         const { data, error } = await supabase
             .from('campaign_creators')
@@ -120,6 +129,14 @@ export async function listCampaignCreators(req, res) {
 export async function addCreatorToCampaign(req, res) {
     const profileId = req.headers['x-profile-id'];
     const { campaignId, name, email, instagram } = req.body;
+    const { data: campaignOwnerCheck } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('id', campaignId)
+        .eq('profile_id', profileId)
+        .single();
+    if (!campaignOwnerCheck)
+        return res.status(403).json({ error: 'Acesso negado' });
     try {
         // 1. Create creator if doesn't exist (by email) or just create new
         const { data: creator, error: cError } = await supabase
@@ -147,6 +164,23 @@ export async function addCreatorToCampaign(req, res) {
  */
 export async function confirmPayout(req, res) {
     const { campaignId, creatorId } = req.body;
+    const profileId = req.headers['x-profile-id'];
+    const [{ data: ownerCheck }, { data: campaignCheck }] = await Promise.all([
+        supabase
+            .from('campaign_creators')
+            .select('id')
+            .eq('id', creatorId)
+            .eq('campaign_id', campaignId)
+            .single(),
+        supabase
+            .from('campaigns')
+            .select('id')
+            .eq('id', campaignId)
+            .eq('profile_id', profileId)
+            .single(),
+    ]);
+    if (!ownerCheck || !campaignCheck)
+        return res.status(403).json({ error: 'Acesso negado' });
     try {
         const { error } = await supabase
             .from('commissions')

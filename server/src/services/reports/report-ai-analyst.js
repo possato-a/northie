@@ -218,7 +218,7 @@ function parseAnalysis(raw) {
 // ── Streaming export ──────────────────────────────────────────────────────────
 // Retorna um async generator que emite chunks de texto conforme a IA os produz.
 // Quem consome este generator é responsável por enviar os chunks ao cliente (SSE).
-export async function* streamReportNarrative(data) {
+export async function* streamReportNarrative(data, signal) {
     const generatedAt = new Date().toISOString();
     const model = 'claude-sonnet-4-6';
     let fullText = '';
@@ -228,7 +228,7 @@ export async function* streamReportNarrative(data) {
             max_tokens: 4000,
             system: 'Você é um CFO/CMO sênior especialista em negócios digitais brasileiros. Analise dados cruzados de múltiplas fontes e diagnostique problemas com precisão clínica — sintoma, causa raiz, consequência em R$, ação. Nunca inclua dados pessoais identificáveis (PII). Responda SOMENTE com JSON válido, sem nenhum texto antes ou depois.',
             messages: [{ role: 'user', content: buildUserMessage(data) }],
-        });
+        }, { signal });
         for await (const event of stream) {
             if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
                 fullText += event.delta.text;
@@ -239,6 +239,10 @@ export async function* streamReportNarrative(data) {
         yield { type: 'done', result: { ...result, generated_at: generatedAt, model } };
     }
     catch (err) {
+        if (err?.name === 'AbortError' || signal?.aborted) {
+            // Interrupção intencional — cliente desconectou
+            return;
+        }
         console.error('[ReportAI] Streaming error:', err);
         const fallback = generateFallbackNarrative(data);
         yield { type: 'done', result: { ...fallback, generated_at: generatedAt, model: 'fallback' } };

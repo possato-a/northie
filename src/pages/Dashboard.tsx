@@ -26,7 +26,7 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
     if (user?.id) {
       fetchDashboardData()
     }
-  }, [user])
+  }, [user?.id])
 
   const fetchDashboardData = async () => {
     setLoading(true)

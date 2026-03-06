@@ -88,7 +88,7 @@ interface PreviewData {
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
-const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+const fmtBRL = (n: number | null | undefined) => (n ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 const fmtDateShort = (iso: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(iso))
 
@@ -482,12 +482,13 @@ export default function Relatorios(_props: RelatoriosProps) {
 
         const params = new URLSearchParams({ frequency: genFrequency, ...getCustomDates() as Record<string, string> })
         const { supabase } = await import('../../lib/supabase')
-        const { data: { user } } = await supabase.auth.getUser()
-        const profileId = user?.id ?? ''
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token ?? ''
+        const profileId = session?.user?.id ?? ''
 
         try {
             const res = await fetch(`/api/reports/ai-stream?${params}`, {
-                headers: { 'x-profile-id': profileId },
+                headers: { 'x-profile-id': profileId, 'Authorization': `Bearer ${token}` },
             })
             if (!res.ok || !res.body) throw new Error('stream_failed')
 
@@ -495,6 +496,8 @@ export default function Relatorios(_props: RelatoriosProps) {
             const decoder = new TextDecoder()
             let buffer = ''
 
+            let streamError = false
+            let streamDone = false
             while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
@@ -506,21 +509,28 @@ export default function Relatorios(_props: RelatoriosProps) {
 
                 for (const line of lines) {
                     if (!line.startsWith('data: ')) continue
+                    let event: { type: string; text?: string; result?: AIAnalysis } | null = null
                     try {
-                        const event = JSON.parse(line.slice(6))
-                        if (event.type === 'ready') {
-                            setAiReady(true)
-                        } else if (event.type === 'chunk') {
-                            setAiStreamText(prev => prev + event.text)
-                        } else if (event.type === 'done') {
-                            setAiAnalysis(event.result as AIAnalysis)
-                            setLoadingAI(false)
-                        } else if (event.type === 'error') {
-                            throw new Error('stream_error')
-                        }
+                        event = JSON.parse(line.slice(6))
                     } catch { /* linha malformada — ignorar */ }
+                    if (!event) continue
+                    if (event.type === 'ready') {
+                        setAiReady(true)
+                    } else if (event.type === 'chunk') {
+                        setAiStreamText(prev => prev + (event!.text ?? ''))
+                    } else if (event.type === 'done') {
+                        streamDone = true
+                        setAiAnalysis(event.result as AIAnalysis)
+                        setLoadingAI(false)
+                    } else if (event.type === 'error') {
+                        streamError = true
+                        break
+                    }
                 }
+                if (streamError) break
             }
+            if (streamError) throw new Error('stream_error')
+            if (!streamDone) throw new Error('stream_incomplete')
         } catch (err: unknown) {
             const e = err as { message?: string }
             setAiTimedOut((e?.message ?? '').includes('timeout'))
@@ -529,6 +539,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         } finally {
             setAiStreamText('')
             setAiReady(false)
+            setLoadingAI(false)
         }
     }
 

@@ -56,7 +56,7 @@ async function upsertMonthlySnapshots() {
                 profile_id: profile.id,
                 snapshot_month: snapshotMonthStr,
                 channel: row.channel,
-                campaign_name: row.campaign_name ?? null,
+                campaign_name: row.campaign_name || '',
                 customers_acquired: row.customers_acquired ?? 0,
                 total_ltv_brl: row.total_ltv_brl ?? 0,
                 avg_ltv_brl: row.avg_ltv_brl ?? 0,
@@ -88,15 +88,18 @@ async function upsertMonthlySnapshots() {
 }
 // ── Scheduler ─────────────────────────────────────────────────────────────────
 function scheduleAt(hour, minute, dayOfMonth, fn) {
+    let lastRun = '';
     const tick = () => {
         const now = new Date();
+        const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${hour}-${minute}`;
         if (now.getHours() === hour &&
             now.getMinutes() === minute &&
-            (dayOfMonth === null || now.getDate() === dayOfMonth)) {
+            (dayOfMonth === null || now.getDate() === dayOfMonth) &&
+            lastRun !== key) {
+            lastRun = key;
             fn().catch(err => console.error('[CorrelationRefresh] Scheduled job error:', err));
         }
     };
-    // Verificar a cada minuto
     setInterval(tick, 60 * 1000);
 }
 export function startCorrelationRefreshJob() {

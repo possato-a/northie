@@ -20,6 +20,16 @@ const FREQ_MAP: Record<string, ReportFrequency> = {
 const previewCache = new Map<string, { data: Awaited<ReturnType<typeof generateReportData>>; ts: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
 
+// Limpeza periódica — remove entradas expiradas para evitar acúmulo indefinido
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of previewCache.entries()) {
+        if (now - entry.ts > CACHE_TTL) {
+            previewCache.delete(key);
+        }
+    }
+}, 5 * 60 * 1000);
+
 function getCached(key: string) {
     const e = previewCache.get(key);
     if (!e) return null;
@@ -257,6 +267,12 @@ export async function streamReportAIAnalysis(req: Request, res: Response) {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
+    const abortController = new AbortController();
+
+    req.on('close', () => {
+        abortController.abort();
+    });
+
     const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
     try {
@@ -267,15 +283,22 @@ export async function streamReportAIAnalysis(req: Request, res: Response) {
             setCached(cacheKey, reportData);
         }
 
+        if (abortController.signal.aborted) return;
+
         send({ type: 'ready' }); // sinal de que os dados estão carregados, IA vai começar
 
-        for await (const event of streamReportNarrative(reportData)) {
+        for await (const event of streamReportNarrative(reportData, abortController.signal)) {
+            if (abortController.signal.aborted) break;
             send(event);
             if (event.type === 'done' || event.type === 'error') break;
         }
-    } catch (err) {
-        console.error('[Reports] streamReportAIAnalysis error:', err);
-        send({ type: 'error', message: 'Falha ao gerar análise' });
+    } catch (err: any) {
+        if (err?.name === 'AbortError') {
+            console.log('[Reports] streamReportAIAnalysis: cliente desconectou, geração interrompida');
+        } else {
+            console.error('[Reports] streamReportAIAnalysis error:', err);
+            send({ type: 'error', message: 'Falha ao gerar análise' });
+        }
     } finally {
         res.end();
     }

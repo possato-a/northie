@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from './supabase';
 
 const API_BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:3001/api'
@@ -9,7 +10,21 @@ const api = axios.create({
     timeout: 15000, // 15s — sync now returns 202 immediately, so this is enough
 });
 
-// Helper to set profile ID in headers for all requests
+// Injeta o JWT do Supabase em toda requisição autenticada.
+// O backend verifica o token e extrai o userId de lá — x-profile-id do cliente é ignorado.
+api.interceptors.request.use(async (config) => {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+            config.headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+    } catch {
+        // Falha silenciosa — o backend retornará 401 se o token estiver ausente
+    }
+    return config;
+});
+
+// Mantido por compatibilidade — o backend ignora este header após validar o JWT
 export const setProfileId = (profileId: string) => {
     api.defaults.headers.common['x-profile-id'] = profileId;
 };

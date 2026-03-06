@@ -716,6 +716,7 @@ export default function Growth() {
   }, [])
 
   const startPolling = useCallback((id: string) => {
+    stopPolling(id)
     pollingErrorCounts.current[id] = 0
     pollingRefs.current[id] = setInterval(async () => {
       try {

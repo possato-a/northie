@@ -103,35 +103,51 @@ export async function handleResendWebhook(req: Request, res: Response) {
 
     // ── 2. Atualiza tabela customers com base no recipiente ───────────────────
     if (recipientEmail) {
-        if (type === 'email.bounced') {
-            // Marca bounce — evita reenvios e protege reputação do domínio
-            const { error } = await supabase
-                .from('customers')
-                .update({ email_status: 'bounced' })
-                .eq('email', recipientEmail);
+        // Buscar profile_id via report_logs para evitar contaminação cross-tenant
+        const { data: logEntry } = await supabase
+            .from('report_logs')
+            .select('profile_id')
+            .eq('resend_email_id', emailId)
+            .single();
 
-            if (error) console.error('[ResendWebhook] Erro ao marcar bounce:', error.message);
-            else console.log(`[ResendWebhook] email.bounced → customers email_status=bounced para ${recipientEmail}`);
+        if (!logEntry?.profile_id) {
+            console.warn(`[ResendWebhook] profile_id não encontrado para email_id=${emailId} — update ignorado para prevenir cross-tenant contamination`);
+        } else {
+            const tenantFilter = { email: recipientEmail, profile_id: logEntry.profile_id };
 
-        } else if (type === 'email.complained') {
-            // Reclamo (spam) — marca como unsubscribed imediatamente
-            const { error } = await supabase
-                .from('customers')
-                .update({ email_status: 'unsubscribed' })
-                .eq('email', recipientEmail);
+            if (type === 'email.bounced') {
+                // Marca bounce — evita reenvios e protege reputação do domínio
+                const { error } = await supabase
+                    .from('customers')
+                    .update({ email_status: 'bounced' })
+                    .eq('email', tenantFilter.email)
+                    .eq('profile_id', tenantFilter.profile_id);
 
-            if (error) console.error('[ResendWebhook] Erro ao marcar complained:', error.message);
-            else console.log(`[ResendWebhook] email.complained → customers email_status=unsubscribed para ${recipientEmail}`);
+                if (error) console.error('[ResendWebhook] Erro ao marcar bounce:', error.message);
+                else console.log(`[ResendWebhook] email.bounced → customers email_status=bounced para ${recipientEmail}`);
 
-        } else if (type === 'email.opened' || type === 'email.clicked') {
-            // Engajamento positivo — atualiza last_engagement_at para cálculo de churn
-            const { error } = await supabase
-                .from('customers')
-                .update({ last_engagement_at: new Date().toISOString() })
-                .eq('email', recipientEmail);
+            } else if (type === 'email.complained') {
+                // Reclamo (spam) — marca como unsubscribed imediatamente
+                const { error } = await supabase
+                    .from('customers')
+                    .update({ email_status: 'unsubscribed' })
+                    .eq('email', tenantFilter.email)
+                    .eq('profile_id', tenantFilter.profile_id);
 
-            if (error) console.error('[ResendWebhook] Erro ao atualizar last_engagement_at:', error.message);
-            else console.log(`[ResendWebhook] ${type} → customers last_engagement_at atualizado para ${recipientEmail}`);
+                if (error) console.error('[ResendWebhook] Erro ao marcar complained:', error.message);
+                else console.log(`[ResendWebhook] email.complained → customers email_status=unsubscribed para ${recipientEmail}`);
+
+            } else if (type === 'email.opened' || type === 'email.clicked') {
+                // Engajamento positivo — atualiza last_engagement_at para cálculo de churn
+                const { error } = await supabase
+                    .from('customers')
+                    .update({ last_engagement_at: new Date().toISOString() })
+                    .eq('email', tenantFilter.email)
+                    .eq('profile_id', tenantFilter.profile_id);
+
+                if (error) console.error('[ResendWebhook] Erro ao atualizar last_engagement_at:', error.message);
+                else console.log(`[ResendWebhook] ${type} → customers last_engagement_at atualizado para ${recipientEmail}`);
+            }
         }
     }
 

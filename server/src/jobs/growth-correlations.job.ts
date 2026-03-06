@@ -7,6 +7,9 @@
 
 import { supabase } from '../lib/supabase.js';
 
+// ── Mutex — impede execução simultânea ────────────────────────────────────────
+let isRunning = false;
+
 type RecType =
     | 'reativacao_alto_ltv'
     | 'pausa_campanha_ltv_baixo'
@@ -683,10 +686,23 @@ async function runGrowthCorrelationsForAllProfiles(): Promise<void> {
     console.log('[Growth] Correlation check complete.');
 }
 
+async function runGrowthCorrelationsWithMutex(): Promise<void> {
+    if (isRunning) {
+        console.log('[GrowthCorrelationsJob] Já em execução, pulando ciclo');
+        return;
+    }
+    isRunning = true;
+    try {
+        await runGrowthCorrelationsForAllProfiles();
+    } finally {
+        isRunning = false;
+    }
+}
+
 export function startGrowthCorrelationsJob(): void {
     console.log('[Growth] Job registered — will run every 30 minutes.');
-    runGrowthCorrelationsForAllProfiles();
-    setInterval(runGrowthCorrelationsForAllProfiles, 30 * 60 * 1000);
+    runGrowthCorrelationsWithMutex();
+    setInterval(runGrowthCorrelationsWithMutex, 30 * 60 * 1000);
 }
 
 export { runGrowthCorrelationsForAllProfiles };

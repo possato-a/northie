@@ -4,6 +4,8 @@ import { generateReportNarrative } from '../services/reports/report-ai-analyst.j
 import { generatePdf } from '../services/reports/report-pdf.js';
 import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
+// ── Mutex — impede envio duplicado de relatórios em execuções simultâneas ─────
+let isRunning = false;
 // Normaliza frequência pt-BR → en
 const FREQ_MAP = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
@@ -104,6 +106,7 @@ export async function processScheduledReports() {
                 status: 'success',
                 situacao_geral: aiAnalysis.situacao_geral,
                 snapshot,
+                triggered_by: 'automatic',
                 ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
             });
             // Agenda próximo envio (usa frequência normalizada p/ EN)
@@ -121,13 +124,27 @@ export async function processScheduledReports() {
                 frequency: config.frequency,
                 format,
                 status: 'error',
+                triggered_by: 'automatic',
             });
         }
     }
 }
+async function processScheduledReportsWithMutex() {
+    if (isRunning) {
+        console.log('[ReportsJob] Já em execução, pulando ciclo');
+        return;
+    }
+    isRunning = true;
+    try {
+        await processScheduledReports();
+    }
+    finally {
+        isRunning = false;
+    }
+}
 export function startReportsJob() {
-    processScheduledReports();
-    setInterval(processScheduledReports, 4 * 60 * 60 * 1000); // a cada 4h
+    processScheduledReportsWithMutex();
+    setInterval(processScheduledReportsWithMutex, 4 * 60 * 60 * 1000); // a cada 4h
     console.log('[Reports] Scheduled reports job started');
 }
 //# sourceMappingURL=reports.job.js.map

@@ -41,7 +41,7 @@ export async function connectPlatform(req, res) {
             return res.status(400).json({ error: 'Domínio Shopify inválido. Use o formato: sua-loja.myshopify.com' });
         }
         const authUrl = IntegrationService.getAuthorizationUrl(platform, profileId, shop ? { shop } : undefined);
-        console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
+        console.log(`[IntegrationController] OAuth flow iniciado para platform: ${platform}`);
         res.json({ authUrl });
     }
     catch (error) {
@@ -475,7 +475,24 @@ export async function getIntegrationStatus(req, res) {
     }
 }
 /**
- * Cron endpoint
+ * Cron endpoint — relatórios automáticos (a cada 4h via Vercel Cron)
+ */
+export async function cronReports(req, res) {
+    const secret = req.headers['authorization'];
+    if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        await processScheduledReports();
+        return res.status(200).json({ ok: true, ran_at: new Date().toISOString() });
+    }
+    catch (error) {
+        console.error('[cronReports] error:', error.message);
+        return res.status(500).json({ error: error.message });
+    }
+}
+/**
+ * Cron endpoint — sync completo diário
  */
 export async function cronSync(req, res) {
     const secret = req.headers['authorization'];

@@ -8,6 +8,9 @@ import { generatePdf } from '../services/reports/report-pdf.js';
 import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
 
+// ── Mutex — impede envio duplicado de relatórios em execuções simultâneas ─────
+let isRunning = false;
+
 // Normaliza frequência pt-BR → en
 const FREQ_MAP: Record<string, ReportFrequency> = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
@@ -146,8 +149,21 @@ export async function processScheduledReports() {
     }
 }
 
+async function processScheduledReportsWithMutex(): Promise<void> {
+    if (isRunning) {
+        console.log('[ReportsJob] Já em execução, pulando ciclo');
+        return;
+    }
+    isRunning = true;
+    try {
+        await processScheduledReports();
+    } finally {
+        isRunning = false;
+    }
+}
+
 export function startReportsJob() {
-    processScheduledReports();
-    setInterval(processScheduledReports, 4 * 60 * 60 * 1000); // a cada 4h
+    processScheduledReportsWithMutex();
+    setInterval(processScheduledReportsWithMutex, 4 * 60 * 60 * 1000); // a cada 4h
     console.log('[Reports] Scheduled reports job started');
 }

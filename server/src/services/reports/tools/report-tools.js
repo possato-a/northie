@@ -151,7 +151,7 @@ export async function getChurnRiskByChannel(profileId) {
         const ltv = Number(c.total_ltv ?? 0);
         byChannel[ch].total++;
         byChannel[ch].probSum += prob;
-        if (prob > 0.6) {
+        if (prob > 60) {
             byChannel[ch].highRisk++;
             byChannel[ch].highRiskLtv += ltv;
         }

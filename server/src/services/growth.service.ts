@@ -56,12 +56,16 @@ async function getMetaToken(profileId: string): Promise<string | null> {
 }
 
 async function getMetaAdAccountId(accessToken: string): Promise<string | null> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     try {
-        const res = await fetch(`https://graph.facebook.com/v25.0/me/adaccounts?fields=id&access_token=${accessToken}`);
+        const res = await fetch(`https://graph.facebook.com/v25.0/me/adaccounts?fields=id&access_token=${accessToken}`, { signal: controller.signal });
         const json = await res.json() as any;
         return json.data?.[0]?.id || null;
     } catch {
         return null;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -79,39 +83,54 @@ async function createMetaCustomAudience(
 ): Promise<{ id: string } | null> {
     try {
         // 1. Criar audience
-        const createRes = await fetch(
-            `https://graph.facebook.com/v25.0/${adAccountId}/customaudiences`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name,
-                    subtype: 'CUSTOM',
-                    description: `Criado pela Northie em ${new Date().toLocaleDateString('pt-BR')}`,
-                    customer_file_source: 'USER_PROVIDED_ONLY',
-                    access_token: accessToken,
-                }),
-            }
-        );
+        const createController = new AbortController();
+        const createTimeoutId = setTimeout(() => createController.abort(), 30000);
+        let createRes: Response;
+        try {
+            createRes = await fetch(
+                `https://graph.facebook.com/v25.0/${adAccountId}/customaudiences`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        subtype: 'CUSTOM',
+                        description: `Criado pela Northie em ${new Date().toLocaleDateString('pt-BR')}`,
+                        customer_file_source: 'USER_PROVIDED_ONLY',
+                        access_token: accessToken,
+                    }),
+                    signal: createController.signal,
+                }
+            );
+        } finally {
+            clearTimeout(createTimeoutId);
+        }
         const audience = await createRes.json() as any;
         if (!audience.id) return null;
 
         // 2. Adicionar usuários com hashed emails
         const hashedEmails = hashEmails(emails);
-        await fetch(
-            `https://graph.facebook.com/v25.0/${audience.id}/users`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    payload: {
-                        schema: ['EMAIL'],
-                        data: hashedEmails.map(h => [h]),
-                    },
-                    access_token: accessToken,
-                }),
-            }
-        );
+        const usersController = new AbortController();
+        const usersTimeoutId = setTimeout(() => usersController.abort(), 30000);
+        try {
+            await fetch(
+                `https://graph.facebook.com/v25.0/${audience.id}/users`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        payload: {
+                            schema: ['EMAIL'],
+                            data: hashedEmails.map(h => [h]),
+                        },
+                        access_token: accessToken,
+                    }),
+                    signal: usersController.signal,
+                }
+            );
+        } finally {
+            clearTimeout(usersTimeoutId);
+        }
 
         return { id: audience.id };
     } catch {
@@ -178,15 +197,20 @@ async function executePausaCampanhaLtvBaixo(profileId: string, recId: string, me
     let pausedCount = 0;
     for (const campaign of (meta.campaigns || [])) {
         if (!campaign.campaign_id_external || campaign.platform !== 'meta') continue;
+        const pauseController = new AbortController();
+        const pauseTimeoutId = setTimeout(() => pauseController.abort(), 30000);
         try {
             await fetch(`https://graph.facebook.com/v25.0/${campaign.campaign_id_external}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'PAUSED', access_token: accessToken }),
+                signal: pauseController.signal,
             });
             pausedCount++;
         } catch {
             // Continue com demais campanhas
+        } finally {
+            clearTimeout(pauseTimeoutId);
         }
     }
 

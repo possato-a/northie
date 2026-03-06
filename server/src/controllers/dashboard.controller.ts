@@ -423,6 +423,7 @@ export async function getChannelTrends(req: Request, res: Response) {
  */
 export async function getAdCampaigns(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
     const days = Number(req.query.days ?? 365);
 
     try {

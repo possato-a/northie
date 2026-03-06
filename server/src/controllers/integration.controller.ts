@@ -48,7 +48,7 @@ export async function connectPlatform(req: Request, res: Response) {
             return res.status(400).json({ error: 'Domínio Shopify inválido. Use o formato: sua-loja.myshopify.com' });
         }
         const authUrl = IntegrationService.getAuthorizationUrl(platform as string, profileId as string, shop ? { shop } : undefined);
-        console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
+        console.log(`[IntegrationController] OAuth flow iniciado para platform: ${platform}`);
         res.json({ authUrl });
     } catch (error: any) {
         console.error(`[IntegrationController] Error generating Auth URL for ${platform}:`, error.message);
