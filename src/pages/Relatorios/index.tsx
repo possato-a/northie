@@ -156,7 +156,7 @@ function SegmentedControl<T extends string>({ options, value, onChange, labels }
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
 
-function Sparkline({ data, width = 160, height = 28, color = '#1a7fe8' }: { data: number[]; width?: number; height?: number; color?: string }) {
+function Sparkline({ data, width = 160, height = 28 }: { data: number[]; width?: number; height?: number }) {
     if (data.length < 2) return null
     const min = Math.min(...data)
     const max = Math.max(...data)

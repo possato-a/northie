@@ -527,6 +527,41 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 )}
             </AnimatePresence>
 
+            {/* Toast notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                        onClick={() => setToast(null)}
+                        style={{
+                            position: 'fixed',
+                            bottom: 24,
+                            right: 24,
+                            maxWidth: 400,
+                            padding: '12px 20px',
+                            background: toast.type === 'error' ? '#FEF2F2' : toast.type === 'success' ? '#F0FDF4' : 'var(--color-bg-primary)',
+                            border: `1px solid ${toast.type === 'error' ? '#FECACA' : toast.type === 'success' ? '#BBF7D0' : 'var(--color-border)'}`,
+                            borderRadius: 'var(--radius-lg)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                            cursor: 'pointer',
+                            zIndex: 9999,
+                        }}
+                    >
+                        <p style={{
+                            margin: 0,
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: 'var(--text-sm)',
+                            color: toast.type === 'error' ? '#991B1B' : toast.type === 'success' ? '#166534' : 'var(--color-text-primary)',
+                            lineHeight: 1.5,
+                        }}>
+                            {toast.message}
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }
@@ -995,41 +1030,6 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                 </div>
             </div>
 
-            {/* Toast notification */}
-            <AnimatePresence>
-                {toast && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
-                        onClick={() => setToast(null)}
-                        style={{
-                            position: 'fixed',
-                            bottom: 24,
-                            right: 24,
-                            maxWidth: 400,
-                            padding: '12px 20px',
-                            background: toast.type === 'error' ? '#FEF2F2' : toast.type === 'success' ? '#F0FDF4' : 'var(--color-bg-primary)',
-                            border: `1px solid ${toast.type === 'error' ? '#FECACA' : toast.type === 'success' ? '#BBF7D0' : 'var(--color-border)'}`,
-                            borderRadius: 'var(--radius-lg)',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                            cursor: 'pointer',
-                            zIndex: 9999,
-                        }}
-                    >
-                        <p style={{
-                            margin: 0,
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: 'var(--text-sm)',
-                            color: toast.type === 'error' ? '#991B1B' : toast.type === 'success' ? '#166534' : 'var(--color-text-primary)',
-                            lineHeight: 1.5,
-                        }}>
-                            {toast.message}
-                        </p>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </motion.div>
     )
 }
