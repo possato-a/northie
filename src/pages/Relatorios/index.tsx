@@ -599,7 +599,8 @@ export default function Relatorios(_props: RelatoriosProps) {
                     try {
                         const text = await raw.text()
                         const json = JSON.parse(text)
-                        if (json?.error) msg = json.error
+                        if (json?.debug?.message) msg = `Erro: ${json.debug.message}`
+                        else if (json?.error) msg = json.error
                     } catch { /* ignora parse error */ }
                 } else if (raw && typeof raw === 'object' && 'error' in raw && raw.error) {
                     msg = raw.error as string
