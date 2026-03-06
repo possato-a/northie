@@ -1,11 +1,26 @@
 import { Router } from 'express';
 import * as GrowthController from '../controllers/growth.controller.js';
+import { syncRateLimiter } from '../middleware/rate-limit.middleware.js';
 
 const router = Router();
 
 /**
+ * @route POST /api/growth/diagnostic
+ * @desc Executa pipeline multi-agente de diagnóstico (4 chamadas sequenciais ao Claude).
+ *       Body: { days?: number } — default 30, máximo 90.
+ *       Rate-limited: máximo 10 execuções por 5 minutos.
+ */
+router.post('/diagnostic', syncRateLimiter, GrowthController.runGrowthDiagnostic);
+
+/**
+ * @route GET /api/growth/diagnostic/latest
+ * @desc Retorna o diagnóstico mais recente sem re-rodar os agentes.
+ */
+router.get('/diagnostic/latest', GrowthController.getGrowthDiagnosticLatest);
+
+/**
+ * @route GET /api/growth/metrics
  * @route GET /api/growth/recommendations
- * @desc Lista recomendações pending + recentes
  */
 router.get('/metrics', GrowthController.getGrowthMetrics);
 router.get('/recommendations', GrowthController.listRecommendations);

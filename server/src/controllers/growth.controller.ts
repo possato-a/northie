@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import { executeRecommendation } from '../services/growth.service.js';
+import { runDiagnostic, getLatestDiagnostic } from '../services/growth-intelligence.service.js';
 
 /**
  * GET /api/growth/recommendations
@@ -159,6 +160,48 @@ export async function getGrowthMetrics(req: Request, res: Response) {
     } catch (err) {
         console.error('[Growth] getGrowthMetrics error:', err);
         return res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
+ * POST /api/growth/diagnostic
+ * Executa o pipeline multi-agente de diagnóstico de growth para o período informado.
+ * Body: { days?: number }  — default 30 dias. Retorna o JSON do diagnóstico estratégico.
+ */
+export async function runGrowthDiagnostic(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const days = Math.min(Number(req.body?.days ?? 30), 90);
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+    try {
+        const diagnostic = await runDiagnostic(profileId, { start, end });
+        res.json(diagnostic);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+        console.error('[Growth] runGrowthDiagnostic error:', msg);
+        res.status(500).json({ error: msg });
+    }
+}
+
+/**
+ * GET /api/growth/diagnostic/latest
+ * Retorna o diagnóstico mais recente salvo para o profile (sem re-rodar os agentes).
+ */
+export async function getGrowthDiagnosticLatest(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    try {
+        const diagnostic = await getLatestDiagnostic(profileId);
+        if (!diagnostic) return res.status(404).json({ error: 'Nenhum diagnóstico encontrado para este perfil' });
+        res.json(diagnostic);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+        console.error('[Growth] getGrowthDiagnosticLatest error:', msg);
+        res.status(500).json({ error: msg });
     }
 }
 
