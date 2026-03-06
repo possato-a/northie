@@ -73,6 +73,8 @@ export const growthApi = {
     dismiss: (id: string) => api.post(`/growth/recommendations/${id}/dismiss`),
     getStatus: (id: string) => api.get(`/growth/recommendations/${id}/status`),
     getMetrics: () => api.get('/growth/metrics'),
+    runDiagnostic: (days = 30) => api.post('/growth/diagnostic', { days }, { timeout: 180000 }),
+    getLatestDiagnostic: () => api.get('/growth/diagnostic/latest', { timeout: 10000 }),
 };
 
 export const pixelApi = {

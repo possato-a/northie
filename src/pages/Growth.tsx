@@ -5,6 +5,39 @@ import { AskNorthieIcon } from '../icons'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+// Diagnostic types (output do Agente 4 — StrategicAdvisorAgent)
+interface DiagnosticItem {
+  canal: string
+  severidade: 'critica' | 'alta' | 'media' | 'ok'
+  sintoma: string
+  causa_raiz: string
+  consequencia: string
+  acao_recomendada: string
+  consequencia_financeira_brl: number
+  prazo: 'Imediato' | 'Esta semana' | 'Este mês'
+}
+
+interface NextStep {
+  ordem: number
+  acao: string
+  impacto_estimado_brl: number
+  prazo: string
+}
+
+interface PositivePoint {
+  titulo: string
+  descricao: string
+  impacto_brl: number
+}
+
+interface GrowthDiagnostic {
+  status_geral: 'otimo' | 'bom' | 'atencao' | 'critico'
+  pontos_positivos: PositivePoint[]
+  diagnosticos: DiagnosticItem[]
+  proximos_passos: NextStep[]
+  resumo_executivo: string
+}
+
 type RecStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed'
 type RecType =
   | 'reativacao_alto_ltv'
@@ -455,6 +488,303 @@ function GrowthEmptyState() {
   )
 }
 
+// ── Diagnostic Components ──────────────────────────────────────────────────────
+
+const SEV_CONFIG = {
+  critica: { color: '#EF4444', label: 'Crítica', bg: '#EF444412' },
+  alta:    { color: '#F97316', label: 'Alta',    bg: '#F9731612' },
+  media:   { color: '#F59E0B', label: 'Média',   bg: '#F59E0B12' },
+  ok:      { color: '#10B981', label: 'OK',      bg: '#10B98112' },
+}
+
+const STATUS_CONFIG = {
+  critico:  { color: '#EF4444', label: 'Crítico',  bg: '#EF444415', dot: '#EF4444' },
+  atencao:  { color: '#F97316', label: 'Atenção',  bg: '#F9731615', dot: '#F97316' },
+  bom:      { color: '#F59E0B', label: 'Bom',      bg: '#F59E0B15', dot: '#F59E0B' },
+  otimo:    { color: '#10B981', label: 'Ótimo',    bg: '#10B98115', dot: '#10B981' },
+}
+
+function DiagnosticCard({ item }: { item: DiagnosticItem }) {
+  const [open, setOpen] = useState(false)
+  const sev = SEV_CONFIG[item.severidade]
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        background: 'var(--color-bg-primary)',
+        border: `1px solid ${sev.color}30`,
+        borderLeft: `3px solid ${sev.color}`,
+        borderRadius: 'var(--radius-lg)',
+        padding: 'var(--space-4)',
+        display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
+        cursor: 'pointer',
+      }}
+      onClick={() => setOpen(o => !o)}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{
+              fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em',
+              textTransform: 'uppercase' as const, color: sev.color,
+              background: sev.bg, border: `1px solid ${sev.color}30`,
+              borderRadius: 'var(--radius-full)', padding: '2px 7px',
+            }}>{sev.label}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+              {item.canal}
+            </span>
+          </div>
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500,
+            color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.4,
+          }}>{item.sintoma}</p>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: sev.color, fontWeight: 600 }}>
+            R$ {item.consequencia_financeira_brl.toLocaleString('pt-BR')}
+          </span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)' }}>
+            {item.prazo}
+          </span>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { label: 'Causa raiz', value: item.causa_raiz },
+                { label: 'Consequência', value: item.consequencia },
+              ].map(row => (
+                <div key={row.label} style={{ padding: '8px 10px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>{row.label}</p>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>{row.value}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: '8px 10px', background: `${sev.color}08`, border: `1px solid ${sev.color}20`, borderRadius: 'var(--radius-md)' }}>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: sev.color, textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>Ação recomendada</p>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.5 }}>{item.acao_recomendada}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+function DiagnosticPanel({ diagnostic, onRerun, running }: {
+  diagnostic: GrowthDiagnostic
+  onRerun: () => void
+  running: boolean
+}) {
+  const status = STATUS_CONFIG[diagnostic.status_geral]
+  const sorted = [...diagnostic.diagnosticos].sort((a, b) => {
+    const order = { critica: 0, alta: 1, media: 2, ok: 3 }
+    return order[a.severidade] - order[b.severidade]
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Status header */}
+      <div style={{
+        padding: '14px 16px',
+        background: status.bg,
+        border: `1px solid ${status.color}30`,
+        borderRadius: 'var(--radius-lg)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 7, height: 7, borderRadius: '50%', background: status.dot, boxShadow: `0 0 0 3px ${status.dot}30` }} />
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: status.color, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+              Status geral: {status.label}
+            </span>
+          </div>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.55 }}>
+            {diagnostic.resumo_executivo}
+          </p>
+        </div>
+        <motion.button
+          onClick={onRerun}
+          disabled={running}
+          whileHover={{ scale: running ? 1 : 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          style={{
+            flexShrink: 0, padding: '6px 12px',
+            background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--text-xs)', color: running ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+            cursor: running ? 'default' : 'pointer',
+          }}
+        >
+          {running ? 'Analisando...' : 'Reanalisar'}
+        </motion.button>
+      </div>
+
+      {/* Pontos positivos */}
+      {diagnostic.pontos_positivos?.length > 0 && (
+        <div>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: '#10B981', margin: '0 0 10px' }}>
+            O que está funcionando
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {diagnostic.pontos_positivos.map((p, i) => (
+              <div key={i} style={{
+                padding: '10px 12px', background: '#10B98108',
+                border: '1px solid #10B98120', borderRadius: 'var(--radius-md)',
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+              }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <circle cx="7" cy="7" r="6" fill="#10B981" fillOpacity="0.15" stroke="#10B981" strokeWidth="1"/>
+                  <path d="M4.5 7L6.5 9L9.5 5" stroke="#10B981" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <div>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>{p.titulo}</p>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>{p.descricao}</p>
+                </div>
+                {p.impacto_brl > 0 && (
+                  <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#10B981', fontWeight: 600, marginLeft: 'auto' }}>
+                    R$ {p.impacto_brl.toLocaleString('pt-BR')}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Diagnósticos */}
+      {sorted.length > 0 && (
+        <div>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)', margin: '0 0 10px' }}>
+            Diagnósticos — {sorted.length} item{sorted.length > 1 ? 'ns' : ''}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sorted.map((d, i) => <DiagnosticCard key={i} item={d} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Próximos passos */}
+      {diagnostic.proximos_passos?.length > 0 && (
+        <div>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)', margin: '0 0 10px' }}>
+            Plano de ação
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {diagnostic.proximos_passos.map((step, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
+                <span style={{
+                  flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
+                  background: 'var(--color-primary)', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
+                }}>{step.ordem}</span>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', margin: '0 0 2px', lineHeight: 1.4 }}>{step.acao}</p>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)' }}>{step.prazo}</span>
+                </div>
+                {step.impacto_estimado_brl > 0 && (
+                  <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
+                    R$ {step.impacto_estimado_brl.toLocaleString('pt-BR')}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DiagnosticSection({ onRun, running, diagnostic, error }: {
+  onRun: () => void
+  running: boolean
+  diagnostic: GrowthDiagnostic | null
+  error: string | null
+}) {
+  if (running) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{ padding: '28px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
+      >
+        <div style={{ display: 'flex', gap: 5 }}>
+          {['Tráfego', 'Conversão', 'Atribuição', 'Estratégia'].map((label, i) => (
+            <motion.div
+              key={label}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.4 }}
+              style={{
+                padding: '3px 8px', borderRadius: 'var(--radius-full)',
+                background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)',
+                letterSpacing: '0.05em',
+              }}
+            >{label}</motion.div>
+          ))}
+        </div>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+          4 agentes analisando seus dados...
+        </p>
+      </motion.div>
+    )
+  }
+
+  if (diagnostic) {
+    return <DiagnosticPanel diagnostic={diagnostic} onRerun={onRun} running={running} />
+  }
+
+  return (
+    <div style={{
+      padding: '24px', border: '1px dashed var(--color-border)',
+      borderRadius: 'var(--radius-lg)', textAlign: 'center' as const,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+    }}>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M8 1L9.5 6H14.5L10.5 9L12 14L8 11L4 14L5.5 9L1.5 6H6.5L8 1Z" fill="var(--color-primary)" fillOpacity="0.5"/>
+        </svg>
+      </div>
+      <div>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+          Diagnóstico com IA
+        </p>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
+          4 agentes analisam tráfego, conversão e atribuição em paralelo
+        </p>
+      </div>
+      {error && (
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EF4444', margin: 0 }}>{error}</p>
+      )}
+      <motion.button
+        onClick={onRun}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.97 }}
+        style={{
+          padding: '8px 20px', background: 'var(--color-primary)', color: 'white',
+          border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+          fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer',
+        }}
+      >
+        Analisar agora
+      </motion.button>
+    </div>
+  )
+}
+
 function ThinkingIndicator() {
   return (
     <motion.div
@@ -682,6 +1012,9 @@ export default function Growth() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
   const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
+  const [diagnostic, setDiagnostic] = useState<GrowthDiagnostic | null>(null)
+  const [runningDiagnostic, setRunningDiagnostic] = useState(false)
+  const [diagnosticError, setDiagnosticError] = useState<string | null>(null)
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const pollingErrorCounts = useRef<Record<string, number>>({})
 
@@ -702,6 +1035,12 @@ export default function Growth() {
     const interval = setInterval(fetchData, 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchData])
+
+  useEffect(() => {
+    growthApi.getLatestDiagnostic()
+      .then(res => setDiagnostic(res.data))
+      .catch(() => {/* no prior diagnostic — ok */})
+  }, [])
 
   useEffect(() => {
     const refs = pollingRefs.current
@@ -755,6 +1094,19 @@ export default function Growth() {
     }
   }
 
+  const handleRunDiagnostic = async () => {
+    setRunningDiagnostic(true)
+    setDiagnosticError(null)
+    try {
+      const res = await growthApi.runDiagnostic(30)
+      setDiagnostic(res.data)
+    } catch (err: any) {
+      setDiagnosticError(err?.response?.data?.error ?? 'Erro ao gerar diagnóstico')
+    } finally {
+      setRunningDiagnostic(false)
+    }
+  }
+
   const handleDismiss = async (id: string) => {
     setRecommendations(prev => prev.filter(r => r.id !== id))
     try { await growthApi.dismiss(id) } catch { /* silently ok */ }
@@ -802,6 +1154,13 @@ export default function Growth() {
           flex: '0 0 55%', overflowY: 'auto', padding: '24px 32px',
           display: 'flex', flexDirection: 'column', scrollbarWidth: 'thin',
         }}>
+          <DiagnosticSection
+            onRun={handleRunDiagnostic}
+            running={runningDiagnostic}
+            diagnostic={diagnostic}
+            error={diagnosticError}
+          />
+
           {loading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {[1, 2, 3].map(i => (
