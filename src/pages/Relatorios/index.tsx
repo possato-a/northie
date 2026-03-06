@@ -290,6 +290,9 @@ export default function Relatorios(_props: RelatoriosProps) {
     // History
     const [logs, setLogs] = useState<ReportLog[]>([])
     const [loadingLogs, setLoadingLogs] = useState(true)
+    const [logsPage, setLogsPage] = useState(0)
+    const [hasMoreLogs, setHasMoreLogs] = useState(false)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [downloadingLogId, setDownloadingLogId] = useState<string | null>(null)
     const [downloadError, setDownloadError] = useState<string | null>(null)
 
@@ -300,10 +303,31 @@ export default function Relatorios(_props: RelatoriosProps) {
             })
             .then(() => {}, () => {})
 
-        reportsApi.getLogs()
-            .then(res => setLogs((res.data as ReportLog[]) || []))
+        reportsApi.getLogs(0)
+            .then(res => {
+                const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }
+                setLogs(data || [])
+                setHasMoreLogs(hasMore)
+                setLogsPage(0)
+            })
             .then(() => setLoadingLogs(false), () => setLoadingLogs(false))
     }, [])
+
+    async function handleLoadMoreLogs() {
+        setLoadingMore(true)
+        const nextPage = logsPage + 1
+        try {
+            const res = await reportsApi.getLogs(nextPage)
+            const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }
+            setLogs(prev => [...prev, ...(data || [])])
+            setHasMoreLogs(hasMore)
+            setLogsPage(nextPage)
+        } catch {
+            // silently ignore — user can retry
+        } finally {
+            setLoadingMore(false)
+        }
+    }
 
     useEffect(() => {
         setLoadingPreview(true)
@@ -353,7 +377,7 @@ export default function Relatorios(_props: RelatoriosProps) {
             const a = document.createElement('a')
             a.href = url; a.download = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${format}`; a.click()
             URL.revokeObjectURL(url)
-            reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
+            reportsApi.getLogs(0).then(res => { const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }; setLogs(data || []); setHasMoreLogs(hasMore); setLogsPage(0); }).then(() => {}, () => {})
         } catch {
             setEmailFeedback({ ok: false, msg: `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.` })
             setTimeout(() => setEmailFeedback(null), 5000)
@@ -365,8 +389,8 @@ export default function Relatorios(_props: RelatoriosProps) {
 
     async function handleRedownload(log: ReportLog) {
         if (downloadingLogId) return
-        const format: 'pdf' | 'xlsx' = log.format === 'xlsx' ? 'xlsx' : 'pdf'
-        const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pdf: 'application/pdf' }[format]
+        const format: 'pdf' | 'xlsx' | 'json' = log.format === 'xlsx' ? 'xlsx' : log.format === 'json' ? 'json' : 'pdf'
+        const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pdf: 'application/pdf', json: 'application/json' }[format]
         const freqLabel = { semanal: 'semanal', mensal: 'mensal', trimestral: 'trimestral', weekly: 'semanal', monthly: 'mensal', quarterly: 'trimestral' }[log.frequency] ?? log.frequency
         const dateStr = log.period_end ? log.period_end.slice(0, 10) : new Date().toISOString().slice(0, 10)
 
@@ -398,7 +422,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         try {
             await reportsApi.sendEmail(genFrequency, genFormat, email)
             setEmailFeedback({ ok: true, msg: `Enviado para ${email} ✓` })
-            reportsApi.getLogs().then(res => setLogs((res.data as ReportLog[]) || [])).then(() => {}, () => {})
+            reportsApi.getLogs(0).then(res => { const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }; setLogs(data || []); setHasMoreLogs(hasMore); setLogsPage(0); }).then(() => {}, () => {})
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { error?: string } } }
             const serverMsg = (axiosErr.response?.data?.error ?? '').toLowerCase()
@@ -859,14 +883,20 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     delayed: { label: 'Atrasado', color: '#F59E0B' },
                                 }
                                 const emailSt = log.email_status ? emailStatusLabel[log.email_status] : null
-                                const canRedownload = log.format === 'pdf' || log.format === 'xlsx'
+                                const isError = log.status === 'error'
+                                const canRedownload = !isError && (log.format === 'pdf' || log.format === 'xlsx' || log.format === 'json')
                                 return (
-                                    <NotionRow key={log.id} style={{ padding: '0 20px' }}>
+                                    <NotionRow key={log.id} style={{ padding: '0 20px', opacity: isError ? 0.6 : 1 }}>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', width: '100%', alignItems: 'center', minHeight: 52 }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
-                                                    {fmtDate(log.created_at)}
-                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
+                                                        {fmtDate(log.created_at)}
+                                                    </span>
+                                                    {isError && (
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.10)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
+                                                    )}
+                                                </div>
                                                 {log.period_start && log.period_end && (
                                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
                                                         {fmtDateShort(log.period_start)} – {fmtDateShort(log.period_end)}
@@ -918,6 +948,17 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     </NotionRow>
                                 )
                             })}
+                            {hasMoreLogs && (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 20px', borderTop: '1px solid var(--color-border)' }}>
+                                    <motion.button
+                                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                        onClick={handleLoadMoreLogs}
+                                        disabled={loadingMore}
+                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: loadingMore ? 'var(--color-text-secondary)' : '#1a7fe8', background: 'transparent', border: 'none', cursor: loadingMore ? 'default' : 'pointer', padding: '4px 12px' }}>
+                                        {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                                    </motion.button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

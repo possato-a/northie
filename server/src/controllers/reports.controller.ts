@@ -301,7 +301,8 @@ export async function downloadLogReport(req: Request, res: Response) {
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
     const { id } = req.params;
-    const format: ReportFormat = req.query.format === 'xlsx' ? 'xlsx' : 'pdf';
+    const formatParam = req.query.format as string;
+    const format: ReportFormat = formatParam === 'xlsx' ? 'xlsx' : formatParam === 'json' ? 'json' : 'pdf';
 
     const { data: log, error: logErr } = await supabase
         .from('report_logs')
@@ -329,6 +330,12 @@ export async function downloadLogReport(req: Request, res: Response) {
             return res.send(buf);
         }
 
+        if (format === 'json') {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.json"`);
+            return res.json({ period: reportData.period, summary: reportData.summary, channel_economics: reportData.channel_economics, top_products: reportData.top_products, at_risk_customers: reportData.at_risk_customers });
+        }
+
         const buf = await generatePdf(reportData);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
@@ -343,15 +350,19 @@ export async function getReportLogs(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
+    const page = Math.max(0, parseInt((req.query.page as string) ?? '0', 10) || 0);
+    const pageSize = 20;
+
     const { data, error } = await supabase
         .from('report_logs')
         .select('id, created_at, frequency, format, status, situacao_geral, snapshot, email_status, period_start, period_end')
         .eq('profile_id', profileId)
+        .neq('format', 'csv')              // CSV é formato legado, sem suporte na UI
         .order('created_at', { ascending: false })
-        .limit(20);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.json(data ?? []);
+    return res.json({ data: data ?? [], page, hasMore: (data?.length ?? 0) === pageSize });
 }
 
 export async function sendReportByEmail(req: Request, res: Response) {

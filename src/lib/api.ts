@@ -72,14 +72,14 @@ export const reportsApi = {
             responseType: 'blob',
             timeout: format === 'pdf' ? 90000 : 20000,
         }),
-    getLogs: () => api.get('/reports/logs'),
+    getLogs: (page = 0) => api.get('/reports/logs', { params: { page } }),
     getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 15000 }),
     getAIAnalysis: (frequency: string) => api.get('/reports/ai-analysis', { params: { frequency }, timeout: 90000 }),
     sendEmail: (frequency: string, format: string, email?: string) =>
         api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 90000 }),
     export: (format: 'pdf' | 'xlsx', period: '30d' | '90d') =>
         api.get('/reports/export', { params: { format, period }, responseType: 'blob', timeout: 60000 }),
-    redownload: (logId: string, format: 'pdf' | 'xlsx') =>
+    redownload: (logId: string, format: 'pdf' | 'xlsx' | 'json') =>
         api.get(`/reports/logs/${logId}/download`, { params: { format }, responseType: 'blob', timeout: 60000 }),
 };
 
