@@ -280,6 +280,49 @@ export async function exportReport(req: Request, res: Response) {
     }
 }
 
+export async function downloadLogReport(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const { id } = req.params;
+    const format: ReportFormat = req.query.format === 'xlsx' ? 'xlsx' : 'pdf';
+
+    const { data: log, error: logErr } = await supabase
+        .from('report_logs')
+        .select('id, frequency, format, period_start, period_end, profile_id')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+
+    if (logErr || !log) return res.status(404).json({ error: 'Report log not found' });
+
+    const freqRaw: string = log.frequency ?? 'monthly';
+    const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const dates = log.period_start && log.period_end
+        ? { start: new Date(log.period_start as string), end: new Date(log.period_end as string) }
+        : undefined;
+    const dateStr = (dates?.end ?? new Date()).toISOString().split('T')[0];
+
+    try {
+        const reportData = await generateReportData(profileId, frequency, dates);
+
+        if (format === 'xlsx') {
+            const buf = await generateXlsx(reportData);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.xlsx"`);
+            return res.send(buf);
+        }
+
+        const buf = await generatePdf(reportData);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
+        return res.send(buf);
+    } catch (err) {
+        console.error('[Reports] downloadLogReport error:', err);
+        return res.status(500).json({ error: 'Failed to regenerate report' });
+    }
+}
+
 export async function getReportLogs(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });

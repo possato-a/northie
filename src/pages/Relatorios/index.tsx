@@ -290,6 +290,8 @@ export default function Relatorios(_props: RelatoriosProps) {
     // History
     const [logs, setLogs] = useState<ReportLog[]>([])
     const [loadingLogs, setLoadingLogs] = useState(true)
+    const [downloadingLogId, setDownloadingLogId] = useState<string | null>(null)
+    const [downloadError, setDownloadError] = useState<string | null>(null)
 
     useEffect(() => {
         reportsApi.getConfig()
@@ -362,23 +364,25 @@ export default function Relatorios(_props: RelatoriosProps) {
     }
 
     async function handleRedownload(log: ReportLog) {
-        const freqMap: Record<string, 'mensal' | 'semanal' | 'trimestral'> = {
-            semanal: 'semanal', mensal: 'mensal', trimestral: 'trimestral',
-            weekly: 'semanal', monthly: 'mensal', quarterly: 'trimestral',
-        }
-        const format = (log.format === 'pdf' || log.format === 'xlsx' || log.format === 'json') ? log.format : 'pdf'
-        const freq = freqMap[log.frequency] ?? 'mensal'
-        const periodMap: Record<string, '30d' | '90d'> = { semanal: '30d', mensal: '30d', trimestral: '90d' }
-        const period = periodMap[freq] ?? '30d'
-        const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', pdf: 'application/pdf' }[format]
+        if (downloadingLogId) return
+        const format: 'pdf' | 'xlsx' = log.format === 'xlsx' ? 'xlsx' : 'pdf'
+        const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', pdf: 'application/pdf' }[format]
+        const freqLabel = { semanal: 'semanal', mensal: 'mensal', trimestral: 'trimestral', weekly: 'semanal', monthly: 'mensal', quarterly: 'trimestral' }[log.frequency] ?? log.frequency
+        const dateStr = log.period_end ? log.period_end.slice(0, 10) : new Date().toISOString().slice(0, 10)
+
+        setDownloadingLogId(log.id)
+        setDownloadError(null)
         try {
-            const res = await reportsApi.export(format as 'pdf' | 'xlsx', period)
+            const res = await reportsApi.redownload(log.id, format)
             const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: mime }))
             const a = document.createElement('a')
-            a.href = url; a.download = `northie-relatorio-${freq}-${new Date().toISOString().slice(0, 10)}.${format}`; a.click()
+            a.href = url; a.download = `northie-relatorio-${freqLabel}-${dateStr}.${format}`; a.click()
             URL.revokeObjectURL(url)
         } catch {
-            // falha silenciosa — download é best-effort
+            setDownloadError(log.id)
+            setTimeout(() => setDownloadError(null), 4000)
+        } finally {
+            setDownloadingLogId(null)
         }
     }
 
@@ -892,13 +896,22 @@ export default function Relatorios(_props: RelatoriosProps) {
                                             </div>
                                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                                 {canRedownload && (
-                                                    <motion.button
-                                                        whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
-                                                        onClick={() => handleRedownload(log)}
-                                                        title="Baixar novamente"
-                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
-                                                        <DownloadIcon />
-                                                    </motion.button>
+                                                    downloadError === log.id ? (
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#EF4444' }}>Erro</span>
+                                                    ) : (
+                                                        <motion.button
+                                                            whileHover={{ scale: downloadingLogId ? 1 : 1.08 }}
+                                                            whileTap={{ scale: downloadingLogId ? 1 : 0.95 }}
+                                                            onClick={() => handleRedownload(log)}
+                                                            disabled={!!downloadingLogId}
+                                                            title={downloadingLogId === log.id ? 'Gerando...' : 'Baixar novamente'}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? '#1a7fe8' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
+                                                            {downloadingLogId === log.id
+                                                                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" /></path></svg>
+                                                                : <DownloadIcon />
+                                                            }
+                                                        </motion.button>
+                                                    )
                                                 )}
                                             </div>
                                         </div>

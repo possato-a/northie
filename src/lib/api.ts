@@ -79,6 +79,8 @@ export const reportsApi = {
         api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 90000 }),
     export: (format: 'pdf' | 'xlsx', period: '30d' | '90d') =>
         api.get('/reports/export', { params: { format, period }, responseType: 'blob', timeout: 60000 }),
+    redownload: (logId: string, format: 'pdf' | 'xlsx') =>
+        api.get(`/reports/logs/${logId}/download`, { params: { format }, responseType: 'blob', timeout: 60000 }),
 };
 
 export default api;
