@@ -74,26 +74,14 @@ export function KpiCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.25, 0.1, 0.25, 1] }}
-      whileHover={{ boxShadow: 'var(--shadow-card-hover)' }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        minWidth: 0,
-        padding: '20px 24px',
-        background: 'var(--color-bg-primary)',
-        borderRadius: 'var(--radius-xl)',
-        border: '1px solid var(--color-border)',
-        boxShadow: 'var(--shadow-card)',
-        transition: 'box-shadow 0.2s ease',
-      }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 120 }}
     >
       {/* Label — Geist Mono uppercase */}
       <span style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 'var(--text-xs)',
         fontWeight: 500,
-        color: 'var(--color-text-tertiary)',
+        color: 'var(--color-text-secondary)',
         letterSpacing: '0.07em',
         textTransform: 'uppercase',
       }}>
@@ -109,7 +97,7 @@ export function KpiCard({
           transition={{ duration: 0.5, delay: delay + 0.1, ease: [0.4, 0, 0.2, 1] }}
           style={{
             width: 2,
-            height: 32,
+            height: 36,
             borderRadius: 2,
             background: 'rgba(var(--fg-rgb), 0.15)',
             flexShrink: 0,
@@ -120,8 +108,8 @@ export function KpiCard({
         <span style={{
           fontFamily: 'var(--font-display)',
           fontWeight: 400,
-          fontSize: 30,
-          letterSpacing: '-1.2px',
+          fontSize: 36,
+          letterSpacing: '-1.4px',
           color: 'var(--fg)',
           lineHeight: 1,
           whiteSpace: 'nowrap',

@@ -663,28 +663,11 @@ interface SectionCardProps {
     hover?: boolean
 }
 
-export function SectionCard({ children, style, padding = '28px', hover = false }: SectionCardProps) {
-    const [hovered, setHovered] = useState(false)
-
+export function SectionCard({ children, style, padding = '0', hover: _hover = false }: SectionCardProps) {
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-            onMouseEnter={() => hover && setHovered(true)}
-            onMouseLeave={() => hover && setHovered(false)}
-            style={{
-                background: 'var(--color-bg-primary)',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid var(--color-border)',
-                boxShadow: hovered ? 'var(--shadow-card-hover)' : 'var(--shadow-card)',
-                padding,
-                transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
-                ...style,
-            }}
-        >
+        <div style={{ padding, ...style }}>
             {children}
-        </motion.div>
+        </div>
     )
 }
 
@@ -694,9 +677,10 @@ export function SectionCard({ children, style, padding = '28px', hover = false }
 export function KpiGrid({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
     return (
         <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-            gap: '24px 40px',
+            display: 'flex',
+            gap: 48,
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
             ...style,
         }}>
             {children}
