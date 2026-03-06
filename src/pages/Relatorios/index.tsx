@@ -143,6 +143,15 @@ const CHANNEL_LABEL: Record<string, string> = {
     meta_ads: 'Meta Ads', google_ads: 'Google Ads', hotmart: 'Hotmart',
     stripe: 'Stripe', shopify: 'Shopify', organico: 'Orgânico',
     email: 'Email', direto: 'Direto', afiliado: 'Afiliado',
+    escala_e_volume: 'Escala e Volume',
+    escala_e_volume_de_vendas: 'Escala e Volume',
+    concentracao_de_receita: 'Concentração de Receita',
+    ausencia_de_dados_de_canal: 'Dados de Canal',
+    ausencia_de_dados_historicos: 'Dados Históricos',
+    ausencia_de_recorrencia_e_ltv: 'Recorrência e LTV',
+    rastreamento_e_atribuicao: 'Rastreamento',
+    concentracao_de_produto: 'Concentração de Produto',
+    ok: 'OK',
 }
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
@@ -620,8 +629,8 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                         padding: '12px 0',
                                                         borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
                                                     }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, wordBreak: 'break-word' }}>
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-all' }}>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', overflowWrap: 'break-word', wordBreak: 'break-all' }}>
                                                                 {CHANNEL_LABEL[d.canal] ?? d.canal}
                                                             </span>
                                                             <span style={{ display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: sev.color, letterSpacing: '0.06em' }}>
