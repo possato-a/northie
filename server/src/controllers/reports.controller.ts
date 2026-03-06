@@ -56,6 +56,33 @@ function buildSnapshot(
     };
 }
 
+// ── Log helper (fire-and-forget — nunca bloqueia a resposta HTTP) ─────────────
+
+function writeReportLog(params: {
+    profileId: string;
+    freqRaw: string;
+    format: string;
+    period: { start: string; end: string };
+    situacao_geral: 'saudavel' | 'atencao' | 'critica' | null;
+    snapshot: ReturnType<typeof buildSnapshot>;
+    resendEmailId?: string | null;
+}) {
+    const { profileId, freqRaw, format, period, situacao_geral, snapshot, resendEmailId } = params;
+    supabase.from('report_logs').insert({
+        profile_id: profileId,
+        frequency: freqRaw,
+        format,
+        period_start: period.start,
+        period_end: period.end,
+        status: 'generated',
+        situacao_geral,
+        snapshot,
+        ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+    }).then(({ error }) => {
+        if (error) console.error('[Reports] Failed to write report_log:', error.message);
+    });
+}
+
 // ── Controllers ───────────────────────────────────────────────────────────────
 
 export async function getReportConfig(req: Request, res: Response) {
@@ -153,6 +180,7 @@ export async function generateReport(req: Request, res: Response) {
     const freqRaw: string = req.body.frequency ?? 'monthly';
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
     const format: ReportFormat = req.body.format ?? 'xlsx';
+    const dateStr = new Date().toISOString().split('T')[0];
 
     try {
         const reportData = await generateReportData(profileId, frequency);
@@ -164,40 +192,26 @@ export async function generateReport(req: Request, res: Response) {
 
         const snapshot = buildSnapshot(reportData, aiAnalysis);
 
-        await supabase.from('report_logs').insert({
-            profile_id: profileId,
-            frequency: freqRaw,
-            format,
-            period_start: reportData.period.start,
-            period_end: reportData.period.end,
-            status: 'generated',
-            situacao_geral: aiAnalysis.situacao_geral,
-            snapshot,
-        });
-
-        const dateStr = new Date().toISOString().split('T')[0];
-
         if (format === 'xlsx') {
             const xlsxBuffer = await generateXlsx(reportData, aiAnalysis);
-            const filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
+            // Loga APÓS geração bem-sucedida do arquivo (fire-and-forget)
+            writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: null, snapshot });
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.xlsx"`);
             return res.send(xlsxBuffer);
         }
 
         if (format === 'pdf') {
             const pdfBuffer = await generatePdf(reportData, aiAnalysis);
-            const filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
+            // Loga APÓS geração bem-sucedida do arquivo (fire-and-forget)
+            writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: aiAnalysis.situacao_geral, snapshot });
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
             return res.send(pdfBuffer);
         }
 
         // JSON — estruturado em seções
-        const filename = `northie-report-${freqRaw}-${dateStr}.json`;
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.json({
+        const jsonBody = {
             northie_relatorio: {
                 gerado_em: new Date().toISOString(),
                 frequencia: freqRaw,
@@ -232,12 +246,14 @@ export async function generateReport(req: Request, res: Response) {
             })),
             tendencia_receita: reportData.revenue_trend,
             top_produtos: reportData.top_products,
-            segmentacao_rfm: {
-                fonte: reportData.rfm_source,
-                segmentos: reportData.rfm_distribution,
-            },
+            segmentacao_rfm: { fonte: reportData.rfm_source, segmentos: reportData.rfm_distribution },
             clientes_em_risco: reportData.at_risk_customers,
-        });
+        };
+        // Loga APÓS montar o JSON com sucesso (fire-and-forget)
+        writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: null, snapshot });
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.json"`);
+        return res.json(jsonBody);
 
     } catch (err) {
         console.error('[Reports] generateReport error:', err);
@@ -388,16 +404,13 @@ export async function sendReportByEmail(req: Request, res: Response) {
             ai: aiAnalysis,
         });
 
-        await supabase.from('report_logs').insert({
-            profile_id: profileId,
-            frequency: freqRaw,
-            format,
-            period_start: reportData.period.start,
-            period_end: reportData.period.end,
-            status: 'generated',
+        // Loga APÓS email enviado com sucesso (fire-and-forget)
+        writeReportLog({
+            profileId, freqRaw, format,
+            period: reportData.period,
             situacao_geral: aiAnalysis.situacao_geral,
             snapshot,
-            ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+            resendEmailId,
         });
 
         return res.json({ ok: true, to: email, email_id: resendEmailId });
