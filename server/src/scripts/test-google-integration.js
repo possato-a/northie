@@ -147,7 +147,7 @@ else if (!devToken) {
 }
 else {
     try {
-        const customersRes = await axios.get('https://googleads.googleapis.com/v20/customers:listAccessibleCustomers', {
+        const customersRes = await axios.get('https://googleads.googleapis.com/v23/customers:listAccessibleCustomers', {
             headers: {
                 Authorization: `Bearer ${userAccessToken}`,
                 'developer-token': devToken,
@@ -172,7 +172,7 @@ section('7. Live API — searchStream (3 níveis: campaign, ad_group, ad)');
 const customerIds = activeIntegrations?.[0]?.google_customer_ids || [];
 async function testGoogleLevel(customerId, token, dToken, levelName, query) {
     try {
-        const res = await axios.post(`https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`, { query }, {
+        const res = await axios.post(`https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`, { query }, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'developer-token': dToken,

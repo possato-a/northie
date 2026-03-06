@@ -152,7 +152,7 @@ else {
                 fail('Token de acesso inválido', tokenData?.error?.message || 'token expirado ou revogado');
             }
             // Testa listagem de ad accounts
-            const accountsRes = await axios.get(`https://graph.facebook.com/v18.0/me/adaccounts?access_token=${accessToken}&fields=id,name&limit=5`, { timeout: 10000 }).catch(e => ({ data: { data: [] }, _error: e.response?.data?.error?.message }));
+            const accountsRes = await axios.get(`https://graph.facebook.com/v25.0/me/adaccounts?access_token=${accessToken}&fields=id,name&limit=5`, { timeout: 10000 }).catch(e => ({ data: { data: [] }, _error: e.response?.data?.error?.message }));
             const accounts = accountsRes.data?.data || [];
             accounts.length > 0
                 ? ok(`Ad accounts acessíveis`, accounts.map((a) => a.name).join(', '))

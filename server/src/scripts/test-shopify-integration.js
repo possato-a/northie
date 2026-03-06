@@ -136,7 +136,7 @@ else {
         // Testa conectividade real com a API da loja
         if (shopToken && shopDomain) {
             try {
-                const shopRes = await axios.get(`https://${shopDomain}/admin/api/2024-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopToken }, timeout: 10000 });
+                const shopRes = await axios.get(`https://${shopDomain}/admin/api/2026-01/shop.json`, { headers: { 'X-Shopify-Access-Token': shopToken }, timeout: 10000 });
                 const shop = shopRes.data?.shop;
                 shop
                     ? ok('API Shopify respondeu', `Loja: ${shop.name} | Moeda: ${shop.currency} | País: ${shop.country_name}`)
@@ -163,7 +163,7 @@ if (!shopToken || !shopDomain) {
 }
 else {
     try {
-        const whRes = await axios.get(`https://${shopDomain}/admin/api/2024-01/webhooks.json`, { headers: { 'X-Shopify-Access-Token': shopToken }, timeout: 10000 });
+        const whRes = await axios.get(`https://${shopDomain}/admin/api/2026-01/webhooks.json`, { headers: { 'X-Shopify-Access-Token': shopToken }, timeout: 10000 });
         const webhooks = whRes.data?.webhooks ?? [];
         const registeredTopics = webhooks.map((w) => w.topic);
         ok(`${webhooks.length} webhook(s) registrado(s) na loja`);
@@ -191,7 +191,7 @@ if (!shopToken || !shopDomain) {
 else {
     try {
         const createdAtMin = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        const ordersRes = await axios.get(`https://${shopDomain}/admin/api/2024-01/orders.json`, {
+        const ordersRes = await axios.get(`https://${shopDomain}/admin/api/2026-01/orders.json`, {
             headers: { 'X-Shopify-Access-Token': shopToken },
             params: { status: 'any', limit: 5, created_at_min: createdAtMin },
             timeout: 15000,
@@ -209,7 +209,7 @@ else {
             sample.line_items?.length > 0 ? ok('line_items presentes', `${sample.line_items.length} item(s)`) : warn('line_items vazio');
         }
         // Testa endpoint de contagem
-        const countRes = await axios.get(`https://${shopDomain}/admin/api/2024-01/orders/count.json`, {
+        const countRes = await axios.get(`https://${shopDomain}/admin/api/2026-01/orders/count.json`, {
             headers: { 'X-Shopify-Access-Token': shopToken },
             params: { financial_status: 'paid' },
             timeout: 10000,

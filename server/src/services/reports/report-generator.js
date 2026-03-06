@@ -60,12 +60,12 @@ const CHANNEL_TO_AD_PLATFORM = {
     google_ads: 'google',
 };
 // ── Main data generator ───────────────────────────────────────────────────────
-export async function generateReportData(profileId, frequency) {
+export async function generateReportData(profileId, frequency, dates) {
     const days = getPeriodDays(frequency);
-    const periodStart = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const periodEnd = new Date();
-    const prevPeriodStart = new Date(Date.now() - days * 2 * 24 * 60 * 60 * 1000);
-    const sixMonthsAgo = new Date();
+    const periodEnd = dates?.end ?? new Date();
+    const periodStart = dates?.start ?? new Date(periodEnd.getTime() - days * 24 * 60 * 60 * 1000);
+    const prevPeriodStart = new Date(periodStart.getTime() - days * 24 * 60 * 60 * 1000);
+    const sixMonthsAgo = new Date(periodEnd);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     // Run main queries and customer count in parallel
     const [mainResults, custCountResult] = await Promise.all([
@@ -75,17 +75,20 @@ export async function generateReportData(profileId, frequency) {
                 .select('amount_net, amount_gross, fee_platform, platform, created_at, customer_id')
                 .eq('profile_id', profileId)
                 .eq('status', 'approved')
-                .gte('created_at', periodStart.toISOString()),
+                .gte('created_at', periodStart.toISOString())
+                .lte('created_at', periodEnd.toISOString()),
             supabase
                 .from('ad_metrics')
                 .select('platform, spend_brl, impressions, clicks, date')
                 .eq('profile_id', profileId)
-                .gte('date', periodStart.toISOString().split('T')[0]),
+                .gte('date', periodStart.toISOString().split('T')[0])
+                .lte('date', periodEnd.toISOString().split('T')[0]),
             supabase
                 .from('customers')
                 .select('id, acquisition_channel, total_ltv')
                 .eq('profile_id', profileId)
-                .gte('created_at', periodStart.toISOString()),
+                .gte('created_at', periodStart.toISOString())
+                .lte('created_at', periodEnd.toISOString()),
             supabase
                 .from('customers')
                 .select('id, total_ltv, acquisition_channel, last_purchase_at')
@@ -126,15 +129,17 @@ export async function generateReportData(profileId, frequency) {
                 .eq('profile_id', profileId)
                 .eq('status', 'approved')
                 .gte('created_at', periodStart.toISOString())
+                .lte('created_at', periodEnd.toISOString())
                 .not('product_name', 'is', null)
                 .limit(500),
-            // Q10 — tendência histórica (6 meses)
+            // Q10 — tendência histórica (6 meses até o fim do período)
             supabase
                 .from('transactions')
                 .select('amount_net, created_at')
                 .eq('profile_id', profileId)
                 .eq('status', 'approved')
                 .gte('created_at', sixMonthsAgo.toISOString())
+                .lte('created_at', periodEnd.toISOString())
                 .limit(500),
             // Q11 — reembolsos do período
             supabase
@@ -142,7 +147,8 @@ export async function generateReportData(profileId, frequency) {
                 .select('amount_gross')
                 .eq('profile_id', profileId)
                 .eq('status', 'refunded')
-                .gte('created_at', periodStart.toISOString()),
+                .gte('created_at', periodStart.toISOString())
+                .lte('created_at', periodEnd.toISOString()),
         ]),
         // Q12 — contagem total de clientes (paralelo)
         supabase

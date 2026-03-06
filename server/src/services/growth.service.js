@@ -31,7 +31,7 @@ async function getMetaToken(profileId) {
 }
 async function getMetaAdAccountId(accessToken) {
     try {
-        const res = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts?fields=id&access_token=${accessToken}`);
+        const res = await fetch(`https://graph.facebook.com/v25.0/me/adaccounts?fields=id&access_token=${accessToken}`);
         const json = await res.json();
         return json.data?.[0]?.id || null;
     }
@@ -45,7 +45,7 @@ function hashEmails(emails) {
 async function createMetaCustomAudience(adAccountId, accessToken, name, emails) {
     try {
         // 1. Criar audience
-        const createRes = await fetch(`https://graph.facebook.com/v18.0/${adAccountId}/customaudiences`, {
+        const createRes = await fetch(`https://graph.facebook.com/v25.0/${adAccountId}/customaudiences`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -61,7 +61,7 @@ async function createMetaCustomAudience(adAccountId, accessToken, name, emails) 
             return null;
         // 2. Adicionar usuários com hashed emails
         const hashedEmails = hashEmails(emails);
-        await fetch(`https://graph.facebook.com/v18.0/${audience.id}/users`, {
+        await fetch(`https://graph.facebook.com/v25.0/${audience.id}/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -125,7 +125,7 @@ async function executePausaCampanhaLtvBaixo(profileId, recId, meta) {
         if (!campaign.campaign_id_external || campaign.platform !== 'meta')
             continue;
         try {
-            await fetch(`https://graph.facebook.com/v18.0/${campaign.campaign_id_external}`, {
+            await fetch(`https://graph.facebook.com/v25.0/${campaign.campaign_id_external}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'PAUSED', access_token: accessToken }),
