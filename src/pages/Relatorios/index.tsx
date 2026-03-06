@@ -589,9 +589,24 @@ export default function Relatorios(_props: RelatoriosProps) {
             a.href = url; a.download = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${format}`; a.click()
             URL.revokeObjectURL(url)
             reportsApi.getLogs(0).then(res => { const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }; setLogs(data || []); setHasMoreLogs(hasMore); setLogsPage(0); }).then(() => {}, () => {})
-        } catch {
-            setEmailFeedback({ ok: false, msg: `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.` })
-            setTimeout(() => setEmailFeedback(null), 5000)
+        } catch (err: unknown) {
+            // responseType: 'blob' faz a resposta de erro também vir como Blob — converte para JSON
+            let msg = `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.`
+            if (err && typeof err === 'object' && 'response' in err) {
+                const axiosErr = err as { response?: { data?: Blob | { error?: string } } }
+                const raw = axiosErr.response?.data
+                if (raw instanceof Blob) {
+                    try {
+                        const text = await raw.text()
+                        const json = JSON.parse(text)
+                        if (json?.error) msg = json.error
+                    } catch { /* ignora parse error */ }
+                } else if (raw && typeof raw === 'object' && 'error' in raw && raw.error) {
+                    msg = raw.error as string
+                }
+            }
+            setEmailFeedback({ ok: false, msg })
+            setTimeout(() => setEmailFeedback(null), 8000)
         } finally {
             clearTimeout(t1)
             clearTimeout(t2)

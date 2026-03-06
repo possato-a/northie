@@ -358,8 +358,14 @@ export async function generateReport(req, res) {
             frequency,
             error: { message: errMsg, stack: errStack },
         });
-        return res.status(500).json({
-            error: 'Failed to generate report',
+        // Detecta erro de conectividade com Supabase (projeto pausado, 522, etc.)
+        const isDbDown = errMsg.includes('fetch failed') || errMsg.includes('ECONNREFUSED')
+            || errMsg.includes('522') || errMsg.includes('Connection timed out')
+            || errMsg.includes('network') || errMsg.includes('ENOTFOUND');
+        return res.status(503).json({
+            error: isDbDown
+                ? 'Banco de dados temporariamente indisponível. Aguarde alguns minutos e tente novamente.'
+                : 'Failed to generate report',
             debug: { message: errMsg, format, frequency },
         });
     }
