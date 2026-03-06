@@ -186,18 +186,23 @@ export async function handleCallback(req: Request, res: Response) {
                 throw new Error(`Hotmart API Error (${errorStatus}): ${errorMsg} | RedirectURI: ${redirectUri}`);
             }
         } else if (platform === 'stripe') {
-            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+            const stripeClientId = (process.env.STRIPE_CLIENT_ID || '').trim();
             if (!stripeSecretKey) {
                 throw new Error('STRIPE_SECRET_KEY não configurado no servidor.');
             }
+            if (!stripeClientId) {
+                throw new Error('STRIPE_CLIENT_ID não configurado no servidor.');
+            }
+            console.log(`[IntegrationController] Stripe token exchange — client_id: ${stripeClientId.slice(0, 8)}... key prefix: ${stripeSecretKey.slice(0, 12)}...`);
             const tokenRes = await axios.post(
                 'https://connect.stripe.com/oauth/token',
                 new URLSearchParams({
                     grant_type: 'authorization_code',
                     code: code as string,
+                    client_secret: stripeSecretKey,
                 }),
                 {
-                    auth: { username: stripeSecretKey, password: '' },
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
                 }
             );
