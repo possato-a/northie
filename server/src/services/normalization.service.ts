@@ -228,17 +228,20 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
         return;
     }
 
-    // ── orders/refunded ──────────────────────────────────────────────────────
-    if (topic === 'orders/refunded') {
-        const email: string = payload.email || payload.customer?.email;
-        const transactionId: string = String(payload.id);
-        const refundAmount: number = parseFloat(payload.total_price || '0');
-        if (!email) {
-            console.warn(`[Shopify] orders/refunded ${transactionId} sem email — ignorando`);
+    // ── refunds/create ───────────────────────────────────────────────────────
+    // Payload do REFUNDS_CREATE: { id (refund_id), order_id, transactions: [{amount}] }
+    // Diferente de orders/refunded (topic inexistente na Shopify API)
+    if (topic === 'refunds/create') {
+        const orderId: string = String(payload.order_id);
+        if (!orderId || orderId === 'undefined') {
+            console.warn(`[Shopify] refunds/create sem order_id — ignorando`);
             return;
         }
-        console.log(`[Shopify] Reembolso order ${transactionId} para ${email}`);
-        await syncRefund(profileId, email, transactionId, refundAmount);
+        // Soma os amounts de todas as transações do reembolso
+        const refundAmount: number = (payload.transactions || [])
+            .reduce((sum: number, t: any) => sum + parseFloat(t.amount || '0'), 0);
+        console.log(`[Shopify] Reembolso refund_id=${payload.id} order_id=${orderId} valor=${refundAmount}`);
+        await syncRefund(profileId, `shopify-order-${orderId}`, orderId, refundAmount);
         return;
     }
 

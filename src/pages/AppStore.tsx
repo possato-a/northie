@@ -742,7 +742,7 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                     </motion.button>
                                 </div>
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
-                                    Eventos ativos: <strong>orders/paid · orders/refunded · orders/cancelled · customers/create · customers/update</strong>
+                                    Eventos ativos: <strong>orders/paid · refunds/create · orders/cancelled · customers/create · customers/update</strong>
                                 </p>
                             </div>
                         )}

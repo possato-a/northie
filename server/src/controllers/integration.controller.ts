@@ -252,7 +252,7 @@ export async function handleCallback(req: Request, res: Response) {
                 const webhookAddress = `${backendUrl}/api/webhooks/shopify/${profileId}`;
                 const SHOPIFY_WEBHOOK_TOPICS = [
                     'ORDERS_PAID',
-                    'ORDERS_REFUNDED',
+                    'REFUNDS_CREATE',      // 'ORDERS_REFUNDED' não existe — tópico correto é REFUNDS_CREATE
                     'ORDERS_CANCELLED',
                     'CUSTOMERS_CREATE',
                     'CUSTOMERS_UPDATE',
