@@ -274,7 +274,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'json'>('pdf')
     const [generating, setGenerating] = useState<'xlsx' | 'json' | 'pdf' | null>(null)
-    const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
+    const [, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
     const [emailFeedback, setEmailFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
 
@@ -829,7 +829,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                         <TH>Receita</TH>
                         <TH>Situação</TH>
                         <TH align="right">Email</TH>
-                        <TH align="right"></TH>
+                        <TH align="right"> </TH>
                     </div>
 
                     {loadingLogs ? <LoadingRow /> : logs.length === 0 ? (
