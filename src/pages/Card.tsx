@@ -414,7 +414,7 @@ export default function Card({ onToggleChat }: PageProps) {
     const [submittingRequest, setSubmittingRequest] = useState(false)
     const [cards, setCards] = useState<NorthieCard[]>([])
     const [pageState, setPageState] = useState<CardPageState>('not_eligible')
-    const [pageError, setPageError] = useState<string | null>(null)
+    const [_pageError, setPageError] = useState<string | null>(null)
     const [scoreData, setScoreData] = useState<{
         total: number; revenue: number; ltv_churn: number; cac_ltv: number; platform_age: number;
         max_limit_brl: number; snapshot_month: string;
