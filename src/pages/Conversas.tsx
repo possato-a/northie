@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import {
-  PageHeader, Divider, TabBar, EmptyState,
+  PageHeader, Divider, TabBar, EmptyState, SectionCard, KpiGrid,
 } from '../components/ui/shared'
 
 // ── Pipeline Stage Card ──────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
   const [activeTab, setActiveTab] = useState('Pipeline')
 
   return (
-    <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+    <div>
       <TopBar onToggleChat={onToggleChat} />
 
       <PageHeader
@@ -140,12 +140,12 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
         subtitle="Pipeline de vendas e inteligencia de reunioes."
       />
 
-      <div style={{ display: 'flex', gap: 48, marginTop: 40, flexWrap: 'wrap' }}>
+      <KpiGrid style={{ marginTop: 40 }}>
         <KpiCard label="LEADS CAPTURADOS" value={0} decimals={0} delay={0.1} />
         <KpiCard label="REUNIOES REALIZADAS" value={0} decimals={0} delay={0.2} />
         <KpiCard label="TAXA DE CONVERSAO" value={0} suffix="%" decimals={1} delay={0.3} />
         <KpiCard label="CICLO MEDIO" value={0} suffix=" dias" decimals={0} delay={0.4} />
-      </div>
+      </KpiGrid>
 
       <Divider margin="48px 0" />
 
@@ -158,9 +158,9 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
         style={{ marginTop: 32 }}
       >
-        {activeTab === 'Pipeline' && <PipelineView />}
-        {activeTab === 'Reunioes' && <ReunioesView />}
-        {activeTab === 'Insights' && <InsightsView />}
+        {activeTab === 'Pipeline' && <SectionCard><PipelineView /></SectionCard>}
+        {activeTab === 'Reunioes' && <SectionCard><ReunioesView /></SectionCard>}
+        {activeTab === 'Insights' && <SectionCard><InsightsView /></SectionCard>}
       </motion.div>
     </div>
   )

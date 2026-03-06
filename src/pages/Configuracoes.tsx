@@ -1330,7 +1330,7 @@ export default function Configuracoes({ user, onGoToAppStore }: { user?: any; on
     }
 
     return (
-        <div style={{ paddingTop: 28, paddingBottom: 80, display: 'flex', gap: 0, minHeight: '80vh' }}>
+        <div style={{ paddingBottom: 40, display: 'flex', gap: 0, minHeight: '80vh' }}>
 
             {/* Left nav */}
             <div style={{

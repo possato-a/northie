@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import {
-  PageHeader, SectionLabel, Divider, Btn,
+  PageHeader, SectionLabel, Divider, Btn, SectionCard,
   Input, Textarea, SelectField,
 } from '../components/ui/shared'
 
@@ -61,7 +61,7 @@ export default function Contexto({ onToggleChat }: { onToggleChat?: () => void }
   const [contextoAdicional, setContextoAdicional] = useState('')
 
   return (
-    <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+    <div>
       <TopBar onToggleChat={onToggleChat} />
 
       <PageHeader
@@ -85,92 +85,85 @@ export default function Contexto({ onToggleChat }: { onToggleChat?: () => void }
       </motion.p>
 
       {/* Two-column grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{
+      <SectionCard style={{ marginTop: 40 }}>
+        <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: 48,
-        }}
-      >
-        {/* Left column — Perfil do Negocio */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <SectionLabel gutterBottom={0}>Perfil do Negocio</SectionLabel>
+        }}>
+          {/* Left column — Perfil do Negocio */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <SectionLabel gutterBottom={0}>Perfil do Negocio</SectionLabel>
 
-          <Input
-            label="Segmento"
-            placeholder="Ex: SaaS B2B, E-commerce DTC, Infoproduto..."
-            value={segmento}
-            onChange={e => setSegmento(e.target.value)}
-          />
-          <Input
-            label="ICP (Cliente Ideal)"
-            placeholder="Ex: Gestores de RH em empresas de 50-200 funcionarios"
-            value={icp}
-            onChange={e => setIcp(e.target.value)}
-          />
-          <Input
-            label="Ticket Medio"
-            placeholder="R$ 0,00"
-            value={ticket}
-            onChange={e => setTicket(e.target.value)}
-          />
-          <SelectField
-            label="Ciclo de Vendas"
-            value={ciclo}
-            onChange={e => setCiclo(e.target.value)}
-          >
-            <option value="" disabled>Selecione...</option>
-            <option value="direto">Direto (checkout)</option>
-            <option value="curto">Curto (&lt; 7 dias)</option>
-            <option value="medio">Medio (7-30 dias)</option>
-            <option value="consultivo">Consultivo (30+ dias)</option>
-          </SelectField>
-          <Textarea
-            label="Diferenciais do produto"
-            placeholder="O que torna seu produto unico? Quais problemas resolve?"
-            value={diferenciais}
-            onChange={e => setDiferenciais(e.target.value)}
-            rows={4}
-          />
+            <Input
+              label="Segmento"
+              placeholder="Ex: SaaS B2B, E-commerce DTC, Infoproduto..."
+              value={segmento}
+              onChange={e => setSegmento(e.target.value)}
+            />
+            <Input
+              label="ICP (Cliente Ideal)"
+              placeholder="Ex: Gestores de RH em empresas de 50-200 funcionarios"
+              value={icp}
+              onChange={e => setIcp(e.target.value)}
+            />
+            <Input
+              label="Ticket Medio"
+              placeholder="R$ 0,00"
+              value={ticket}
+              onChange={e => setTicket(e.target.value)}
+            />
+            <SelectField
+              label="Ciclo de Vendas"
+              value={ciclo}
+              onChange={e => setCiclo(e.target.value)}
+            >
+              <option value="" disabled>Selecione...</option>
+              <option value="direto">Direto (checkout)</option>
+              <option value="curto">Curto (&lt; 7 dias)</option>
+              <option value="medio">Medio (7-30 dias)</option>
+              <option value="consultivo">Consultivo (30+ dias)</option>
+            </SelectField>
+            <Textarea
+              label="Diferenciais do produto"
+              placeholder="O que torna seu produto unico? Quais problemas resolve?"
+              value={diferenciais}
+              onChange={e => setDiferenciais(e.target.value)}
+              rows={4}
+            />
+          </div>
+
+          {/* Right column — Instrucoes para a IA */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <SectionLabel gutterBottom={0}>Instrucoes para a IA</SectionLabel>
+
+            <Textarea
+              label="Instrucoes personalizadas"
+              placeholder="Ex: Nunca recomendar desconto acima de 20%. Sempre considerar que janeiro e nosso mes mais fraco. Priorizar retencao sobre aquisicao neste trimestre."
+              value={instrucoes}
+              onChange={e => setInstrucoes(e.target.value)}
+              rows={6}
+            />
+            <Textarea
+              label="Contexto adicional"
+              placeholder="Informacoes sobre o mercado, concorrentes, estrategia atual..."
+              value={contextoAdicional}
+              onChange={e => setContextoAdicional(e.target.value)}
+              rows={4}
+            />
+
+            <Divider margin="32px 0" />
+
+            <SectionLabel gutterBottom={0}>Arquivos de Referencia</SectionLabel>
+            <DropZone />
+          </div>
         </div>
-
-        {/* Right column — Instrucoes para a IA */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <SectionLabel gutterBottom={0}>Instrucoes para a IA</SectionLabel>
-
-          <Textarea
-            label="Instrucoes personalizadas"
-            placeholder="Ex: Nunca recomendar desconto acima de 20%. Sempre considerar que janeiro e nosso mes mais fraco. Priorizar retencao sobre aquisicao neste trimestre."
-            value={instrucoes}
-            onChange={e => setInstrucoes(e.target.value)}
-            rows={6}
-          />
-          <Textarea
-            label="Contexto adicional"
-            placeholder="Informacoes sobre o mercado, concorrentes, estrategia atual..."
-            value={contextoAdicional}
-            onChange={e => setContextoAdicional(e.target.value)}
-            rows={4}
-          />
-
-          <Divider margin="32px 0" />
-
-          <SectionLabel gutterBottom={0}>Arquivos de Referencia</SectionLabel>
-          <DropZone />
-        </div>
-      </motion.div>
+      </SectionCard>
 
       {/* Bottom section — O que a IA sabe */}
       <Divider margin="48px 0" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-      >
+      <SectionCard>
         <SectionLabel>O que a IA sabe sobre voce</SectionLabel>
 
         <div style={{
@@ -194,7 +187,7 @@ export default function Contexto({ onToggleChat }: { onToggleChat?: () => void }
             Salvar Contexto
           </Btn>
         </div>
-      </motion.div>
+      </SectionCard>
     </div>
   )
 }

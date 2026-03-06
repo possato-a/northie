@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import { KpiCard } from '../components/ui/KpiCard'
-import { PageHeader, Divider, Btn, SectionLabel, Modal, StatMini, EmptyState } from '../components/ui/shared'
+import { PageHeader, Divider, Btn, SectionLabel, Modal, StatMini, EmptyState, SectionCard, KpiGrid } from '../components/ui/shared'
 import api from '../lib/api'
 
 interface PageProps {
@@ -541,7 +541,7 @@ export default function Card({ onToggleChat }: PageProps) {
     ]
 
     return (
-        <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+        <div style={{ paddingBottom: 40 }}>
             <TopBar onToggleChat={onToggleChat} />
 
             <PageHeader
@@ -550,17 +550,18 @@ export default function Card({ onToggleChat }: PageProps) {
             />
 
             {/* KPIs */}
-            <div style={{ display: 'flex', gap: 48, marginTop: 40, flexWrap: 'wrap' }}>
+            <KpiGrid style={{ marginTop: 40 }}>
                 {kpis.map((k, i) => (
                     <KpiCard key={k.label} label={k.label} value={k.value}
                         prefix={k.prefix} suffix={k.suffix} decimals={k.decimals}
                         delay={0.1 + i * 0.1} />
                 ))}
-            </div>
+            </KpiGrid>
 
             <Divider margin="48px 0" />
 
             {/* Score + painel direito */}
+            <SectionCard>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64 }}>
 
                 {/* Coluna esquerda: gauge + dimensões + histórico */}
@@ -733,11 +734,13 @@ export default function Card({ onToggleChat }: PageProps) {
                     )}
                 </motion.div>
             </div>
+            </SectionCard>
 
             {/* Seção de transações recentes (só quando ativo) */}
             {pageState === 'active' && (
                 <>
                     <Divider margin="48px 0" />
+                    <SectionCard>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 64 }}>
                         {/* Transações */}
                         <div>
@@ -786,30 +789,35 @@ export default function Card({ onToggleChat }: PageProps) {
                             </div>
                         </motion.div>
                     </div>
+                    </SectionCard>
                 </>
             )}
 
             {/* Evolução do Score */}
             <Divider margin="48px 0" />
-            <SectionLabel>Evolução do Score</SectionLabel>
-            <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{ display: 'flex', gap: 48 }}
-            >
-                <StatMini label="SCORE ATUAL" value="—" />
-                <StatMini label="VARIAÇÃO MENSAL" value="—" />
-                <StatMini label="PROJEÇÃO 3 MESES" value="—" />
-            </motion.div>
+            <SectionCard>
+                <SectionLabel>Evolução do Score</SectionLabel>
+                <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+                    style={{ display: 'flex', gap: 48 }}
+                >
+                    <StatMini label="SCORE ATUAL" value="—" />
+                    <StatMini label="VARIAÇÃO MENSAL" value="—" />
+                    <StatMini label="PROJEÇÃO 3 MESES" value="—" />
+                </motion.div>
+            </SectionCard>
 
             {/* Histórico de Split */}
             <Divider margin="48px 0" />
-            <SectionLabel>Histórico de Split</SectionLabel>
-            <EmptyState
-                title="Nenhum split registrado"
-                description="O split automático será ativado quando o Northie Card estiver operacional."
-            />
+            <SectionCard>
+                <SectionLabel>Histórico de Split</SectionLabel>
+                <EmptyState
+                    title="Nenhum split registrado"
+                    description="O split automático será ativado quando o Northie Card estiver operacional."
+                />
+            </SectionCard>
 
             {/* Modal de solicitação */}
             <AnimatePresence>

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
+import { KpiGrid, SectionCard, SkeletonTable } from '../components/ui/shared'
 import TopBar from '../components/layout/TopBar'
 import DatePicker from '../components/ui/DatePicker'
 import CohortHeatmap from '../components/charts/CohortHeatmap'
@@ -179,9 +180,9 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
             <div style={{ minHeight: 360 }}>
                 <AnimatePresence mode="popLayout" initial={false}>
                     {loading ? (
-                        <motion.p key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
-                            Carregando clientes...
-                        </motion.p>
+                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: '8px 0' }}>
+                            <SkeletonTable rows={PAGE_SIZE} columns={6} />
+                        </motion.div>
                     ) : filtered.length === 0 ? (
                         <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
                             Nenhum cliente encontrado
@@ -312,7 +313,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
     }, [clients])
 
     return (
-        <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+        <div style={{ paddingBottom: 40 }}>
             <TopBar onToggleChat={onToggleChat} />
 
             <motion.h1
@@ -330,37 +331,32 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                 style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
             >
                 <DatePicker />
-                <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
+                <KpiGrid style={{ marginTop: 40 }}>
                     <KpiCard label="CLIENTES ATIVOS" value={kpis.ativos} decimals={0} delay={0.1} />
                     <KpiCard label="LTV MÉDIO" value={kpis.ltvMedio} prefix="R$ " decimals={0} delay={0.18} />
                     <KpiCard label="CHURN MÉDIO" value={kpis.churnMedio} suffix="%" decimals={1} delay={0.26} />
                     <KpiCard label="LUCRATIVOS" value={kpis.lucrativos} decimals={0} delay={0.34} />
                     <KpiCard label="EM PAYBACK" value={kpis.payback} decimals={0} delay={0.42} />
                     <KpiCard label="EM RISCO" value={kpis.emRisco} decimals={0} delay={0.50} />
-                </div>
+                </KpiGrid>
             </motion.div>
 
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.5 }} style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 52, marginBottom: 48 }} />
 
             {/* Row 1: Cohort + Client List */}
-            <motion.div
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.25fr)', gap: 64, marginBottom: 64 }}
-            >
-                <CohortHeatmap />
-                <ClientList clients={clients} loading={loading} onSelect={setSelectedClient} />
-            </motion.div>
+            <SectionCard>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.25fr)', gap: 64 }}>
+                    <CohortHeatmap />
+                    <ClientList clients={clients} loading={loading} onSelect={setSelectedClient} />
+                </div>
+            </SectionCard>
 
             <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 12, marginBottom: 48 }} />
 
             {/* Row 2: RFM */}
-            <motion.div
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
-            >
+            <SectionCard style={{ marginTop: 0 }}>
                 <RFMCards clients={clients} />
-            </motion.div>
+            </SectionCard>
 
             {/* Client profile drawer */}
             <AnimatePresence>

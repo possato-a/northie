@@ -475,32 +475,44 @@ export function SelectField({ label, style, children, ...rest }: React.SelectHTM
 
 // ── Empty State ───────────────────────────────────────────────────────────────
 
-export function EmptyState({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+export function EmptyState({ title, description, action, icon }: { title: string; description?: string; action?: React.ReactNode; icon?: React.ReactNode }) {
     return (
-        <div style={{
-            textAlign: 'center',
-            padding: '64px 24px',
-            color: 'var(--color-text-tertiary)',
-        }}>
+        <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{
+                textAlign: 'center',
+                padding: '56px 32px',
+                color: 'var(--color-text-tertiary)',
+                borderRadius: 'var(--radius-xl)',
+                background: 'var(--color-bg-secondary)',
+                border: '1px dashed var(--color-border)',
+            }}
+        >
             <div style={{
-                width: 40, height: 40,
+                width: 48, height: 48,
                 borderRadius: 'var(--radius-lg)',
                 background: 'var(--color-bg-tertiary)',
-                margin: '0 auto 16px',
+                border: '1px solid var(--color-border)',
+                margin: '0 auto 20px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--color-text-tertiary)',
             }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <line x1="9" y1="9" x2="15" y2="9" />
-                    <line x1="9" y1="12" x2="12" y2="12" />
-                </svg>
+                {icon || (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <line x1="9" y1="9" x2="15" y2="9" />
+                        <line x1="9" y1="13" x2="13" y2="13" />
+                    </svg>
+                )}
             </div>
-            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-secondary)', margin: '0 0 6px' }}>{title}</p>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-secondary)', margin: '0 0 6px', letterSpacing: '-0.2px' }}>{title}</p>
             {description && (
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '0 0 20px' }}>{description}</p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '0 0 20px', maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>{description}</p>
             )}
             {action}
-        </div>
+        </motion.div>
     )
 }
 
@@ -584,17 +596,28 @@ export function StatMini({ label, value }: { label: string; value: string | numb
 
 // ── Loading state ─────────────────────────────────────────────────────────────
 
-export function LoadingRow() {
+export function LoadingRow({ columns = 4, rows = 5 }: { columns?: number; rows?: number }) {
     return (
-        <div style={{ padding: '48px 0', textAlign: 'center' }}>
-            <p style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 'var(--text-base)',
-                color: 'var(--color-text-tertiary)',
-                margin: 0,
-            }}>
-                Carregando...
-            </p>
+        <div style={{ padding: '8px 0' }}>
+            {Array.from({ length: rows }).map((_, i) => (
+                <div key={i} style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${columns}, 1fr)`,
+                    gap: '0 16px',
+                    height: 'var(--table-row-height)',
+                    alignItems: 'center',
+                    borderBottom: '1px solid var(--color-border)',
+                    padding: '0 4px',
+                }}>
+                    {Array.from({ length: columns }).map((_, j) => (
+                        <div key={j} className="skeleton" style={{
+                            width: j === 0 ? '75%' : '55%',
+                            height: 12,
+                            borderRadius: 'var(--radius-md)',
+                        }} />
+                    ))}
+                </div>
+            ))}
         </div>
     )
 }
@@ -627,6 +650,128 @@ export function NotionRow({ children, style, onClick }: { children: React.ReactN
         >
             {children}
         </motion.div>
+    )
+}
+
+// ── Section Card ─────────────────────────────────────────────────────────────
+// Groups content in a subtle contained card — Notion-style but with depth
+
+interface SectionCardProps {
+    children: React.ReactNode
+    style?: React.CSSProperties
+    padding?: string
+    hover?: boolean
+}
+
+export function SectionCard({ children, style, padding = '28px', hover = false }: SectionCardProps) {
+    const [hovered, setHovered] = useState(false)
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+            onMouseEnter={() => hover && setHovered(true)}
+            onMouseLeave={() => hover && setHovered(false)}
+            style={{
+                background: 'var(--color-bg-primary)',
+                borderRadius: 'var(--radius-xl)',
+                border: '1px solid var(--color-border)',
+                boxShadow: hovered ? 'var(--shadow-card-hover)' : 'var(--shadow-card)',
+                padding,
+                transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
+                ...style,
+            }}
+        >
+            {children}
+        </motion.div>
+    )
+}
+
+// ── KPI Grid ─────────────────────────────────────────────────────────────────
+// Wraps KPI cards in a structured grid with consistent spacing
+
+export function KpiGrid({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+    return (
+        <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+            gap: '24px 40px',
+            ...style,
+        }}>
+            {children}
+        </div>
+    )
+}
+
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+// Placeholder loading component with shimmer animation
+
+interface SkeletonProps {
+    width?: string | number
+    height?: string | number
+    borderRadius?: string
+    style?: React.CSSProperties
+}
+
+export function Skeleton({ width = '100%', height = 16, borderRadius, style }: SkeletonProps) {
+    return (
+        <div
+            className="skeleton"
+            style={{
+                width,
+                height,
+                borderRadius: borderRadius || 'var(--radius-md)',
+                flexShrink: 0,
+                ...style,
+            }}
+        />
+    )
+}
+
+// ── Skeleton KPI ─────────────────────────────────────────────────────────────
+
+export function SkeletonKpi() {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Skeleton width={80} height={11} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Skeleton width={2} height={36} />
+                <Skeleton width={120} height={32} />
+            </div>
+        </div>
+    )
+}
+
+// ── Skeleton Row ─────────────────────────────────────────────────────────────
+
+export function SkeletonRow({ columns = 4 }: { columns?: number }) {
+    return (
+        <div style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: '0 16px',
+            height: 'var(--table-row-height)',
+            alignItems: 'center',
+            borderBottom: '1px solid var(--color-border)',
+            padding: '0 4px',
+        }}>
+            {Array.from({ length: columns }).map((_, i) => (
+                <Skeleton key={i} width={i === 0 ? '80%' : '60%'} height={12} />
+            ))}
+        </div>
+    )
+}
+
+// ── Skeleton Table ───────────────────────────────────────────────────────────
+
+export function SkeletonTable({ rows = 5, columns = 4 }: { rows?: number; columns?: number }) {
+    return (
+        <div>
+            {Array.from({ length: rows }).map((_, i) => (
+                <SkeletonRow key={i} columns={columns} />
+            ))}
+        </div>
     )
 }
 

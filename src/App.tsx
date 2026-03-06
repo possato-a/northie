@@ -126,7 +126,7 @@ export default function App() {
         {activePage === 'growth' ? (
           <Growth />
         ) : (
-          <div style={{ padding: '28px 64px 80px' }}>
+          <div style={{ padding: '28px 56px 80px', maxWidth: 'var(--content-max-width)', width: '100%' }}>
             {activePage === 'visao-geral' && (
               <Dashboard
                 onToggleChat={() => setChatOpen(!chatOpen)}

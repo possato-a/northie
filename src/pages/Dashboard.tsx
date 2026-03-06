@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import RevenueChart from '../components/charts/RevenueChart'
@@ -7,7 +6,7 @@ import ChannelChart from '../components/charts/ChannelChart'
 import TopClients from '../components/ui/TopClients'
 import SalesHeatmap from '../components/charts/SalesHeatmap'
 import { dashboardApi } from '../lib/api'
-import { PageHeader, Divider } from '../components/ui/shared'
+import { PageHeader, KpiGrid, SkeletonKpi, SectionCard, Skeleton } from '../components/ui/shared'
 
 interface DashboardProps {
   onToggleChat?: () => void
@@ -78,16 +77,21 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
 
   if (loading && !stats) {
     return (
-      <div style={{ padding: '100px 0', textAlign: 'center' }}>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-tertiary)' }}>
-          Carregando dados...
-        </p>
+      <div style={{ paddingBottom: 40 }}>
+        <Skeleton width={200} height={36} style={{ marginBottom: 32 }} />
+        <Skeleton width={350} height={14} style={{ marginBottom: 8 }} />
+        <KpiGrid style={{ marginTop: 40 }}>
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonKpi key={i} />)}
+        </KpiGrid>
+        <div style={{ marginTop: 64 }}>
+          <Skeleton width="100%" height={200} borderRadius="var(--radius-xl)" />
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+    <div style={{ paddingBottom: 40 }}>
       <TopBar onToggleChat={onToggleChat} />
 
       <PageHeader
@@ -96,45 +100,38 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
       />
 
       {/* KPI section */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
-      >
-        <div style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap' }}>
-          <KpiCard label="FATURAMENTO" value={stats?.faturamento || 0} prefix="R$ " decimals={0} delay={0.15} trend={stats?.growthTrend} positive={stats?.growthPositive} />
-          <KpiCard label="TICKET MÉDIO" value={stats?.ticketMedio || 0} prefix="R$ " decimals={2} delay={0.25} />
-          <KpiCard label="PEDIDOS" value={stats?.pedidos || 0} decimals={0} delay={0.35} />
-          <KpiCard label="ROAS GERAL (30d)" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />
-          {(stats?.roasMeta || 0) > 0 && (
-            <KpiCard label="ROAS META (30d)" value={stats.roasMeta} suffix="x" decimals={2} delay={0.55} />
-          )}
-          {(stats?.roasGoogle || 0) > 0 && (
-            <KpiCard label="ROAS GOOGLE (30d)" value={stats.roasGoogle} suffix="x" decimals={2} delay={0.65} />
-          )}
-          <KpiCard label="CLIENTES ATIVOS" value={stats?.activeCustomers || 0} decimals={0} delay={0.75} />
-          <KpiCard label="CHURN RATE" value={stats?.churnRate || 0} suffix="%" decimals={1} delay={0.85} />
-        </div>
-      </motion.div>
+      <KpiGrid style={{ marginTop: 40 }}>
+        <KpiCard label="FATURAMENTO" value={stats?.faturamento || 0} prefix="R$ " decimals={0} delay={0.15} trend={stats?.growthTrend} positive={stats?.growthPositive} />
+        <KpiCard label="TICKET MÉDIO" value={stats?.ticketMedio || 0} prefix="R$ " decimals={2} delay={0.25} />
+        <KpiCard label="PEDIDOS" value={stats?.pedidos || 0} decimals={0} delay={0.35} />
+        <KpiCard label="ROAS GERAL (30d)" value={stats?.roi || 0} suffix="x" decimals={2} delay={0.45} />
+        {(stats?.roasMeta || 0) > 0 && (
+          <KpiCard label="ROAS META (30d)" value={stats.roasMeta} suffix="x" decimals={2} delay={0.55} />
+        )}
+        {(stats?.roasGoogle || 0) > 0 && (
+          <KpiCard label="ROAS GOOGLE (30d)" value={stats.roasGoogle} suffix="x" decimals={2} delay={0.65} />
+        )}
+        <KpiCard label="CLIENTES ATIVOS" value={stats?.activeCustomers || 0} decimals={0} delay={0.75} />
+        <KpiCard label="CHURN RATE" value={stats?.churnRate || 0} suffix="%" decimals={1} delay={0.85} />
+      </KpiGrid>
 
       {/* Charts section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{ marginTop: 64 }}
-      >
-        <Divider margin="0 0 56px" />
-        <SalesHeatmap initialData={heatmap} />
-        <div style={{ marginTop: 64 }}>
+      <div style={{ marginTop: 64, display: 'flex', flexDirection: 'column', gap: 40 }}>
+        <SectionCard>
+          <SalesHeatmap initialData={heatmap} />
+        </SectionCard>
+        <SectionCard>
           <RevenueChart initialData={chartData} />
+        </SectionCard>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
+          <SectionCard>
+            <ChannelChart initialData={attribution} />
+          </SectionCard>
+          <SectionCard>
+            <TopClients initialData={topCustomers} />
+          </SectionCard>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, marginTop: 64 }}>
-          <ChannelChart initialData={attribution} />
-          <TopClients initialData={topCustomers} />
-        </div>
-      </motion.div>
+      </div>
     </div>
   )
 }

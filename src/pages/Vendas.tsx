@@ -8,7 +8,8 @@ import { fmtBR } from '../lib/utils'
 import type { Transaction, TransactionStatus } from '../types'
 import {
   PageHeader, SectionLabel, TH, Divider,
-  Btn, Input, EmptyState, NotionRow
+  Btn, Input, EmptyState, NotionRow,
+  SectionCard, KpiGrid, SkeletonTable
 } from '../components/ui/shared'
 
 // ── Status & Method Tags ──────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ function TransactionList({ transactions, loading }: { transactions: Transaction[
 
       <AnimatePresence mode="popLayout">
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center' }}><p style={{ color: 'var(--color-text-tertiary)' }}>Carregando...</p></div>
+          <SkeletonTable rows={6} columns={5} />
         ) : filtered.length === 0 ? (
           <EmptyState title="Nenhuma transação" description="Tente ajustar os filtros ou pesquisar outro termo." />
         ) : filtered.map((t) => (
@@ -192,7 +193,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
   }, [period.days])
 
   return (
-    <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+    <div style={{ paddingBottom: 40 }}>
       <TopBar onToggleChat={onToggleChat} />
 
       <PageHeader
@@ -201,20 +202,24 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
         actions={<DatePicker value={period.label} onChange={(label, days) => setPeriod({ label, days })} />}
       />
 
-      <div style={{ display: 'flex', gap: 48, marginTop: 40, flexWrap: 'wrap' }}>
+      <KpiGrid style={{ marginTop: 40 }}>
         <KpiCard label="FATURAMENTO" value={stats?.total_revenue || 0} prefix="R$ " decimals={0} delay={0.1} />
         <KpiCard label="TRANSAÇÕES" value={transactions.length} decimals={0} delay={0.2} />
         <KpiCard label="TICKET MÉDIO" value={stats?.average_ticket || 0} prefix="R$ " decimals={2} delay={0.3} />
         <KpiCard label="TAXA CONVERSÃO" value={stats?.convRate ?? 0} suffix="%" decimals={1} delay={0.4} />
         <KpiCard label="REEMBOLSOS" value={transactions.filter(t => t.status === 'Reembolsado').length} decimals={0} delay={0.5} />
         <KpiCard label="TAXA REEMBOLSO" value={transactions.length > 0 ? (transactions.filter(t => t.status === 'Reembolsado').length / transactions.length) * 100 : 0} suffix="%" decimals={1} delay={0.6} />
-      </div>
+      </KpiGrid>
 
       <Divider margin="48px 0" />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 64 }}>
-        <TransactionList transactions={transactions} loading={loading} />
-        <ProductRevenue transactions={transactions} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32 }}>
+        <SectionCard>
+          <TransactionList transactions={transactions} loading={loading} />
+        </SectionCard>
+        <SectionCard>
+          <ProductRevenue transactions={transactions} />
+        </SectionCard>
       </div>
     </div>
   )
