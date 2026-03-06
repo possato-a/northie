@@ -388,7 +388,14 @@ export async function generateReport(req: Request, res: Response) {
         return res.json(jsonBody);
 
     } catch (err) {
-        console.error('[Reports] generateReport error:', err);
+        console.error('[PDF Generation Error]', {
+            userId: profileId,
+            format,
+            frequency,
+            error: err instanceof Error
+                ? { message: err.message, stack: err.stack }
+                : String(err),
+        });
         return res.status(500).json({ error: 'Failed to generate report' });
     }
 }

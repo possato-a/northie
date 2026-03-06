@@ -1153,12 +1153,98 @@ function drawVendasTable(doc, transactions, profileName, periodLabel) {
     });
     drawTable(doc, cols, rows, profileName, periodLabel);
 }
+// ── No-integrations helpers ────────────────────────────────────────────────────
+function hasAnyData(data) {
+    const rev = data.summary?.revenue_net ?? 0;
+    const txn = data.summary?.transactions ?? 0;
+    const cust = data.summary?.total_customers ?? 0;
+    return rev > 0 || txn > 0 || cust > 0;
+}
+const AVAILABLE_INTEGRATIONS = [
+    { key: 'stripe', label: 'Stripe', desc: 'Pagamentos e assinaturas' },
+    { key: 'hotmart', label: 'Hotmart', desc: 'Infoprodutos e afiliados' },
+    { key: 'shopify', label: 'Shopify', desc: 'Loja virtual e pedidos' },
+    { key: 'meta_ads', label: 'Meta Ads', desc: 'Facebook e Instagram Ads' },
+    { key: 'google_ads', label: 'Google Ads', desc: 'Search, Display e YouTube' },
+    { key: 'whatsapp', label: 'WhatsApp Business', desc: 'Atendimento e CS' },
+];
+function drawNoIntegrationsPage(doc, data) {
+    const profileName = data.profile_name ?? 'Seu Negocio';
+    const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+    // Cover background
+    doc.save().rect(0, 0, PAGE_W, 220).fillColor(C.bgCover).fill().restore();
+    doc.save().rect(0, 214, PAGE_W, 6).fillColor(C.accent).fill().restore();
+    doc.font('Helvetica-Bold').fontSize(28).fillColor(C.white).text('NORTHIE', MARGIN, 36);
+    doc.save().moveTo(MARGIN, 80).lineTo(PAGE_W - MARGIN, 80)
+        .strokeColor('#2a2a4a').lineWidth(0.8).stroke().restore();
+    doc.font('Helvetica').fontSize(9).fillColor('#A0A8C8')
+        .text('RELATORIO DE PERFORMANCE', MARGIN, 90, { characterSpacing: 2 });
+    const nameSize = profileName.length > 25 ? 20 : 24;
+    doc.font('Helvetica-Bold').fontSize(nameSize).fillColor(C.white)
+        .text(profileName, MARGIN, 118, { width: CONTENT_W });
+    doc.font('Helvetica').fontSize(9).fillColor('#A0A8C8')
+        .text(`Gerado em: ${today}`, MARGIN, 165);
+    // Body
+    doc.y = 248;
+    // Warning banner
+    doc.save().rect(MARGIN, doc.y, CONTENT_W, 52).fillColor('#FEF3C7').fill().restore();
+    doc.save().rect(MARGIN, doc.y, 4, 52).fillColor(C.warning).fill().restore();
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#92400E')
+        .text('Nenhuma integracao conectada', MARGIN + 16, doc.y + 8);
+    doc.font('Helvetica').fontSize(9).fillColor('#92400E')
+        .text('Conecte ao menos uma integracao para ver sua analise completa.', MARGIN + 16, doc.y + 26, { width: CONTENT_W - 32 });
+    doc.y += 68;
+    // Subtitle
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(C.textSecondary)
+        .text('INTEGRACOES DISPONIVEIS', MARGIN, doc.y, { characterSpacing: 1 });
+    drawHRule(doc, doc.y + 14, C.tableLine);
+    doc.y += 24;
+    // Integration checklist
+    const active = new Set(data.integrations_active ?? []);
+    const colW = CONTENT_W / 2;
+    AVAILABLE_INTEGRATIONS.forEach((intg, idx) => {
+        const col = idx % 2;
+        const x = MARGIN + col * colW;
+        const isActive = active.has(intg.key);
+        if (col === 0 && idx > 0)
+            doc.y += 48;
+        const cardY = doc.y;
+        doc.save().rect(x + 4, cardY, colW - 12, 42)
+            .fillColor(isActive ? '#F0FDF4' : C.bgLight).fill()
+            .strokeColor(isActive ? C.success : C.border).lineWidth(1).stroke()
+            .restore();
+        const dot = isActive ? C.success : C.textSecondary;
+        doc.save().circle(x + 20, cardY + 14, 5).fillColor(dot).fill().restore();
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(isActive ? C.success : C.dark)
+            .text(intg.label, x + 32, cardY + 8, { width: colW - 44, lineBreak: false });
+        doc.font('Helvetica').fontSize(7.5).fillColor(C.textSecondary)
+            .text(intg.desc, x + 32, cardY + 22, { width: colW - 44 });
+        if (isActive) {
+            doc.font('Helvetica-Bold').fontSize(7).fillColor(C.success)
+                .text('CONECTADO', x + colW - 68, cardY + 14, { lineBreak: false });
+        }
+    });
+    doc.y += 64;
+    drawHRule(doc, doc.y, C.tableLine);
+    doc.y += 16;
+    // Call to action text
+    doc.font('Helvetica').fontSize(9).fillColor(C.textSecondary)
+        .text('Acesse app.northie.com.br → Integracoes para conectar suas plataformas. ' +
+        'Apos a conexao, seu proximo relatorio tera analise completa de receita, ' +
+        'LTV, CAC, ROAS e saude do negocio.', MARGIN, doc.y, { width: CONTENT_W, lineGap: 3 });
+}
 // ── Main export ────────────────────────────────────────────────────────────────
 export async function generatePdf(data, ai) {
     const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
     const bufferPromise = streamToBuffer(doc);
     const periodLabel = `${fmtDate(data.period.start)} — ${fmtDate(data.period.end)}`;
     const profileName = data.profile_name ?? null;
+    // ── Sem dados: página explicativa de integrações ──────────────────────────
+    if (!hasAnyData(data)) {
+        drawNoIntegrationsPage(doc, data);
+        doc.end();
+        return bufferPromise;
+    }
     // ── CAPA ──────────────────────────────────────────────────────────────────
     drawCoverPage(doc, data, ai);
     // ── SECAO 1 — Resumo Executivo ────────────────────────────────────────────
