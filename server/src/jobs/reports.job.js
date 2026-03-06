@@ -2,12 +2,47 @@ import { supabase } from '../lib/supabase.js';
 import { generateReportData, formatAsCsv, computeNextSendAt, } from '../services/reports/report-generator.js';
 import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
+import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
 // Normaliza frequência pt-BR → en
 const FREQ_MAP = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
     weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
 };
+function buildSnapshot(data, ai) {
+    const topChannel = data.channel_economics
+        .filter(c => c.channel !== 'desconhecido')
+        .sort((a, b) => b.value_created - a.value_created)[0];
+    const worstChannel = data.channel_economics
+        .filter(c => c.status === 'prejuizo')
+        .sort((a, b) => a.value_created - b.value_created)[0];
+    return {
+        revenue_net: data.summary.revenue_net,
+        ad_spend: data.summary.ad_spend,
+        roas: data.summary.roas,
+        new_customers: data.summary.new_customers,
+        ltv_avg: data.summary.ltv_avg,
+        revenue_change_pct: data.summary.revenue_change_pct,
+        situacao_geral: ai.situacao_geral,
+        resumo_executivo: ai.resumo_executivo,
+        top_channel: topChannel ? {
+            channel: topChannel.channel,
+            value_created: topChannel.value_created,
+            ltv_cac_ratio: topChannel.ltv_cac_ratio,
+            status: topChannel.status,
+        } : null,
+        worst_channel: worstChannel ? {
+            channel: worstChannel.channel,
+            value_created: worstChannel.value_created,
+            cac: worstChannel.cac,
+            avg_ltv: worstChannel.avg_ltv,
+        } : null,
+        at_risk_count: data.at_risk_customers.length,
+        at_risk_ltv: data.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0),
+        diagnosticos_count: ai.diagnosticos.length,
+        criticos: ai.diagnosticos.filter(d => d.severidade === 'critica').length,
+    };
+}
 export async function processScheduledReports() {
     const now = new Date().toISOString();
     const { data: configs } = await supabase
@@ -24,13 +59,17 @@ export async function processScheduledReports() {
         const dateStr = new Date().toISOString().split('T')[0];
         try {
             const reportData = await generateReportData(config.profile_id, frequency);
-            const aiAnalysis = await generateReportNarrative(reportData);
+            const aiAnalysis = await generateReportNarrative(reportData, config.profile_id);
             // Gera arquivo
             let fileBuffer;
             let filename;
             if (format === 'pdf') {
                 fileBuffer = await generatePdf(reportData, aiAnalysis);
                 filename = `northie-relatorio-${config.frequency}-${dateStr}.pdf`;
+            }
+            else if (format === 'xlsx') {
+                fileBuffer = await generateXlsx(reportData, aiAnalysis);
+                filename = `northie-relatorio-${config.frequency}-${dateStr}.xlsx`;
             }
             else if (format === 'csv') {
                 fileBuffer = formatAsCsv(reportData, aiAnalysis);
@@ -40,6 +79,7 @@ export async function processScheduledReports() {
                 fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
                 filename = `northie-relatorio-${config.frequency}-${dateStr}.json`;
             }
+            const snapshot = buildSnapshot(reportData, aiAnalysis);
             // Envia email se configurado e captura o ID do Resend
             let resendEmailId = null;
             if (config.email) {
@@ -62,12 +102,14 @@ export async function processScheduledReports() {
                 period_start: reportData.period.start,
                 period_end: reportData.period.end,
                 status: 'success',
+                situacao_geral: aiAnalysis.situacao_geral,
+                snapshot,
                 ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
             });
-            // Agenda próximo envio
+            // Agenda próximo envio (usa frequência normalizada p/ EN)
             await supabase
                 .from('report_configs')
-                .update({ next_send_at: computeNextSendAt(config.frequency), updated_at: now })
+                .update({ next_send_at: computeNextSendAt(frequency), updated_at: now })
                 .eq('id', config.id);
             console.log(`[Reports] Relatório ${format} enviado para ${config.profile_id}`);
         }

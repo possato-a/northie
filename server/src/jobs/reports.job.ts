@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import {
-    generateReportData, computeNextSendAt,
+    generateReportData, formatAsCsv, computeNextSendAt,
     type ReportFrequency,
 } from '../services/reports/report-generator.js';
 import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
