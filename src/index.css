@@ -3,29 +3,36 @@
 /* ── shadcn/ui theme — mapeado sobre os tokens Northie ───────────────────── */
 
 @theme inline {
-  --color-background:          var(--bg);
-  --color-foreground:          var(--fg);
-  --color-card:                var(--color-bg-primary);
-  --color-card-foreground:     var(--color-text-primary);
-  --color-popover:             var(--color-bg-primary);
-  --color-popover-foreground:  var(--color-text-primary);
-  --color-primary:             #2383E2;
-  --color-primary-foreground:  #ffffff;
-  --color-secondary:           var(--color-bg-secondary);
-  --color-secondary-foreground:var(--color-text-primary);
-  --color-muted:               var(--color-bg-secondary);
-  --color-muted-foreground:    var(--color-text-tertiary);
-  --color-accent:              var(--color-bg-tertiary);
-  --color-accent-foreground:   var(--color-text-primary);
-  --color-destructive:         #E03E3E;
-  --color-destructive-foreground: #ffffff;
-  --color-border:              var(--color-border);
-  --color-input:               var(--color-border);
-  --color-ring:                #2383E2;
-  --radius-sm:                 3px;
-  --radius-md:                 4px;
-  --radius-lg:                 8px;
-  --radius-xl:                 12px;
+  --color-background:           var(--bg);
+  --color-foreground:           var(--fg);
+  --color-card:                 var(--color-bg-primary);
+  --color-card-foreground:      var(--color-text-primary);
+  --color-popover:              var(--color-bg-primary);
+  --color-popover-foreground:   var(--color-text-primary);
+  --color-primary:              var(--color-primary);
+  --color-primary-foreground:   var(--color-primary-fg);
+  --color-secondary:            var(--color-bg-secondary);
+  --color-secondary-foreground: var(--color-text-primary);
+  --color-muted:                var(--color-bg-secondary);
+  --color-muted-foreground:     var(--color-text-tertiary);
+  --color-accent:               var(--color-bg-tertiary);
+  --color-accent-foreground:    var(--color-text-primary);
+  --color-destructive:          oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-border:               var(--color-border);
+  --color-input:                var(--color-border);
+  --color-ring:                 var(--color-primary);
+  --radius-sm:                  3px;
+  --radius-md:                  4px;
+  --radius-lg:                  8px;
+  --radius-xl:                  12px;
+
+  /* Chart palette — warm amber ramp */
+  --color-chart-1: oklch(0.837 0.128 66.29);
+  --color-chart-2: oklch(0.705 0.213 47.604);
+  --color-chart-3: oklch(0.646 0.222 41.116);
+  --color-chart-4: oklch(0.553 0.195 38.402);
+  --color-chart-5: oklch(0.47 0.157 37.304);
 }
 
 @layer base {
@@ -51,156 +58,175 @@ body,
 /* ── Northie Brand Tokens ─────────────────────────────────────────────────── */
 
 :root {
-  /* Northie surfaces */
-  --bg: #FCF8F8;
+  /* ── Northie Surfaces ─────────────────────────────────────────────────── */
+  --bg: #FAFAF9;
   --surface: #FFFFFF;
-  --surface-glass: rgba(255, 255, 255, 0.7);
+  --surface-glass: rgba(255, 255, 255, 0.75);
 
-  /* Northie foreground */
-  --fg: #37352F;
-  --fg-rgb: 55, 53, 47;
+  /* ── Northie Foreground ───────────────────────────────────────────────── */
+  --fg: #1C1917;
+  --fg-rgb: 28, 25, 23;
 
-  /* Northie inverted elements */
-  --inv: #37352F;
-  --on-inv: #FFFFFF;
+  /* ── Northie Inverted ─────────────────────────────────────────────────── */
+  --inv: #1C1917;
+  --on-inv: #FAFAF9;
 
-  /* ── Notion Design Tokens ─────────────────────────────────────────────── */
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --color-text-primary:   #1C1917;
+  --color-text-secondary: #78716C;
+  --color-text-tertiary:  #A8A29E;
 
-  /* Colors - Text */
-  --color-text-primary: #37352F;
-  --color-text-secondary: #787774;
-  --color-text-tertiary: #9B9A97;
+  /* ── Backgrounds (warm stone scale) ──────────────────────────────────── */
+  --color-bg-primary:   #FFFFFF;
+  --color-bg-secondary: #F5F5F4;
+  --color-bg-tertiary:  #E7E5E4;
+  --color-border:       #E2E0DD;
 
-  /* Colors - Background */
-  --color-bg-primary: #FFFFFF;
-  --color-bg-secondary: #F7F6F3;
-  --color-bg-tertiary: #EFEEEB;
-  --color-border: #E3E2E0;
+  /* ── Brand — Northie Orange ───────────────────────────────────────────── */
+  --color-primary:       oklch(0.646 0.222 41.116);
+  --color-primary-fg:    oklch(0.985 0.008 70);
+  --color-primary-hover: oklch(0.58  0.222 41.116);
+  --color-primary-light: oklch(0.97  0.04  70);
 
-  /* Colors - Action (Notion blue) */
-  --color-primary: #2383E2;
-  --color-primary-hover: #0B6BCB;
-  --color-primary-light: #E7F3FF;
+  /* ── Status ───────────────────────────────────────────────────────────── */
+  --status-not-started:    #78716C;
+  --status-not-started-bg: #F5F5F4;
+  --status-planning:       oklch(0.75 0.183 55.934);
+  --status-planning-bg:    oklch(0.97 0.04  70);
+  --status-in-progress:    #3B82F6;
+  --status-in-progress-bg: #EFF6FF;
+  --status-complete:       #0F7B6C;
+  --status-complete-bg:    #DCFCE7;
 
-  /* Colors - Status */
-  --status-not-started: #787774;
-  --status-not-started-bg: #F1F1EF;
-  --status-planning: #D9730D;
-  --status-planning-bg: #FBF3DB;
-  --status-in-progress: #2383E2;
-  --status-in-progress-bg: #E7F3FF;
-  --status-complete: #0F7B6C;
-  --status-complete-bg: #DBEDDB;
+  /* ── Priority ─────────────────────────────────────────────────────────── */
+  --priority-low:       #1C1917;
+  --priority-low-bg:    #E7E5E4;
+  --priority-medium:    oklch(0.646 0.222 41.116);
+  --priority-medium-bg: oklch(0.97 0.04 70);
+  --priority-high:      oklch(0.577 0.245 27.325);
+  --priority-high-bg:   oklch(0.97 0.06 27);
 
-  /* Colors - Priority */
-  --priority-low: #37352F;
-  --priority-low-bg: #E3E2E0;
-  --priority-medium: #D9730D;
-  --priority-medium-bg: #FBF3DB;
-  --priority-high: #E03E3E;
-  --priority-high-bg: #FFE2DD;
+  /* ── Semantic Accents ─────────────────────────────────────────────────── */
+  --accent-red:    oklch(0.577 0.245 27.325);
+  --accent-orange: oklch(0.646 0.222 41.116);
+  --accent-amber:  oklch(0.75  0.183 55.934);
+  --accent-yellow: oklch(0.85  0.17  85);
+  --accent-green:  #0F7B6C;
+  --accent-blue:   #3B82F6;
+  --accent-purple: #7C3AED;
 
-  /* Colors - Accent */
-  --accent-red: #E16259;
-  --accent-orange: #D9730D;
-  --accent-yellow: #DFAB01;
-  --accent-green: #4DAB9A;
-  --accent-blue: #2383E2;
-  --accent-purple: #9065B0;
-
-  /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Poppins', sans-serif;
-  --font-serif: 'Lora', serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  --font-light: 300;
-  --font-regular: 400;
-  --font-medium: 500;
+  /* ── Typography ───────────────────────────────────────────────────────── */
+  --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display:  'Poppins', sans-serif;
+  --font-serif:    'Lora', serif;
+  --font-mono:     'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --font-light:    300;
+  --font-regular:  400;
+  --font-medium:   500;
   --font-semibold: 600;
-  --font-bold: 700;
+  --font-bold:     700;
 
-  /* Type Scale */
-  --text-xs: 11px;
-  --text-sm: 12px;
+  /* ── Type Scale ───────────────────────────────────────────────────────── */
+  --text-xs:   11px;
+  --text-sm:   12px;
   --text-base: 14px;
-  --text-md: 16px;
-  --text-lg: 18px;
-  --text-xl: 20px;
-  --text-2xl: 24px;
-  --text-3xl: 32px;
-  --text-4xl: 40px;
+  --text-md:   16px;
+  --text-lg:   18px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  32px;
+  --text-4xl:  40px;
 
-  /* Spacing — 8px grid */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-8: 32px;
+  /* ── Spacing — 8px grid ───────────────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
   --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
 
-  /* Layout */
-  --sidebar-width: 240px;
-  --content-max-width: 900px;
-  --table-row-height: 42px;
-  --avatar-size-sm: 20px;
-  --avatar-size-md: 24px;
-  --avatar-size-lg: 32px;
+  /* ── Layout ───────────────────────────────────────────────────────────── */
+  --sidebar-width:      240px;
+  --content-max-width:  1120px;
+  --table-row-height:   42px;
+  --avatar-size-sm:     20px;
+  --avatar-size-md:     24px;
+  --avatar-size-lg:     32px;
 
-  /* Border Radius */
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  /* ── Border Radius ────────────────────────────────────────────────────── */
+  --radius-sm:   3px;
+  --radius-md:   6px;
+  --radius-lg:   10px;
+  --radius-xl:   14px;
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(55, 53, 47, 0.08);
-  --shadow-md: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 1px 2px rgba(55, 53, 47, 0.08);
-  --shadow-lg: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 4px 12px rgba(55, 53, 47, 0.12);
-  --shadow-xl: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 8px 24px rgba(55, 53, 47, 0.14);
-  --shadow-card: 0 0 0 1px rgba(55, 53, 47, 0.06), 0 1px 3px rgba(55, 53, 47, 0.05);
-  --shadow-card-hover: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 2px 8px rgba(55, 53, 47, 0.08);
+  /* ── Shadows (warm-tinted) ────────────────────────────────────────────── */
+  --shadow-sm:        0 1px 2px rgba(28, 25, 23, 0.07);
+  --shadow-md:        0 0 0 1px rgba(28, 25, 23, 0.07), 0 1px 3px rgba(28, 25, 23, 0.07);
+  --shadow-lg:        0 0 0 1px rgba(28, 25, 23, 0.07), 0 4px 12px rgba(28, 25, 23, 0.1);
+  --shadow-xl:        0 0 0 1px rgba(28, 25, 23, 0.07), 0 8px 24px rgba(28, 25, 23, 0.12);
+  --shadow-card:      0 0 0 1px rgba(28, 25, 23, 0.05), 0 1px 3px rgba(28, 25, 23, 0.05);
+  --shadow-card-hover:0 0 0 1px rgba(28, 25, 23, 0.09), 0 2px 8px rgba(28, 25, 23, 0.08);
 
-  /* Transitions */
+  /* ── Transitions ──────────────────────────────────────────────────────── */
   --transition-fast: 60ms ease;
   --transition-base: 120ms ease;
   --transition-slow: 200ms ease;
-
-  /* Content */
-  --content-max-width: 1120px;
 }
 
 /* ── Dark Mode ────────────────────────────────────────────────────────────── */
 
 [data-theme="dark"] {
-  --bg: #131110;
-  --surface: #1D1A17;
-  --surface-glass: rgba(29, 26, 23, 0.9);
+  /* ── Northie Dark — warm carbon ─────────────────────────────────────── */
+  --bg:           #0C0A09;
+  --surface:      #1C1917;
+  --surface-glass: rgba(28, 25, 23, 0.92);
 
-  --fg: #EDE9E4;
-  --fg-rgb: 237, 233, 228;
+  --fg:     #FAF9F8;
+  --fg-rgb: 250, 249, 248;
 
-  --inv: #EDE9E4;
-  --on-inv: #131110;
+  --inv:    #FAF9F8;
+  --on-inv: #0C0A09;
 
-  /* Notion tokens — dark overrides */
-  --color-text-primary: rgba(255, 255, 255, 0.87);
-  --color-text-secondary: rgba(255, 255, 255, 0.62);
-  --color-text-tertiary: rgba(255, 255, 255, 0.37);
-  --color-bg-primary: #2F3437;
-  --color-bg-secondary: #25282A;
-  --color-bg-tertiary: #373C3F;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.2);
-  --shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --color-text-primary:   #FAF9F8;
+  --color-text-secondary: #A8A29E;
+  --color-text-tertiary:  #78716C;
+
+  --color-bg-primary:   #1C1917;
+  --color-bg-secondary: #292524;
+  --color-bg-tertiary:  #3C3533;
+  --color-border:       rgba(250, 249, 248, 0.08);
+
+  /* Primary stays orange — slightly lighter for dark bg */
+  --color-primary:       oklch(0.705 0.213 47.604);
+  --color-primary-fg:    oklch(0.141 0.005 285.823);
+  --color-primary-hover: oklch(0.76  0.2   50);
+  --color-primary-light: oklch(0.25  0.07  47);
+
+  --status-not-started:    #78716C;
+  --status-not-started-bg: #292524;
+  --status-planning:       oklch(0.75 0.183 55.934);
+  --status-planning-bg:    oklch(0.22 0.06 55);
+  --status-in-progress:    #60A5FA;
+  --status-in-progress-bg: rgba(96, 165, 250, 0.12);
+  --status-complete:       #34D399;
+  --status-complete-bg:    rgba(52, 211, 153, 0.12);
+
+  --priority-medium:    oklch(0.705 0.213 47.604);
+  --priority-medium-bg: oklch(0.22 0.07 47);
+  --priority-high:      oklch(0.704 0.191 22.216);
+  --priority-high-bg:   oklch(0.22 0.06 27);
+
+  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:         0 0 0 1px rgba(250,249,248,0.06), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg:         0 0 0 1px rgba(250,249,248,0.06), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-xl:         0 0 0 1px rgba(250,249,248,0.06), 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-card:       0 0 0 1px rgba(250,249,248,0.04), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 0 0 1px rgba(250,249,248,0.08), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Base Styles ──────────────────────────────────────────────────────────── */
@@ -311,6 +337,7 @@ body {
 .notion-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-light);
+  outline: none;
 }
 
 /* Notion-style button secondary */
@@ -407,24 +434,24 @@ body::after {
 body::before {
   content: '';
   position: fixed;
-  top: -280px;
+  top: -300px;
   left: 50%;
   transform: translateX(-50%);
-  width: 600px;
-  height: 560px;
+  width: 700px;
+  height: 580px;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(ellipse 55% 55% at 50% 0%,
-      rgba(255, 252, 245, 0.18) 0%,
-      rgba(255, 252, 245, 0.06) 35%,
+  background: radial-gradient(ellipse 60% 55% at 50% 0%,
+      oklch(0.837 0.128 66.29 / 0.12) 0%,
+      oklch(0.705 0.213 47.604 / 0.04) 40%,
       transparent 70%);
   border-radius: 50%;
 }
 
 [data-theme="dark"] body::before {
-  background: radial-gradient(ellipse 55% 55% at 50% 0%,
-      rgba(255, 250, 235, 0.09) 0%,
-      rgba(255, 250, 235, 0.03) 35%,
+  background: radial-gradient(ellipse 60% 55% at 50% 0%,
+      oklch(0.646 0.222 41.116 / 0.08) 0%,
+      oklch(0.553 0.195 38.402 / 0.03) 40%,
       transparent 70%);
 }
 
@@ -436,8 +463,8 @@ body::before {
 }
 
 [data-theme="dark"] ::selection {
-  background: rgba(35, 131, 226, 0.25);
-  color: rgba(255, 255, 255, 0.9);
+  background: oklch(0.646 0.222 41.116 / 0.25);
+  color: oklch(0.985 0.008 70);
 }
 
 /* ── Placeholder global ───────────────────────────────────────────────────── */
@@ -452,6 +479,7 @@ body::before {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 button:focus-visible,
