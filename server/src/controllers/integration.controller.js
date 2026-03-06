@@ -14,6 +14,11 @@ import { runGrowthCorrelationsForAllProfiles } from '../jobs/growth-correlations
 import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
 import { checkAndRefreshAll } from '../jobs/token-refresh.job.js';
 import { processScheduledReports } from '../jobs/reports.job.js';
+const SHOPIFY_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+function validateShopDomain(shop) {
+    const cleaned = shop.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+    return SHOPIFY_DOMAIN_REGEX.test(cleaned) ? cleaned : null;
+}
 /**
  * Redirects the user to the platform's OAuth consent screen
  */
@@ -24,9 +29,13 @@ export async function connectPlatform(req, res) {
         return res.status(400).json({ error: 'Missing platform or profileId' });
     }
     try {
-        const shop = req.query.shop;
-        if (platform === 'shopify' && !shop) {
+        const rawShop = req.query.shop;
+        if (platform === 'shopify' && !rawShop) {
             return res.status(400).json({ error: 'Parâmetro shop obrigatório para Shopify' });
+        }
+        const shop = rawShop ? validateShopDomain(rawShop) : undefined;
+        if (platform === 'shopify' && !shop) {
+            return res.status(400).json({ error: 'Domínio Shopify inválido. Use o formato: sua-loja.myshopify.com' });
         }
         const authUrl = IntegrationService.getAuthorizationUrl(platform, profileId, shop ? { shop } : undefined);
         console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
@@ -101,7 +110,7 @@ export async function handleCallback(req, res) {
         let tokens = {};
         if (platform === 'meta') {
             const redirectUri = IntegrationService.getRedirectUri('meta');
-            const tokenRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+            const tokenRes = await axios.get('https://graph.facebook.com/v25.0/oauth/access_token', {
                 params: {
                     client_id: process.env.META_APP_ID,
                     client_secret: process.env.META_APP_SECRET,
@@ -111,7 +120,7 @@ export async function handleCallback(req, res) {
             });
             tokens = tokenRes.data;
             // Exchange for a long-lived token (usually 60 days)
-            const longLivedRes = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+            const longLivedRes = await axios.get('https://graph.facebook.com/v25.0/oauth/access_token', {
                 params: {
                     grant_type: 'fb_exchange_token',
                     client_id: process.env.META_APP_ID,
@@ -167,15 +176,20 @@ export async function handleCallback(req, res) {
             }
         }
         else if (platform === 'stripe') {
-            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            const stripeSecretKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+            const stripeClientId = (process.env.STRIPE_CLIENT_ID || '').trim();
             if (!stripeSecretKey) {
                 throw new Error('STRIPE_SECRET_KEY não configurado no servidor.');
             }
+            if (!stripeClientId) {
+                throw new Error('STRIPE_CLIENT_ID não configurado no servidor.');
+            }
+            console.log(`[IntegrationController] Stripe token exchange — client_id: ${stripeClientId.slice(0, 8)}... key prefix: ${stripeSecretKey.slice(0, 12)}...`);
             const tokenRes = await axios.post('https://connect.stripe.com/oauth/token', new URLSearchParams({
                 grant_type: 'authorization_code',
                 code: code,
+                client_secret: stripeSecretKey,
             }), {
-                auth: { username: stripeSecretKey, password: '' },
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
             });
             tokens = {
@@ -187,9 +201,12 @@ export async function handleCallback(req, res) {
             };
         }
         else if (platform === 'shopify') {
-            const shop = req.query.shop;
-            if (!shop)
+            const rawShop = req.query.shop;
+            if (!rawShop)
                 throw new Error('Parâmetro shop ausente no callback Shopify');
+            const shop = validateShopDomain(rawShop);
+            if (!shop)
+                throw new Error('Domínio Shopify inválido no callback');
             const tokenRes = await axios.post(`https://${shop}/admin/oauth/access_token`, {
                 client_id: process.env.SHOPIFY_API_KEY,
                 client_secret: process.env.SHOPIFY_API_SECRET,
@@ -205,35 +222,75 @@ export async function handleCallback(req, res) {
             throw new Error(`Plataforma não suportada: ${platform}`);
         }
         if (tokens.access_token) {
+            // Stripe Connect: rejeitar contas test mode em produção
+            if (platform === 'stripe' && tokens.livemode === false) {
+                throw new Error('Apenas contas Stripe em modo live são aceitas. Verifique se o modo de teste está desativado.');
+            }
             await IntegrationService.saveIntegration(profileId, platform, tokens);
         }
         else {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
+        // Stripe: salva stripe_account_id como coluna indexada para lookup rápido nos webhooks
+        if (platform === 'stripe' && tokens.stripe_user_id) {
+            await supabase
+                .from('integrations')
+                .update({ stripe_account_id: tokens.stripe_user_id })
+                .eq('profile_id', profileId)
+                .eq('platform', 'stripe');
+        }
         // Shopify: salva o shop_domain e registra webhooks automaticamente
         if (platform === 'shopify') {
-            const shop = req.query.shop;
+            const shopValidated = validateShopDomain(req.query.shop);
             const shopifyToken = tokens.access_token;
-            if (shop && shopifyToken) {
+            if (shopValidated && shopifyToken) {
                 await supabase
                     .from('integrations')
-                    .update({ shopify_shop_domain: shop })
+                    .update({ shopify_shop_domain: shopValidated })
                     .eq('profile_id', profileId)
                     .eq('platform', 'shopify');
-                // Registra webhooks automaticamente — elimina configuração manual
+                // Registra webhooks automaticamente via GraphQL Admin API (REST é legado desde out/2024)
                 const backendUrl = process.env.BACKEND_URL || 'https://northie.vercel.app';
                 const webhookAddress = `${backendUrl}/api/webhooks/shopify/${profileId}`;
-                const topics = ['orders/paid', 'orders/refunded', 'orders/cancelled', 'customers/create', 'customers/update'];
-                for (const topic of topics) {
+                const SHOPIFY_WEBHOOK_TOPICS = [
+                    'ORDERS_PAID',
+                    'REFUNDS_CREATE',
+                    'ORDERS_CANCELLED',
+                    'CUSTOMERS_CREATE',
+                    'CUSTOMERS_UPDATE',
+                    'APP_UNINSTALLED',
+                ];
+                for (const topic of SHOPIFY_WEBHOOK_TOPICS) {
                     try {
-                        await axios.post(`https://${shop}/admin/api/2024-01/webhooks.json`, { webhook: { topic, address: webhookAddress, format: 'json' } }, { headers: { 'X-Shopify-Access-Token': shopifyToken }, timeout: 10000 });
-                        console.log(`[Shopify] Webhook registrado: ${topic}`);
+                        const mutation = `
+                            mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+                                webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+                                    webhookSubscription { id }
+                                    userErrors { field message }
+                                }
+                            }
+                        `;
+                        const gqlRes = await axios.post(`https://${shopValidated}/admin/api/2026-01/graphql.json`, {
+                            query: mutation,
+                            variables: {
+                                topic,
+                                webhookSubscription: { callbackUrl: webhookAddress, format: 'JSON' },
+                            },
+                        }, { headers: { 'X-Shopify-Access-Token': shopifyToken, 'Content-Type': 'application/json' }, timeout: 10000 });
+                        const userErrors = gqlRes.data?.data?.webhookSubscriptionCreate?.userErrors;
+                        if (userErrors?.length) {
+                            // Ignora erro de webhook já existente — idempotente
+                            const isDuplicate = userErrors.some((e) => e.message?.toLowerCase().includes('already'));
+                            if (!isDuplicate) {
+                                console.warn(`[Shopify] GraphQL webhook error para ${topic}:`, userErrors);
+                            }
+                        }
+                        else {
+                            console.log(`[Shopify] Webhook registrado via GraphQL: ${topic}`);
+                        }
                     }
                     catch (whErr) {
-                        // Ignora erro 422 (webhook já existe) — idempotente
-                        if (whErr.response?.status !== 422) {
-                            console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data?.errors ?? whErr.message);
-                        }
+                        console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data ?? whErr.message);
                     }
                 }
             }
@@ -243,7 +300,7 @@ export async function handleCallback(req, res) {
             const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
             if (devToken) {
                 try {
-                    const customersRes = await axios.get('https://googleads.googleapis.com/v20/customers:listAccessibleCustomers', {
+                    const customersRes = await axios.get('https://googleads.googleapis.com/v23/customers:listAccessibleCustomers', {
                         headers: {
                             Authorization: `Bearer ${tokens.access_token}`,
                             'developer-token': devToken,
@@ -257,7 +314,7 @@ export async function handleCallback(req, res) {
                     const managerIds = [];
                     for (const cid of allIds) {
                         try {
-                            const checkRes = await axios.post(`https://googleads.googleapis.com/v20/customers/${cid}/googleAds:searchStream`, { query: 'SELECT customer.id, customer.manager FROM customer' }, {
+                            const checkRes = await axios.post(`https://googleads.googleapis.com/v23/customers/${cid}/googleAds:searchStream`, { query: 'SELECT customer.id, customer.manager FROM customer' }, {
                                 headers: {
                                     Authorization: `Bearer ${tokens.access_token}`,
                                     'developer-token': devToken,

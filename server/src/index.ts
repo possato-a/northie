@@ -28,7 +28,7 @@ import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
-import { handleStripeWebhook } from './controllers/webhook.controller.js';
+import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
 
 dotenv.config({ path: '.env.local' });
@@ -43,6 +43,8 @@ app.use(morgan('dev'));
 
 // Webhooks com raw body DEVEM ser montados antes do express.json()
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
+app.post('/api/webhooks/hotmart/:profileId', express.raw({ type: 'application/json' }), handleHotmartWebhook);
+app.post('/api/webhooks/shopify/:profileId', express.raw({ type: 'application/json' }), handleShopifyWebhook);
 app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), (req, res, next) => {
     // Expõe rawBody para verificação de assinatura Svix
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,39 +73,6 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
 });
 
-// TEMP — migration endpoint, remove after use
-app.post('/api/admin/migrate-20260310', async (req, res) => {
-    if (req.headers['x-migrate-token'] !== 'nrth-mig-7f4e2b9c1d3a') {
-        return res.status(401).json({ error: 'unauthorized' });
-    }
-    try {
-        const { Client } = await import('pg');
-        const client = new Client({
-            host: 'db.ucwlgqowqpfmotcofqoz.supabase.co',
-            port: 5432,
-            user: 'postgres',
-            password: process.env.POSTGRES_PASSWORD,
-            database: 'postgres',
-            ssl: { rejectUnauthorized: false },
-            connectionTimeoutMillis: 15000,
-        });
-        await client.connect();
-        const statements = [
-            `ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_status TEXT CHECK (email_status IN ('ok', 'bounced', 'unsubscribed')) DEFAULT 'ok'`,
-            `ALTER TABLE customers ADD COLUMN IF NOT EXISTS last_engagement_at TIMESTAMPTZ`,
-            `CREATE INDEX IF NOT EXISTS idx_customers_email_status ON customers (profile_id, email_status) WHERE email_status != 'ok'`,
-        ];
-        const results: string[] = [];
-        for (const sql of statements) {
-            await client.query(sql);
-            results.push(`ok: ${sql.substring(0, 70)}`);
-        }
-        await client.end();
-        return res.json({ done: true, results });
-    } catch (err: unknown) {
-        return res.status(500).json({ error: (err as Error).message });
-    }
-});
 
 
 // Start server only if not in Vercel (Production)

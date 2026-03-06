@@ -4,7 +4,6 @@ import crypto from 'crypto';
 import { supabase } from '../lib/supabase.js';
 import { webhookQueue } from '../lib/webhook-queue.js';
 import { validateWebhookPayload } from '../lib/webhook-schemas.js';
-import { decrypt } from '../utils/encryption.js';
 
 // Lazy init — Stripe SDK throws if apiKey is empty
 let _stripe: Stripe | null = null;
@@ -30,9 +29,11 @@ function verifyPlatformToken(platform: string, req: Request): boolean {
 
         if (hmacSignature && hmacSecret) {
             try {
+                // req.body é Buffer (express.raw montado antes do express.json)
+                const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
                 const expected = crypto
                     .createHmac('sha256', hmacSecret)
-                    .update(JSON.stringify(req.body))
+                    .update(rawBody)
                     .digest('hex');
                 const expectedBuf = Buffer.from(expected, 'hex');
                 const receivedBuf = Buffer.from(hmacSignature, 'hex');
@@ -102,21 +103,16 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     let profileId: string | null = null;
 
     if (stripeAccountId) {
-        const { data: integrations } = await supabase
+        // Lookup direto via coluna indexada (sem decrypt loop)
+        const { data: match } = await supabase
             .from('integrations')
-            .select('profile_id, config_encrypted')
+            .select('profile_id')
             .eq('platform', 'stripe')
-            .eq('status', 'active');
+            .eq('status', 'active')
+            .eq('stripe_account_id', stripeAccountId)
+            .single();
 
-        for (const intg of integrations || []) {
-            try {
-                const tokens = JSON.parse(decrypt((intg.config_encrypted as any).data));
-                if (tokens.stripe_user_id === stripeAccountId) {
-                    profileId = intg.profile_id;
-                    break;
-                }
-            } catch { /* skip corrupt record */ }
-        }
+        profileId = match?.profile_id ?? null;
     }
 
     if (!profileId) {
@@ -174,7 +170,7 @@ export async function handleHotmartWebhook(req: Request, res: Response) {
     }
 
     // 3. Validar estrutura do payload
-    const payload = req.body;
+    const payload = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
     const validation = validateWebhookPayload('hotmart', payload);
     if (!validation.success) {
         console.warn(`[Webhook] Hotmart: invalid payload for profile ${profileId}:`, validation.errors);
@@ -258,6 +254,17 @@ export async function handleShopifyWebhook(req: Request, res: Response) {
 
     const payload = JSON.parse((req.body as Buffer).toString());
     const topic = req.headers['x-shopify-topic'] as string; // e.g. 'orders/paid'
+
+    // APP_UNINSTALLED: desativa integração imediatamente
+    if (topic === 'app/uninstalled') {
+        await supabase
+            .from('integrations')
+            .update({ status: 'revoked' })
+            .eq('profile_id', profileId)
+            .eq('platform', 'shopify');
+        console.log(`[ShopifyWebhook] App uninstalled — integration revoked for profile ${profileId}`);
+        return res.status(200).json({ received: true });
+    }
 
     try {
         // 3. Persistir raw data (audit trail)

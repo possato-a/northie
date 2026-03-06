@@ -325,7 +325,13 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }, [])
 
     useEffect(() => {
+        const trustedOrigins = [
+            window.location.origin,
+            ...(window.location.hostname === 'localhost' ? ['http://localhost:3001'] : []),
+        ]
+
         const handleMessage = (event: MessageEvent) => {
+            if (!trustedOrigins.includes(event.origin)) return
             if (event.data?.type === 'NORTHIE_OAUTH_SUCCESS') {
                 const { platform } = event.data
                 // Map platform name → pluginId

@@ -49,6 +49,11 @@ async function handleStripeNormalization(payload: any, profileId: string) {
     }
 
     if (eventType === 'payment_intent.succeeded') {
+        // Se veio de um checkout session, checkout.session.completed já criou a transação
+        if (obj.invoice || obj.metadata?.checkout_session_id) {
+            console.log(`[Stripe] payment_intent.succeeded ignorado (já processado via checkout/invoice)`);
+            return;
+        }
         const email: string = obj.receipt_email || 'unknown@stripe.com';
         const amount = obj.amount_received / 100;
         const visitorId: string | undefined = obj.metadata?.northie_vid || obj.metadata?.visitorId;
@@ -62,6 +67,26 @@ async function handleStripeNormalization(payload: any, profileId: string) {
         const refundAmount = obj.amount_refunded / 100;
         if (piId) {
             await syncRefund(profileId, email, piId, refundAmount);
+        }
+        return;
+    }
+
+    // Subscription lifecycle — atualiza status do cliente para cálculo de MRR/churn
+    if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.updated') {
+        const customerEmail = obj.customer_email || obj.metadata?.email;
+        const status = obj.status; // active, canceled, past_due, unpaid
+        if (customerEmail) {
+            const churnStatuses = ['canceled', 'unpaid'];
+            const isChurned = churnStatuses.includes(status);
+            await supabase
+                .from('customers')
+                .update({
+                    subscription_status: status,
+                    ...(isChurned ? { churned_at: new Date().toISOString() } : { churned_at: null }),
+                })
+                .eq('profile_id', profileId)
+                .eq('email', customerEmail);
+            console.log(`[Stripe] Subscription ${eventType} for ${customerEmail}: status=${status}`);
         }
         return;
     }

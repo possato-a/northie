@@ -16,6 +16,13 @@ import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
 import { checkAndRefreshAll } from '../jobs/token-refresh.job.js';
 import { processScheduledReports } from '../jobs/reports.job.js';
 
+const SHOPIFY_DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+
+function validateShopDomain(shop: string): string | null {
+    const cleaned = shop.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
+    return SHOPIFY_DOMAIN_REGEX.test(cleaned) ? cleaned : null;
+}
+
 /**
  * Redirects the user to the platform's OAuth consent screen
  */
@@ -28,9 +35,13 @@ export async function connectPlatform(req: Request, res: Response) {
     }
 
     try {
-        const shop = req.query.shop as string | undefined;
-        if (platform === 'shopify' && !shop) {
+        const rawShop = req.query.shop as string | undefined;
+        if (platform === 'shopify' && !rawShop) {
             return res.status(400).json({ error: 'Parâmetro shop obrigatório para Shopify' });
+        }
+        const shop = rawShop ? validateShopDomain(rawShop) : undefined;
+        if (platform === 'shopify' && !shop) {
+            return res.status(400).json({ error: 'Domínio Shopify inválido. Use o formato: sua-loja.myshopify.com' });
         }
         const authUrl = IntegrationService.getAuthorizationUrl(platform as string, profileId as string, shop ? { shop } : undefined);
         console.log(`[IntegrationController] Generated Auth URL for ${platform}:`, authUrl);
@@ -214,8 +225,10 @@ export async function handleCallback(req: Request, res: Response) {
                 livemode: tokenRes.data.livemode,
             };
         } else if (platform === 'shopify') {
-            const shop = req.query.shop as string;
-            if (!shop) throw new Error('Parâmetro shop ausente no callback Shopify');
+            const rawShop = req.query.shop as string;
+            if (!rawShop) throw new Error('Parâmetro shop ausente no callback Shopify');
+            const shop = validateShopDomain(rawShop);
+            if (!shop) throw new Error('Domínio Shopify inválido no callback');
             const tokenRes = await axios.post(`https://${shop}/admin/oauth/access_token`, {
                 client_id: process.env.SHOPIFY_API_KEY,
                 client_secret: process.env.SHOPIFY_API_SECRET,
@@ -231,19 +244,32 @@ export async function handleCallback(req: Request, res: Response) {
         }
 
         if (tokens.access_token) {
+            // Stripe Connect: rejeitar contas test mode em produção
+            if (platform === 'stripe' && tokens.livemode === false) {
+                throw new Error('Apenas contas Stripe em modo live são aceitas. Verifique se o modo de teste está desativado.');
+            }
             await IntegrationService.saveIntegration(profileId, platform as string, tokens);
         } else {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
 
+        // Stripe: salva stripe_account_id como coluna indexada para lookup rápido nos webhooks
+        if (platform === 'stripe' && tokens.stripe_user_id) {
+            await supabase
+                .from('integrations')
+                .update({ stripe_account_id: tokens.stripe_user_id })
+                .eq('profile_id', profileId)
+                .eq('platform', 'stripe');
+        }
+
         // Shopify: salva o shop_domain e registra webhooks automaticamente
         if (platform === 'shopify') {
-            const shop = req.query.shop as string;
+            const shopValidated = validateShopDomain(req.query.shop as string);
             const shopifyToken = tokens.access_token;
-            if (shop && shopifyToken) {
+            if (shopValidated && shopifyToken) {
                 await supabase
                     .from('integrations')
-                    .update({ shopify_shop_domain: shop })
+                    .update({ shopify_shop_domain: shopValidated })
                     .eq('profile_id', profileId)
                     .eq('platform', 'shopify');
 
@@ -252,10 +278,11 @@ export async function handleCallback(req: Request, res: Response) {
                 const webhookAddress = `${backendUrl}/api/webhooks/shopify/${profileId}`;
                 const SHOPIFY_WEBHOOK_TOPICS = [
                     'ORDERS_PAID',
-                    'REFUNDS_CREATE',      // 'ORDERS_REFUNDED' não existe — tópico correto é REFUNDS_CREATE
+                    'REFUNDS_CREATE',
                     'ORDERS_CANCELLED',
                     'CUSTOMERS_CREATE',
                     'CUSTOMERS_UPDATE',
+                    'APP_UNINSTALLED',
                 ];
 
                 for (const topic of SHOPIFY_WEBHOOK_TOPICS) {
@@ -269,7 +296,7 @@ export async function handleCallback(req: Request, res: Response) {
                             }
                         `;
                         const gqlRes = await axios.post(
-                            `https://${shop}/admin/api/2026-01/graphql.json`,
+                            `https://${shopValidated}/admin/api/2026-01/graphql.json`,
                             {
                                 query: mutation,
                                 variables: {

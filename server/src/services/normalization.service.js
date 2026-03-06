@@ -47,6 +47,11 @@ async function handleStripeNormalization(payload, profileId) {
         return;
     }
     if (eventType === 'payment_intent.succeeded') {
+        // Se veio de um checkout session, checkout.session.completed já criou a transação
+        if (obj.invoice || obj.metadata?.checkout_session_id) {
+            console.log(`[Stripe] payment_intent.succeeded ignorado (já processado via checkout/invoice)`);
+            return;
+        }
         const email = obj.receipt_email || 'unknown@stripe.com';
         const amount = obj.amount_received / 100;
         const visitorId = obj.metadata?.northie_vid || obj.metadata?.visitorId;
@@ -59,6 +64,25 @@ async function handleStripeNormalization(payload, profileId) {
         const refundAmount = obj.amount_refunded / 100;
         if (piId) {
             await syncRefund(profileId, email, piId, refundAmount);
+        }
+        return;
+    }
+    // Subscription lifecycle — atualiza status do cliente para cálculo de MRR/churn
+    if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.updated') {
+        const customerEmail = obj.customer_email || obj.metadata?.email;
+        const status = obj.status; // active, canceled, past_due, unpaid
+        if (customerEmail) {
+            const churnStatuses = ['canceled', 'unpaid'];
+            const isChurned = churnStatuses.includes(status);
+            await supabase
+                .from('customers')
+                .update({
+                subscription_status: status,
+                ...(isChurned ? { churned_at: new Date().toISOString() } : { churned_at: null }),
+            })
+                .eq('profile_id', profileId)
+                .eq('email', customerEmail);
+            console.log(`[Stripe] Subscription ${eventType} for ${customerEmail}: status=${status}`);
         }
         return;
     }
@@ -201,17 +225,20 @@ async function handleShopifyNormalization(payload, profileId) {
             console.log(`[Shopify] Customer synced via ${topic}: ${email}`);
         return;
     }
-    // ── orders/refunded ──────────────────────────────────────────────────────
-    if (topic === 'orders/refunded') {
-        const email = payload.email || payload.customer?.email;
-        const transactionId = String(payload.id);
-        const refundAmount = parseFloat(payload.total_price || '0');
-        if (!email) {
-            console.warn(`[Shopify] orders/refunded ${transactionId} sem email — ignorando`);
+    // ── refunds/create ───────────────────────────────────────────────────────
+    // Payload do REFUNDS_CREATE: { id (refund_id), order_id, transactions: [{amount}] }
+    // Diferente de orders/refunded (topic inexistente na Shopify API)
+    if (topic === 'refunds/create') {
+        const orderId = String(payload.order_id);
+        if (!orderId || orderId === 'undefined') {
+            console.warn(`[Shopify] refunds/create sem order_id — ignorando`);
             return;
         }
-        console.log(`[Shopify] Reembolso order ${transactionId} para ${email}`);
-        await syncRefund(profileId, email, transactionId, refundAmount);
+        // Soma os amounts de todas as transações do reembolso
+        const refundAmount = (payload.transactions || [])
+            .reduce((sum, t) => sum + parseFloat(t.amount || '0'), 0);
+        console.log(`[Shopify] Reembolso refund_id=${payload.id} order_id=${orderId} valor=${refundAmount}`);
+        await syncRefund(profileId, `shopify-order-${orderId}`, orderId, refundAmount);
         return;
     }
     // ── orders/cancelled ─────────────────────────────────────────────────────
