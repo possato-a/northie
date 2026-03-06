@@ -20,6 +20,21 @@ const FREQ_MAP: Record<string, ReportFrequency> = {
 const previewCache = new Map<string, { data: Awaited<ReturnType<typeof generateReportData>>; ts: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
 
+// ── AI analysis cache — evita rechamar a IA para o mesmo perfil/período ──────
+const aiCache = new Map<string, { data: ReportAIAnalysis; ts: number }>();
+const AI_CACHE_TTL = 30 * 60 * 1000; // 30 min
+
+function getAiCached(key: string): ReportAIAnalysis | null {
+    const e = aiCache.get(key);
+    if (!e) return null;
+    if (Date.now() - e.ts > AI_CACHE_TTL) { aiCache.delete(key); return null; }
+    return e.data;
+}
+
+function setAiCached(key: string, data: ReportAIAnalysis) {
+    aiCache.set(key, { data, ts: Date.now() });
+}
+
 function getCached(key: string) {
     const e = previewCache.get(key);
     if (!e) return null;
@@ -227,7 +242,13 @@ export async function getReportAIAnalysis(req: Request, res: Response) {
             reportData = await generateReportData(profileId, frequency, customDates);
             setCached(cacheKey, reportData);
         }
-        const aiAnalysis = await generateReportNarrative(reportData, profileId);
+
+        let aiAnalysis = getAiCached(cacheKey);
+        if (!aiAnalysis) {
+            aiAnalysis = await generateReportNarrative(reportData, profileId);
+            setAiCached(cacheKey, aiAnalysis);
+        }
+
         return res.json({
             situacao_geral: aiAnalysis.situacao_geral,
             resumo_executivo: aiAnalysis.resumo_executivo,
@@ -255,9 +276,17 @@ export async function generateReport(req: Request, res: Response) {
         const reportData = await generateReportData(profileId, frequency, customDates);
 
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
-        const aiAnalysis = format === 'pdf'
-            ? await generateReportNarrative(reportData, profileId)
-            : { situacao_geral: 'atencao' as const, resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
+        let aiAnalysis: ReportAIAnalysis;
+        if (format === 'pdf') {
+            const aiKey = `${profileId}:${FREQ_MAP[freqRaw] ?? 'monthly'}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
+            aiAnalysis = getAiCached(aiKey) ?? await (async () => {
+                const result = await generateReportNarrative(reportData, profileId);
+                setAiCached(aiKey, result);
+                return result;
+            })();
+        } else {
+            aiAnalysis = { situacao_geral: 'atencao', resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
+        }
 
         const snapshot = buildSnapshot(reportData, aiAnalysis);
 
@@ -467,7 +496,13 @@ export async function sendReportByEmail(req: Request, res: Response) {
             reportData = await generateReportData(profileId, frequency);
             setCached(cacheKey, reportData);
         }
-        const aiAnalysis = await generateReportNarrative(reportData, profileId);
+
+        let aiAnalysis = getAiCached(cacheKey);
+        if (!aiAnalysis) {
+            aiAnalysis = await generateReportNarrative(reportData, profileId);
+            setAiCached(cacheKey, aiAnalysis);
+        }
+
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         const dateStr = new Date().toISOString().split('T')[0];
 
