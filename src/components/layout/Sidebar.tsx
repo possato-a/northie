@@ -5,13 +5,13 @@ import {
   VendasIcon,
   ClientesIcon,
   CanaisIcon,
-  CreatorsIcon,
   AppStoreIcon,
   SettingsIcon,
   CardIcon,
-  ValuationIcon,
   GrowthIcon,
   RelatoriosIcon,
+  ConversasIcon,
+  ContextoIcon,
 } from '../../icons'
 import { useTheme } from '../../ThemeContext'
 
@@ -20,10 +20,10 @@ export type Page =
   | 'vendas'
   | 'clientes'
   | 'canais'
-  | 'creators'
   | 'growth'
   | 'card'
-  | 'valuation'
+  | 'conversas'
+  | 'contexto'
   | 'relatorios'
   | 'app-store'
   | 'configuracoes'
@@ -113,13 +113,16 @@ const mainNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
   { icon: <VendasIcon />, label: 'Vendas', pageId: 'vendas' },
   { icon: <ClientesIcon />, label: 'Clientes', pageId: 'clientes' },
   { icon: <CanaisIcon />, label: 'Canais', pageId: 'canais' },
-  { icon: <CreatorsIcon />, label: 'Creators', pageId: 'creators' },
 ]
 
 const productsNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
   { icon: <GrowthIcon />, label: 'Northie Growth', pageId: 'growth' },
   { icon: <CardIcon />, label: 'Northie Card', pageId: 'card' },
-  { icon: <ValuationIcon />, label: 'Valuation', pageId: 'valuation' },
+]
+
+const contextNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
+  { icon: <ConversasIcon />, label: 'Conversas', pageId: 'conversas' },
+  { icon: <ContextoIcon />, label: 'Contexto', pageId: 'contexto' },
 ]
 
 const bottomNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
@@ -243,6 +246,33 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
             onPageChange={onPageChange}
             collapsed={collapsed}
             delay={(mainNav.length + i) * 0.03}
+          />
+        ))}
+
+        {/* Divisor do contexto */}
+        <div style={{ height: 1, background: 'var(--color-border)', margin: '8px 0' }} />
+
+        {!collapsed && (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            letterSpacing: '0.12em',
+            color: 'var(--color-text-tertiary)',
+            textTransform: 'uppercase',
+            padding: '2px 10px 6px',
+          }}>
+            Contexto
+          </span>
+        )}
+
+        {contextNav.map((item, i) => (
+          <NavItem
+            key={item.pageId}
+            {...item}
+            activePage={activePage}
+            onPageChange={onPageChange}
+            collapsed={collapsed}
+            delay={(mainNav.length + productsNav.length + i) * 0.03}
           />
         ))}
       </div>

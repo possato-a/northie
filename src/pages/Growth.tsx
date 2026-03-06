@@ -94,16 +94,16 @@ const TYPE_LABELS: Record<RecType, string> = {
 }
 
 const TYPE_COLORS: Record<RecType, string> = {
-  reativacao_alto_ltv: '#6366F1',
-  pausa_campanha_ltv_baixo: '#F59E0B',
-  audience_sync_champions: '#10B981',
-  realocacao_budget: '#3B82F6',
-  upsell_cohort: '#8B5CF6',
-  divergencia_roi_canal: '#F97316',
-  queda_retencao_cohort: '#EF4444',
-  canal_alto_ltv_underinvested: '#10B981',
-  cac_vs_ltv_deficit: '#F59E0B',
-  em_risco_alto_valor: '#EF4444',
+  reativacao_alto_ltv: 'var(--accent-purple)',
+  pausa_campanha_ltv_baixo: 'var(--accent-orange)',
+  audience_sync_champions: 'var(--accent-green)',
+  realocacao_budget: 'var(--accent-blue)',
+  upsell_cohort: 'var(--accent-purple)',
+  divergencia_roi_canal: 'var(--accent-orange)',
+  queda_retencao_cohort: 'var(--accent-red)',
+  canal_alto_ltv_underinvested: 'var(--accent-green)',
+  cac_vs_ltv_deficit: 'var(--accent-orange)',
+  em_risco_alto_valor: 'var(--accent-red)',
 }
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -167,14 +167,14 @@ function TypeTag({ type }: { type: RecType }) {
 function StepIcon({ status }: { status: 'done' | 'running' | 'failed' }) {
   if (status === 'done') return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="6" fill="#10B981" fillOpacity="0.15" stroke="#10B981" strokeWidth="1"/>
-      <path d="M4.5 7L6.5 9L9.5 5" stroke="#10B981" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="7" cy="7" r="6" fill="var(--accent-green)" fillOpacity="0.15" stroke="var(--accent-green)" strokeWidth="1"/>
+      <path d="M4.5 7L6.5 9L9.5 5" stroke="var(--accent-green)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   )
   if (status === 'failed') return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="6" fill="#EF4444" fillOpacity="0.15" stroke="#EF4444" strokeWidth="1"/>
-      <path d="M5 5L9 9M9 5L5 9" stroke="#EF4444" strokeWidth="1.3" strokeLinecap="round"/>
+      <circle cx="7" cy="7" r="6" fill="var(--accent-red)" fillOpacity="0.15" stroke="var(--accent-red)" strokeWidth="1"/>
+      <path d="M5 5L9 9M9 5L5 9" stroke="var(--accent-red)" strokeWidth="1.3" strokeLinecap="round"/>
     </svg>
   )
   return (
@@ -312,15 +312,15 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
         </div>
         {rec.status === 'completed' && (
           <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: '#10B981',
-            background: '#10B98115', border: '1px solid #10B98130',
+            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-green)',
+            background: 'var(--status-complete-bg)', border: '1px solid var(--accent-green)',
             borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
           }}>Concluído</span>
         )}
         {rec.status === 'failed' && (
           <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EF4444',
-            background: '#EF444415', border: '1px solid #EF444430',
+            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-red)',
+            background: 'var(--priority-high-bg)', border: '1px solid var(--accent-red)',
             borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
           }}>Falhou</span>
         )}
@@ -420,7 +420,7 @@ function RecommendationCard({ rec, onApprove, onDismiss }: {
               <div style={{ flex: 1 }}>
                 <span style={{
                   fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                  color: step.status === 'failed' ? '#EF4444' : 'var(--color-text-primary)',
+                  color: step.status === 'failed' ? 'var(--accent-red)' : 'var(--color-text-primary)',
                 }}>
                   {step.step}
                 </span>
@@ -476,7 +476,7 @@ function GrowthEmptyState() {
     >
       <div style={{
         width: 8, height: 8, borderRadius: 'var(--radius-full)',
-        background: '#10B981', marginBottom: 8, boxShadow: '0 0 0 4px #10B98120',
+        background: 'var(--accent-green)', marginBottom: 8, boxShadow: '0 0 0 4px var(--status-complete-bg)',
       }} />
       <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>
         Nenhuma ação crítica identificada
@@ -1140,7 +1140,7 @@ export default function Growth() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', background: '#10B981', boxShadow: '0 0 0 3px #10B98120' }} />
+          <div style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', background: 'var(--accent-green)', boxShadow: '0 0 0 3px var(--status-complete-bg)' }} />
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
             Motor ativo · última análise há {minutesSinceAnalysis}min
           </span>
@@ -1213,6 +1213,46 @@ export default function Growth() {
               ) : activeRecs.length === 0 && (
                 <GrowthEmptyState />
               )}
+
+              {/* Histórico de Execução */}
+              <div style={{ height: 1, background: 'var(--color-border)', margin: '32px 0' }} />
+              <p style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em',
+                textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)',
+                marginBottom: 12, marginTop: 0,
+              }}>
+                Histórico de Execução
+              </p>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{
+                  textAlign: 'center' as const,
+                  padding: 'var(--space-8)', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 'var(--space-2)',
+                }}
+              >
+                <div style={{
+                  width: 40, height: 40,
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'var(--color-bg-tertiary)',
+                  margin: '0 auto 16px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="9" y1="9" x2="15" y2="9" />
+                    <line x1="9" y1="12" x2="12" y2="12" />
+                  </svg>
+                </div>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-secondary)', margin: '0 0 6px' }}>
+                  Nenhuma ação executada ainda
+                </p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+                  Aprove recomendações acima para começar a executar. O impacto de cada ação será medido em reais.
+                </p>
+              </motion.div>
             </>
           )}
         </div>

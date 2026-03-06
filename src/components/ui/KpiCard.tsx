@@ -136,7 +136,7 @@ export function KpiCard({
             fontSize: 11,
             fontWeight: 500,
             letterSpacing: '0.04em',
-            color: positive ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)',
+            color: positive ? 'var(--accent-green)' : 'var(--accent-red)',
           }}
         >
           {positive ? '▲' : '▼'} {trend} vs mês anterior

@@ -57,8 +57,8 @@ const CHANNEL_COLORS: Record<string, string> = {
     'meta ads': '#1877F2',
     'google ads': '#4285F4',
     'instagram': '#E1306C',
-    'email': '#10B981',
-    'orgânico': '#F59E0B',
+    'email': 'var(--accent-green)',
+    'orgânico': 'var(--accent-orange)',
     'direto / outros': 'var(--color-text-tertiary)',
 }
 

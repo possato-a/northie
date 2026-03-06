@@ -109,9 +109,9 @@ function nextReportDate(frequency: string, nextSendAt?: string): string {
 // ── Situação geral ────────────────────────────────────────────────────────────
 
 const SITUACAO_CONFIG = {
-    saudavel: { label: 'Saudável', color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
-    atencao:  { label: 'Atenção',  color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
-    critica:  { label: 'Crítica',  color: '#EF4444', bg: 'rgba(239,68,68,0.12)'  },
+    saudavel: { label: 'Saudável', color: 'var(--accent-green)',  bg: 'var(--status-complete-bg)' },
+    atencao:  { label: 'Atenção',  color: 'var(--accent-orange)', bg: 'var(--priority-medium-bg)' },
+    critica:  { label: 'Crítica',  color: 'var(--accent-red)',    bg: 'var(--priority-high-bg)'  },
 }
 
 function SituacaoBadge({ value, size = 'sm' }: { value: 'saudavel' | 'atencao' | 'critica'; size?: 'sm' | 'md' }) {
@@ -135,7 +135,7 @@ function SituacaoBadge({ value, size = 'sm' }: { value: 'saudavel' | 'atencao' |
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
     return (
         <motion.button onClick={() => onChange(!enabled)} whileTap={{ scale: 0.95 }}
-            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, background: enabled ? '#1a7fe8' : 'var(--color-bg-tertiary)', transition: 'background 0.2s', padding: 0 }}
+            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, background: enabled ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', transition: 'background 0.2s', padding: 0 }}
             aria-checked={enabled} role="switch">
             <motion.span animate={{ x: enabled ? 22 : 2 }} transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
                 style={{ display: 'block', width: 20, height: 20, borderRadius: '50%', background: 'white', position: 'absolute', top: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
@@ -173,7 +173,7 @@ function Sparkline({ data, width = 160, height = 28 }: { data: number[]; width?:
     const trend = data[data.length - 1] >= data[0]
     return (
         <svg width={width} height={height} style={{ overflow: 'visible', flexShrink: 0 }}>
-            <polyline points={points} fill="none" stroke={trend ? '#22C55E' : '#EF4444'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+            <polyline points={points} fill="none" stroke={trend ? 'var(--accent-green)' : 'var(--accent-red)'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
         </svg>
     )
 }
@@ -196,18 +196,18 @@ const CHANNEL_LABEL: Record<string, string> = {
 }
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-    lucrativo: { color: '#22C55E', bg: 'rgba(34,197,94,0.10)',  label: 'Lucrativo' },
-    prejuizo:  { color: '#EF4444', bg: 'rgba(239,68,68,0.10)',  label: 'Prejuízo'  },
-    organico:  { color: '#6B7280', bg: 'rgba(107,114,128,0.10)', label: 'Orgânico' },
+    lucrativo: { color: 'var(--accent-green)',         bg: 'var(--status-complete-bg)',   label: 'Lucrativo' },
+    prejuizo:  { color: 'var(--accent-red)',           bg: 'var(--priority-high-bg)',     label: 'Prejuízo'  },
+    organico:  { color: 'var(--color-text-secondary)', bg: 'var(--status-not-started-bg)', label: 'Orgânico' },
 }
 
 const RFM_LABELS: Record<string, { label: string; color: string }> = {
-    champions:  { label: 'Champions',   color: '#22C55E' },
-    loyalists:  { label: 'Leais',       color: '#3B82F6' },
-    em_risco:   { label: 'Em Risco',    color: '#F59E0B' },
-    perdidos:   { label: 'Perdidos',    color: '#6B7280' },
-    novos:      { label: 'Novos',       color: '#06B6D4' },
-    outros:     { label: 'Outros',      color: '#8B5CF6' },
+    champions:  { label: 'Champions',   color: 'var(--accent-green)'  },
+    loyalists:  { label: 'Leais',       color: 'var(--accent-blue)'   },
+    em_risco:   { label: 'Em Risco',    color: 'var(--accent-orange)' },
+    perdidos:   { label: 'Perdidos',    color: 'var(--color-text-secondary)' },
+    novos:      { label: 'Novos',       color: 'var(--accent-blue)'   },
+    outros:     { label: 'Outros',      color: 'var(--accent-purple)' },
 }
 
 function PreviewKpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
@@ -277,10 +277,10 @@ interface AIAnalysis {
 }
 
 const SEV_STYLE: Record<string, { color: string; label: string }> = {
-    critica: { color: '#EF4444', label: 'CRÍTICA' },
-    alta:    { color: '#F59E0B', label: 'ALTA'    },
-    media:   { color: '#F59E0B', label: 'MÉDIA'   },
-    ok:      { color: '#22C55E', label: 'OK'      },
+    critica: { color: 'var(--accent-red)',    label: 'CRÍTICA' },
+    alta:    { color: 'var(--accent-orange)', label: 'ALTA'    },
+    media:   { color: 'var(--accent-orange)', label: 'MÉDIA'   },
+    ok:      { color: 'var(--accent-green)',  label: 'OK'      },
 }
 
 // ── Download helper ───────────────────────────────────────────────────────────
@@ -776,7 +776,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                             ? `${preview.summary.revenue_change_pct >= 0 ? '+' : ''}${preview.summary.revenue_change_pct.toFixed(1)}% vs período anterior`
                                             : `${preview.summary.transactions} transações`}
                                         subColor={preview.summary.revenue_change_pct !== null
-                                            ? preview.summary.revenue_change_pct >= 0 ? '#22C55E' : '#EF4444'
+                                            ? preview.summary.revenue_change_pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
                                             : undefined}
                                     />
                                     <PreviewKpi
@@ -808,7 +808,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                 Tendência de receita
                                             </span>
                                             <Sparkline data={trendData} width={180} height={28} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: trendUp ? '#22C55E' : '#EF4444', whiteSpace: 'nowrap' }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: trendUp ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap' }}>
                                                 {fmtBRL(lastVal)}
                                             </span>
                                         </div>
@@ -925,7 +925,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                         </span>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                             {preview.rfm_distribution!.filter(s => s.count > 0).map(seg => {
-                                                const rfmCfg = RFM_LABELS[seg.segment] ?? { label: seg.segment, color: '#6B7280' }
+                                                const rfmCfg = RFM_LABELS[seg.segment] ?? { label: seg.segment, color: 'var(--color-text-secondary)' }
                                                 return (
                                                     <span key={seg.segment} style={{
                                                         fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 500,
@@ -947,15 +947,15 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     <div style={{
                                         display: 'flex', alignItems: 'center', gap: 10,
                                         padding: '10px 14px',
-                                        background: 'rgba(239,68,68,0.06)',
-                                        border: '1px solid rgba(239,68,68,0.20)',
+                                        background: 'var(--priority-high-bg)',
+                                        border: '1px solid var(--priority-high)',
                                         borderRadius: 8,
                                     }}>
-                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444', flexShrink: 0 }} />
+                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-red)', flexShrink: 0 }} />
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)' }}>
-                                            <strong style={{ color: '#EF4444' }}>{preview.at_risk_customers.length}</strong>
+                                            <strong style={{ color: 'var(--accent-red)' }}>{preview.at_risk_customers.length}</strong>
                                             {' '}clientes com risco de churn acima de 60% —{' '}
-                                            <span style={{ fontFamily: 'var(--font-mono)', color: '#EF4444' }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-red)' }}>
                                                 {fmtBRL(preview.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0))}
                                             </span>
                                             {' '}em LTV em risco
@@ -994,7 +994,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
                                         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                     </svg>
                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
@@ -1014,7 +1014,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                         position: 'relative',
                                     }}>
                                         {aiStreamText.slice(-600)}
-                                        <span style={{ animation: 'pulse 0.8s ease-in-out infinite', color: '#1a7fe8' }}>▋</span>
+                                        <span style={{ animation: 'pulse 0.8s ease-in-out infinite', color: 'var(--color-primary)' }}>▋</span>
                                         {/* fade out no topo */}
                                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32, background: 'linear-gradient(to bottom, var(--color-bg-secondary), transparent)', borderRadius: '8px 8px 0 0', pointerEvents: 'none' }} />
                                     </div>
@@ -1025,7 +1025,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                         {aiError && !loadingAI && (
                             <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#EF4444' }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--accent-red)' }}>
                                     {aiTimedOut
                                         ? 'A análise excedeu o tempo limite. O servidor pode estar sob carga — aguarde alguns instantes e tente novamente.'
                                         : 'Falha na análise. Verifique as integrações e tente novamente.'}
@@ -1112,7 +1112,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                         </span>
                                         {aiAnalysis.proximos_passos.map((step, i) => (
                                             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: '#1a7fe8', flexShrink: 0, marginTop: 1 }}>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 }}>
                                                     {String(i + 1).padStart(2, '0')}
                                                 </span>
                                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
@@ -1231,7 +1231,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                         {generating !== null && (
                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                                 style={{ margin: '16px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
                                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                 </svg>
                                 {/* F2 — dynamic step message */}
@@ -1242,7 +1242,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                         )}
                         {emailFeedback && (
                             <motion.p key="email-feedback" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                                style={{ margin: '12px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: emailFeedback.ok ? '#22C55E' : '#EF4444' }}>
+                                style={{ margin: '12px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: emailFeedback.ok ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                                 {emailFeedback.msg}
                             </motion.p>
                         )}
@@ -1301,7 +1301,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 style={{
                                     padding: '8px 12px',
                                     background: 'var(--color-bg-secondary)',
-                                    border: `1px solid ${emailError ? '#EF4444' : 'var(--color-border)'}`,
+                                    border: `1px solid ${emailError ? 'var(--accent-red)' : 'var(--color-border)'}`,
                                     borderRadius: 'var(--radius-md)',
                                     color: 'var(--color-text-primary)',
                                     fontFamily: 'var(--font-sans)',
@@ -1312,7 +1312,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     boxSizing: 'border-box',
                                     transition: 'border-color 0.15s',
                                 }}
-                                onFocus={e => { if (!emailError) e.currentTarget.style.borderColor = '#1a7fe8' }}
+                                onFocus={e => { if (!emailError) e.currentTarget.style.borderColor = 'var(--color-primary)' }}
                             />
                             <AnimatePresence>
                                 {emailError && (
@@ -1320,7 +1320,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                         initial={{ opacity: 0, y: -4 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -4 }}
-                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#EF4444' }}
+                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent-red)' }}
                                     >
                                         {emailError}
                                     </motion.span>
@@ -1337,7 +1337,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                             <AnimatePresence>
                                 {savedFeedback && (
                                     <motion.span initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#22c55e' }}>
+                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--accent-green)' }}>
                                         Salvo
                                     </motion.span>
                                 )}
@@ -1346,10 +1346,10 @@ export default function Relatorios(_props: RelatoriosProps) {
 
                         {(savedConfig?.enabled || config.enabled) && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                style={{ padding: '12px 16px', background: 'rgba(26,127,232,0.08)', borderRadius: 8, border: '1px solid rgba(26,127,232,0.2)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                style={{ padding: '12px 16px', background: 'var(--status-in-progress-bg)', borderRadius: 8, border: '1px solid var(--status-in-progress)', display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                                     Próximo relatório em{' '}
-                                    <span style={{ fontFamily: 'var(--font-mono)', color: '#1a7fe8', fontWeight: 600 }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-primary)', fontWeight: 600 }}>
                                         {nextReportDate(config.frequency, savedConfig?.next_send_at)}
                                     </span>
                                 </span>
@@ -1402,11 +1402,11 @@ export default function Relatorios(_props: RelatoriosProps) {
                             {logs.map(log => {
                                 const freqLabel: Record<string, string> = { semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral', weekly: 'Semanal', monthly: 'Mensal', quarterly: 'Trimestral' }
                                 const emailStatusLabel: Record<string, { label: string; color: string }> = {
-                                    sent: { label: 'Enviado', color: '#6B7280' },
-                                    delivered: { label: 'Entregue', color: '#22C55E' },
-                                    bounced: { label: 'Bounce', color: '#EF4444' },
-                                    complained: { label: 'Spam', color: '#F97316' },
-                                    delayed: { label: 'Atrasado', color: '#F59E0B' },
+                                    sent: { label: 'Enviado', color: 'var(--color-text-secondary)' },
+                                    delivered: { label: 'Entregue', color: 'var(--accent-green)' },
+                                    bounced: { label: 'Bounce', color: 'var(--accent-red)' },
+                                    complained: { label: 'Spam', color: 'var(--accent-orange)' },
+                                    delayed: { label: 'Atrasado', color: 'var(--accent-orange)' },
                                 }
                                 const emailSt = log.email_status ? emailStatusLabel[log.email_status] : null
                                 const isError = log.status === 'error'
@@ -1438,7 +1438,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                             {fmtDate(log.created_at)}
                                                         </span>
                                                         {isError && (
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.10)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: 'var(--accent-red)', background: 'var(--priority-high-bg)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
                                                         )}
                                                     </div>
                                                     {log.period_start && log.period_end && (
@@ -1455,8 +1455,8 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                         <span style={{
                                                             display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700,
                                                             letterSpacing: '0.06em', textTransform: 'uppercase', padding: '1px 5px', borderRadius: 3,
-                                                            color: log.triggered_by === 'automatic' ? '#6366F1' : '#1a7fe8',
-                                                            background: log.triggered_by === 'automatic' ? 'rgba(99,102,241,0.10)' : 'rgba(26,127,232,0.10)',
+                                                            color: log.triggered_by === 'automatic' ? 'var(--accent-purple)' : 'var(--color-primary)',
+                                                            background: log.triggered_by === 'automatic' ? 'var(--status-not-started-bg)' : 'var(--status-in-progress-bg)',
                                                         }}>
                                                             {log.triggered_by === 'automatic' ? 'Auto' : 'Email'}
                                                         </span>
@@ -1487,7 +1487,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                             <motion.button
                                                                 whileTap={{ scale: 0.95 }}
                                                                 onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
-                                                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, color: '#EF4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                                                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent-red)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                                                             >
                                                                 Erro — tentar novamente
                                                             </motion.button>
@@ -1498,7 +1498,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                 onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
                                                                 disabled={!!downloadingLogId}
                                                                 title={downloadingLogId === log.id ? 'Gerando...' : 'Baixar novamente'}
-                                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? '#1a7fe8' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
+                                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? 'var(--color-primary)' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
                                                                 {downloadingLogId === log.id
                                                                     ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" /></path></svg>
                                                                     : <DownloadIcon />
@@ -1528,7 +1528,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Receita líquida</span>
                                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{fmtBRL(snap.revenue_net)}</span>
                                                                 {snap.revenue_change_pct !== null && snap.revenue_change_pct !== undefined && (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: snap.revenue_change_pct >= 0 ? '#22C55E' : '#EF4444' }}>
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: snap.revenue_change_pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
                                                                         {snap.revenue_change_pct >= 0 ? '+' : ''}{snap.revenue_change_pct.toFixed(1)}%
                                                                     </span>
                                                                 )}
@@ -1560,7 +1560,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
                                                                             {CHANNEL_LABEL[snap.top_channel.channel] ?? snap.top_channel.channel}
                                                                         </span>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#22C55E' }}>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-green)' }}>
                                                                             {fmtBRL(snap.top_channel.value_created)}
                                                                         </span>
                                                                     </>
@@ -1577,7 +1577,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
                                                                             {CHANNEL_LABEL[snap.worst_channel.channel] ?? snap.worst_channel.channel}
                                                                         </span>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#EF4444' }}>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-red)' }}>
                                                                             {fmtBRL(snap.worst_channel.value_created)}
                                                                         </span>
                                                                     </>
@@ -1591,7 +1591,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Clientes em risco</span>
                                                                 {snap.at_risk_count !== undefined ? (
                                                                     <>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#F59E0B' }}>{snap.at_risk_count}</span>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--accent-orange)' }}>{snap.at_risk_count}</span>
                                                                         {snap.at_risk_ltv !== undefined && (
                                                                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)' }}>{fmtBRL(snap.at_risk_ltv)} em LTV</span>
                                                                         )}
@@ -1606,7 +1606,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diagnósticos críticos</span>
                                                                 {snap.diagnosticos_count !== undefined ? (
                                                                     <>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: snap.criticos > 0 ? '#EF4444' : 'var(--color-text-primary)' }}>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: snap.criticos > 0 ? 'var(--accent-red)' : 'var(--color-text-primary)' }}>
                                                                             {snap.criticos} críticos
                                                                         </span>
                                                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
@@ -1638,7 +1638,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                         whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                                         onClick={handleLoadMoreLogs}
                                         disabled={loadingMore}
-                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: loadingMore ? 'var(--color-text-secondary)' : '#1a7fe8', background: 'transparent', border: 'none', cursor: loadingMore ? 'default' : 'pointer', padding: '4px 12px' }}>
+                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: loadingMore ? 'var(--color-text-secondary)' : 'var(--color-primary)', background: 'transparent', border: 'none', cursor: loadingMore ? 'default' : 'pointer', padding: '4px 12px' }}>
                                         {loadingMore ? 'Carregando...' : 'Carregar mais'}
                                     </motion.button>
                                 </div>

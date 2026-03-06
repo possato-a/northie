@@ -59,6 +59,8 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
         roasGoogle: calcRoas('google'),
         growthTrend,
         growthPositive: growthPct !== null ? growthPct >= 0 : undefined,
+        activeCustomers: data.active_customers || 0,
+        churnRate: data.churn_rate || 0,
       })
       setChartData(full.chart ?? undefined)
       setAttribution(full.attribution ?? undefined)
@@ -66,7 +68,7 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
       setTopCustomers(full.topCustomers ?? undefined)
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err)
-      setStats({ faturamento: 0, ticketMedio: 0, pedidos: 0, roi: 0, roasMeta: 0, roasGoogle: 0 })
+      setStats({ faturamento: 0, ticketMedio: 0, pedidos: 0, roi: 0, roasMeta: 0, roasGoogle: 0, activeCustomers: 0, churnRate: 0 })
     } finally {
       setLoading(false)
     }
@@ -111,6 +113,8 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
           {(stats?.roasGoogle || 0) > 0 && (
             <KpiCard label="ROAS GOOGLE (30d)" value={stats.roasGoogle} suffix="x" decimals={2} delay={0.65} />
           )}
+          <KpiCard label="CLIENTES ATIVOS" value={stats?.activeCustomers || 0} decimals={0} delay={0.75} />
+          <KpiCard label="CHURN RATE" value={stats?.churnRate || 0} suffix="%" decimals={1} delay={0.85} />
         </div>
       </motion.div>
 

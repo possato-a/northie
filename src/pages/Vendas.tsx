@@ -206,6 +206,8 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
         <KpiCard label="TRANSAÇÕES" value={transactions.length} decimals={0} delay={0.2} />
         <KpiCard label="TICKET MÉDIO" value={stats?.average_ticket || 0} prefix="R$ " decimals={2} delay={0.3} />
         <KpiCard label="TAXA CONVERSÃO" value={stats?.convRate ?? 0} suffix="%" decimals={1} delay={0.4} />
+        <KpiCard label="REEMBOLSOS" value={transactions.filter(t => t.status === 'Reembolsado').length} decimals={0} delay={0.5} />
+        <KpiCard label="TAXA REEMBOLSO" value={transactions.length > 0 ? (transactions.filter(t => t.status === 'Reembolsado').length / transactions.length) * 100 : 0} suffix="%" decimals={1} delay={0.6} />
       </div>
 
       <Divider margin="48px 0" />

@@ -293,7 +293,7 @@ function DropsTab() {
                                 <p style={{ fontSize: 9, color: 'rgba(var(--fg-rgb), 0.4)' }}>RECEITA</p>
                             </div>
                             <div>
-                                <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, margin: 0, color: '#E01E1E' }}>{drop.time}</p>
+                                <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 14, margin: 0, color: 'var(--priority-high)' }}>{drop.time}</p>
                                 <p style={{ fontSize: 9, color: 'rgba(var(--fg-rgb), 0.4)' }}>TIMER</p>
                             </div>
                         </div>

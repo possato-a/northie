@@ -19,10 +19,10 @@ export interface Diagnostico {
 // ── Severity config ───────────────────────────────────────────────────────────
 
 const SEV: Record<Severidade, { label: string; color: string; bg: string; border: string }> = {
-    critica: { label: 'CRÍTICA', color: '#EF4444', bg: 'rgba(239,68,68,0.10)',  border: 'rgba(239,68,68,0.25)'  },
-    alta:    { label: 'ALTA',    color: '#F59E0B', bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.25)' },
-    media:   { label: 'MÉDIA',   color: '#F59E0B', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.20)' },
-    ok:      { label: 'OK',      color: '#22C55E', bg: 'rgba(34,197,94,0.10)',  border: 'rgba(34,197,94,0.25)'  },
+    critica: { label: 'CRÍTICA', color: 'var(--accent-red)',    bg: 'var(--priority-high-bg)',    border: 'var(--priority-high-bg)'    },
+    alta:    { label: 'ALTA',    color: 'var(--accent-orange)', bg: 'var(--priority-medium-bg)',   border: 'var(--priority-medium-bg)'   },
+    media:   { label: 'MÉDIA',   color: 'var(--accent-orange)', bg: 'var(--priority-medium-bg)',   border: 'var(--priority-medium-bg)'   },
+    ok:      { label: 'OK',      color: 'var(--accent-green)',  bg: 'var(--status-complete-bg)',  border: 'var(--status-complete-bg)'  },
 }
 
 const PRAZO_LABEL: Record<Prazo, string> = {
@@ -204,7 +204,7 @@ export function DiagnosticCard({ diagnostico: d, index = 0, isLast = false }: Di
             <div style={{
                 width: '100%',
                 boxSizing: 'border-box',
-                background: '#F7F6F3',
+                background: 'var(--color-bg-secondary)',
                 borderLeft: `3px solid ${sev.color}`,
                 borderRadius: '0 4px 4px 0',
                 padding: 12,

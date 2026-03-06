@@ -182,7 +182,7 @@ const BUTTON_HOVER: Record<ButtonVariant, React.CSSProperties> = {
     primary: { background: '#1a72cc' },
     secondary: { background: 'var(--color-bg-tertiary)', color: 'var(--color-text-primary)' },
     ghost: { background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)' },
-    danger: { background: 'rgba(235,87,87,0.08)' },
+    danger: { background: 'var(--priority-high-bg)' },
 }
 
 const BUTTON_SIZE: Record<ButtonSize, React.CSSProperties> = {

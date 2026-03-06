@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import TopBar from '../components/layout/TopBar'
 import { KpiCard } from '../components/ui/KpiCard'
-import { PageHeader, Divider, Btn, SectionLabel, Modal } from '../components/ui/shared'
+import { PageHeader, Divider, Btn, SectionLabel, Modal, StatMini, EmptyState } from '../components/ui/shared'
 import api from '../lib/api'
 
 interface PageProps {
@@ -788,6 +788,28 @@ export default function Card({ onToggleChat }: PageProps) {
                     </div>
                 </>
             )}
+
+            {/* Evolução do Score */}
+            <Divider margin="48px 0" />
+            <SectionLabel>Evolução do Score</SectionLabel>
+            <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{ display: 'flex', gap: 48 }}
+            >
+                <StatMini label="SCORE ATUAL" value="—" />
+                <StatMini label="VARIAÇÃO MENSAL" value="—" />
+                <StatMini label="PROJEÇÃO 3 MESES" value="—" />
+            </motion.div>
+
+            {/* Histórico de Split */}
+            <Divider margin="48px 0" />
+            <SectionLabel>Histórico de Split</SectionLabel>
+            <EmptyState
+                title="Nenhum split registrado"
+                description="O split automático será ativado quando o Northie Card estiver operacional."
+            />
 
             {/* Modal de solicitação */}
             <AnimatePresence>

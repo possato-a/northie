@@ -307,6 +307,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
             churnMedio: clients.reduce((sum, c) => sum + c.churnProb, 0) / total,
             lucrativos: clients.filter(c => c.status === 'Lucrativo').length,
             payback: clients.filter(c => c.status === 'Payback').length,
+            emRisco: clients.filter(c => c.status === 'Risco').length,
         }
     }, [clients])
 
@@ -335,6 +336,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                     <KpiCard label="CHURN MÉDIO" value={kpis.churnMedio} suffix="%" decimals={1} delay={0.26} />
                     <KpiCard label="LUCRATIVOS" value={kpis.lucrativos} decimals={0} delay={0.34} />
                     <KpiCard label="EM PAYBACK" value={kpis.payback} decimals={0} delay={0.42} />
+                    <KpiCard label="EM RISCO" value={kpis.emRisco} decimals={0} delay={0.50} />
                 </div>
             </motion.div>
 

@@ -283,7 +283,7 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                         color: 'var(--priority-high)',
                         fontFamily: 'var(--font-sans)',
                         fontSize: 'var(--text-sm)',
-                        border: '1px solid rgba(224,62,62,0.2)',
+                        border: '1px solid var(--priority-high)',
                     }}>
                         {error}
                     </div>
@@ -477,7 +477,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                         padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
                         background: 'var(--priority-high-bg)', color: 'var(--priority-high)',
                         fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                        border: '1px solid rgba(224,62,62,0.2)',
+                        border: '1px solid var(--priority-high)',
                     }}>
                         {error}
                     </div>

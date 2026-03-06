@@ -326,12 +326,12 @@ function MenuButton({
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--text-sm)',
         color: danger
-          ? (hovered ? 'var(--status-critical, #EF4444)' : 'var(--color-text-secondary)')
+          ? (hovered ? 'var(--priority-high)' : 'var(--color-text-secondary)')
           : 'var(--color-text-primary)',
         transition: 'background var(--transition-base), color var(--transition-base)',
       }}
     >
-      <span style={{ opacity: 0.65, display: 'flex', color: danger && hovered ? 'var(--status-critical, #EF4444)' : 'inherit' }}>
+      <span style={{ opacity: 0.65, display: 'flex', color: danger && hovered ? 'var(--priority-high)' : 'inherit' }}>
         {icon}
       </span>
       {label}

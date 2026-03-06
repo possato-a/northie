@@ -5,12 +5,12 @@ import Dashboard from './pages/Dashboard'
 import Vendas from './pages/Vendas'
 import Clientes from './pages/Clientes'
 import Canais from './pages/Canais'
-import Criadores from './pages/Criadores'
 import AppStore from './pages/AppStore'
 import Configuracoes from './pages/Configuracoes'
 import Card from './pages/Card'
-import Valuation from './pages/Valuation'
 import Growth from './pages/Growth'
+import Conversas from './pages/Conversas'
+import Contexto from './pages/Contexto'
 import Relatorios from './pages/Relatorios'
 import ChatSidebar from './components/layout/ChatSidebar'
 import Login from './pages/Login'
@@ -68,10 +68,10 @@ export default function App() {
       case 'vendas': return 'Vendas'
       case 'clientes': return 'Clientes'
       case 'canais': return 'Canais'
-      case 'creators': return 'Criadores'
       case 'growth': return 'Northie Growth'
       case 'card': return 'Northie Card'
-      case 'valuation': return 'Northie Valuation'
+      case 'conversas': return 'Conversas'
+      case 'contexto': return 'Contexto do Negócio'
       case 'relatorios': return 'Relatórios'
       case 'app-store': return 'App Store'
       case 'configuracoes': return 'Configurações'
@@ -141,7 +141,6 @@ export default function App() {
             )}
             {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
             {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {activePage === 'creators' && <Criadores onToggleChat={() => setChatOpen(!chatOpen)} />}
             {activePage === 'app-store' && (
               <AppStore
                 onToggleChat={() => setChatOpen(!chatOpen)}
@@ -149,12 +148,13 @@ export default function App() {
               />
             )}
             {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {activePage === 'valuation' && <Valuation onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'conversas' && <Conversas onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {activePage === 'contexto' && <Contexto onToggleChat={() => setChatOpen(!chatOpen)} />}
             {activePage === 'relatorios' && <Relatorios onToggleChat={() => setChatOpen(!chatOpen)} user={session?.user} />}
             {activePage === 'configuracoes' && (
               <Configuracoes user={session?.user} onGoToAppStore={() => setActivePage('app-store')} />
             )}
-            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'creators' && activePage !== 'card' && activePage !== 'valuation' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'card' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
               <motion.div
                 key={activePage}
                 initial={{ opacity: 0, y: 10 }}
@@ -166,7 +166,7 @@ export default function App() {
                   fontSize: 40,
                   fontWeight: 400,
                   letterSpacing: '-1.6px',
-                  color: 'rgba(30,30,30,0.25)',
+                  color: 'rgba(var(--fg-rgb), 0.25)',
                 }}
               >
                 Em breve

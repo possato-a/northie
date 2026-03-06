@@ -149,7 +149,87 @@ const PLUGINS: Plugin[] = [
             'Script < 2KB — zero dependências externas',
             'Funciona em qualquer plataforma de site ou landing page'
         ]
-    }
+    },
+    {
+        id: 'google-calendar',
+        name: 'Google Calendar',
+        category: 'Integrações',
+        description: 'Sincronize reuniões e conecte seu pipeline ao calendário.',
+        fullDescription: 'Integração com Google Calendar para rastrear reuniões de vendas, sincronizar pipeline nativo e correlacionar encontros com dados financeiros de clientes.',
+        installCount: '3.200 instalaram nos últimos 7 dias',
+        status: 'Em breve',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-google-calendar.png',
+        developer: '@northie',
+        reviews: '—',
+        metricInstalls: '—',
+        features: [
+            'Sincronizar reuniões automaticamente com pipeline',
+            'Correlacionar reuniões com dados de receita',
+            'Detectar ciclo médio de fechamento por canal',
+            'Alertas de reunião com contexto financeiro do lead',
+        ],
+    },
+    {
+        id: 'google-meet',
+        name: 'Google Meet',
+        category: 'Integrações',
+        description: 'Transcreva reuniões e extraia inteligência de vendas automaticamente.',
+        fullDescription: 'A IA da Northie transcreve suas reuniões no Google Meet, analisa objeções, perfil do lead e padrões de fechamento — tudo cruzado com dados financeiros reais.',
+        installCount: '2.800 instalaram nos últimos 7 dias',
+        status: 'Em breve',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-google-meet.png',
+        developer: '@northie',
+        reviews: '—',
+        metricInstalls: '—',
+        features: [
+            'Transcrição automática de reuniões',
+            'Análise de objeções e sentimento por IA',
+            'Cruzamento com LTV real dos clientes fechados',
+            'Insights: perfil de lead que fecha vs não fecha',
+        ],
+    },
+    {
+        id: 'resend',
+        name: 'Resend',
+        category: 'Marketing',
+        description: 'Envie emails de reativação e nurturing com rastreamento nativo.',
+        fullDescription: 'Canal de execução nativo para o Growth Engine. Sequências de reativação e nurturing com rastreamento de abertura e clique, domínio próprio e templates controlados.',
+        installCount: '1.900 instalaram nos últimos 7 dias',
+        status: 'Em breve',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-resend.png',
+        developer: '@northie',
+        reviews: '—',
+        metricInstalls: '—',
+        features: [
+            'Sequências de reativação disparadas pelo Growth Engine',
+            'Rastreamento de abertura e clique',
+            'Templates personalizáveis com dados do cliente',
+            'ROI medido em reais por campanha de email',
+        ],
+    },
+    {
+        id: 'whatsapp',
+        name: 'WhatsApp Business',
+        category: 'Marketing',
+        description: 'Canal de reativação e upsell com maior taxa de abertura no Brasil.',
+        fullDescription: 'Integração com a Meta Business API para envio de mensagens automáticas de reativação, upsell e alertas — tudo aprovado pelo founder antes do disparo.',
+        installCount: '4.100 instalaram nos últimos 7 dias',
+        status: 'Em breve',
+        iconColor: '#FFFFFF',
+        logoUrl: '/logos/logo-whatsapp.png',
+        developer: '@northie',
+        reviews: '—',
+        metricInstalls: '—',
+        features: [
+            'Reativação de clientes via mensagem personalizada',
+            'Upsell automático baseado em cohort',
+            'Templates aprovados pela Meta',
+            'ROI medido por mensagem disparada',
+        ],
+    },
 ]
 
 // ── Components ───────────────────────────────────────────────────────────────
@@ -542,8 +622,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                             right: 24,
                             maxWidth: 400,
                             padding: '12px 20px',
-                            background: toast.type === 'error' ? '#FEF2F2' : toast.type === 'success' ? '#F0FDF4' : 'var(--color-bg-primary)',
-                            border: `1px solid ${toast.type === 'error' ? '#FECACA' : toast.type === 'success' ? '#BBF7D0' : 'var(--color-border)'}`,
+                            background: toast.type === 'error' ? 'var(--priority-high-bg)' : toast.type === 'success' ? 'var(--status-complete-bg)' : 'var(--color-bg-primary)',
+                            border: `1px solid ${toast.type === 'error' ? 'var(--priority-high)' : toast.type === 'success' ? 'var(--status-complete)' : 'var(--color-border)'}`,
                             borderRadius: 'var(--radius-lg)',
                             boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                             cursor: 'pointer',
@@ -554,7 +634,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                             margin: 0,
                             fontFamily: 'var(--font-sans)',
                             fontSize: 'var(--text-sm)',
-                            color: toast.type === 'error' ? '#991B1B' : toast.type === 'success' ? '#166534' : 'var(--color-text-primary)',
+                            color: toast.type === 'error' ? 'var(--priority-high)' : toast.type === 'success' ? 'var(--status-complete)' : 'var(--color-text-primary)',
                             lineHeight: 1.5,
                         }}>
                             {toast.message}
@@ -664,7 +744,7 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     style={{
-                        background: 'rgba(239,68,68,0.08)', border: '1px solid var(--status-critical)',
+                        background: 'var(--priority-high-bg)', border: '1px solid var(--status-critical)',
                         borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 24,
                         display: 'flex', alignItems: 'center', gap: 10,
                     }}
@@ -809,11 +889,11 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                             <div style={{ marginTop: 40 }}>
                                 <SectionLabel gutterBottom={12}>Sincronização em Tempo Real</SectionLabel>
                                 <div style={{
-                                    background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.25)',
+                                    background: 'var(--status-complete-bg)', border: '1px solid var(--status-complete)',
                                     borderRadius: 'var(--radius-lg)', padding: '14px 18px', marginBottom: 20,
                                     display: 'flex', alignItems: 'center', gap: 10,
                                 }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
                                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontWeight: 500 }}>
                                         Webhooks registrados automaticamente na sua loja — nenhuma configuração manual necessária.
                                     </span>
@@ -839,9 +919,9 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                         style={{
                                             flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
                                             padding: '8px 14px', borderRadius: 'var(--radius-md)',
-                                            border: `1px solid ${copiedShopify ? 'var(--color-success, #22c55e)' : 'var(--color-border)'}`,
-                                            background: copiedShopify ? 'rgba(34,197,94,0.08)' : 'var(--color-bg-primary)',
-                                            color: copiedShopify ? 'var(--color-success, #22c55e)' : 'var(--color-text-secondary)',
+                                            border: `1px solid ${copiedShopify ? 'var(--accent-green)' : 'var(--color-border)'}`,
+                                            background: copiedShopify ? 'var(--status-complete-bg)' : 'var(--color-bg-primary)',
+                                            color: copiedShopify ? 'var(--accent-green)' : 'var(--color-text-secondary)',
                                             fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
                                             fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
                                             letterSpacing: '0.04em', textTransform: 'uppercase'
@@ -870,11 +950,11 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                             <div style={{ marginTop: 40 }}>
                                 <SectionLabel gutterBottom={12}>Sincronização Automática</SectionLabel>
                                 <div style={{
-                                    background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.25)',
+                                    background: 'var(--status-complete-bg)', border: '1px solid var(--status-complete)',
                                     borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 20,
                                     display: 'flex', alignItems: 'flex-start', gap: 12,
                                 }}>
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-success, #22c55e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
                                     <div>
                                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
                                             Nenhuma configuração manual necessária
@@ -921,9 +1001,9 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                             style={{
                                                 display: 'flex', alignItems: 'center', gap: 6,
                                                 padding: '6px 12px', borderRadius: 'var(--radius-md)',
-                                                border: `1px solid ${copiedPixel ? 'var(--color-success, #22c55e)' : 'var(--color-border)'}`,
-                                                background: copiedPixel ? 'rgba(34,197,94,0.08)' : 'var(--color-bg-primary)',
-                                                color: copiedPixel ? 'var(--color-success, #22c55e)' : 'var(--color-text-secondary)',
+                                                border: `1px solid ${copiedPixel ? 'var(--accent-green)' : 'var(--color-border)'}`,
+                                                background: copiedPixel ? 'var(--status-complete-bg)' : 'var(--color-bg-primary)',
+                                                color: copiedPixel ? 'var(--accent-green)' : 'var(--color-text-secondary)',
                                                 fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
                                                 fontWeight: 500, cursor: pixelSnippet ? 'pointer' : 'default',
                                                 transition: 'all 0.2s', letterSpacing: '0.04em', textTransform: 'uppercase'
@@ -988,9 +1068,9 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                         style={{
                                             flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
                                             padding: '8px 14px', borderRadius: 'var(--radius-md)',
-                                            border: `1px solid ${copied ? 'var(--color-success, #22c55e)' : 'var(--color-border)'}`,
-                                            background: copied ? 'rgba(34,197,94,0.08)' : 'var(--color-bg-primary)',
-                                            color: copied ? 'var(--color-success, #22c55e)' : 'var(--color-text-secondary)',
+                                            border: `1px solid ${copied ? 'var(--accent-green)' : 'var(--color-border)'}`,
+                                            background: copied ? 'var(--status-complete-bg)' : 'var(--color-bg-primary)',
+                                            color: copied ? 'var(--accent-green)' : 'var(--color-text-secondary)',
                                             fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
                                             fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s',
                                             letterSpacing: '0.04em', textTransform: 'uppercase'

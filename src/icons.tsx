@@ -95,6 +95,22 @@ export const GrowthIcon = () => (
   </svg>
 )
 
+export const ConversasIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 4h8a4 4 0 0 1 4 4v2a4 4 0 0 1-4 4H9l-4 3v-3a4 4 0 0 1-1-2.83V8a4 4 0 0 1 4-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <circle cx="7.5" cy="9.5" r="0.75" fill="currentColor"/>
+    <circle cx="10" cy="9.5" r="0.75" fill="currentColor"/>
+    <circle cx="12.5" cy="9.5" r="0.75" fill="currentColor"/>
+  </svg>
+)
+
+export const ContextoIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10 2a6 6 0 0 1 5.66 8.04l.34.96h-2a4 4 0 1 0-8 0H4l.34-.96A6 6 0 0 1 10 2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M7 14h6M8 17h4M9 14v3M11 14v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+)
+
 export function RelatoriosIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
