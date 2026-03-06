@@ -683,6 +683,7 @@ export default function Growth() {
   const [loading, setLoading] = useState(true)
   const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
+  const pollingErrorCounts = useRef<Record<string, number>>({})
 
   const fetchData = useCallback(async () => {
     try {
@@ -715,15 +716,27 @@ export default function Growth() {
   }, [])
 
   const startPolling = useCallback((id: string) => {
+    pollingErrorCounts.current[id] = 0
     pollingRefs.current[id] = setInterval(async () => {
       try {
         const res = await growthApi.getStatus(id)
+        pollingErrorCounts.current[id] = 0
         const { status, execution_log } = res.data
         setRecommendations(prev => prev.map(r =>
           r.id === id ? { ...r, status, execution_log: execution_log || [] } : r
         ))
         if (status === 'completed' || status === 'failed') stopPolling(id)
-      } catch { /* rede instável — continua tentando */ }
+      } catch {
+        pollingErrorCounts.current[id] = (pollingErrorCounts.current[id] || 0) + 1
+        if (pollingErrorCounts.current[id] >= 15) {
+          stopPolling(id)
+          setRecommendations(prev => prev.map(r =>
+            r.id === id && r.status === 'executing'
+              ? { ...r, status: 'failed' as RecStatus, execution_log: [...(r.execution_log || []), { step: 'Conexão perdida após múltiplas tentativas', status: 'failed' as const, timestamp: new Date().toISOString() }] }
+              : r
+          ))
+        }
+      }
     }, 2000)
   }, [stopPolling])
 

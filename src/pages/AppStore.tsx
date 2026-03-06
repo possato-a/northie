@@ -253,6 +253,14 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [pluginMeta, setPluginMeta] = useState<Record<string, { connectedAccounts?: number }>>({})
     const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null)
     const [shopifyDomain, setShopifyDomain] = useState('')
+    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
+    const toastTimer = useRef<ReturnType<typeof setTimeout>>()
+
+    const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+        if (toastTimer.current) clearTimeout(toastTimer.current)
+        setToast({ message, type })
+        toastTimer.current = setTimeout(() => setToast(null), 5000)
+    }, [])
 
     useEffect(() => {
         if (!user?.id) return
@@ -300,7 +308,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             const msg = days === 0
                 ? 'Sincronização iniciada! O histórico completo será importado em alguns instantes.'
                 : `Sincronização iniciada! Os dados dos últimos ${days} dias serão importados em breve.`
-            alert(msg)
+            showToast(msg, 'success')
         } catch (err: any) {
             const status = err?.response?.status
             const isTimeout = err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')
@@ -313,11 +321,11 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                     'shopify': 'Shopify',
                 }
                 const platformName = platformNames[pluginId] ?? pluginId
-                alert(`Sessão da ${platformName} expirada. Desconecte e reconecte a integração para sincronizar.`)
+                showToast(`Sessão da ${platformName} expirada. Desconecte e reconecte a integração para sincronizar.`, 'error')
             } else if (isTimeout) {
-                alert('A sincronização foi iniciada, mas demorou para confirmar. Os dados serão importados em breve.')
+                showToast('A sincronização foi iniciada, mas demorou para confirmar. Os dados serão importados em breve.', 'info')
             } else {
-                alert('Falha ao iniciar sincronização. Tente novamente.')
+                showToast('Falha ao iniciar sincronização. Tente novamente.', 'error')
             }
         } finally {
             setSyncingPlatform(null)
@@ -392,7 +400,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             if (pluginId === 'shopify') {
                 const shop = shopifyDomain.trim()
                 if (!shop) {
-                    alert('Informe o domínio da sua loja Shopify antes de conectar.\nEx: minhaloja.myshopify.com')
+                    showToast('Informe o domínio da sua loja Shopify antes de conectar. Ex: minhaloja.myshopify.com', 'error')
                     return
                 }
             }
@@ -419,13 +427,13 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 })
                 .catch((err) => {
                     console.error('[AppStore] Erro ao iniciar OAuth:', err)
-                    alert('Não foi possível conectar. Verifique sua conexão e tente novamente.')
+                    showToast('Não foi possível conectar. Verifique sua conexão e tente novamente.', 'error')
                 })
         } else if (pluginId === 'northie-pixel') {
             // Pixel doesn't need OAuth — snippet is shown in detail view
             return
         } else {
-            alert('Esta integração estará disponível em breve.')
+            showToast('Esta integração estará disponível em breve.', 'info')
         }
     }
 
@@ -440,7 +448,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             }
         } catch (error) {
             console.error('Failed to disconnect:', error)
-            alert('Falha ao desconectar. Tente novamente.')
+            showToast('Falha ao desconectar. Tente novamente.', 'error')
         }
     }
 
@@ -986,6 +994,42 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                     </div>
                 </div>
             </div>
+
+            {/* Toast notification */}
+            <AnimatePresence>
+                {toast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                        onClick={() => setToast(null)}
+                        style={{
+                            position: 'fixed',
+                            bottom: 24,
+                            right: 24,
+                            maxWidth: 400,
+                            padding: '12px 20px',
+                            background: toast.type === 'error' ? '#FEF2F2' : toast.type === 'success' ? '#F0FDF4' : 'var(--color-bg-primary)',
+                            border: `1px solid ${toast.type === 'error' ? '#FECACA' : toast.type === 'success' ? '#BBF7D0' : 'var(--color-border)'}`,
+                            borderRadius: 'var(--radius-lg)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                            cursor: 'pointer',
+                            zIndex: 9999,
+                        }}
+                    >
+                        <p style={{
+                            margin: 0,
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: 'var(--text-sm)',
+                            color: toast.type === 'error' ? '#991B1B' : toast.type === 'success' ? '#166534' : 'var(--color-text-primary)',
+                            lineHeight: 1.5,
+                        }}>
+                            {toast.message}
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     )
 }

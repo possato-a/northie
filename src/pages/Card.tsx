@@ -473,8 +473,16 @@ export default function Card({ onToggleChat }: PageProps) {
     const score = scoreData
     const maxH = history.length > 0 ? Math.max(...history.map(h => h.s)) : 100
 
-    const handleToggleFreeze = (id: string) =>
+    const handleToggleFreeze = async (id: string) => {
+        const card = cards.find(c => c.id === id)
+        if (!card) return
         setCards(prev => prev.map(c => c.id === id ? { ...c, frozen: !c.frozen } : c))
+        try {
+            await api.patch(`/card/cards/${id}/freeze`, { frozen: !card.frozen })
+        } catch {
+            setCards(prev => prev.map(c => c.id === id ? { ...c, frozen: card.frozen } : c))
+        }
+    }
 
     const handleConfirmCredit = async (amount: number, purposes: string[], term: number) => {
         setSubmittingRequest(true)
