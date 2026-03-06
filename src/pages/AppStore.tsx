@@ -4,7 +4,7 @@ import TopBar from '../components/layout/TopBar'
 import { integrationApi, setProfileId, pixelApi } from '../lib/api'
 import {
     PageHeader, SectionLabel,
-    Btn, Modal, EmptyState, FilterPills, Input
+    Btn, EmptyState, FilterPills, Input
 } from '../components/ui/shared'
 
 // ── Types & Mock Data ────────────────────────────────────────────────────────
@@ -242,52 +242,6 @@ function Metric({ label, value, sub }: { label: string; value: string; sub: stri
     )
 }
 
-function WebhookModal({ plugin, onClose }: { plugin: Plugin; onClose: () => void }) {
-    const webhookUrl = `https://northie.vercel.app/api/webhooks/${plugin.id.replace('-ads', '')}`
-
-    return (
-        <Modal onClose={onClose} maxWidth={520} title={`Configurar ${plugin.name}`} subtitle={`Para sincronizar suas vendas, configure o Webhook no painel da ${plugin.name}.`}>
-            <div style={{ marginTop: 24 }}>
-                <div style={{ background: 'var(--color-bg-secondary)', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', marginBottom: 24 }}>
-                    <SectionLabel gutterBottom={8}>URL DE DESTINO (POST)</SectionLabel>
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                        <code style={{
-                            flex: 1, background: 'transparent', color: 'var(--color-text-primary)', fontSize: 'var(--text-sm)',
-                            fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                        }}>
-                            {webhookUrl}
-                        </code>
-                        <Btn
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                                navigator.clipboard.writeText(webhookUrl)
-                                alert('URL Copiada!')
-                            }}
-                        >
-                            COPIAR
-                        </Btn>
-                    </div>
-                </div>
-
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                    <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 12 }}>Passo a passo:</p>
-                    <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <li>Acesse o painel da {plugin.name}</li>
-                        <li>Procure por "Webhooks" ou "Configurações de API"</li>
-                        <li>Cole a URL acima e selecione o evento "Venda Aprovada"</li>
-                        <li>Salve as modificações</li>
-                    </ol>
-                </div>
-
-                <Btn variant="primary" size="md" fullWidth style={{ marginTop: 32 }} onClick={onClose}>
-                    Concluir configuração
-                </Btn>
-            </div>
-        </Modal>
-    )
-}
-
 // ── Main Page Component ─────────────────────────────────────────────────────
 
 export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => void; user?: any }) {
@@ -298,7 +252,6 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [expiredPlugins, setExpiredPlugins] = useState<string[]>([])
     const [pluginMeta, setPluginMeta] = useState<Record<string, { connectedAccounts?: number }>>({})
     const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null)
-    const [webhookOpen, setWebhookOpen] = useState<Plugin | null>(null)
     const [shopifyDomain, setShopifyDomain] = useState('')
 
     useEffect(() => {
@@ -381,6 +334,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                     google: 'google-ads',
                     hotmart: 'hotmart',
                     shopify: 'shopify',
+                    stripe: 'stripe',
                 }
                 const id = pluginIdMap[platform] ?? `${platform}-ads`
                 setInstalledPlugins(prev => [...new Set([...prev, id])])
@@ -416,12 +370,13 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }, [activeCategory, searchQuery, currentPlugins])
 
     const handleInstall = (pluginId: string) => {
-        // Plataformas com fluxo OAuth (popup)
+        // Todas as plataformas com fluxo OAuth (popup)
         const oauthPlatforms: Record<string, string> = {
             'meta-ads': 'meta',
             'google-ads': 'google',
             'hotmart': 'hotmart',
             'shopify': 'shopify',
+            'stripe': 'stripe',
         }
 
         if (pluginId in oauthPlatforms) {
@@ -463,9 +418,6 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         } else if (pluginId === 'northie-pixel') {
             // Pixel doesn't need OAuth — snippet is shown in detail view
             return
-        } else if (pluginId === 'stripe') {
-            const plugin = PLUGINS.find(p => p.id === pluginId)
-            if (plugin) setWebhookOpen(plugin)
         } else {
             alert('Esta integração estará disponível em breve.')
         }
@@ -561,11 +513,6 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 )}
             </AnimatePresence>
 
-            <AnimatePresence>
-                {webhookOpen && (
-                    <WebhookModal plugin={webhookOpen} onClose={() => setWebhookOpen(null)} />
-                )}
-            </AnimatePresence>
         </div>
     )
 }
@@ -585,7 +532,7 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
 }) {
     const isConnected = plugin.status === 'Conectado'
     const isExpired = plugin.status === 'Expirado'
-    const supportsSync = ['meta-ads', 'google-ads', 'hotmart', 'shopify'].includes(plugin.id)
+    const supportsSync = ['meta-ads', 'google-ads', 'hotmart', 'shopify', 'stripe'].includes(plugin.id)
     const anySyncing = isSyncing || isSyncingFull
     const [copied, setCopied] = useState(false)
     const [copiedShopify, setCopiedShopify] = useState(false)
@@ -797,6 +744,36 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.5 }}>
                                     Eventos ativos: <strong>orders/paid · orders/refunded · orders/cancelled · customers/create · customers/update</strong>
                                 </p>
+                            </div>
+                        )}
+
+                        {plugin.id === 'stripe' && isConnected && (
+                            <div style={{ marginTop: 40 }}>
+                                <SectionLabel gutterBottom={12}>Sincronização Automática</SectionLabel>
+                                <div style={{
+                                    background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.25)',
+                                    borderRadius: 'var(--radius-lg)', padding: '16px 20px', marginBottom: 20,
+                                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                                }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-success, #22c55e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 1, flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                                    <div>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+                                            Nenhuma configuração manual necessária
+                                        </p>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                                            O Stripe Connect sincroniza transações, MRR, churn e assinaturas automaticamente. Webhooks configurados pela Northie em nível de plataforma.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                                    <p style={{ fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 10 }}>Dados sincronizados:</p>
+                                    <ul style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 6, lineHeight: 1.6 }}>
+                                        <li>Transações aprovadas, reembolsadas e canceladas</li>
+                                        <li>Assinaturas ativas, pausadas e encerradas (MRR)</li>
+                                        <li>Clientes e histórico de pagamentos (LTV)</li>
+                                        <li>Churn calculado automaticamente por cohort</li>
+                                    </ul>
+                                </div>
                             </div>
                         )}
 
