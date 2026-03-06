@@ -3,29 +3,34 @@
 /* ── shadcn/ui theme — mapeado sobre os tokens Northie ───────────────────── */
 
 @theme inline {
+  /* Surfaces — referencia vars brutas sem colisão de nome */
   --color-background:           var(--bg);
   --color-foreground:           var(--fg);
-  --color-card:                 var(--color-bg-primary);
-  --color-card-foreground:      var(--color-text-primary);
-  --color-popover:              var(--color-bg-primary);
-  --color-popover-foreground:   var(--color-text-primary);
-  --color-primary:              var(--color-primary);
-  --color-primary-foreground:   var(--color-primary-fg);
-  --color-secondary:            var(--color-bg-secondary);
-  --color-secondary-foreground: var(--color-text-primary);
-  --color-muted:                var(--color-bg-secondary);
-  --color-muted-foreground:     var(--color-text-tertiary);
-  --color-accent:               var(--color-bg-tertiary);
-  --color-accent-foreground:    var(--color-text-primary);
+  --color-card:                 var(--n-card);
+  --color-card-foreground:      var(--n-text);
+  --color-popover:              var(--n-card);
+  --color-popover-foreground:   var(--n-text);
+
+  /* Brand */
+  --color-primary:              var(--n-primary);
+  --color-primary-foreground:   var(--n-primary-fg);
+  --color-secondary:            var(--n-secondary);
+  --color-secondary-foreground: var(--n-text);
+  --color-muted:                var(--n-secondary);
+  --color-muted-foreground:     var(--n-muted-fg);
+  --color-accent:               var(--n-accent);
+  --color-accent-foreground:    var(--n-text);
   --color-destructive:          oklch(0.577 0.245 27.325);
   --color-destructive-foreground: oklch(0.985 0 0);
-  --color-border:               var(--color-border);
-  --color-input:                var(--color-border);
-  --color-ring:                 var(--color-primary);
-  --radius-sm:                  3px;
-  --radius-md:                  4px;
-  --radius-lg:                  8px;
-  --radius-xl:                  12px;
+  --color-border:               var(--n-border);
+  --color-input:                var(--n-border);
+  --color-ring:                 var(--n-primary);
+
+  /* Radius */
+  --radius-sm:  3px;
+  --radius-md:  6px;
+  --radius-lg:  10px;
+  --radius-xl:  14px;
 
   /* Chart palette — warm amber ramp */
   --color-chart-1: oklch(0.837 0.128 66.29);
@@ -33,11 +38,21 @@
   --color-chart-3: oklch(0.646 0.222 41.116);
   --color-chart-4: oklch(0.553 0.195 38.402);
   --color-chart-5: oklch(0.47 0.157 37.304);
+
+  /* Sidebar */
+  --color-sidebar:                 var(--bg);
+  --color-sidebar-foreground:      var(--fg);
+  --color-sidebar-primary:         var(--n-primary);
+  --color-sidebar-primary-foreground: var(--n-primary-fg);
+  --color-sidebar-accent:          var(--n-accent);
+  --color-sidebar-accent-foreground: var(--n-text);
+  --color-sidebar-border:          var(--n-border);
+  --color-sidebar-ring:            var(--n-primary);
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: var(--n-border);
   }
 }
 
@@ -87,6 +102,16 @@ body,
   --color-primary-fg:    oklch(0.985 0.008 70);
   --color-primary-hover: oklch(0.58  0.222 41.116);
   --color-primary-light: oklch(0.97  0.04  70);
+
+  /* ── Bridge vars for @theme inline (avoid circular refs) ─────────────── */
+  --n-card:       #FFFFFF;
+  --n-text:       #1C1917;
+  --n-primary:    oklch(0.646 0.222 41.116);
+  --n-primary-fg: oklch(0.985 0.008 70);
+  --n-secondary:  #F5F5F4;
+  --n-muted-fg:   #A8A29E;
+  --n-accent:     #E7E5E4;
+  --n-border:     #E2E0DD;
 
   /* ── Status ───────────────────────────────────────────────────────────── */
   --status-not-started:    #78716C;
@@ -227,6 +252,16 @@ body,
   --shadow-xl:         0 0 0 1px rgba(250,249,248,0.06), 0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-card:       0 0 0 1px rgba(250,249,248,0.04), 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-card-hover: 0 0 0 1px rgba(250,249,248,0.08), 0 2px 8px rgba(0, 0, 0, 0.4);
+
+  /* Bridge vars — dark overrides */
+  --n-card:       #1C1917;
+  --n-text:       #FAF9F8;
+  --n-primary:    oklch(0.705 0.213 47.604);
+  --n-primary-fg: oklch(0.141 0.005 285.823);
+  --n-secondary:  #292524;
+  --n-muted-fg:   #78716C;
+  --n-accent:     #3C3533;
+  --n-border:     rgba(250, 249, 248, 0.08);
 }
 
 /* ── Base Styles ──────────────────────────────────────────────────────────── */
