@@ -120,6 +120,7 @@ export async function processScheduledReports() {
                 status: 'success',
                 situacao_geral: aiAnalysis.situacao_geral,
                 snapshot,
+                triggered_by: 'automatic',
                 ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
             });
 
@@ -139,6 +140,7 @@ export async function processScheduledReports() {
                 frequency: config.frequency,
                 format,
                 status: 'error',
+                triggered_by: 'automatic',
             });
         }
     }

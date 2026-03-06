@@ -81,8 +81,9 @@ function writeReportLog(params: {
     situacao_geral: 'saudavel' | 'atencao' | 'critica' | null;
     snapshot: ReturnType<typeof buildSnapshot>;
     resendEmailId?: string | null;
+    triggeredBy?: 'manual' | 'automatic' | 'email';
 }) {
-    const { profileId, freqRaw, format, period, situacao_geral, snapshot, resendEmailId } = params;
+    const { profileId, freqRaw, format, period, situacao_geral, snapshot, resendEmailId, triggeredBy } = params;
     supabase.from('report_logs').insert({
         profile_id: profileId,
         frequency: freqRaw,
@@ -92,6 +93,7 @@ function writeReportLog(params: {
         status: 'generated',
         situacao_geral,
         snapshot,
+        triggered_by: triggeredBy ?? 'manual',
         ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
     }).then(({ error }) => {
         if (error) console.error('[Reports] Failed to write report_log:', error.message);
@@ -433,7 +435,13 @@ export async function sendReportByEmail(req: Request, res: Response) {
     if (!email) return res.status(400).json({ error: 'Email não configurado. Configure em Relatórios > Envio automático.' });
 
     try {
-        const reportData = await generateReportData(profileId, frequency);
+        // FIX 3: reutilizar cache do preview se disponível (evita duplo roundtrip ao banco)
+        const cacheKey = `${profileId}:${frequency}`;
+        let reportData = getCached(cacheKey);
+        if (!reportData) {
+            reportData = await generateReportData(profileId, frequency);
+            setCached(cacheKey, reportData);
+        }
         const aiAnalysis = await generateReportNarrative(reportData, profileId);
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         const dateStr = new Date().toISOString().split('T')[0];
@@ -469,6 +477,7 @@ export async function sendReportByEmail(req: Request, res: Response) {
             situacao_geral: aiAnalysis.situacao_geral,
             snapshot,
             resendEmailId,
+            triggeredBy: 'email',
         });
 
         return res.json({ ok: true, to: email, email_id: resendEmailId });

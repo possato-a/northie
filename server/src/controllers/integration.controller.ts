@@ -518,7 +518,24 @@ export async function getIntegrationStatus(req: Request, res: Response) {
 }
 
 /**
- * Cron endpoint
+ * Cron endpoint — relatórios automáticos (a cada 4h via Vercel Cron)
+ */
+export async function cronReports(req: Request, res: Response) {
+    const secret = req.headers['authorization'];
+    if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        await processScheduledReports();
+        return res.status(200).json({ ok: true, ran_at: new Date().toISOString() });
+    } catch (error: any) {
+        console.error('[cronReports] error:', error.message);
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+/**
+ * Cron endpoint — sync completo diário
  */
 export async function cronSync(req: Request, res: Response) {
     const secret = req.headers['authorization'];
