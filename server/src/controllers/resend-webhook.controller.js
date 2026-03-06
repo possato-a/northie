@@ -45,24 +45,69 @@ export async function handleResendWebhook(req, res) {
         console.warn('[ResendWebhook] Assinatura inválida');
         return res.status(401).json({ error: 'Invalid signature' });
     }
-    const event = req.body;
-    const emailStatus = EVENT_TO_STATUS[event.type];
-    if (!emailStatus) {
-        // Evento não relevante — responde 200 para o Resend não retentar
-        return res.status(200).json({ received: true });
+    // req.body é um Buffer (express.raw) — parsear via rawBody que já está em UTF-8
+    const rawBody = req.rawBody;
+    let event;
+    try {
+        event = JSON.parse(rawBody?.toString('utf8') ?? req.body.toString());
     }
-    const emailId = event.data?.email_id;
+    catch {
+        console.warn('[ResendWebhook] Payload inválido — não é JSON');
+        return res.status(400).json({ error: 'Invalid JSON payload' });
+    }
+    const { type, data } = event;
+    const emailId = data?.email_id;
+    const recipientEmail = data?.to?.[0]; // Resend envia to como array
     if (!emailId)
         return res.status(200).json({ received: true });
-    const { error } = await supabase
-        .from('report_logs')
-        .update({ email_status: emailStatus })
-        .eq('resend_email_id', emailId);
-    if (error) {
-        console.error('[ResendWebhook] Erro ao atualizar log:', error.message);
-        return res.status(500).json({ error: 'DB update failed' });
+    // ── 1. Atualiza report_logs para eventos que mapeiam em status ───────────
+    const emailStatus = EVENT_TO_STATUS[type];
+    if (emailStatus) {
+        const { error } = await supabase
+            .from('report_logs')
+            .update({ email_status: emailStatus })
+            .eq('resend_email_id', emailId);
+        if (error) {
+            console.error('[ResendWebhook] Erro ao atualizar report_logs:', error.message);
+        }
     }
-    console.log(`[ResendWebhook] ${event.type} → email ${emailId} → status ${emailStatus}`);
+    // ── 2. Atualiza tabela customers com base no recipiente ───────────────────
+    if (recipientEmail) {
+        if (type === 'email.bounced') {
+            // Marca bounce — evita reenvios e protege reputação do domínio
+            const { error } = await supabase
+                .from('customers')
+                .update({ email_status: 'bounced' })
+                .eq('email', recipientEmail);
+            if (error)
+                console.error('[ResendWebhook] Erro ao marcar bounce:', error.message);
+            else
+                console.log(`[ResendWebhook] email.bounced → customers email_status=bounced para ${recipientEmail}`);
+        }
+        else if (type === 'email.complained') {
+            // Reclamo (spam) — marca como unsubscribed imediatamente
+            const { error } = await supabase
+                .from('customers')
+                .update({ email_status: 'unsubscribed' })
+                .eq('email', recipientEmail);
+            if (error)
+                console.error('[ResendWebhook] Erro ao marcar complained:', error.message);
+            else
+                console.log(`[ResendWebhook] email.complained → customers email_status=unsubscribed para ${recipientEmail}`);
+        }
+        else if (type === 'email.opened' || type === 'email.clicked') {
+            // Engajamento positivo — atualiza last_engagement_at para cálculo de churn
+            const { error } = await supabase
+                .from('customers')
+                .update({ last_engagement_at: new Date().toISOString() })
+                .eq('email', recipientEmail);
+            if (error)
+                console.error('[ResendWebhook] Erro ao atualizar last_engagement_at:', error.message);
+            else
+                console.log(`[ResendWebhook] ${type} → customers last_engagement_at atualizado para ${recipientEmail}`);
+        }
+    }
+    console.log(`[ResendWebhook] ${type} → email_id=${emailId} status=${emailStatus ?? 'não mapeado'}`);
     return res.status(200).json({ received: true });
 }
 //# sourceMappingURL=resend-webhook.controller.js.map
