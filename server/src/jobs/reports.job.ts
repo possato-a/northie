@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import {
-    generateReportData, formatAsCsv, computeNextSendAt,
+    generateReportData, computeNextSendAt,
     type ReportFrequency,
 } from '../services/reports/report-generator.js';
 import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
@@ -123,10 +123,10 @@ export async function processScheduledReports() {
                 ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
             });
 
-            // Agenda próximo envio
+            // Agenda próximo envio (usa frequência normalizada p/ EN)
             await supabase
                 .from('report_configs')
-                .update({ next_send_at: computeNextSendAt(config.frequency), updated_at: now })
+                .update({ next_send_at: computeNextSendAt(frequency), updated_at: now })
                 .eq('id', config.id);
 
             console.log(`[Reports] Relatório ${format} enviado para ${config.profile_id}`);

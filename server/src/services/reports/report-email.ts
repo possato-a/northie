@@ -118,7 +118,7 @@ function buildEmailHtml(opts: {
            </span>`
         : '';
 
-    const formatLabel = { pdf: 'PDF', csv: 'CSV', json: 'JSON' }[format] ?? format.toUpperCase();
+    const formatLabel = { pdf: 'PDF', xlsx: 'XLSX', csv: 'CSV', json: 'JSON' }[format] ?? format.toUpperCase();
 
     return `<!DOCTYPE html>
 <html lang="pt-BR">
