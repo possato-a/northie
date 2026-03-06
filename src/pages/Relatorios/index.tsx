@@ -32,8 +32,18 @@ interface ReportLog {
     period_end?: string
     snapshot?: {
         revenue_net: number
+        ad_spend: number
         roas: number
         new_customers: number
+        ltv_avg: number
+        revenue_change_pct: number | null
+        situacao_geral?: string
+        resumo_executivo?: string
+        top_channel?: { channel: string; value_created: number; status: string }
+        worst_channel?: { channel: string; value_created: number; status: string } | null
+        at_risk_count?: number
+        at_risk_ltv?: number
+        diagnosticos_count?: number
         criticos: number
     }
 }
@@ -66,6 +76,10 @@ interface PreviewData {
     }
     channel_economics: ChannelEconomics[]
     at_risk_customers: { ltv: number | null }[]
+    revenue_trend?: { revenue: number }[]
+    top_products?: { product: string; revenue: number; transactions: number }[]
+    rfm_distribution?: { segment: string; count: number; avg_ltv: number }[]
+    rfm_source?: string
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -73,6 +87,10 @@ interface PreviewData {
 const fmtBRL = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 const fmtDate = (iso: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(iso))
 const fmtDateShort = (iso: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(iso))
+
+function isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
 
 function nextReportDate(frequency: string, nextSendAt?: string): string {
     if (nextSendAt) return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(nextSendAt))
@@ -91,7 +109,6 @@ const SITUACAO_CONFIG = {
     atencao:  { label: 'Atenção',  color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
     critica:  { label: 'Crítica',  color: '#EF4444', bg: 'rgba(239,68,68,0.12)'  },
 }
-
 
 function SituacaoBadge({ value, size = 'sm' }: { value: 'saudavel' | 'atencao' | 'critica'; size?: 'sm' | 'md' }) {
     const cfg = SITUACAO_CONFIG[value]
@@ -137,6 +154,26 @@ function SegmentedControl<T extends string>({ options, value, onChange, labels }
     )
 }
 
+// ── Sparkline ─────────────────────────────────────────────────────────────────
+
+function Sparkline({ data, width = 160, height = 28, color = '#1a7fe8' }: { data: number[]; width?: number; height?: number; color?: string }) {
+    if (data.length < 2) return null
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    const points = data.map((v, i) => {
+        const x = (i / (data.length - 1)) * width
+        const y = height - ((v - min) / range) * (height - 6) - 3
+        return `${x.toFixed(1)},${y.toFixed(1)}`
+    }).join(' ')
+    const trend = data[data.length - 1] >= data[0]
+    return (
+        <svg width={width} height={height} style={{ overflow: 'visible', flexShrink: 0 }}>
+            <polyline points={points} fill="none" stroke={trend ? '#22C55E' : '#EF4444'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+    )
+}
+
 // ── Preview components ────────────────────────────────────────────────────────
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -158,6 +195,18 @@ const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }>
     lucrativo: { color: '#22C55E', bg: 'rgba(34,197,94,0.10)',  label: 'Lucrativo' },
     prejuizo:  { color: '#EF4444', bg: 'rgba(239,68,68,0.10)',  label: 'Prejuízo'  },
     organico:  { color: '#6B7280', bg: 'rgba(107,114,128,0.10)', label: 'Orgânico' },
+}
+
+const RFM_LABELS: Record<string, { label: string; color: string }> = {
+    champions:          { label: 'Champions',   color: '#22C55E' },
+    loyal_customers:    { label: 'Leais',        color: '#3B82F6' },
+    at_risk:            { label: 'Em Risco',     color: '#F59E0B' },
+    cant_lose_them:     { label: 'Críticos',     color: '#EF4444' },
+    lost:               { label: 'Perdidos',     color: '#6B7280' },
+    potential_loyalists:{ label: 'Potenciais',   color: '#8B5CF6' },
+    new_customers:      { label: 'Novos',        color: '#06B6D4' },
+    promising:          { label: 'Promissores',  color: '#10B981' },
+    need_attention:     { label: 'Atenção',      color: '#F97316' },
 }
 
 function PreviewKpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
@@ -250,11 +299,35 @@ function EmailIcon() {
     )
 }
 
+function RefreshIcon({ spinning }: { spinning: boolean }) {
+    return (
+        <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transition: 'transform 0.4s linear', transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)', animation: spinning ? 'spin 0.7s linear infinite' : 'none' }}
+        >
+            <path d="M21 2v6h-6" />
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+            <path d="M3 22v-6h6" />
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+        </svg>
+    )
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface RelatoriosProps {
     onToggleChat?: () => void
     user?: { id?: string; email?: string } | null
+}
+
+// ── Generating step messages ──────────────────────────────────────────────────
+
+function getStepMessage(step: 0 | 1 | 2 | 3, format: 'xlsx' | 'json' | 'pdf' | null): string {
+    if (step === 0) return 'Coletando dados do período...'
+    if (step === 1) return 'Cruzando fontes e calculando métricas...'
+    if (step === 2) return format === 'pdf' ? 'Analisando com IA — até 90s...' : 'Processando dados...'
+    return `Gerando arquivo ${format?.toUpperCase() ?? ''}...`
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -268,6 +341,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [savedConfig, setSavedConfig] = useState<ReportConfig | null>(null)
     const [savingConfig, setSavingConfig] = useState(false)
     const [savedFeedback, setSavedFeedback] = useState(false)
+    const [emailError, setEmailError] = useState<string | null>(null)
 
     // Preview
     const [preview, setPreview] = useState<PreviewData | null>(null)
@@ -283,7 +357,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
     const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'json'>('pdf')
     const [generating, setGenerating] = useState<'xlsx' | 'json' | 'pdf' | null>(null)
-    const [, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
+    const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
     const [emailFeedback, setEmailFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
 
@@ -295,11 +369,20 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [loadingMore, setLoadingMore] = useState(false)
     const [downloadingLogId, setDownloadingLogId] = useState<string | null>(null)
     const [downloadError, setDownloadError] = useState<string | null>(null)
+    const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
+    const [refreshingLogs, setRefreshingLogs] = useState(false)
 
     useEffect(() => {
         reportsApi.getConfig()
             .then(res => {
-                if (res.data) { setConfig(res.data as ReportConfig); setSavedConfig(res.data as ReportConfig) }
+                if (res.data) {
+                    setConfig(res.data as ReportConfig)
+                    setSavedConfig(res.data as ReportConfig)
+                    // F1 — sync genFrequency with saved config
+                    if ((res.data as ReportConfig).frequency) {
+                        setGenFrequency((res.data as ReportConfig).frequency)
+                    }
+                }
             })
             .then(() => {}, () => {})
 
@@ -329,6 +412,20 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
     }
 
+    // F8 — Refresh logs handler
+    async function handleRefreshLogs() {
+        setRefreshingLogs(true)
+        try {
+            const res = await reportsApi.getLogs(0)
+            const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }
+            setLogs(data || [])
+            setHasMoreLogs(hasMore)
+            setLogsPage(0)
+        } catch { /* silencioso */ } finally {
+            setRefreshingLogs(false)
+        }
+    }
+
     useEffect(() => {
         setLoadingPreview(true)
         setPreviewError(false)
@@ -354,6 +451,11 @@ export default function Relatorios(_props: RelatoriosProps) {
     }
 
     async function handleSaveConfig() {
+        // F9 — validate email before saving
+        if (config.email && !isValidEmail(config.email)) {
+            setEmailError('Email inválido')
+            return
+        }
         setSavingConfig(true)
         try {
             await reportsApi.saveConfig(config)
@@ -370,6 +472,11 @@ export default function Relatorios(_props: RelatoriosProps) {
         setGeneratingStep(0)
         setEmailFeedback(null)
 
+        // F2 — real generating step timers
+        const t1 = setTimeout(() => setGeneratingStep(1), 2000)
+        const t2 = setTimeout(() => setGeneratingStep(2), 6000)
+        const t3 = setTimeout(() => setGeneratingStep(3), 18000)
+
         try {
             const response = await reportsApi.generate(genFrequency, format)
             const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', pdf: 'application/pdf' }[format]
@@ -382,6 +489,9 @@ export default function Relatorios(_props: RelatoriosProps) {
             setEmailFeedback({ ok: false, msg: `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.` })
             setTimeout(() => setEmailFeedback(null), 5000)
         } finally {
+            clearTimeout(t1)
+            clearTimeout(t2)
+            clearTimeout(t3)
             setGenerating(null)
             setGeneratingStep(0)
         }
@@ -403,8 +513,8 @@ export default function Relatorios(_props: RelatoriosProps) {
             a.href = url; a.download = `northie-relatorio-${freqLabel}-${dateStr}.${format}`; a.click()
             URL.revokeObjectURL(url)
         } catch {
+            // F10 — keep error visible until user retries (no auto-clear)
             setDownloadError(log.id)
-            setTimeout(() => setDownloadError(null), 4000)
         } finally {
             setDownloadingLogId(null)
         }
@@ -421,7 +531,7 @@ export default function Relatorios(_props: RelatoriosProps) {
         setEmailFeedback(null)
         try {
             await reportsApi.sendEmail(genFrequency, genFormat, email)
-            setEmailFeedback({ ok: true, msg: `Enviado para ${email} ✓` })
+            setEmailFeedback({ ok: true, msg: `Enviado para ${email}` })
             reportsApi.getLogs(0).then(res => { const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }; setLogs(data || []); setHasMoreLogs(hasMore); setLogsPage(0); }).then(() => {}, () => {})
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { error?: string } } }
@@ -438,6 +548,15 @@ export default function Relatorios(_props: RelatoriosProps) {
             setTimeout(() => setEmailFeedback(null), 5000)
         }
     }
+
+    // F3 — email button label per format
+    const emailButtonLabel = sendingEmail
+        ? 'Enviando...'
+        : genFormat === 'pdf'
+            ? 'Enviar PDF por email'
+            : genFormat === 'xlsx'
+                ? 'Enviar Excel por email'
+                : 'Enviar JSON por email'
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
@@ -498,6 +617,25 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     />
                                 </div>
 
+                                {/* F4 — Sparkline de receita */}
+                                {(preview.revenue_trend?.length ?? 0) >= 2 && (() => {
+                                    const trendData = preview.revenue_trend!.map(t => t.revenue)
+                                    const lastVal = trendData[trendData.length - 1]
+                                    const firstVal = trendData[0]
+                                    const trendUp = lastVal >= firstVal
+                                    return (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>
+                                                Tendência de receita
+                                            </span>
+                                            <Sparkline data={trendData} width={180} height={28} />
+                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: trendUp ? '#22C55E' : '#EF4444', whiteSpace: 'nowrap' }}>
+                                                {fmtBRL(lastVal)}
+                                            </span>
+                                        </div>
+                                    )
+                                })()}
+
                                 {/* Canais */}
                                 {preview.channel_economics.filter(c => c.channel !== 'desconhecido').length > 0 && (
                                     <div>
@@ -547,6 +685,62 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                         </div>
                                                     )
                                                 })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* F5 — Top produtos */}
+                                {(preview.top_products?.length ?? 0) > 0 && (
+                                    <div>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 10 }}>
+                                            Top Produtos
+                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            {preview.top_products!.slice(0, 3).map((p, i, arr) => (
+                                                <div key={p.product} style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1fr auto auto',
+                                                    gap: 12,
+                                                    padding: '8px 0',
+                                                    borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
+                                                    alignItems: 'center',
+                                                }}>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {p.product}
+                                                    </span>
+                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                                                        {fmtBRL(p.revenue)}
+                                                    </span>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                                                        {p.transactions} transações
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* F6 — RFM pills */}
+                                {(preview.rfm_distribution?.length ?? 0) > 0 && preview.rfm_source !== 'unavailable' && (
+                                    <div>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 10 }}>
+                                            Segmentação RFM
+                                        </span>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                            {preview.rfm_distribution!.map(seg => {
+                                                const rfmCfg = RFM_LABELS[seg.segment] ?? { label: seg.segment, color: '#6B7280' }
+                                                return (
+                                                    <span key={seg.segment} style={{
+                                                        fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 500,
+                                                        padding: '4px 10px', borderRadius: 20,
+                                                        background: rfmCfg.color + '18',
+                                                        color: rfmCfg.color,
+                                                        border: `1px solid ${rfmCfg.color}30`,
+                                                    }}>
+                                                        {rfmCfg.label} · {seg.count} clientes
+                                                    </span>
+                                                )
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -751,11 +945,12 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 </Btn>
                             ))}
                             <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
+                            {/* F3 — dynamic email button label */}
                             <Btn variant="secondary"
                                 onClick={handleSendEmail}
                                 disabled={generating !== null || sendingEmail}
                                 icon={<EmailIcon />}>
-                                {sendingEmail ? 'Enviando...' : 'Enviar por email'}
+                                {emailButtonLabel}
                             </Btn>
                         </div>
                     </div>
@@ -766,10 +961,9 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a7fe8" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
                                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                 </svg>
+                                {/* F2 — dynamic step message */}
                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                    {generating === 'pdf'
-                                        ? 'Gerando PDF com análise de IA — pode levar até 90 segundos...'
-                                        : `Gerando ${generating.toUpperCase()}...`}
+                                    {getStepMessage(generatingStep, generating)}
                                 </span>
                             </motion.div>
                         )}
@@ -815,26 +1009,63 @@ export default function Relatorios(_props: RelatoriosProps) {
                             </div>
                         </div>
 
+                        {/* F9 — email validation */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email de envio</span>
-                            <input type="email" placeholder="seu@email.com" value={config.email}
-                                onChange={e => setConfig(c => ({ ...c, email: e.target.value }))}
-                                style={{ padding: '8px 12px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)', fontSize: 14, outline: 'none', width: '100%', maxWidth: 360, boxSizing: 'border-box', transition: 'border-color 0.15s' }}
-                                onFocus={e => (e.currentTarget.style.borderColor = '#1a7fe8')}
-                                onBlur={e => (e.currentTarget.style.borderColor = 'var(--color-border)')} />
+                            <input
+                                type="email"
+                                placeholder="seu@email.com"
+                                value={config.email}
+                                onChange={e => {
+                                    setConfig(c => ({ ...c, email: e.target.value }))
+                                    setEmailError(null)
+                                }}
+                                onBlur={e => {
+                                    if (e.target.value && !isValidEmail(e.target.value)) {
+                                        setEmailError('Email inválido')
+                                    }
+                                }}
+                                style={{
+                                    padding: '8px 12px',
+                                    background: 'var(--color-bg-secondary)',
+                                    border: `1px solid ${emailError ? '#EF4444' : 'var(--color-border)'}`,
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--color-text-primary)',
+                                    fontFamily: 'var(--font-sans)',
+                                    fontSize: 14,
+                                    outline: 'none',
+                                    width: '100%',
+                                    maxWidth: 360,
+                                    boxSizing: 'border-box',
+                                    transition: 'border-color 0.15s',
+                                }}
+                                onFocus={e => { if (!emailError) e.currentTarget.style.borderColor = '#1a7fe8' }}
+                            />
+                            <AnimatePresence>
+                                {emailError && (
+                                    <motion.span
+                                        initial={{ opacity: 0, y: -4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#EF4444' }}
+                                    >
+                                        {emailError}
+                                    </motion.span>
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         <div style={{ height: 1, background: 'var(--color-border)' }} />
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <Btn variant="primary" onClick={handleSaveConfig} disabled={savingConfig}>
+                            <Btn variant="primary" onClick={handleSaveConfig} disabled={savingConfig || emailError !== null}>
                                 {savingConfig ? 'Salvando...' : 'Salvar configuração'}
                             </Btn>
                             <AnimatePresence>
                                 {savedFeedback && (
                                     <motion.span initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
                                         style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#22c55e' }}>
-                                        Salvo ✓
+                                        Salvo
                                     </motion.span>
                                 )}
                             </AnimatePresence>
@@ -857,7 +1088,29 @@ export default function Relatorios(_props: RelatoriosProps) {
 
             {/* ── Histórico ──────────────────────────────────────────────── */}
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(4), ease: [0.25, 0.1, 0.25, 1] }} style={{ paddingBottom: 40 }}>
-                <SectionLabel gutterBottom={16}>Histórico de relatórios</SectionLabel>
+                {/* F8 — Refresh button in section header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <SectionLabel gutterBottom={0}>Histórico de relatórios</SectionLabel>
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleRefreshLogs}
+                        disabled={refreshingLogs || loadingLogs}
+                        title="Atualizar histórico"
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 32, height: 32, borderRadius: 8,
+                            border: '1px solid var(--color-border)',
+                            background: 'transparent',
+                            cursor: refreshingLogs || loadingLogs ? 'default' : 'pointer',
+                            color: 'var(--color-text-secondary)',
+                            opacity: refreshingLogs || loadingLogs ? 0.5 : 1,
+                        }}
+                    >
+                        <RefreshIcon spinning={refreshingLogs} />
+                    </motion.button>
+                </div>
+
                 <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', padding: '12px 20px', borderBottom: '1px solid var(--color-border)' }}>
                         <TH>Período</TH>
@@ -877,75 +1130,221 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 const freqLabel: Record<string, string> = { semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral', weekly: 'Semanal', monthly: 'Mensal', quarterly: 'Trimestral' }
                                 const emailStatusLabel: Record<string, { label: string; color: string }> = {
                                     sent: { label: 'Enviado', color: '#6B7280' },
-                                    delivered: { label: 'Entregue ✓', color: '#22C55E' },
-                                    bounced: { label: 'Bounce ✗', color: '#EF4444' },
+                                    delivered: { label: 'Entregue', color: '#22C55E' },
+                                    bounced: { label: 'Bounce', color: '#EF4444' },
                                     complained: { label: 'Spam', color: '#F97316' },
                                     delayed: { label: 'Atrasado', color: '#F59E0B' },
                                 }
                                 const emailSt = log.email_status ? emailStatusLabel[log.email_status] : null
                                 const isError = log.status === 'error'
                                 const canRedownload = !isError && (log.format === 'pdf' || log.format === 'xlsx' || log.format === 'json')
+                                const isExpanded = expandedLogId === log.id
+                                const snap = log.snapshot
+
                                 return (
-                                    <NotionRow key={log.id} style={{ padding: '0 20px', opacity: isError ? 0.6 : 1 }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', width: '100%', alignItems: 'center', minHeight: 52 }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
-                                                        {fmtDate(log.created_at)}
-                                                    </span>
-                                                    {isError && (
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.10)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
+                                    <div key={log.id}>
+                                        {/* F7 — clickable row for expand */}
+                                        <NotionRow
+                                            style={{ padding: '0 20px', opacity: isError ? 0.6 : 1, cursor: snap ? 'pointer' : 'default' }}
+                                            onClick={() => snap && setExpandedLogId(isExpanded ? null : log.id)}
+                                        >
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', width: '100%', alignItems: 'center', minHeight: 52 }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        {/* F7 — chevron indicator */}
+                                                        {snap && (
+                                                            <motion.span
+                                                                animate={{ rotate: isExpanded ? 90 : 0 }}
+                                                                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                                                                style={{ display: 'inline-flex', fontSize: 10, color: 'var(--color-text-secondary)', flexShrink: 0 }}
+                                                            >
+                                                                ▶
+                                                            </motion.span>
+                                                        )}
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
+                                                            {fmtDate(log.created_at)}
+                                                        </span>
+                                                        {isError && (
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,0.10)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
+                                                        )}
+                                                    </div>
+                                                    {log.period_start && log.period_end && (
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', marginLeft: snap ? 18 : 0 }}>
+                                                            {fmtDateShort(log.period_start)} – {fmtDateShort(log.period_end)}
+                                                        </span>
                                                     )}
                                                 </div>
-                                                {log.period_start && log.period_end && (
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                                                        {fmtDateShort(log.period_start)} – {fmtDateShort(log.period_end)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                                {freqLabel[log.frequency] ?? log.frequency}
-                                            </span>
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-                                                {log.format}
-                                            </span>
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600 }}>
-                                                {log.snapshot?.revenue_net !== undefined ? fmtBRL(log.snapshot.revenue_net) : '—'}
-                                            </span>
-                                            <div>
-                                                {log.situacao_geral ? <SituacaoBadge value={log.situacao_geral} /> : (
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
-                                                )}
-                                            </div>
-                                            <div style={{ textAlign: 'right' }}>
-                                                {emailSt ? (
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: emailSt.color, fontWeight: 500 }}>{emailSt.label}</span>
-                                                ) : (
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
-                                                )}
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                {canRedownload && (
-                                                    downloadError === log.id ? (
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#EF4444' }}>Erro</span>
+                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                                    {freqLabel[log.frequency] ?? log.frequency}
+                                                </span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                                                    {log.format}
+                                                </span>
+                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                                                    {snap?.revenue_net !== undefined ? fmtBRL(snap.revenue_net) : '—'}
+                                                </span>
+                                                <div>
+                                                    {log.situacao_geral ? <SituacaoBadge value={log.situacao_geral} /> : (
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ textAlign: 'right' }}>
+                                                    {emailSt ? (
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: emailSt.color, fontWeight: 500 }}>{emailSt.label}</span>
                                                     ) : (
-                                                        <motion.button
-                                                            whileHover={{ scale: downloadingLogId ? 1 : 1.08 }}
-                                                            whileTap={{ scale: downloadingLogId ? 1 : 0.95 }}
-                                                            onClick={() => handleRedownload(log)}
-                                                            disabled={!!downloadingLogId}
-                                                            title={downloadingLogId === log.id ? 'Gerando...' : 'Baixar novamente'}
-                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? '#1a7fe8' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
-                                                            {downloadingLogId === log.id
-                                                                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" /></path></svg>
-                                                                : <DownloadIcon />
-                                                            }
-                                                        </motion.button>
-                                                    )
-                                                )}
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                                                    {canRedownload && (
+                                                        // F10 — retry button on error, no auto-clear
+                                                        downloadError === log.id ? (
+                                                            <motion.button
+                                                                whileTap={{ scale: 0.95 }}
+                                                                onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
+                                                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, color: '#EF4444', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                                                            >
+                                                                Erro — tentar novamente
+                                                            </motion.button>
+                                                        ) : (
+                                                            <motion.button
+                                                                whileHover={{ scale: downloadingLogId ? 1 : 1.08 }}
+                                                                whileTap={{ scale: downloadingLogId ? 1 : 0.95 }}
+                                                                onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
+                                                                disabled={!!downloadingLogId}
+                                                                title={downloadingLogId === log.id ? 'Gerando...' : 'Baixar novamente'}
+                                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? '#1a7fe8' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
+                                                                {downloadingLogId === log.id
+                                                                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" /></path></svg>
+                                                                    : <DownloadIcon />
+                                                                }
+                                                            </motion.button>
+                                                        )
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    </NotionRow>
+                                        </NotionRow>
+
+                                        {/* F7 — expandable snapshot detail */}
+                                        <AnimatePresence>
+                                            {isExpanded && snap && (
+                                                <motion.div
+                                                    key={`expand-${log.id}`}
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                                                    style={{ overflow: 'hidden' }}
+                                                >
+                                                    <div style={{ padding: '16px 28px 20px', background: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--color-border)' }}>
+                                                        {/* Row 1 — 4 core KPIs */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Receita líquida</span>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{fmtBRL(snap.revenue_net)}</span>
+                                                                {snap.revenue_change_pct !== null && snap.revenue_change_pct !== undefined && (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: snap.revenue_change_pct >= 0 ? '#22C55E' : '#EF4444' }}>
+                                                                        {snap.revenue_change_pct >= 0 ? '+' : ''}{snap.revenue_change_pct.toFixed(1)}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ROAS</span>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.roas?.toFixed(2) ?? '—'}x</span>
+                                                                {snap.ad_spend !== undefined && (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>Ads: {fmtBRL(snap.ad_spend)}</span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Novos clientes</span>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.new_customers ?? '—'}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>LTV médio</span>
+                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.ltv_avg !== undefined ? fmtBRL(snap.ltv_avg) : '—'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Row 2 — channels + at risk + diagnostics */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: snap.resumo_executivo ? 12 : 0 }}>
+                                                            {/* Canal top */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canal top</span>
+                                                                {snap.top_channel ? (
+                                                                    <>
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                                            {CHANNEL_LABEL[snap.top_channel.channel] ?? snap.top_channel.channel}
+                                                                        </span>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#22C55E' }}>
+                                                                            {fmtBRL(snap.top_channel.value_created)}
+                                                                        </span>
+                                                                    </>
+                                                                ) : (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Canal pior */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canal em prejuízo</span>
+                                                                {snap.worst_channel ? (
+                                                                    <>
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                                            {CHANNEL_LABEL[snap.worst_channel.channel] ?? snap.worst_channel.channel}
+                                                                        </span>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#EF4444' }}>
+                                                                            {fmtBRL(snap.worst_channel.value_created)}
+                                                                        </span>
+                                                                    </>
+                                                                ) : (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Clientes em risco */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Clientes em risco</span>
+                                                                {snap.at_risk_count !== undefined ? (
+                                                                    <>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: '#F59E0B' }}>{snap.at_risk_count}</span>
+                                                                        {snap.at_risk_ltv !== undefined && (
+                                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)' }}>{fmtBRL(snap.at_risk_ltv)} em LTV</span>
+                                                                        )}
+                                                                    </>
+                                                                ) : (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Diagnósticos críticos */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diagnósticos críticos</span>
+                                                                {snap.diagnosticos_count !== undefined ? (
+                                                                    <>
+                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: snap.criticos > 0 ? '#EF4444' : 'var(--color-text-primary)' }}>
+                                                                            {snap.criticos} críticos
+                                                                        </span>
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                                                                            {snap.diagnosticos_count} total
+                                                                        </span>
+                                                                    </>
+                                                                ) : (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Resumo executivo */}
+                                                        {snap.resumo_executivo && (
+                                                            <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6, paddingTop: 4 }}>
+                                                                {snap.resumo_executivo}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
                                 )
                             })}
                             {hasMoreLogs && (

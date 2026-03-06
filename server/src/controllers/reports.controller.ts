@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import {
-    generateReportData, formatAsCsv, computeNextSendAt,
+    generateReportData, computeNextSendAt,
     type ReportFrequency, type ReportFormat
 } from '../services/reports/report-generator.js';
 import { generateReportNarrative, type ReportAIAnalysis } from '../services/reports/report-ai-analyst.js';
@@ -15,6 +15,21 @@ const FREQ_MAP: Record<string, ReportFrequency> = {
     semanal: 'weekly', mensal: 'monthly', trimestral: 'quarterly',
     weekly: 'weekly', monthly: 'monthly', quarterly: 'quarterly',
 };
+
+// ── Preview data cache — evita dupla chamada generateReportData entre preview e IA ─
+const previewCache = new Map<string, { data: Awaited<ReturnType<typeof generateReportData>>; ts: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+function getCached(key: string) {
+    const e = previewCache.get(key);
+    if (!e) return null;
+    if (Date.now() - e.ts > CACHE_TTL) { previewCache.delete(key); return null; }
+    return e.data;
+}
+
+function setCached(key: string, data: Awaited<ReturnType<typeof generateReportData>>) {
+    previewCache.set(key, { data, ts: Date.now() });
+}
 
 function buildSnapshot(
     data: Awaited<ReturnType<typeof generateReportData>>,
@@ -105,6 +120,23 @@ export async function saveReportConfig(req: Request, res: Response) {
 
     const { frequency, format, enabled, email } = req.body;
 
+    // B6: Validar email
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Email inválido' });
+    }
+
+    // B1: Preservar next_send_at se a frequência não mudou
+    const { data: existing } = await supabase
+        .from('report_configs')
+        .select('frequency, next_send_at')
+        .eq('profile_id', profileId)
+        .single();
+
+    const freqChanged = !existing || existing.frequency !== frequency;
+    const nextSendAt = freqChanged
+        ? computeNextSendAt(FREQ_MAP[frequency] ?? 'monthly')
+        : (existing?.next_send_at ?? computeNextSendAt(FREQ_MAP[frequency] ?? 'monthly'));
+
     const { data, error } = await supabase
         .from('report_configs')
         .upsert({
@@ -113,7 +145,7 @@ export async function saveReportConfig(req: Request, res: Response) {
             format,
             enabled: enabled ?? true,
             email: email || null,
-            next_send_at: computeNextSendAt(frequency),
+            next_send_at: nextSendAt,
             updated_at: new Date().toISOString(),
         }, { onConflict: 'profile_id' })
         .select()
@@ -132,7 +164,12 @@ export async function getReportPreview(req: Request, res: Response) {
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
 
     try {
-        const reportData = await generateReportData(profileId, frequency);
+        const cacheKey = `${profileId}:${frequency}`;
+        let reportData = getCached(cacheKey);
+        if (!reportData) {
+            reportData = await generateReportData(profileId, frequency);
+            setCached(cacheKey, reportData);
+        }
         return res.json({
             period: reportData.period,
             business_type: reportData.business_type,
@@ -159,7 +196,12 @@ export async function getReportAIAnalysis(req: Request, res: Response) {
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
 
     try {
-        const reportData = await generateReportData(profileId, frequency);
+        const cacheKey = `${profileId}:${frequency}`;
+        let reportData = getCached(cacheKey);
+        if (!reportData) {
+            reportData = await generateReportData(profileId, frequency);
+            setCached(cacheKey, reportData);
+        }
         const aiAnalysis = await generateReportNarrative(reportData, profileId);
         return res.json({
             situacao_geral: aiAnalysis.situacao_geral,
@@ -279,6 +321,8 @@ export async function exportReport(req: Request, res: Response) {
 
         if (format === 'xlsx') {
             const buf = await generateXlsx(reportData);
+            const dummyAi: ReportAIAnalysis = { situacao_geral: 'atencao', resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
+            writeReportLog({ profileId, freqRaw: freqLabel, format, period: reportData.period, situacao_geral: null, snapshot: buildSnapshot(reportData, dummyAi) });
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqLabel}-${dateStr}.xlsx"`);
             return res.send(buf);
@@ -286,6 +330,8 @@ export async function exportReport(req: Request, res: Response) {
 
         // PDF — sem IA para resposta rápida
         const buf = await generatePdf(reportData);
+        const dummyAi: ReportAIAnalysis = { situacao_geral: 'atencao', resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
+        writeReportLog({ profileId, freqRaw: freqLabel, format, period: reportData.period, situacao_geral: null, snapshot: buildSnapshot(reportData, dummyAi) });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqLabel}-${dateStr}.pdf"`);
         return res.send(buf);
@@ -336,7 +382,8 @@ export async function downloadLogReport(req: Request, res: Response) {
             return res.json({ period: reportData.period, summary: reportData.summary, channel_economics: reportData.channel_economics, top_products: reportData.top_products, at_risk_customers: reportData.at_risk_customers });
         }
 
-        const buf = await generatePdf(reportData);
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
+        const buf = await generatePdf(reportData, aiAnalysis);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
         return res.send(buf);
