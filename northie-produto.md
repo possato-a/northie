@@ -2,7 +2,7 @@
 
 *Infraestrutura financeira para founders que constroem para escalar.*
 
-Documento de Produto — v10
+Documento de Produto — v12
 
 ---
 
@@ -78,6 +78,45 @@ O banco de dados cresce com o uso. Cada mês dentro da Northie enriquece o hist�
 
 As integrações são gerenciadas pela App Store da Northie. Terceiros podem desenvolver integrações adicionais com acesso ao schema normalizado.
 
+### Integrações de execução — canais de saída
+
+A Northie não é só leitura de dados — ela executa. Para fechar o loop entre recomendação e resultado, dois canais de execução são nativos:
+
+- **WhatsApp** (via Meta Business API) — canal prioritário de reativação no Brasil. Alta taxa de abertura, tom direto, personalização por nome e histórico de compra. Usado para reativação de clientes, upsell e alertas de oportunidade aprovados pelo founder.
+- **Email via Resend** — sequências de reativação e nurturing com rastreamento nativo de abertura e clique. Templates controlados dentro da plataforma, domínio próprio do founder, sem dependência de ESP externo.
+
+Ambos os canais são instrumentos do Growth Engine — nunca disparam sozinhos. O founder aprova, a Northie executa e mede o resultado em reais.
+
+### Enriquecimento contextual da transação
+
+Toda transação capturada nas integrações (Stripe, Hotmart, Shopify) carrega dados financeiros. O que a Northie adiciona é a **história por trás do número** — o contexto que aconteceu antes e durante aquela venda.
+
+Para negócios com ciclo consultivo (SaaS high ticket, B2B, infoproduto com venda por reunião), a Northie conecta:
+
+- **Google Calendar** — sabe se houve uma ou mais reuniões antes do fechamento, e quando aconteceram
+- **Google Meet com transcrição por IA** — analisa o conteúdo das reuniões autorizadas: objeções levantadas, perfil do lead, tom da conversa, ciclo de decisão
+
+O resultado é uma transação enriquecida:
+
+```
+Transação: R$ 4.800 | João Silva | meta_ads
+↳ Reunião prévia: sim (3 dias antes do fechamento)
+↳ Duração: 47 min | Objeção: "preço"
+↳ Ciclo lead→fechamento: 12 dias
+```
+
+Com isso, o LTV de cada cliente carrega história qualitativa. A IA consegue correlacionar comportamento de reunião com retenção futura — e aprender quais perfis de lead de fato constroem valor a longo prazo. Nenhuma ferramenta financeira, de CRM ou de transcrição isolada consegue fazer esse cruzamento.
+
+### Pipeline nativo — sem CRM externo
+
+A Northie não integra com CRMs externos. Oferece um pipeline leve nativo que serve exclusivamente para conectar aquisição, conversa e receita num único histórico:
+
+```
+Lead capturado (form próprio) → Reunião agendada → Reunião realizada → Fechado / Perdido
+```
+
+O lead é capturado pelo formulário próprio da Northie, integrado ao Northie Pixel para atribuição de canal. Pipeline simples por design — não compete com CRMs completos.
+
 ---
 
 # Produto 1 — Northie Growth
@@ -99,6 +138,8 @@ A IA não executa ações. Ela identifica correlações, formula uma recomendaç
 - **Audience Sync inteligente** — cria públicos no Meta baseados em qualidade financeira, não em volume. Os Champions — clientes com maior LTV e maior frequência — viram a base do Lookalike. Sem exportar CSV, sem trabalho manual.
 - **Realocação de budget baseada em LTV por canal** — move investimento para o canal trazendo clientes com maior LTV no momento, não apenas maior ROAS. Um canal com ROAS de 2.8x trazendo clientes que ficam 8 meses vale mais do que ROAS de 4x com clientes que churnam em 30 dias.
 - **Upsell automático baseado em comportamento de cohort** — identifica o momento ideal de oferta para cada cliente com base no padrão de compra do cohort ao qual pertence.
+- **Reativação via WhatsApp e Email** — para founders com ciclo de compra recorrente, a Northie identifica o momento ideal de contato baseado em comportamento histórico do cohort e executa a mensagem no canal certo. WhatsApp para clientes de alta recência, email para nurturing de médio prazo.
+- **Inteligência de reunião** — para founders com ciclo consultivo, cruza padrões das transcrições de reunião (objeções, perfil, cargo) com dados financeiros reais dos clientes fechados. Identifica qual perfil de lead fecha mais rápido, paga mais e cancela menos.
 
 ---
 
@@ -122,16 +163,6 @@ O score melhora com o tempo dentro da Northie — quanto mais histórico, mais p
 
 ---
 
-# Produto 3 — Northie Valuation
-
-O founder acompanha quanto o negócio vale hoje — calculado automaticamente com base nos dados reais da plataforma, atualizado todo mês.
-
-Não é previsão. Não é aspiração. É cálculo baseado em performance real — múltiplo de receita, ARR, LTV/CAC — com benchmark de mercado de negócios similares no Brasil. O benchmark não vem de relatório genérico de mercado — vem de negócios reais dentro da plataforma Northie, com perfis similares em segmento, modelo de receita e estágio.
-
-O founder que usa o Growth para aumentar receita vê o impacto direto no Valuation. O que usa o Card para escalar vê o negócio valer mais mês a mês. Crescimento e valor construído se tornam a mesma métrica — não duas conversas separadas.
-
----
-
 # Feature Transversal — Relatórios Automáticos
 
 Presente em todos os produtos, a exportação de relatórios automáticos elimina o trabalho operacional de montar apresentações, resumos e extratos manualmente.
@@ -140,7 +171,6 @@ O founder configura relatórios automáticos — semanal, mensal, trimestral —
 
 - **Growth** — relatório de performance das ações executadas: quais correlações foram encontradas, quais ações foram aprovadas, qual o impacto na receita
 - **Northie Card** — extrato inteligente com contexto de crescimento: onde o capital foi usado, qual o retorno gerado por canal, saldo devedor e projeção de quitação
-- **Northie Valuation** — evolução mensal do valuation com benchmark comparativo de negócios similares na plataforma
 
 O founder não precisa abrir a Northie para sentir o valor da Northie. Todo mês os relatórios chegam — e lembram que o negócio está sendo acompanhado, analisado e otimizado.
 
@@ -161,13 +191,13 @@ Esses dashboards não são o motivo pelo qual o founder assina a Northie. São o
 
 # O Ecossistema
 
-Os quatro produtos não são features independentes. São um ciclo fechado que se alimenta.
+Os produtos não são features independentes. São um ciclo fechado que se alimenta.
 
-O founder conecta as integrações e o banco de dados unificado começa a ser construído. O Growth encontra correlações nos dados e executa ações que aumentam a receita. Receita maior aumenta o Capital Score e o limite do Northie Card. O Card financia mais growth — mais budget para os canais que o Growth identificou como mais eficientes. Mais receita e histórico mais rico aumentam o Valuation automaticamente. Valuation maior fortalece o Raise quando chegar a hora de captar. Capital captado via Raise acelera ainda mais o growth. O ciclo reinicia.
+O founder conecta as integrações e o banco de dados unificado começa a ser construído — transações, clientes, campanhas, reuniões, contexto qualitativo. O Growth encontra correlações nesse histórico e executa ações que aumentam a receita. Receita maior e histórico mais rico aumentam o Capital Score e o limite do Northie Card. O Card financia mais growth — mais budget para os canais que o Growth identificou como mais eficientes. O ciclo reinicia.
 
-Cada produto alimenta o próximo. Cada mês dentro da Northie torna o banco de dados mais rico, os produtos financeiros mais acessíveis e as ações de growth mais inteligentes.
+Cada mês dentro da Northie torna o banco de dados mais rico, o contexto mais preciso e as ações de growth mais inteligentes.
 
-É um produto que cresce junto com o negócio do founder. E que fica progressivamente mais difícil de abandonar — porque o histórico acumulado, as correlações descobertas e o Capital Score construído ao longo do tempo não existem em nenhum outro lugar.
+É um produto que cresce junto com o negócio do founder. E que fica progressivamente mais difícil de abandonar — porque o histórico acumulado, o contexto qualitativo alimentado e o Capital Score construído ao longo do tempo não existem em nenhum outro lugar.
 
 ---
 
@@ -196,6 +226,29 @@ Com histórico de dados e lista de espera qualificada, estrutura parceria com QI
 ## Fase 3 — Valuation e expansão
 
 Com dados acumulados de múltiplos negócios, lança o Northie Valuation com benchmark real de mercado baseado nos negócios da plataforma. Expande integrações via App Store. Explora receitas secundárias via dados agregados e anonimizados para terceiros.
+
+---
+
+# Contexto do Negócio — IA Treinada pelo Founder
+
+Os dados das integrações revelam o que aconteceu. Mas há contexto que os dados nunca capturam sozinhos: por que aconteceu, qual é a realidade do mercado, como o negócio se posiciona, o que é anomalia e o que é padrão esperado.
+
+A Northie permite que o founder alimente a IA com o contexto específico do seu negócio — criando uma camada de memória qualitativa que calibra todas as análises e recomendações.
+
+## O que o founder pode configurar
+
+- **Perfil do negócio** — segmento, modelo de receita, ticket médio, ICP (perfil de cliente ideal), diferenciais
+- **Ciclo de vendas** — duração média, número de reuniões, principais objeções, sazonalidades conhecidas
+- **Instruções para a IA** — tom de voz, prioridades do momento, o que nunca recomendar, contexto de mercado específico
+- **Arquivos** — pitch deck, tabela de preços, documentos de produto, pesquisas de cliente, qualquer referência que dê contexto ao negócio
+
+## Por que isso muda tudo
+
+Sem esse contexto, a IA infere a realidade do negócio pelos dados — e pode gerar recomendações tecnicamente corretas mas contextualmente erradas. Um pico de churn em outubro pode parecer alarme quando na verdade foi consequência de um rebranding planejado. Uma queda de ROAS pode parecer problema quando na verdade é sazonalidade conhecida do segmento.
+
+Com o contexto alimentado pelo founder, a IA sabe o que é ruído e o que é sinal. As recomendações do Growth ficam calibradas para a realidade específica daquele negócio — não para um padrão genérico de mercado.
+
+Esse contexto acumula e se refina ao longo do tempo. Cada atualização do founder torna a IA mais precisa. É uma memória compartilhada entre founder e plataforma que nenhum concorrente consegue replicar porque ela só existe dentro da Northie, construída por aquele founder específico.
 
 ---
 

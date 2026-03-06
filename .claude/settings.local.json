@@ -28,7 +28,23 @@
       "Bash(cd \"C:\\\\Users\\\\Possato\\\\Documents\\\\northie\" && git checkout -b feat/francisco-fase-a-e-product-pages 2>&1)",
       "Bash(npx supabase:*)",
       "Bash(node:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.facebook.com)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:developers.hotmart.com)",
+      "WebFetch(domain:docs.stripe.com)",
+      "WebFetch(domain:shopify.dev)",
+      "WebFetch(domain:releasebot.io)",
+      "WebFetch(domain:rollout.com)",
+      "WebFetch(domain:ads-developers.googleblog.com)",
+      "WebFetch(domain:admanage.ai)",
+      "Bash(vercel env:*)",
+      "Bash(vercel:*)",
+      "Bash(mv:*)",
+      "Bash(npx pg-query:*)",
+      "Bash(rm:*)"
     ]
   }
 }

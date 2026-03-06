@@ -75,11 +75,28 @@ Capital Score: visível desde o primeiro dia, atualizado mensalmente. Founder qu
 
 Opera via parceiro financeiro regulado (QI Tech ou Celcoin). A Northie faz o underwriting e fica com o spread + MDR das transações.
 
-### Produto 3 — Northie Valuation
-O founder acompanha quanto o negócio vale hoje — calculado com base nos dados reais, atualizado todo mês. Múltiplo de receita, ARR, LTV/CAC com benchmark de negócios similares dentro da própria plataforma Northie (não relatório genérico de mercado).
-
 ### Feature Transversal — Relatórios Automáticos
 Presente em todos os produtos. Founder configura relatórios automáticos (semanal, mensal, trimestral) em PDF visual, CSV ou apresentação. Gerados e enviados automaticamente sem ação manual.
+
+### Canais de Execução Nativos
+O Growth Engine executa ações via dois canais nativos — nunca sem aprovação explícita do founder:
+- **WhatsApp** (Meta Business API) — reativação, upsell, alertas. Canal prioritário no Brasil.
+- **Email** (Resend) — sequências de nurturing e reativação com rastreamento nativo.
+
+### Pipeline Nativo (founders com ciclo consultivo)
+Para negócios com venda por reunião (SaaS high ticket, B2B): pipeline leve nativo integrado ao Northie Pixel. Sem integração com CRM externo — a Northie captura o lead no próprio formulário e conecta ao histórico financeiro. Estágios: Lead → Reunião agendada → Reunião realizada → Fechado/Perdido.
+
+### Enriquecimento Contextual da Transação
+Toda transação capturada (Stripe, Hotmart, Shopify) pode ser enriquecida com o contexto que aconteceu antes dela:
+- **Google Calendar** — sabe se houve reuniões antes do fechamento e quando
+- **Google Meet + transcrição IA** — analisa objeções, perfil do lead, ciclo de decisão. O resultado é uma transação com história qualitativa — a IA sabe que aquele cliente fechou após objeção de preço em 12 dias, e pode correlacionar isso com retenção futura.
+
+### Contexto do Negócio — IA treinada pelo founder
+O founder alimenta a IA com contexto que os dados nunca capturam sozinhos:
+- Perfil do negócio, ICP, ciclo de vendas, sazonalidades
+- Instruções personalizadas e prioridades do momento
+- Arquivos (pitch deck, tabela de preços, pesquisas de cliente)
+Esse contexto calibra todas as análises e recomendações. Acumula com o tempo e é exclusivo daquele founder — não existe em nenhuma outra plataforma.
 
 ### Complemento — Dashboards
 Visão Geral, Clientes, Canais e Vendas. Existem para manter o founder engajado e os dados fluindo. Não são o motivo pelo qual o founder assina a Northie.
@@ -177,7 +194,6 @@ O backend atua como orquestrador: filtra dados normalizados, entrega contexto li
 | ROAS | Receita atribuída ao canal / gasto do canal | Diário |
 | ROI Criador | Receita campanha / comissões pagas | Semanal |
 | Capital Score | Faturamento histórico + LTV médio + churn + saúde do caixa | Mensal |
-| Valuation | Múltiplo de receita + ARR + LTV/CAC com benchmark interno | Mensal |
 | Forecast | Base atual × AOV × rebuy rate histórica por cohort | Diário + on-demand |
 
 ---
@@ -213,7 +229,6 @@ src/
   pages/
     Growth/         # Northie Growth — correlações e execução
     Card/           # Northie Card — Capital Score, lista de espera
-    Valuation/      # Northie Valuation — valor do negócio
     Dashboard/      # Visão Geral (complemento)
     Clientes/       # Base de clientes com unit economics (complemento)
     Canais/         # Performance de canais (complemento)
@@ -280,7 +295,9 @@ supabase/
 
 4. **Dados acumulados são o moat** — o histórico que cresce mês a mês é o ativo mais valioso. Decisões de arquitetura devem sempre proteger e enriquecer esse histórico.
 
-5. **Financeiro como consequência** — o produto resolve crescimento. Capital e Valuation são consequências naturais de ter dados que ninguém mais tem — não features de uma fintech.
+5. **Financeiro como consequência** — o produto resolve crescimento. Capital é consequência natural de ter dados que ninguém mais tem — não feature de uma fintech.
+
+6. **Contexto qualitativo enriquece o quantitativo** — reuniões transcritas, contexto do negócio alimentado pelo founder e pipeline nativo existem para dar história aos números, não para serem produtos isolados. Uma transação com contexto de reunião é mais valiosa que uma transação sem.
 
 ## Colaboração entre founders
 
@@ -315,7 +332,6 @@ Banco estável antes de qualquer desenvolvimento paralelo. Victor em modo estudo
 |--------|--------|
 | `feat/db-schema-review` | Revisar schema existente — consistência de tipos, naming e foreign keys |
 | `feat/db-card` | Migration: `capital_score_history` + `card_applications` |
-| `feat/db-valuation` | Migration: `valuation_snapshots` |
 | `feat/db-rls` | RLS policies completas em todas as tabelas |
 | `feat/db-docs` | Documentar schema final |
 
@@ -331,7 +347,7 @@ Banco estável antes de qualquer desenvolvimento paralelo. Victor em modo estudo
 | `feat/shopify-integration` | Shopify — OAuth + sync de pedidos |
 | `feat/growth-page` | Tela Growth — recomendações + fluxo de confirmação |
 | `feat/card-page` | Tela Card — Capital Score visual + lista de espera |
-| `feat/valuation-page` | Tela Valuation — valor do negócio + histórico |
+| `feat/business-context` | Tela de Contexto do Negócio — founder treina a IA com perfil, ciclo, instruções e arquivos |
 
 **Victor**
 

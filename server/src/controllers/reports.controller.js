@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import { generateReportData, computeNextSendAt } from '../services/reports/report-generator.js';
-import { generateReportNarrative, streamReportNarrative } from '../services/reports/report-ai-analyst.js';
+import { generateReportNarrative } from '../services/reports/report-ai-analyst.js';
 import { generatePdf } from '../services/reports/report-pdf.js';
 import { generateXlsx } from '../services/reports/report-xlsx.js';
 import { sendReport } from '../services/reports/report-email.js';
@@ -12,15 +12,6 @@ const FREQ_MAP = {
 // ── Preview data cache — evita dupla chamada generateReportData entre preview e IA ─
 const previewCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
-// Limpeza periódica — remove entradas expiradas para evitar acúmulo indefinido
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of previewCache.entries()) {
-        if (now - entry.ts > CACHE_TTL) {
-            previewCache.delete(key);
-        }
-    }
-}, 5 * 60 * 1000);
 function getCached(key) {
     const e = previewCache.get(key);
     if (!e)
@@ -105,17 +96,10 @@ export async function saveReportConfig(req, res) {
     const profileId = req.headers['x-profile-id'];
     if (!profileId)
         return res.status(400).json({ error: 'Missing x-profile-id' });
-    const { frequency, format, enabled, email, period_type, custom_start, custom_end } = req.body;
+    const { frequency, format, enabled, email } = req.body;
     // B6: Validar email
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return res.status(400).json({ error: 'Email inválido' });
-    }
-    // Validar datas customizadas
-    if (period_type === 'custom') {
-        if (!custom_start || !custom_end)
-            return res.status(400).json({ error: 'Datas customizadas obrigatórias' });
-        if (new Date(custom_start) >= new Date(custom_end))
-            return res.status(400).json({ error: 'Data inicial deve ser anterior à data final' });
     }
     // B1: Preservar next_send_at se a frequência não mudou
     const { data: existing } = await supabase
@@ -136,9 +120,6 @@ export async function saveReportConfig(req, res) {
         enabled: enabled ?? true,
         email: email || null,
         next_send_at: nextSendAt,
-        period_type: period_type ?? 'last_30_days',
-        custom_start: period_type === 'custom' ? custom_start : null,
-        custom_end: period_type === 'custom' ? custom_end : null,
         updated_at: new Date().toISOString(),
     }, { onConflict: 'profile_id' })
         .select()
@@ -147,17 +128,6 @@ export async function saveReportConfig(req, res) {
         return res.status(500).json({ error: error.message });
     return res.json(data);
 }
-// ── Custom date range helper ───────────────────────────────────────────────────
-function parseDateRange(query) {
-    const { period_type, custom_start, custom_end } = query;
-    if (period_type === 'custom' && custom_start && custom_end) {
-        const start = new Date(custom_start);
-        const end = new Date(custom_end);
-        if (!isNaN(start.getTime()) && !isNaN(end.getTime()))
-            return { start, end };
-    }
-    return undefined;
-}
 // Preview rápido — só dados, sem IA (responde em ~2-3s)
 export async function getReportPreview(req, res) {
     const profileId = req.headers['x-profile-id'];
@@ -165,12 +135,11 @@ export async function getReportPreview(req, res) {
         return res.status(400).json({ error: 'Missing x-profile-id' });
     const freqRaw = req.query.frequency ?? 'monthly';
     const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
-    const customDates = parseDateRange(req.query);
     try {
-        const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
+        const cacheKey = `${profileId}:${frequency}`;
         let reportData = getCached(cacheKey);
         if (!reportData) {
-            reportData = await generateReportData(profileId, frequency, customDates);
+            reportData = await generateReportData(profileId, frequency);
             setCached(cacheKey, reportData);
         }
         return res.json({
@@ -197,12 +166,11 @@ export async function getReportAIAnalysis(req, res) {
         return res.status(400).json({ error: 'Missing x-profile-id' });
     const freqRaw = req.query.frequency ?? 'monthly';
     const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
-    const customDates = parseDateRange(req.query);
     try {
-        const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
+        const cacheKey = `${profileId}:${frequency}`;
         let reportData = getCached(cacheKey);
         if (!reportData) {
-            reportData = await generateReportData(profileId, frequency, customDates);
+            reportData = await generateReportData(profileId, frequency);
             setCached(cacheKey, reportData);
         }
         const aiAnalysis = await generateReportNarrative(reportData, profileId);
@@ -211,62 +179,11 @@ export async function getReportAIAnalysis(req, res) {
             resumo_executivo: aiAnalysis.resumo_executivo,
             diagnosticos: aiAnalysis.diagnosticos,
             proximos_passos: aiAnalysis.proximos_passos,
-            is_ai_fallback: aiAnalysis.is_ai_fallback ?? false,
         });
     }
     catch (err) {
         console.error('[Reports] AI analysis error:', err);
         return res.status(500).json({ error: 'Failed to generate AI analysis' });
-    }
-}
-// Streaming SSE da análise de IA — o cliente recebe chunks em tempo real
-export async function streamReportAIAnalysis(req, res) {
-    const profileId = req.headers['x-profile-id'];
-    if (!profileId)
-        return res.status(400).json({ error: 'Missing x-profile-id' });
-    const freqRaw = req.query.frequency ?? 'monthly';
-    const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
-    const customDates = parseDateRange(req.query);
-    // Headers SSE
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    const abortController = new AbortController();
-    req.on('close', () => {
-        abortController.abort();
-    });
-    const send = (payload) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    try {
-        const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
-        let reportData = getCached(cacheKey);
-        if (!reportData) {
-            reportData = await generateReportData(profileId, frequency, customDates);
-            setCached(cacheKey, reportData);
-        }
-        if (abortController.signal.aborted)
-            return;
-        send({ type: 'ready' }); // sinal de que os dados estão carregados, IA vai começar
-        for await (const event of streamReportNarrative(reportData, abortController.signal)) {
-            if (abortController.signal.aborted)
-                break;
-            send(event);
-            if (event.type === 'done' || event.type === 'error')
-                break;
-        }
-    }
-    catch (err) {
-        if (err?.name === 'AbortError') {
-            console.log('[Reports] streamReportAIAnalysis: cliente desconectou, geração interrompida');
-        }
-        else {
-            console.error('[Reports] streamReportAIAnalysis error:', err);
-            send({ type: 'error', message: 'Falha ao gerar análise' });
-        }
-    }
-    finally {
-        res.end();
     }
 }
 export async function generateReport(req, res) {
@@ -277,9 +194,8 @@ export async function generateReport(req, res) {
     const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
     const format = req.body.format ?? 'xlsx';
     const dateStr = new Date().toISOString().split('T')[0];
-    const customDates = parseDateRange(req.body);
     try {
-        const reportData = await generateReportData(profileId, frequency, customDates);
+        const reportData = await generateReportData(profileId, frequency);
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
         const aiAnalysis = format === 'pdf'
             ? await generateReportNarrative(reportData, profileId)
