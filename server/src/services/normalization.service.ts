@@ -367,13 +367,15 @@ async function syncCancellation(profileId: string, externalId: string) {
     }
 }
 
-type AcquisitionChannel = 'meta_ads' | 'google_ads' | 'organico' | 'email' | 'direto' | 'afiliado' | 'desconhecido';
+type AcquisitionChannel = 'meta_ads' | 'google_ads' | 'organico' | 'email' | 'direto' | 'afiliado' | 'shopify' | 'stripe' | 'desconhecido';
 
 function mapUtmToChannel(utmSource?: string): AcquisitionChannel {
     if (!utmSource) return 'desconhecido';
     const s = utmSource.toLowerCase();
     if (s === 'facebook' || s === 'instagram' || s === 'meta' || s === 'meta_ads') return 'meta_ads';
     if (s === 'google' || s === 'google_ads' || s === 'cpc') return 'google_ads';
+    if (s === 'shopify') return 'shopify';
+    if (s === 'stripe') return 'stripe';
     if (s === 'email' || s === 'newsletter') return 'email';
     if (s === 'afiliado' || s === 'affiliate') return 'afiliado';
     if (s === 'organico' || s === 'organic') return 'organico';

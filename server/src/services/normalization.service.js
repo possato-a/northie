@@ -334,6 +334,10 @@ function mapUtmToChannel(utmSource) {
         return 'meta_ads';
     if (s === 'google' || s === 'google_ads' || s === 'cpc')
         return 'google_ads';
+    if (s === 'shopify')
+        return 'shopify';
+    if (s === 'stripe')
+        return 'stripe';
     if (s === 'email' || s === 'newsletter')
         return 'email';
     if (s === 'afiliado' || s === 'affiliate')
