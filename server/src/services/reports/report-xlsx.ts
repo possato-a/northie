@@ -9,6 +9,7 @@ import type {
     Row,
     Worksheet,
     Workbook,
+    Cell,
 } from 'exceljs';
 
 const require = createRequire(import.meta.url);
@@ -94,6 +95,12 @@ function zebraFill(): Fill {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F6F3' } };
 }
 
+function whiteFill(): Fill {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+}
+
+// colorFill kept for potential future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function colorFill(hex: string): Fill {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + hex.replace('#', '') } };
 }
@@ -111,22 +118,52 @@ function thinBorder(): Partial<Borders> {
     return { top: side, bottom: side, left: side, right: side };
 }
 
-function styleHeaderRow(row: Row, colCount: number): void {
+function sectionTopBorder(): Partial<Borders> {
+    const top: Partial<ExcelBorder>    = { style: 'thin', color: { argb: 'FFE3E2E0' } };
+    const normal: Partial<ExcelBorder> = { style: 'thin', color: { argb: 'FFE5E5E5' } };
+    return { top, bottom: normal, left: normal, right: normal };
+}
+
+// ── CORREÇÃO 3: N/D helper ────────────────────────────────────────────────────
+
+function isBlank(v: string | null | undefined): boolean {
+    return v == null || v === '—' || v === '';
+}
+
+function applyNd(cell: Cell): void {
+    cell.value = 'N/D';
+    cell.font  = { color: { argb: 'FF9B9A97' }, italic: true, size: 10 };
+}
+
+function setCellText(cell: Cell, value: string | null | undefined): void {
+    if (isBlank(value)) {
+        applyNd(cell);
+    } else {
+        cell.value = value!;
+    }
+}
+
+// ── Row stylers ───────────────────────────────────────────────────────────────
+
+// CORREÇÃO 4: aceita fill para permitir cabeçalho #1E1E1E nas abas Vendas/Canais
+function styleHeaderRow(row: Row, colCount: number, fill: Fill = accentFill()): void {
     row.height = 26;
     for (let c = 1; c <= colCount; c++) {
         const cell = row.getCell(c);
-        cell.fill      = accentFill();
+        cell.fill      = fill;
         cell.font      = whiteFont(true, 10);
         cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'center', wrapText: false };
         cell.border    = thinBorder();
     }
 }
 
+// CORREÇÃO 2: idx % 2 === 0 → zebra (#F7F6F3), ímpar → branco
 function styleDataRow(row: Row, colCount: number, idx: number): void {
     row.height = 22;
+    const bg = idx % 2 === 0 ? zebraFill() : whiteFill();
     for (let c = 1; c <= colCount; c++) {
         const cell = row.getCell(c);
-        if (idx % 2 === 1) cell.fill = zebraFill();
+        cell.fill      = bg;
         cell.border    = thinBorder();
         cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'right' };
         if (!cell.font?.color) cell.font = { size: 10 };
@@ -152,7 +189,7 @@ function writePeriodRow(ws: Worksheet, rowNum: number, text: string, lastCol: nu
     ws.getRow(rowNum).height = 18;
 }
 
-// ── Auto-fit columns ──────────────────────────────────────────────────────────
+// ── CORREÇÃO 1: Auto-fit com +6 de respiro ────────────────────────────────────
 
 function autoFitColumns(ws: Worksheet): void {
     ws.columns.forEach(col => {
@@ -161,7 +198,7 @@ function autoFitColumns(ws: Worksheet): void {
             const v = String(cell.value ?? '');
             if (v.length > maxLen) maxLen = v.length;
         });
-        col.width = Math.min(maxLen + 4, 60);
+        col.width = Math.min(maxLen + 6, 60);
     });
 }
 
@@ -203,42 +240,65 @@ export async function generateXlsx(
         ? ` (${data.summary.revenue_change_pct >= 0 ? '+' : ''}${fmtNum(data.summary.revenue_change_pct)}% vs anterior)`
         : '';
 
-    const kpis: Array<[string, string, 'high' | 'low' | undefined]> = [
+    // CORREÇÃO 5: sem linhas vazias — a separação de seção é feita via border-top
+    // O índice true indica que a linha inicia uma nova seção (recebe border-top)
+    const kpis: Array<[string, string, 'high' | 'low' | undefined, boolean?]> = [
         ['Faturamento Total (Receita Líquida)', fmtBrl(data.summary.revenue_net) + changeNote, undefined],
-        ['Receita Bruta', fmtBrl(data.summary.revenue_gross), undefined],
-        ['Margem Bruta (%)', `${fmtNum(data.summary.gross_margin_pct)}%`, undefined],
-        ['Transações', data.summary.transactions.toLocaleString('pt-BR'), undefined],
-        ['Ticket Médio (AOV)', fmtBrl(data.summary.aov), undefined],
-        ['LTV Médio', fmtBrl(data.summary.ltv_avg), undefined],
-        ['CAC Médio', data.cac_overall > 0 ? fmtBrl(data.cac_overall) : '—', undefined],
-        ['ROAS Consolidado', data.summary.roas > 0 ? `${fmtNum(data.summary.roas)}x` : '—', undefined],
-        ['Margem de Contribuição (%)', `${fmtNum(data.margin_contribution_pct)}%`, data.margin_contribution_pct < 0 ? 'low' : undefined],
-        ['Margem de Contribuição (R$)', fmtBrl(data.margin_contribution_brl), data.margin_contribution_brl < 0 ? 'low' : undefined],
-        ['', '', undefined],
-        ['Investimento em Ads', fmtBrl(data.summary.ad_spend), undefined],
+        ['Receita Bruta',                       fmtBrl(data.summary.revenue_gross),            undefined],
+        ['Margem Bruta (%)',                    `${fmtNum(data.summary.gross_margin_pct)}%`,   undefined],
+        ['Transações',                          data.summary.transactions.toLocaleString('pt-BR'), undefined],
+        ['Ticket Médio (AOV)',                  fmtBrl(data.summary.aov),                      undefined],
+        ['LTV Médio',                           fmtBrl(data.summary.ltv_avg),                  undefined],
+        ['CAC Médio',                           data.cac_overall > 0 ? fmtBrl(data.cac_overall) : '—', undefined],
+        ['ROAS Consolidado',                    data.summary.roas > 0 ? `${fmtNum(data.summary.roas)}x` : '—', undefined],
+        ['Margem de Contribuição (%)',          `${fmtNum(data.margin_contribution_pct)}%`,    data.margin_contribution_pct < 0 ? 'low' : undefined],
+        ['Margem de Contribuição (R$)',         fmtBrl(data.margin_contribution_brl),          data.margin_contribution_brl < 0 ? 'low' : undefined],
+        // Nova seção — border-top no lugar da linha vazia
+        ['Investimento em Ads',     fmtBrl(data.summary.ad_spend),                      undefined, true],
         ['Novos Clientes no Período', data.summary.new_customers.toLocaleString('pt-BR'), undefined],
-        ['Base Total de Clientes', data.summary.total_customers.toLocaleString('pt-BR'), undefined],
-        ['Impressões', data.summary.impressions.toLocaleString('pt-BR'), undefined],
-        ['Cliques', data.summary.clicks.toLocaleString('pt-BR'), undefined],
-        ['CTR', `${fmtNum(data.summary.ctr)}%`, undefined],
-        ['Taxa de Reembolso', `${fmtNum(data.summary.refund_rate)}%`, data.summary.refund_rate > 5 ? 'high' : undefined],
-        ['Valor Reembolsado', fmtBrl(data.summary.refund_amount), undefined],
+        ['Base Total de Clientes',  data.summary.total_customers.toLocaleString('pt-BR'), undefined],
+        ['Impressões',              data.summary.impressions.toLocaleString('pt-BR'),    undefined],
+        ['Cliques',                 data.summary.clicks.toLocaleString('pt-BR'),         undefined],
+        ['CTR',                     `${fmtNum(data.summary.ctr)}%`,                     undefined],
+        ['Taxa de Reembolso',       `${fmtNum(data.summary.refund_rate)}%`,             data.summary.refund_rate > 5 ? 'high' : undefined],
+        ['Valor Reembolsado',       fmtBrl(data.summary.refund_amount),                 undefined],
     ];
 
     let r = 4;
-    for (const [label, value, flag] of kpis) {
-        const row    = wsResumo.getRow(r);
-        const cellA  = wsResumo.getCell(r, 1);
-        const cellB  = wsResumo.getCell(r, 2);
-        cellA.value  = label;
-        cellB.value  = value;
-        cellA.font   = { bold: !!label, size: 10 };
-        cellA.border = thinBorder();
-        cellB.border = thinBorder();
+    for (const [label, value, flag, sectionStart] of kpis) {
+        const rowIndex = r - 4; // 0-based para zebra
+        const row      = wsResumo.getRow(r);
+        const cellA    = wsResumo.getCell(r, 1);
+        const cellB    = wsResumo.getCell(r, 2);
+
+        cellA.value = label;
+        cellA.font  = { bold: !!label, size: 10 };
+
+        // CORREÇÃO 2: zebra no Resumo
+        const bg = rowIndex % 2 === 0 ? zebraFill() : whiteFill();
+        cellA.fill = bg;
+        cellB.fill = bg;
+
+        // CORREÇÃO 5: border-top de separação de seção
+        cellA.border = sectionStart ? sectionTopBorder() : thinBorder();
+        cellB.border = sectionStart ? sectionTopBorder() : thinBorder();
+
         cellB.alignment = { vertical: 'middle', horizontal: 'right' };
-        if (flag === 'high') cellB.font = colorFont(C.danger, true, 10);
-        else if (flag === 'low') cellB.font = colorFont(C.danger, false, 10);
-        else cellB.font = { size: 10 };
+
+        // CORREÇÃO 3: célula sem valor vira N/D
+        if (isBlank(value)) {
+            applyNd(cellB);
+        } else if (flag === 'high') {
+            cellB.value = value;
+            cellB.font  = colorFont(C.danger, true, 10);
+        } else if (flag === 'low') {
+            cellB.value = value;
+            cellB.font  = colorFont(C.danger, false, 10);
+        } else {
+            cellB.value = value;
+            cellB.font  = { size: 10 };
+        }
+
         row.height = 22;
         r++;
     }
@@ -260,7 +320,7 @@ export async function generateXlsx(
 
     const vendaHeaders = [
         'ID da Transação',
-        'Nome do Cliente',
+        'Cliente',
         'Canal de Aquisição',
         'Valor Líquido (R$)',
         'Data da Venda',
@@ -268,57 +328,59 @@ export async function generateXlsx(
     ];
     const vHeaderRow = wsVendas.getRow(3);
     vendaHeaders.forEach((h, i) => { vHeaderRow.getCell(i + 1).value = h; });
-    styleHeaderRow(vHeaderRow, vendaCols);
+    // CORREÇÃO 4: cabeçalho #1E1E1E para Vendas
+    styleHeaderRow(vHeaderRow, vendaCols, darkFill());
 
-    data.transactions_detail.forEach((t, idx) => {
+    // Ordena por data DESC
+    const sortedTx = [...data.transactions_detail].sort((a, b) => {
+        const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return db - da;
+    });
+
+    sortedTx.forEach((t, idx) => {
         const rv = idx + 4;
         const dr = wsVendas.getRow(rv);
 
         const statusLabel = STATUS_LABELS[t.status] ?? t.status;
-        const statusColor = { approved: C.success, refunded: C.danger }[t.status];
-        const channel     = translateChannel(t.customer_channel ?? t.platform ?? '—');
-
-        dr.getCell(1).value = t.id.slice(0, 8);
-        dr.getCell(2).value = t.customer_email ?? '—';
-        dr.getCell(3).value = channel;
-        dr.getCell(4).value = fmtBrl(t.amount_net);
-        dr.getCell(5).value = t.created_at ? fmtDate(t.created_at) : '—';
-        dr.getCell(6).value = statusLabel;
+        const statusColor = { approved: C.success, refunded: C.danger }[t.status as 'approved' | 'refunded'];
+        const channel     = translateChannel(t.customer_channel ?? t.platform ?? '');
 
         styleDataRow(dr, vendaCols, idx);
 
-        // Monospace para ID e Data
-        dr.getCell(1).font = colorFont(C.dark, false, 10);
-        dr.getCell(5).font = colorFont(C.dark, false, 10);
+        // ID da Transação
+        dr.getCell(1).value = t.id.slice(0, 8);
+        dr.getCell(1).font  = colorFont(C.dark, false, 10);
 
-        // Valor monetário alinhado à direita
+        // Cliente
+        setCellText(dr.getCell(2), t.customer_email ?? null);
+
+        // Canal
+        setCellText(dr.getCell(3), channel || null);
+
+        // Valor
+        dr.getCell(4).value     = fmtBrl(t.amount_net);
         dr.getCell(4).alignment = { vertical: 'middle', horizontal: 'right' };
 
-        // Status colorido
+        // Data
+        if (t.created_at) {
+            dr.getCell(5).value = fmtDate(t.created_at);
+            dr.getCell(5).font  = colorFont(C.dark, false, 10);
+        } else {
+            applyNd(dr.getCell(5));
+        }
+
+        // Status
+        dr.getCell(6).value     = statusLabel;
+        dr.getCell(6).alignment = { vertical: 'middle', horizontal: 'center' };
         if (statusColor) {
             dr.getCell(6).font = colorFont(statusColor, true, 10);
-        }
-        dr.getCell(6).alignment = { vertical: 'middle', horizontal: 'center' };
-    });
-
-    // Linhas zebradas: #F7F6F3 nas linhas pares
-    wsVendas.eachRow((row, rowNumber) => {
-        if (rowNumber > 3) {
-            const idx = rowNumber - 4;
-            if (idx % 2 === 1) {
-                for (let c = 1; c <= vendaCols; c++) {
-                    const cell = row.getCell(c);
-                    if (!cell.fill || (cell.fill as Fill).type === 'pattern' && (cell.fill as { fgColor?: { argb?: string } }).fgColor?.argb === 'FFFFFFFF') {
-                        cell.fill = zebraFill();
-                    }
-                }
-            }
         }
     });
 
     wsVendas.autoFilter = {
         from: { row: 3, column: 1 },
-        to:   { row: 3 + data.transactions_detail.length, column: vendaCols },
+        to:   { row: 3 + sortedTx.length, column: vendaCols },
     };
 
     autoFitColumns(wsVendas);
@@ -331,7 +393,8 @@ export async function generateXlsx(
         properties: { tabColor: { argb: 'FF1A7FE8' } },
     });
 
-    const canalColCount = 8;
+    // CORREÇÃO 4: 6 colunas conforme spec
+    const canalColCount = 6;
 
     writeSectionTitle(wsCanais, 1, 'PERFORMANCE POR CANAL DE AQUISIÇÃO', canalColCount);
     writePeriodRow(wsCanais, 2, generatedStr, canalColCount);
@@ -342,53 +405,61 @@ export async function generateXlsx(
         'Receita Atribuída (R$)',
         'ROAS',
         'LTV Médio (R$)',
-        'Margem (%)',
         'Novos Clientes',
-        'Status',
     ];
     const cHeaderRow = wsCanais.getRow(3);
     canalHeaders.forEach((h, i) => { cHeaderRow.getCell(i + 1).value = h; });
-    styleHeaderRow(cHeaderRow, canalColCount);
+    // CORREÇÃO 4: cabeçalho #1E1E1E para Canais
+    styleHeaderRow(cHeaderRow, canalColCount, darkFill());
 
     const channels = data.channel_economics.filter(c => c.channel !== 'desconhecido');
-    channels.forEach((ch, idx) => {
-        const rv = idx + 4;
-        const dr = wsCanais.getRow(rv);
 
-        const roas   = ch.total_spend > 0 ? ch.total_ltv / ch.total_spend : 0;
-        const margin = ch.total_ltv > 0 ? ((ch.total_ltv - ch.total_spend) / ch.total_ltv) * 100 : 0;
+    if (channels.length === 0) {
+        // CORREÇÃO 4: mensagem de estado vazio
+        wsCanais.mergeCells(4, 1, 4, canalColCount);
+        const emptyCell = wsCanais.getCell(4, 1);
+        emptyCell.value     = 'Sem dados de mídia paga no período';
+        emptyCell.font      = colorFont(C.textSecondary, false, 10);
+        emptyCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        emptyCell.fill      = whiteFill();
+        wsCanais.getRow(4).height = 32;
+    } else {
+        channels.forEach((ch, idx) => {
+            const rv = idx + 4;
+            const dr = wsCanais.getRow(rv);
 
-        const statusLabel = ch.status === 'lucrativo' ? 'Lucrativo'
-            : ch.status === 'prejuizo' ? 'Prejuízo' : 'Orgânico';
-        const statusColor = ch.status === 'lucrativo' ? C.success
-            : ch.status === 'prejuizo' ? C.danger : C.textSecondary;
+            const roas = ch.total_spend > 0 ? ch.total_ltv / ch.total_spend : 0;
 
-        dr.getCell(1).value = translateChannel(ch.channel);
-        dr.getCell(2).value = fmtBrl(ch.total_spend);
-        dr.getCell(3).value = fmtBrl(ch.total_ltv);
-        dr.getCell(4).value = ch.total_spend > 0 ? `${fmtNum(roas)}x` : '—';
-        dr.getCell(5).value = fmtBrl(ch.avg_ltv);
-        dr.getCell(6).value = `${fmtNum(margin)}%`;
-        dr.getCell(7).value = ch.new_customers;
-        dr.getCell(8).value = statusLabel;
+            styleDataRow(dr, canalColCount, idx);
 
-        styleDataRow(dr, canalColCount, idx);
+            dr.getCell(1).value = translateChannel(ch.channel);
 
-        // Margem colorida
-        dr.getCell(6).font = colorFont(margin >= 0 ? C.success : C.danger, false, 10);
+            dr.getCell(2).value     = fmtBrl(ch.total_spend);
+            dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
 
-        // Status colorido e centralizado
-        dr.getCell(8).font      = colorFont(statusColor, true, 10);
-        dr.getCell(8).alignment = { vertical: 'middle', horizontal: 'center' };
+            dr.getCell(3).value     = fmtBrl(ch.total_ltv);
+            dr.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' };
 
-        // Novos clientes centralizado
-        dr.getCell(7).alignment = { vertical: 'middle', horizontal: 'center' };
-    });
+            // ROAS: N/D se não há investimento
+            if (ch.total_spend > 0) {
+                dr.getCell(4).value     = `${fmtNum(roas)}x`;
+                dr.getCell(4).alignment = { vertical: 'middle', horizontal: 'right' };
+            } else {
+                applyNd(dr.getCell(4));
+            }
 
-    wsCanais.autoFilter = {
-        from: { row: 3, column: 1 },
-        to:   { row: 3 + channels.length, column: canalColCount },
-    };
+            dr.getCell(5).value     = fmtBrl(ch.avg_ltv);
+            dr.getCell(5).alignment = { vertical: 'middle', horizontal: 'right' };
+
+            dr.getCell(6).value     = ch.new_customers;
+            dr.getCell(6).alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+
+        wsCanais.autoFilter = {
+            from: { row: 3, column: 1 },
+            to:   { row: 3 + channels.length, column: canalColCount },
+        };
+    }
 
     autoFitColumns(wsCanais);
 
