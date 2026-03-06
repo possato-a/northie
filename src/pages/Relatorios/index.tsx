@@ -199,15 +199,12 @@ const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }>
 }
 
 const RFM_LABELS: Record<string, { label: string; color: string }> = {
-    champions:          { label: 'Champions',   color: '#22C55E' },
-    loyal_customers:    { label: 'Leais',        color: '#3B82F6' },
-    at_risk:            { label: 'Em Risco',     color: '#F59E0B' },
-    cant_lose_them:     { label: 'Críticos',     color: '#EF4444' },
-    lost:               { label: 'Perdidos',     color: '#6B7280' },
-    potential_loyalists:{ label: 'Potenciais',   color: '#8B5CF6' },
-    new_customers:      { label: 'Novos',        color: '#06B6D4' },
-    promising:          { label: 'Promissores',  color: '#10B981' },
-    need_attention:     { label: 'Atenção',      color: '#F97316' },
+    champions:  { label: 'Champions',   color: '#22C55E' },
+    loyalists:  { label: 'Leais',       color: '#3B82F6' },
+    em_risco:   { label: 'Em Risco',    color: '#F59E0B' },
+    perdidos:   { label: 'Perdidos',    color: '#6B7280' },
+    novos:      { label: 'Novos',       color: '#06B6D4' },
+    outros:     { label: 'Outros',      color: '#8B5CF6' },
 }
 
 function PreviewKpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
