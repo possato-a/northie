@@ -75,14 +75,16 @@ async function checkRoasDrop(profileId: string): Promise<void> {
 
     const { data: txs } = await supabase
         .from('transactions')
-        .select('platform, amount_net, created_at')
+        .select('amount_net, created_at, customers!inner(acquisition_channel)')
         .eq('profile_id', profileId)
         .eq('status', 'approved')
         .gte('created_at', sevenDaysAgo + 'T00:00:00Z');
 
+    const channelMap: Record<string, string> = { meta: 'meta_ads', google: 'google_ads' };
     for (const platform of ['meta', 'google']) {
         const platformMetrics = metrics.filter(m => m.platform === platform);
-        const platformTxs = txs?.filter(t => t.platform === platform) || [];
+        const channelKey = channelMap[platform] || platform;
+        const platformTxs = txs?.filter(t => (t as any).customers?.acquisition_channel === channelKey) || [];
 
         if (!platformMetrics.length) continue;
 

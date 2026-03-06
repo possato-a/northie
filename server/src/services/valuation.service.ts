@@ -87,7 +87,7 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
         // Growth bonus based on LTV/CAC
         const growth_bonus = clamp((ltv_cac_ratio / 5) * 3, 0, 3);
         // Churn penalty
-        const churn_penalty = clamp(churn_rate * 3, 0, 3);
+        const churn_penalty = clamp((churn_rate / 100) * 3, 0, 3);
         multiple = clamp(base + growth_bonus - churn_penalty, 7, 13);
         valuation_brl = arr_brl * multiple;
         methodology = 'arr_multiple';
@@ -155,7 +155,7 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
             ltv_avg_brl,
             cac_avg_brl,
             ltv_cac_ratio,
-            churn_rate,
+            churn_rate: churn_rate / 100,
             methodology,
             benchmark_percentile,
             business_type: businessType,
@@ -169,7 +169,7 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
         ltv_avg_brl,
         cac_avg_brl,
         ltv_cac_ratio,
-        churn_rate,
+        churn_rate: churn_rate / 100,
         methodology,
         benchmark_percentile,
         snapshot_month: snapshot_month_label,

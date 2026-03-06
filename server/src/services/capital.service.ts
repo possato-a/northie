@@ -72,7 +72,7 @@ export async function calculateCapitalScore(profileId: string): Promise<CapitalS
         ? customers.reduce((a, c) => a + (c.churn_probability || 0), 0) / customers.length
         : 0;
 
-    const customer_quality = clamp(ltv_avg / 500 * 15, 0, 15) + clamp((1 - churn_rate) * 10, 0, 10);
+    const customer_quality = clamp(ltv_avg / 500 * 15, 0, 15) + clamp((1 - churn_rate / 100) * 10, 0, 10);
 
     // 3. Acquisition efficiency — LTV/CAC ratio
     const { data: adData } = await supabase
@@ -142,6 +142,10 @@ export async function calculateCapitalScore(profileId: string): Promise<CapitalS
             snapshot_month,
             score,
             credit_limit_brl,
+            score_revenue: dimensions.revenue_consistency,
+            score_ltv_churn: dimensions.customer_quality,
+            score_cac_ltv: dimensions.acquisition_efficiency,
+            score_platform_age: dimensions.platform_tenure,
             dimensions,
             metrics: {
                 mrr_avg,

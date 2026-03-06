@@ -28,9 +28,12 @@ function mapChannel(raw: string | undefined): AcquisitionChannel {
     const s = (raw || '').toLowerCase()
     if (s === 'meta_ads' || s === 'meta') return 'Meta Ads'
     if (s === 'google_ads' || s === 'google') return 'Google Ads'
+    if (s === 'hotmart') return 'Hotmart'
     if (s === 'organico' || s === 'organic') return 'Google Orgânico'
     if (s === 'email' || s === 'newsletter') return 'Email'
     if (s === 'afiliado' || s === 'affiliate') return 'Direto'
+    if (s === 'shopify') return 'Direto'
+    if (s === 'stripe') return 'Direto'
     return 'Direto'
 }
 
@@ -253,7 +256,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
             }
 
             // Monta mapa customer_id → lista de compras (apenas aprovadas)
-            const purchasesByCustomer = new Map<string, Array<{ date: string; product: string; value: number }>>()
+            const purchasesByCustomer = new Map<string, Array<{ date: string; product: string; value: number; _sortDate: number }>>()
             const rawTx = Array.isArray(txRes.data) ? txRes.data : []
             for (const tx of rawTx) {
                 if (tx.status !== 'approved') continue
@@ -262,6 +265,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                     date: new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }),
                     product: tx.product_name || '—',
                     value: Number(tx.amount_net),
+                    _sortDate: new Date(tx.created_at).getTime(),
                 })
                 purchasesByCustomer.set(tx.customer_id, list)
             }
@@ -275,7 +279,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                 const status: ClientStatus = cac > 0 && ltv > cac ? 'Lucrativo' : cac > 0 && ltv <= cac ? 'Payback' : ltv > 0 ? 'Lucrativo' : 'Risco'
                 // Ordena compras da mais recente para a mais antiga
                 const purchases = (purchasesByCustomer.get(c.id) || [])
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .sort((a, b) => b._sortDate - a._sortDate)
                 return {
                     id: c.id,
                     name: c.name || c.email || 'Cliente',

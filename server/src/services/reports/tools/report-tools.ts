@@ -180,7 +180,7 @@ export async function getChurnRiskByChannel(
         const ltv  = Number(c.total_ltv ?? 0);
         byChannel[ch].total++;
         byChannel[ch].probSum += prob;
-        if (prob > 0.6) { byChannel[ch].highRisk++; byChannel[ch].highRiskLtv += ltv; }
+        if (prob > 60) { byChannel[ch].highRisk++; byChannel[ch].highRiskLtv += ltv; }
     }
 
     return Object.entries(byChannel).map(([channel, v]) => ({

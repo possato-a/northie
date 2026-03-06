@@ -110,7 +110,7 @@ function TransactionList({ transactions, loading }: { transactions: Transaction[
 function ProductRevenue({ transactions }: { transactions: Transaction[] }) {
   const products = useMemo(() => {
     const map = new Map<string, { qty: number; revenue: number }>()
-    transactions.forEach(t => {
+    transactions.filter(t => t.status === 'Pago').forEach(t => {
       const prev = map.get(t.product) || { qty: 0, revenue: 0 }
       map.set(t.product, { qty: prev.qty + 1, revenue: prev.revenue + t.value })
     })
@@ -166,7 +166,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
   useEffect(() => {
     const txPromise = dataApi.getTransactions(period.days).catch(() => ({ data: [] }))
     const statsPromise = dashboardApi.getStats().catch(() => ({ data: {} }))
-    const campaignsPromise = dashboardApi.getAdCampaigns(30).catch(() => ({ data: [] }))
+    const campaignsPromise = dashboardApi.getAdCampaigns(period.days).catch(() => ({ data: [] }))
 
     Promise.all([txPromise, statsPromise, campaignsPromise]).then(([txRes, statsRes, campaignsRes]) => {
       const rawTx = Array.isArray(txRes.data) ? txRes.data : []

@@ -581,10 +581,23 @@ export async function syncTransaction(
 
     // 5. Update LTV (baseado em amount_net — o que o produtor efetivamente recebe)
     const newLtv = (Number(customer.total_ltv) || 0) + amountNet;
-    await supabase
-        .from('customers')
-        .update({ total_ltv: newLtv, last_purchase_at: new Date().toISOString() })
-        .eq('id', customer.id);
+    const purchaseDate = extra?.createdAt ?? new Date().toISOString();
+
+    // Update LTV always; update last_purchase_at only if this purchase is more recent
+    await supabase.rpc('update_customer_ltv', {
+        p_customer_id: customer.id,
+        p_ltv_increment: amountNet,
+        p_purchase_date: purchaseDate,
+    }).then(({ error }) => {
+        if (error) {
+            // Fallback: direct update if RPC doesn't exist yet
+            console.warn('[Normalization] RPC update_customer_ltv not available, using direct update:', error.message);
+            return supabase
+                .from('customers')
+                .update({ total_ltv: newLtv, last_purchase_at: purchaseDate })
+                .eq('id', customer.id);
+        }
+    });
 
     console.log(`[Normalization] LTV updated to ${newLtv} for customer ${customer.id}`);
 }

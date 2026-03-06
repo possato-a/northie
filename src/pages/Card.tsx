@@ -208,7 +208,7 @@ function CardVisual({ card, onToggleFreeze }: { card: NorthieCard; onToggleFreez
 
 // ── Barra de uso de crédito ────────────────────────────────────────
 function CreditUsageBar({ used, total }: { used: number; total: number }) {
-    const pct = (used / total) * 100
+    const pct = total > 0 ? (used / total) * 100 : 0
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

@@ -66,7 +66,7 @@ export default function TopClients({ initialData }: { initialData?: TopCustomer[
           marginBottom: 'var(--space-1)',
         }}
       >
-        {['Nome', 'Valor', 'CAC', 'LTV'].map(h => (
+        {['Nome', 'Margem', 'CAC', 'LTV'].map(h => (
           <span key={h} style={{
             fontFamily: 'var(--font-sans)',
             fontSize: 'var(--text-xs)',

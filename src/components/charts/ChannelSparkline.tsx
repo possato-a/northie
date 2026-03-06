@@ -12,6 +12,7 @@ interface ChannelSparklineProps {
 }
 
 export default function ChannelSparkline({ data, height = 40, id = 'default' }: ChannelSparklineProps) {
+    if (data.length < 2) return null
     const max = Math.max(...data)
     const min = Math.min(...data)
     const range = (max - min) || 1

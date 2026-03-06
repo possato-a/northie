@@ -26,6 +26,7 @@ interface ValuationSnapshot {
 
 // ── Gráfico de histórico de valuation ────────────────────────────
 function ValuationChart({ data }: { data: ValuationSnapshot[] }) {
+    if (data.length < 2) return null
     const values = data.map(d => d.valuation_brl)
     const max = Math.max(...values)
     const min = Math.min(...values)
@@ -223,7 +224,7 @@ export default function Valuation({ onToggleChat }: PageProps) {
         )
     }
 
-    const monthlyDelta = history.length >= 2
+    const monthlyDelta = history.length >= 2 && history[history.length - 2].valuation_brl > 0
         ? ((history[history.length - 1].valuation_brl - history[history.length - 2].valuation_brl) / history[history.length - 2].valuation_brl * 100)
         : 0
 

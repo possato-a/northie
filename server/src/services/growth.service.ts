@@ -302,7 +302,7 @@ async function executeDivergenciaRoiCanal(profileId: string, recId: string, meta
         step: 'Análise de divergência ROI concluída',
         status: 'done',
         timestamp: new Date().toISOString(),
-        detail: worst ? `${worst.channel}: ROI caiu ${worst.roi_drop_pct}% com spend +${Math.round(((worst.current_spend - worst.historic_spend) / worst.historic_spend) * 100)}%` : 'Ver detalhes acima',
+        detail: worst ? `${worst.channel}: ROI caiu ${worst.roi_drop_pct}%${worst.historic_spend > 0 ? ` com spend +${Math.round(((worst.current_spend - worst.historic_spend) / worst.historic_spend) * 100)}%` : ''}` : 'Ver detalhes acima',
     });
     await appendLog(recId, {
         step: 'Recomendação: revisar criativos e segmentação',

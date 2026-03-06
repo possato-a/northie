@@ -162,12 +162,12 @@ export async function getGrowthMetrics(req: Request, res: Response) {
 
         const growthPercent = previousTotal > 0
             ? ((currentTotal - previousTotal) / previousTotal) * 100
-            : 100; // If it was zero, growth is 100% or we can return null
+            : null;
 
         res.status(200).json({
             current_revenue: currentTotal,
             previous_revenue: previousTotal,
-            growth_percentage: Number(growthPercent.toFixed(2))
+            growth_percentage: growthPercent !== null ? Number(growthPercent.toFixed(2)) : null
         });
     } catch (error: any) {
         console.error('Growth Metrics Error:', error);
@@ -288,10 +288,13 @@ export async function getRetentionCohort(req: Request, res: Response) {
             const custTransactions = transactions?.filter(t => t.customer_id === cust.id) || [];
 
             [30, 60, 90, 180].forEach(days => {
-                const threshold = new Date(birth.getTime() + (days * 24 * 60 * 60 * 1000));
-                const hasPurchaseAfter = custTransactions.some(t => new Date(t.created_at) >= threshold);
+                const windowEnd = new Date(birth.getTime() + (days * 24 * 60 * 60 * 1000));
+                const hasPurchaseInWindow = custTransactions.some(t => {
+                    const txDate = new Date(t.created_at);
+                    return txDate > birth && txDate <= windowEnd;
+                });
                 const cohort = cohortData[cohortMonth];
-                if (hasPurchaseAfter && cohort) {
+                if (hasPurchaseInWindow && cohort) {
                     cohort.retentions[days] = (cohort.retentions[days] || 0) + 1;
                 }
             });
@@ -358,11 +361,10 @@ export async function getChannelTrends(req: Request, res: Response) {
             .eq('level', 'campaign')
             .gte('date', since);
 
-        // Secondary source: transactions attributed via pixel/webhook (enriches when pixel is active)
-        // Kept here so future pixel revenue contributes to ROAS automatically
+        // Secondary source: transactions with customer acquisition_channel (enriches when pixel is active)
         const { data: txs } = await supabase
             .from('transactions')
-            .select('platform, amount_net, created_at')
+            .select('amount_net, created_at, customers!inner(acquisition_channel)')
             .eq('profile_id', profileId)
             .eq('status', 'approved')
             .gte('created_at', fifteenDaysAgo.toISOString());
@@ -382,15 +384,17 @@ export async function getChannelTrends(req: Request, res: Response) {
                 const dayAdRevenue = dayRows.reduce((s, r) => s + Number(r.purchase_value || 0), 0);
                 const dayAdPurchases = dayRows.reduce((s, r) => s + Number(r.purchases || 0), 0);
 
-                // Pixel/webhook attributed revenue (secondary — added once pixel is active)
+                // Pixel/webhook attributed revenue via customer acquisition_channel
+                const channelMap: Record<string, string> = { meta: 'meta_ads', google: 'google_ads' };
+                const channelKey = channelMap[p] || p;
                 const dayTxRevenue = (txs || [])
-                    .filter(t => t.platform === p && t.created_at.startsWith(dateStr))
+                    .filter(t => (t as any).customers?.acquisition_channel === channelKey && t.created_at.startsWith(dateStr))
                     .reduce((s, t) => s + Number(t.amount_net), 0);
 
                 // Use ad_campaigns revenue as primary; add pixel revenue only if ad_campaigns has none for that day
                 const dayRevenue = dayAdRevenue > 0 ? dayAdRevenue : dayTxRevenue;
                 const dayPurchases = dayAdPurchases > 0 ? dayAdPurchases
-                    : (txs || []).filter(t => t.platform === p && t.created_at.startsWith(dateStr)).length;
+                    : (txs || []).filter(t => (t as any).customers?.acquisition_channel === channelKey && t.created_at.startsWith(dateStr)).length;
 
                 const roas = daySpend > 0 ? dayRevenue / daySpend : 0;
                 const cac = dayPurchases > 0 ? daySpend / dayPurchases : 0;
