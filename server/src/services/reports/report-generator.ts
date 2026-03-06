@@ -1,4 +1,8 @@
 import { supabase } from '../../lib/supabase.js';
+import {
+    identifyBusinessModel, consolidateRevenue, computeHealthScore,
+    computeProjections, detectMissingIntegrations,
+} from './report-business-model.js';
 
 export type ReportFrequency = 'weekly' | 'monthly' | 'quarterly';
 export type ReportFormat = 'xlsx' | 'json' | 'pdf';
@@ -439,6 +443,33 @@ export async function generateReportData(
         at_risk_customers: atRiskSummary,
         top_products: topProducts,
         revenue_trend: revenueTrend,
+        // ── Metricas derivadas ─────────────────────────────────────────────────
+        business_model_info:  identifyBusinessModel(revenueByPlatform),
+        consolidated_revenue: consolidateRevenue(revenueByPlatform),
+        ltv_cac_overall:      cacOverall > 0 && ltvAvg > 0 ? ltvAvg / cacOverall : null,
+        mrr_projected:        revenue * (30 / Math.max(1, days)),
+        arr_projected:        revenue * (30 / Math.max(1, days)) * 12,
+        payback_months:       (() => {
+            // Payback = CAC / (receita mensal por cliente ativo)
+            const mRev = revenue * (30 / Math.max(1, days));
+            const monthly = totalCustomers > 0 ? mRev / totalCustomers : 0;
+            return cacOverall > 0 && monthly > 0
+                ? Math.round((cacOverall / monthly) * 10) / 10
+                : null;
+        })(),
+        health_score: computeHealthScore({
+            ltv_cac_overall:    cacOverall > 0 && ltvAvg > 0 ? ltvAvg / cacOverall : 0,
+            refund_rate:        refundRate,
+            revenue_change_pct: revenueChangePct,
+            roas:               totalSpend > 0 ? revenue / totalSpend : 0,
+            business_model:     identifyBusinessModel(revenueByPlatform).type,
+        }),
+        projections:          computeProjections(revenueTrend, revenue, days),
+        missing_integrations: detectMissingIntegrations(revenueByPlatform, spendByPlatform),
+        integrations_active: [
+            ...Object.keys(revenueByPlatform).filter(k => (revenueByPlatform[k] ?? 0) > 0),
+            ...Object.keys(spendByPlatform).filter(k => (spendByPlatform[k] ?? 0) > 0),
+        ].filter((v, i, a) => a.indexOf(v) === i),
     };
 }
 
