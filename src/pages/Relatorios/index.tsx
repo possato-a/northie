@@ -30,6 +30,7 @@ interface ReportLog {
     email_status?: string
     period_start?: string
     period_end?: string
+    triggered_by?: 'manual' | 'automatic' | 'email'
     snapshot?: {
         revenue_net: number
         ad_spend: number
@@ -352,6 +353,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
     const [loadingAI, setLoadingAI] = useState(false)
     const [aiError, setAiError] = useState(false)
+    const [aiTimedOut, setAiTimedOut] = useState(false)
 
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
@@ -440,10 +442,14 @@ export default function Relatorios(_props: RelatoriosProps) {
     async function handleRequestAI() {
         setLoadingAI(true)
         setAiError(false)
+        setAiTimedOut(false)
         try {
             const res = await reportsApi.getAIAnalysis(genFrequency)
             setAiAnalysis(res.data as AIAnalysis)
-        } catch {
+        } catch (err: unknown) {
+            const e = err as { code?: string; message?: string }
+            const isTimeout = e?.code === 'ECONNABORTED' || (e?.message ?? '').toLowerCase().includes('timeout')
+            setAiTimedOut(isTimeout)
             setAiError(true)
         } finally {
             setLoadingAI(false)
@@ -814,7 +820,9 @@ export default function Relatorios(_props: RelatoriosProps) {
                             <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#EF4444' }}>
-                                    Falha na análise. Tente novamente.
+                                    {aiTimedOut
+                                        ? 'A análise excedeu o tempo limite. O servidor pode estar sob carga — aguarde alguns instantes e tente novamente.'
+                                        : 'Falha na análise. Verifique as integrações e tente novamente.'}
                                 </span>
                                 <Btn variant="secondary" onClick={handleRequestAI}>Tentar novamente</Btn>
                             </motion.div>
@@ -1174,9 +1182,21 @@ export default function Relatorios(_props: RelatoriosProps) {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                                    {freqLabel[log.frequency] ?? log.frequency}
-                                                </span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                                        {freqLabel[log.frequency] ?? log.frequency}
+                                                    </span>
+                                                    {log.triggered_by && log.triggered_by !== 'manual' && (
+                                                        <span style={{
+                                                            display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700,
+                                                            letterSpacing: '0.06em', textTransform: 'uppercase', padding: '1px 5px', borderRadius: 3,
+                                                            color: log.triggered_by === 'automatic' ? '#6366F1' : '#1a7fe8',
+                                                            background: log.triggered_by === 'automatic' ? 'rgba(99,102,241,0.10)' : 'rgba(26,127,232,0.10)',
+                                                        }}>
+                                                            {log.triggered_by === 'automatic' ? 'Auto' : 'Email'}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
                                                     {log.format}
                                                 </span>
