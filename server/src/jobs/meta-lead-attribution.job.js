@@ -16,7 +16,7 @@
 import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
-const GRAPH_URL = 'https://graph.facebook.com/v18.0';
+const GRAPH_URL = 'https://graph.facebook.com/v25.0';
 function extractEmail(fieldData) {
     const emailField = fieldData.find(f => f.name.toLowerCase().includes('email'));
     return emailField?.values?.[0]?.toLowerCase().trim() || null;

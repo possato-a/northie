@@ -43,6 +43,24 @@ function buildSnapshot(data, ai) {
         criticos: ai.diagnosticos.filter(d => d.severidade === 'critica').length,
     };
 }
+// ── Log helper (fire-and-forget — nunca bloqueia a resposta HTTP) ─────────────
+function writeReportLog(params) {
+    const { profileId, freqRaw, format, period, situacao_geral, snapshot, resendEmailId } = params;
+    supabase.from('report_logs').insert({
+        profile_id: profileId,
+        frequency: freqRaw,
+        format,
+        period_start: period.start,
+        period_end: period.end,
+        status: 'generated',
+        situacao_geral,
+        snapshot,
+        ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+    }).then(({ error }) => {
+        if (error)
+            console.error('[Reports] Failed to write report_log:', error.message);
+    });
+}
 // ── Controllers ───────────────────────────────────────────────────────────────
 export async function getReportConfig(req, res) {
     const profileId = req.headers['x-profile-id'];
@@ -114,7 +132,7 @@ export async function getReportAIAnalysis(req, res) {
     const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
         return res.json({
             situacao_geral: aiAnalysis.situacao_geral,
             resumo_executivo: aiAnalysis.resumo_executivo,
@@ -134,43 +152,32 @@ export async function generateReport(req, res) {
     const freqRaw = req.body.frequency ?? 'monthly';
     const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
     const format = req.body.format ?? 'xlsx';
+    const dateStr = new Date().toISOString().split('T')[0];
     try {
         const reportData = await generateReportData(profileId, frequency);
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
         const aiAnalysis = format === 'pdf'
-            ? await generateReportNarrative(reportData)
+            ? await generateReportNarrative(reportData, profileId)
             : { situacao_geral: 'atencao', resumo_executivo: '', diagnosticos: [], proximos_passos: [], generated_at: new Date().toISOString(), model: 'n/a' };
         const snapshot = buildSnapshot(reportData, aiAnalysis);
-        await supabase.from('report_logs').insert({
-            profile_id: profileId,
-            frequency: freqRaw,
-            format,
-            period_start: reportData.period.start,
-            period_end: reportData.period.end,
-            status: 'generated',
-            situacao_geral: aiAnalysis.situacao_geral,
-            snapshot,
-        });
-        const dateStr = new Date().toISOString().split('T')[0];
         if (format === 'xlsx') {
             const xlsxBuffer = await generateXlsx(reportData, aiAnalysis);
-            const filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
+            // Loga APÓS geração bem-sucedida do arquivo (fire-and-forget)
+            writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: null, snapshot });
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.xlsx"`);
             return res.send(xlsxBuffer);
         }
         if (format === 'pdf') {
             const pdfBuffer = await generatePdf(reportData, aiAnalysis);
-            const filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
+            // Loga APÓS geração bem-sucedida do arquivo (fire-and-forget)
+            writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: aiAnalysis.situacao_geral, snapshot });
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
             return res.send(pdfBuffer);
         }
         // JSON — estruturado em seções
-        const filename = `northie-report-${freqRaw}-${dateStr}.json`;
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        return res.json({
+        const jsonBody = {
             northie_relatorio: {
                 gerado_em: new Date().toISOString(),
                 frequencia: freqRaw,
@@ -205,12 +212,14 @@ export async function generateReport(req, res) {
             })),
             tendencia_receita: reportData.revenue_trend,
             top_produtos: reportData.top_products,
-            segmentacao_rfm: {
-                fonte: reportData.rfm_source,
-                segmentos: reportData.rfm_distribution,
-            },
+            segmentacao_rfm: { fonte: reportData.rfm_source, segmentos: reportData.rfm_distribution },
             clientes_em_risco: reportData.at_risk_customers,
-        });
+        };
+        // Loga APÓS montar o JSON com sucesso (fire-and-forget)
+        writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: null, snapshot });
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.json"`);
+        return res.json(jsonBody);
     }
     catch (err) {
         console.error('[Reports] generateReport error:', err);
@@ -247,19 +256,66 @@ export async function exportReport(req, res) {
         return res.status(500).json({ error: 'Failed to export report' });
     }
 }
+export async function downloadLogReport(req, res) {
+    const profileId = req.headers['x-profile-id'];
+    if (!profileId)
+        return res.status(400).json({ error: 'Missing x-profile-id' });
+    const { id } = req.params;
+    const formatParam = req.query.format;
+    const format = formatParam === 'xlsx' ? 'xlsx' : formatParam === 'json' ? 'json' : 'pdf';
+    const { data: log, error: logErr } = await supabase
+        .from('report_logs')
+        .select('id, frequency, format, period_start, period_end, profile_id')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+    if (logErr || !log)
+        return res.status(404).json({ error: 'Report log not found' });
+    const freqRaw = log.frequency ?? 'monthly';
+    const frequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const dates = log.period_start && log.period_end
+        ? { start: new Date(log.period_start), end: new Date(log.period_end) }
+        : undefined;
+    const dateStr = (dates?.end ?? new Date()).toISOString().split('T')[0];
+    try {
+        const reportData = await generateReportData(profileId, frequency, dates);
+        if (format === 'xlsx') {
+            const buf = await generateXlsx(reportData);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.xlsx"`);
+            return res.send(buf);
+        }
+        if (format === 'json') {
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.json"`);
+            return res.json({ period: reportData.period, summary: reportData.summary, channel_economics: reportData.channel_economics, top_products: reportData.top_products, at_risk_customers: reportData.at_risk_customers });
+        }
+        const buf = await generatePdf(reportData);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
+        return res.send(buf);
+    }
+    catch (err) {
+        console.error('[Reports] downloadLogReport error:', err);
+        return res.status(500).json({ error: 'Failed to regenerate report' });
+    }
+}
 export async function getReportLogs(req, res) {
     const profileId = req.headers['x-profile-id'];
     if (!profileId)
         return res.status(400).json({ error: 'Missing x-profile-id' });
+    const page = Math.max(0, parseInt(req.query.page ?? '0', 10) || 0);
+    const pageSize = 20;
     const { data, error } = await supabase
         .from('report_logs')
         .select('id, created_at, frequency, format, status, situacao_geral, snapshot, email_status, period_start, period_end')
         .eq('profile_id', profileId)
+        .neq('format', 'csv') // CSV é formato legado, sem suporte na UI
         .order('created_at', { ascending: false })
-        .limit(20);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
     if (error)
         return res.status(500).json({ error: error.message });
-    return res.json(data ?? []);
+    return res.json({ data: data ?? [], page, hasMore: (data?.length ?? 0) === pageSize });
 }
 export async function sendReportByEmail(req, res) {
     const profileId = req.headers['x-profile-id'];
@@ -282,7 +338,7 @@ export async function sendReportByEmail(req, res) {
         return res.status(400).json({ error: 'Email não configurado. Configure em Relatórios > Envio automático.' });
     try {
         const reportData = await generateReportData(profileId, frequency);
-        const aiAnalysis = await generateReportNarrative(reportData);
+        const aiAnalysis = await generateReportNarrative(reportData, profileId);
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         const dateStr = new Date().toISOString().split('T')[0];
         let fileBuffer;
@@ -308,16 +364,13 @@ export async function sendReportByEmail(req, res) {
             data: reportData,
             ai: aiAnalysis,
         });
-        await supabase.from('report_logs').insert({
-            profile_id: profileId,
-            frequency: freqRaw,
-            format,
-            period_start: reportData.period.start,
-            period_end: reportData.period.end,
-            status: 'generated',
+        // Loga APÓS email enviado com sucesso (fire-and-forget)
+        writeReportLog({
+            profileId, freqRaw, format,
+            period: reportData.period,
             situacao_geral: aiAnalysis.situacao_geral,
             snapshot,
-            ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+            resendEmailId,
         });
         return res.json({ ok: true, to: email, email_id: resendEmailId });
     }

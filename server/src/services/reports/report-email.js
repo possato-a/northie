@@ -90,7 +90,7 @@ function buildEmailHtml(opts) {
             ${data.summary.revenue_change_pct >= 0 ? '▲' : '▼'} ${Math.abs(data.summary.revenue_change_pct).toFixed(1)}% vs período anterior
            </span>`
         : '';
-    const formatLabel = { pdf: 'PDF', csv: 'CSV', json: 'JSON' }[format] ?? format.toUpperCase();
+    const formatLabel = { pdf: 'PDF', xlsx: 'XLSX', csv: 'CSV', json: 'JSON' }[format] ?? format.toUpperCase();
     return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>

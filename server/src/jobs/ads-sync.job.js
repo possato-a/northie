@@ -144,7 +144,7 @@ async function fetchMetaObjectStatuses(accountId, accessToken, level) {
     };
     const idField = level === 'campaign' ? 'id' : level === 'adset' ? 'id' : 'id';
     const statusMap = new Map();
-    let url = `https://graph.facebook.com/v18.0/${accountId}/${endpointMap[level]}`;
+    let url = `https://graph.facebook.com/v25.0/${accountId}/${endpointMap[level]}`;
     const params = {
         access_token: accessToken,
         fields: 'id,effective_status',
@@ -185,7 +185,7 @@ async function fetchMetaInsights(accountId, accessToken, level, dateRange) {
         params.date_preset = 'maximum';
     }
     const rows = [];
-    let url = `https://graph.facebook.com/v18.0/${accountId}/insights`;
+    let url = `https://graph.facebook.com/v25.0/${accountId}/insights`;
     while (url !== null) {
         const currentUrl = url;
         const reqParams = currentUrl.includes('?') ? undefined : params;
@@ -282,7 +282,7 @@ async function syncMetaAccount(profileId, account, accessToken, dateRange) {
     // Busca objetivos das campanhas uma única vez (só existe no nível campaign)
     const objectiveMap = new Map();
     try {
-        let url = `https://graph.facebook.com/v18.0/${account.id}/campaigns`;
+        let url = `https://graph.facebook.com/v25.0/${account.id}/campaigns`;
         const objParams = { access_token: accessToken, fields: 'id,objective', limit: 500 };
         while (url !== null) {
             const currentUrl = url;
@@ -407,7 +407,7 @@ async function syncMetaAds(profileId, dateRange = { since: yesterday(), until: t
         // Listar ad accounts
         let accountsRes;
         try {
-            accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v18.0/me/adaccounts', {
+            accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v25.0/me/adaccounts', {
                 params: { access_token: accessToken, fields: 'id,name', limit: 50 },
             }));
         }
@@ -477,7 +477,7 @@ async function fetchGoogleRows(customerId, accessToken, developerToken, query, l
     if (loginCustomerId && loginCustomerId !== customerId) {
         headers['login-customer-id'] = loginCustomerId;
     }
-    const res = await withRetry(() => axios.post(`https://googleads.googleapis.com/v20/customers/${customerId}/googleAds:searchStream`, { query }, { headers, timeout: 30000 }));
+    const res = await withRetry(() => axios.post(`https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`, { query }, { headers, timeout: 30000 }));
     const batches = res.data || [];
     const rows = [];
     for (const batch of batches)

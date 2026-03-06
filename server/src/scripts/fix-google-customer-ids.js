@@ -32,7 +32,7 @@ const config = JSON.parse(decrypt(encryptedStr));
 const token = config.access_token;
 console.log('Token obtido. Verificando contas acessíveis...');
 // 2. Lista contas acessíveis
-const customersRes = await axios.get('https://googleads.googleapis.com/v20/customers:listAccessibleCustomers', { headers: { Authorization: `Bearer ${token}`, 'developer-token': devToken }, timeout: 15000 });
+const customersRes = await axios.get('https://googleads.googleapis.com/v23/customers:listAccessibleCustomers', { headers: { Authorization: `Bearer ${token}`, 'developer-token': devToken }, timeout: 15000 });
 const resourceNames = customersRes.data?.resourceNames || [];
 const candidateIds = resourceNames.map((r) => r.replace('customers/', ''));
 console.log(`Contas encontradas: ${candidateIds.join(', ')}`);
@@ -41,7 +41,7 @@ const leafIds = [];
 let mccId = null;
 for (const cid of candidateIds) {
     try {
-        const res = await axios.post(`https://googleads.googleapis.com/v20/customers/${cid}/googleAds:searchStream`, { query: 'SELECT customer.id, customer.manager, customer.descriptive_name FROM customer' }, {
+        const res = await axios.post(`https://googleads.googleapis.com/v23/customers/${cid}/googleAds:searchStream`, { query: 'SELECT customer.id, customer.manager, customer.descriptive_name FROM customer' }, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 'developer-token': devToken,

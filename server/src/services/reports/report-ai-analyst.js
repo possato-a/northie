@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { runOrchestratorPipeline } from './report-ai-orchestrator.js';
 // ── Anthropic client ──────────────────────────────────────────────────────────
 let _anthropic = null;
 function getAnthropic() {
@@ -180,7 +181,12 @@ function parseAnalysis(raw) {
     };
 }
 // ── Main export ───────────────────────────────────────────────────────────────
-export async function generateReportNarrative(data) {
+export async function generateReportNarrative(data, profileId) {
+    // Agente V2: pipeline de dois agentes com tool_use + extended thinking
+    if (process.env.AI_AGENT_V2 === 'true' && profileId) {
+        return runOrchestratorPipeline(data, profileId);
+    }
+    // Legacy: prompt único (default)
     const generatedAt = new Date().toISOString();
     const model = 'claude-sonnet-4-6';
     try {

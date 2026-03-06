@@ -333,13 +333,25 @@ function drawVendasTable(doc, transactions, profileName, periodLabel) {
 // ── AI: Diagnosis card ────────────────────────────────────────────────────────
 function drawDiagnosisCard(doc, d, profileName, periodLabel) {
     const color = SEVERITY_COLOR[d.severidade];
-    const cardH = 110;
-    ensureSpace(doc, cardH + 10, profileName, periodLabel);
-    const startY = doc.y;
     const innerX = MARGIN + 14;
     const innerW = CONTENT_WIDTH - 24;
+    const halfW = (innerW - 12) / 2;
+    // ── Measure content height before drawing anything ─────────────────────────
+    doc.font('Helvetica').fontSize(8.5);
+    const altSintoma = doc.heightOfString(d.sintoma, { width: innerW });
+    doc.font('Helvetica').fontSize(8);
+    const altColunas = Math.max(doc.heightOfString(d.causa_raiz, { width: halfW }), doc.heightOfString(d.consequencia, { width: halfW }));
+    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mês' }[d.prazo] ?? d.prazo;
+    doc.font('Helvetica').fontSize(7.5);
+    const altRecomendacao = doc.heightOfString(`${prazoLabel} · ${d.acao_recomendada}`, { width: innerW - 140 });
+    // cardH = header(20) + sintoma(label+text) + colunas(label+text) + footer + padding(24)
+    const cardH = 20 + 18 + altSintoma + 18 + altColunas + Math.max(altRecomendacao, 12) + 24;
+    ensureSpace(doc, cardH + 12, profileName, periodLabel);
+    const startY = doc.y;
+    // ── Draw border + accent bar ───────────────────────────────────────────────
     doc.save().rect(MARGIN, startY, CONTENT_WIDTH, cardH).strokeColor(C.border).lineWidth(0.5).stroke().restore();
     doc.save().rect(MARGIN, startY, 3, cardH).fillColor(color).fill().restore();
+    // ── Canal + badge ──────────────────────────────────────────────────────────
     doc.font('Helvetica-Bold').fontSize(9).fillColor(C.dark)
         .text(d.canal.toUpperCase(), innerX, startY + 10, { width: innerW - 80 });
     const bW = 56;
@@ -349,24 +361,28 @@ function drawDiagnosisCard(doc, d, profileName, periodLabel) {
     doc.save().roundedRect(bX, bY, bW, bH, 8).fillColor(color).fill().restore();
     doc.font('Helvetica-Bold').fontSize(7).fillColor(C.white)
         .text(SEVERITY_LABEL[d.severidade], bX, bY + 4, { width: bW, align: 'center' });
-    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('SINTOMA', innerX, startY + 28);
+    // ── SINTOMA ────────────────────────────────────────────────────────────────
+    const sintamaLabelY = startY + 28;
+    const sintamaTextY = sintamaLabelY + 10;
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('SINTOMA', innerX, sintamaLabelY);
     doc.font('Helvetica').fontSize(8.5).fillColor(C.dark)
-        .text(d.sintoma, innerX, startY + 38, { width: innerW, lineGap: 1 });
-    const halfW = (innerW - 12) / 2;
-    const colY = startY + 56;
-    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('CAUSA RAIZ', innerX, colY);
+        .text(d.sintoma, innerX, sintamaTextY, { width: innerW, lineGap: 1 });
+    // ── CAUSA RAIZ / CONSEQUÊNCIA ──────────────────────────────────────────────
+    const colLabelY = sintamaTextY + altSintoma + 8;
+    const colTextY = colLabelY + 10;
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('CAUSA RAIZ', innerX, colLabelY);
     doc.font('Helvetica').fontSize(8).fillColor(C.dark)
-        .text(d.causa_raiz, innerX, colY + 10, { width: halfW, lineGap: 1 });
-    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('CONSEQUÊNCIA', innerX + halfW + 12, colY);
+        .text(d.causa_raiz, innerX, colTextY, { width: halfW, lineGap: 1 });
+    doc.font('Helvetica-Bold').fontSize(7).fillColor(C.textSecondary).text('CONSEQUÊNCIA', innerX + halfW + 12, colLabelY);
     doc.font('Helvetica').fontSize(8).fillColor(C.dark)
-        .text(d.consequencia, innerX + halfW + 12, colY + 10, { width: halfW, lineGap: 1 });
-    const bottomY = startY + 88;
-    const prazoLabel = { imediato: 'Imediato', esta_semana: 'Esta semana', este_mes: 'Este mês' }[d.prazo] ?? d.prazo;
+        .text(d.consequencia, innerX + halfW + 12, colTextY, { width: halfW, lineGap: 1 });
+    // ── Footer row: impacto + prazo·recomendação ───────────────────────────────
+    const footerRowY = colTextY + altColunas + 10;
     doc.font('Helvetica-Bold').fontSize(8).fillColor(color)
-        .text(`Impacto: ${fmtBrl(d.consequencia_financeira_brl)}`, innerX, bottomY);
+        .text(`Impacto: ${fmtBrl(d.consequencia_financeira_brl)}`, innerX, footerRowY);
     doc.font('Helvetica').fontSize(7.5).fillColor(C.textSecondary)
-        .text(`${prazoLabel} · ${d.acao_recomendada}`, innerX + 140, bottomY, { width: innerW - 140, lineGap: 1 });
-    doc.y = startY + cardH + 10;
+        .text(`${prazoLabel} · ${d.acao_recomendada}`, innerX + 140, footerRowY, { width: innerW - 140, lineGap: 1 });
+    doc.y = startY + cardH + 12;
 }
 // ── AI: Próximos Passos ───────────────────────────────────────────────────────
 function drawProximosPassos(doc, steps) {
@@ -453,11 +469,11 @@ export async function generatePdf(data, ai) {
         drawHRule(doc, footerY - 8);
         const pageNum = i - range.start + 1;
         const totalPages = range.count;
-        // lineBreak: false impede o pdfkit de avançar o cursor e criar página extra
+        // lineBreak: false + baseline: 'bottom' impedem o pdfkit de avançar o cursor e criar página extra
         doc.font('Helvetica').fontSize(7).fillColor(C.textSecondary)
-            .text(`Gerado por Northie em ${today}`, MARGIN, footerY, { lineBreak: false });
+            .text(`Gerado por Northie em ${today}`, MARGIN, footerY, { lineBreak: false, baseline: 'bottom' });
         doc.font('Helvetica').fontSize(7).fillColor(C.textSecondary)
-            .text(`Página ${pageNum} de ${totalPages}`, 0, footerY, { width: PAGE_WIDTH - MARGIN, align: 'right', lineBreak: false });
+            .text(`Página ${pageNum} de ${totalPages}`, 0, footerY, { width: PAGE_WIDTH - MARGIN, align: 'right', lineBreak: false, baseline: 'bottom' });
     }
     doc.end();
     return bufferPromise;
