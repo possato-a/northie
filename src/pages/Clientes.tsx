@@ -254,7 +254,8 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
 
             // Monta mapa customer_id → lista de compras (apenas aprovadas)
             const purchasesByCustomer = new Map<string, Array<{ date: string; product: string; value: number }>>()
-            for (const tx of (txRes.data as any[])) {
+            const rawTx = Array.isArray(txRes.data) ? txRes.data : []
+            for (const tx of rawTx) {
                 if (tx.status !== 'approved') continue
                 const list = purchasesByCustomer.get(tx.customer_id) || []
                 list.push({
@@ -265,12 +266,13 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                 purchasesByCustomer.set(tx.customer_id, list)
             }
 
-            const mapped = custRes.data.map((c: any) => {
+            const rawCust = Array.isArray(custRes.data) ? custRes.data : []
+            const mapped = rawCust.map((c: any) => {
                 const channel = mapChannel(c.acquisition_channel)
                 const cac = cacByChannel[channel] || cacByChannel[c.acquisition_channel] || 0
                 const ltv = Number(c.total_ltv)
                 const margin = cac > 0 && ltv > 0 ? Math.round(((ltv - cac) / ltv) * 100) : (ltv > 0 ? 70 : 0)
-                const status: ClientStatus = ltv > cac && cac > 0 ? 'Lucrativo' : cac > 0 ? 'Payback' : (ltv > 0 ? 'Lucrativo' : 'Payback')
+                const status: ClientStatus = cac > 0 && ltv > cac ? 'Lucrativo' : cac > 0 && ltv <= cac ? 'Payback' : ltv > 0 ? 'Lucrativo' : 'Risco'
                 // Ordena compras da mais recente para a mais antiga
                 const purchases = (purchasesByCustomer.get(c.id) || [])
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

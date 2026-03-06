@@ -169,7 +169,8 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
     const campaignsPromise = dashboardApi.getAdCampaigns(30).catch(() => ({ data: [] }))
 
     Promise.all([txPromise, statsPromise, campaignsPromise]).then(([txRes, statsRes, campaignsRes]) => {
-      const mapped = (txRes.data as any[]).map((t: any) => ({
+      const rawTx = Array.isArray(txRes.data) ? txRes.data : []
+      const mapped = rawTx.map((t: any) => ({
         id: t.id,
         date: new Date(t.created_at).toLocaleDateString('pt-BR'),
         client: t.customers?.name || t.customers?.email || 'Desconhecido',
@@ -181,7 +182,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
       }))
       setTransactions(mapped)
 
-      const campaigns: any[] = (campaignsRes.data as any[]) || []
+      const campaigns: any[] = Array.isArray(campaignsRes.data) ? campaignsRes.data : []
       const totalLeads = campaigns.reduce((s: number, c: any) => s + (c.leads || 0), 0)
       const totalPurchases = campaigns.reduce((s: number, c: any) => s + (c.purchases || 0), 0)
       const convRate = totalLeads > 0 ? (totalPurchases / totalLeads) * 100 : null
