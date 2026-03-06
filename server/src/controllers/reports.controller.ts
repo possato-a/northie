@@ -94,19 +94,26 @@ function writeReportLog(params: {
     triggeredBy?: 'manual' | 'automatic' | 'email';
 }) {
     const { profileId, freqRaw, format, period, situacao_geral, snapshot, resendEmailId, triggeredBy } = params;
-    supabase.from('report_logs').insert({
-        profile_id: profileId,
-        frequency: freqRaw,
-        format,
-        period_start: period.start,
-        period_end: period.end,
-        status: 'generated',
-        situacao_geral,
-        snapshot,
-        triggered_by: triggeredBy ?? 'manual',
-        ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
-    }).then(({ error }) => {
+    // Promise.resolve() converte PromiseLike para Promise real, habilitando .catch()
+    // Sem .catch(), o Supabase pode lançar exceção (projeto pausado, 522, etc.) que vira
+    // unhandledRejection e termina o processo Node 15+ → Vercel retorna 500 na próxima req
+    Promise.resolve(
+        supabase.from('report_logs').insert({
+            profile_id: profileId,
+            frequency: freqRaw,
+            format,
+            period_start: period.start,
+            period_end: period.end,
+            status: 'generated',
+            situacao_geral,
+            snapshot,
+            triggered_by: triggeredBy ?? 'manual',
+            ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
+        })
+    ).then(({ error }) => {
         if (error) console.error('[Reports] Failed to write report_log:', error.message);
+    }).catch((err: unknown) => {
+        console.error('[Reports] writeReportLog threw unexpectedly:', err instanceof Error ? err.message : String(err));
     });
 }
 
