@@ -18,6 +18,9 @@ interface ReportConfig {
     format: 'xlsx' | 'json' | 'pdf'
     email: string
     next_send_at?: string
+    period_type?: 'last_7_days' | 'last_30_days' | 'last_90_days' | 'custom'
+    custom_start?: string
+    custom_end?: string
 }
 
 interface ReportLog {
@@ -270,6 +273,7 @@ interface AIAnalysis {
         prazo: string
     }[]
     proximos_passos: string[]
+    is_ai_fallback?: boolean
 }
 
 const SEV_STYLE: Record<string, { color: string; label: string }> = {
@@ -293,6 +297,22 @@ function EmailIcon() {
     return (
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+        </svg>
+    )
+}
+
+function EyeIcon() {
+    return (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+        </svg>
+    )
+}
+
+function CloseIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 6 6 18M6 6l12 12" />
         </svg>
     )
 }
@@ -322,10 +342,10 @@ interface RelatoriosProps {
 // ── Generating step messages ──────────────────────────────────────────────────
 
 function getStepMessage(step: 0 | 1 | 2 | 3, format: 'xlsx' | 'json' | 'pdf' | null): string {
-    if (step === 0) return 'Coletando dados do período...'
+    if (step === 0) return 'Consultando banco de dados...'
     if (step === 1) return 'Cruzando fontes e calculando métricas...'
-    if (step === 2) return format === 'pdf' ? 'Analisando com IA — até 90s...' : 'Processando dados...'
-    return `Gerando arquivo ${format?.toUpperCase() ?? ''}...`
+    if (step === 2) return format === 'pdf' ? 'Enviando para análise de IA — pode levar até 45s...' : `Montando arquivo ${format?.toUpperCase() ?? ''}...`
+    return 'Compilando PDF e finalizando...'
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -359,6 +379,16 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
     const [emailFeedback, setEmailFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
+
+    // PDF Preview modal
+    const [previewingPdf, setPreviewingPdf] = useState(false)
+    const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
+    const [previewPdfLoading, setPreviewPdfLoading] = useState(false)
+
+    // Custom date range
+    const [periodType, setPeriodType] = useState<'last_7_days' | 'last_30_days' | 'last_90_days' | 'custom'>('last_30_days')
+    const [customStart, setCustomStart] = useState('')
+    const [customEnd, setCustomEnd] = useState('')
 
     // History
     const [logs, setLogs] = useState<ReportLog[]>([])
@@ -430,18 +460,22 @@ export default function Relatorios(_props: RelatoriosProps) {
         setPreviewError(false)
         setAiAnalysis(null)
         setAiError(false)
-        reportsApi.getPreview(genFrequency)
+        const dates = periodType === 'custom' && customStart && customEnd
+            ? { period_type: 'custom', custom_start: customStart, custom_end: customEnd }
+            : {}
+        reportsApi.getPreview(genFrequency, dates)
             .then(res => { setPreview(res.data as PreviewData) })
             .catch(() => setPreviewError(true))
             .finally(() => setLoadingPreview(false))
-    }, [genFrequency])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [genFrequency, periodType, periodType === 'custom' ? customStart : null, periodType === 'custom' ? customEnd : null])
 
     async function handleRequestAI() {
         setLoadingAI(true)
         setAiError(false)
         setAiTimedOut(false)
         try {
-            const res = await reportsApi.getAIAnalysis(genFrequency)
+            const res = await reportsApi.getAIAnalysis(genFrequency, getCustomDates())
             setAiAnalysis(res.data as AIAnalysis)
         } catch (err: unknown) {
             const e = err as { code?: string; message?: string }
@@ -461,7 +495,12 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
         setSavingConfig(true)
         try {
-            await reportsApi.saveConfig(config)
+            const payload = {
+                ...config,
+                period_type: periodType,
+                ...(periodType === 'custom' ? { custom_start: customStart, custom_end: customEnd } : {}),
+            }
+            await reportsApi.saveConfig(payload)
             setSavedConfig(config)
             setSavedFeedback(true)
             setTimeout(() => setSavedFeedback(false), 2500)
@@ -470,18 +509,24 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
     }
 
+    const getCustomDates = () =>
+        periodType === 'custom' && customStart && customEnd
+            ? { period_type: 'custom', custom_start: customStart, custom_end: customEnd }
+            : {}
+
     async function handleDownload(format: 'xlsx' | 'json' | 'pdf') {
         setGenerating(format)
         setGeneratingStep(0)
         setEmailFeedback(null)
 
-        // F2 — real generating step timers
-        const t1 = setTimeout(() => setGeneratingStep(1), 2000)
-        const t2 = setTimeout(() => setGeneratingStep(2), 6000)
-        const t3 = setTimeout(() => setGeneratingStep(3), 18000)
+        // Timings calibrados por formato: PDF com IA leva mais tempo
+        const isPdf = format === 'pdf'
+        const t1 = setTimeout(() => setGeneratingStep(1), 3000)
+        const t2 = setTimeout(() => setGeneratingStep(2), isPdf ? 8000 : 5000)
+        const t3 = isPdf ? setTimeout(() => setGeneratingStep(3), 30000) : null
 
         try {
-            const response = await reportsApi.generate(genFrequency, format)
+            const response = await reportsApi.generate(genFrequency, format, getCustomDates())
             const mime = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', json: 'application/json', pdf: 'application/pdf' }[format]
             const url = URL.createObjectURL(new Blob([response.data as BlobPart], { type: mime }))
             const a = document.createElement('a')
@@ -494,10 +539,33 @@ export default function Relatorios(_props: RelatoriosProps) {
         } finally {
             clearTimeout(t1)
             clearTimeout(t2)
-            clearTimeout(t3)
+            if (t3) clearTimeout(t3)
             setGenerating(null)
             setGeneratingStep(0)
         }
+    }
+
+    async function handlePreviewPdf() {
+        setPreviewPdfLoading(true)
+        try {
+            // Usa o endpoint de export rápido (sem IA) para preview
+            const periodParam = periodType === 'last_7_days' ? '7d' : periodType === 'last_90_days' ? '90d' : '30d'
+            const res = await reportsApi.exportQuick('pdf', periodParam)
+            const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/pdf' }))
+            if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl)
+            setPreviewBlobUrl(url)
+            setPreviewingPdf(true)
+        } catch {
+            setEmailFeedback({ ok: false, msg: 'Não foi possível gerar a pré-visualização.' })
+            setTimeout(() => setEmailFeedback(null), 4000)
+        } finally {
+            setPreviewPdfLoading(false)
+        }
+    }
+
+    function closePdfPreview() {
+        setPreviewingPdf(false)
+        if (previewBlobUrl) { URL.revokeObjectURL(previewBlobUrl); setPreviewBlobUrl(null) }
     }
 
     async function handleRedownload(log: ReportLog) {
@@ -564,6 +632,58 @@ export default function Relatorios(_props: RelatoriosProps) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
             <PageHeader title="Relatórios" subtitle="Análise completa do seu negócio com cruzamento de dados e diagnóstico de IA." />
+
+            {/* ── PDF Preview Modal ──────────────────────────────────────── */}
+            <AnimatePresence>
+                {previewingPdf && previewBlobUrl && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 1000,
+                            background: 'rgba(0,0,0,0.72)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        onClick={closePdfPreview}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                background: 'var(--color-bg-primary)',
+                                borderRadius: 12,
+                                overflow: 'hidden',
+                                width: '88vw', height: '90vh',
+                                maxWidth: 900,
+                                display: 'flex', flexDirection: 'column',
+                                boxShadow: '0 24px 80px rgba(0,0,0,0.4)',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>Pré-visualização do PDF</span>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', marginLeft: 8, flex: 1 }}>
+                                    Versão simplificada — sem análise de IA (geração rápida)
+                                </span>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                    onClick={closePdfPreview}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)' }}>
+                                    <CloseIcon />
+                                </motion.button>
+                            </div>
+                            <iframe
+                                src={previewBlobUrl}
+                                style={{ flex: 1, border: 'none', background: '#525659' }}
+                                title="Preview do relatório PDF"
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
 
             {/* ── Prévia dos dados ────────────────────────────────────────── */}
@@ -723,14 +843,32 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     </div>
                                 )}
 
-                                {/* F6 — RFM pills */}
-                                {(preview.rfm_distribution?.length ?? 0) > 0 && preview.rfm_source !== 'unavailable' && (
+                                {/* RFM — pills ou empty state */}
+                                {preview.rfm_source === 'unavailable' || (preview.rfm_distribution?.every(s => s.count === 0) ?? true) ? (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                                        padding: '12px 14px',
+                                        background: 'rgba(99,102,241,0.06)',
+                                        border: '1px solid rgba(99,102,241,0.18)',
+                                        borderRadius: 8,
+                                    }}>
+                                        <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⏱</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                Segmentação RFM não disponível ainda
+                                            </span>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                                Calculada automaticamente todo dia às 6h. Estará disponível após o primeiro ciclo completo de dados.
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (preview.rfm_distribution?.length ?? 0) > 0 && (
                                     <div>
                                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 10 }}>
                                             Segmentação RFM
                                         </span>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                            {preview.rfm_distribution!.map(seg => {
+                                            {preview.rfm_distribution!.filter(s => s.count > 0).map(seg => {
                                                 const rfmCfg = RFM_LABELS[seg.segment] ?? { label: seg.segment, color: '#6B7280' }
                                                 return (
                                                     <span key={seg.segment} style={{
@@ -832,9 +970,23 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 {/* Header: situação geral + resumo */}
                                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
                                     <SituacaoBadge value={aiAnalysis.situacao_geral} size="md" />
-                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6, flex: 1 }}>
-                                        {aiAnalysis.resumo_executivo}
-                                    </p>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        {aiAnalysis.is_ai_fallback && (
+                                            <span style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600,
+                                                color: '#F59E0B', background: 'rgba(245,158,11,0.10)',
+                                                border: '1px solid rgba(245,158,11,0.25)',
+                                                padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em',
+                                                textTransform: 'uppercase', width: 'fit-content',
+                                            }}>
+                                                ⚡ Análise simplificada — IA indisponível no momento
+                                            </span>
+                                        )}
+                                        <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                                            {aiAnalysis.resumo_executivo}
+                                        </p>
+                                    </div>
                                 </div>
 
                                 {/* Diagnósticos */}
@@ -916,11 +1068,12 @@ export default function Relatorios(_props: RelatoriosProps) {
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(2), ease: [0.25, 0.1, 0.25, 1] }}>
                 <SectionLabel gutterBottom={16}>Exportar relatório</SectionLabel>
                 <div style={card}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                Gere e baixe o relatório completo com dados cruzados, análise de canais e diagnóstico de IA.
-                            </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                            Gere e baixe o relatório completo com dados cruzados, análise de canais e diagnóstico de IA.
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Período</span>
                                 <SegmentedControl
@@ -931,15 +1084,52 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato para email</span>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Intervalo customizado</span>
                                 <SegmentedControl
-                                    options={['pdf', 'xlsx', 'json'] as const}
-                                    value={genFormat}
-                                    onChange={setGenFormat}
-                                    labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }}
+                                    options={['last_7_days', 'last_30_days', 'last_90_days', 'custom'] as const}
+                                    value={periodType}
+                                    onChange={setPeriodType}
+                                    labels={{ last_7_days: '7 dias', last_30_days: '30 dias', last_90_days: '90 dias', custom: 'Personalizado' }}
                                 />
                             </div>
                         </div>
+
+                        {/* Custom date range pickers */}
+                        <AnimatePresence>
+                            {periodType === 'custom' && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    style={{ overflow: 'hidden' }}
+                                >
+                                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingTop: 4 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>De</span>
+                                            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                                                style={{ padding: '7px 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, outline: 'none' }} />
+                                        </div>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 20 }}>→</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>Até</span>
+                                            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                                                style={{ padding: '7px 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, outline: 'none' }} />
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato para email</span>
+                            <SegmentedControl
+                                options={['pdf', 'xlsx', 'json'] as const}
+                                value={genFormat}
+                                onChange={setGenFormat}
+                                labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }}
+                            />
+                        </div>
+
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                             {(['xlsx', 'json', 'pdf'] as const).map(fmt => (
                                 <Btn key={fmt} variant={fmt === 'pdf' ? 'primary' : 'secondary'}
@@ -949,6 +1139,13 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     {generating === fmt ? 'Gerando...' : fmt === 'pdf' ? 'PDF com IA' : fmt === 'xlsx' ? 'Excel' : 'JSON'}
                                 </Btn>
                             ))}
+                            {/* PDF preview button */}
+                            <Btn variant="secondary"
+                                onClick={handlePreviewPdf}
+                                disabled={generating !== null || previewPdfLoading}
+                                icon={<EyeIcon />}>
+                                {previewPdfLoading ? 'Carregando...' : 'Pré-visualizar PDF'}
+                            </Btn>
                             <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
                             {/* F3 — dynamic email button label */}
                             <Btn variant="secondary"

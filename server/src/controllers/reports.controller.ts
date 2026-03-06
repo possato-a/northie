@@ -120,11 +120,17 @@ export async function saveReportConfig(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
-    const { frequency, format, enabled, email } = req.body;
+    const { frequency, format, enabled, email, period_type, custom_start, custom_end } = req.body;
 
     // B6: Validar email
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return res.status(400).json({ error: 'Email inválido' });
+    }
+
+    // Validar datas customizadas
+    if (period_type === 'custom') {
+        if (!custom_start || !custom_end) return res.status(400).json({ error: 'Datas customizadas obrigatórias' });
+        if (new Date(custom_start) >= new Date(custom_end)) return res.status(400).json({ error: 'Data inicial deve ser anterior à data final' });
     }
 
     // B1: Preservar next_send_at se a frequência não mudou
@@ -148,6 +154,9 @@ export async function saveReportConfig(req: Request, res: Response) {
             enabled: enabled ?? true,
             email: email || null,
             next_send_at: nextSendAt,
+            period_type: period_type ?? 'last_30_days',
+            custom_start: period_type === 'custom' ? custom_start : null,
+            custom_end: period_type === 'custom' ? custom_end : null,
             updated_at: new Date().toISOString(),
         }, { onConflict: 'profile_id' })
         .select()
@@ -157,6 +166,18 @@ export async function saveReportConfig(req: Request, res: Response) {
     return res.json(data);
 }
 
+// ── Custom date range helper ───────────────────────────────────────────────────
+
+function parseDateRange(query: Record<string, unknown>): { start: Date; end: Date } | undefined {
+    const { period_type, custom_start, custom_end } = query;
+    if (period_type === 'custom' && custom_start && custom_end) {
+        const start = new Date(custom_start as string);
+        const end = new Date(custom_end as string);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) return { start, end };
+    }
+    return undefined;
+}
+
 // Preview rápido — só dados, sem IA (responde em ~2-3s)
 export async function getReportPreview(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
@@ -164,12 +185,13 @@ export async function getReportPreview(req: Request, res: Response) {
 
     const freqRaw: string = (req.query.frequency as string) ?? 'monthly';
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const customDates = parseDateRange(req.query as Record<string, unknown>);
 
     try {
-        const cacheKey = `${profileId}:${frequency}`;
+        const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
         let reportData = getCached(cacheKey);
         if (!reportData) {
-            reportData = await generateReportData(profileId, frequency);
+            reportData = await generateReportData(profileId, frequency, customDates);
             setCached(cacheKey, reportData);
         }
         return res.json({
@@ -196,12 +218,13 @@ export async function getReportAIAnalysis(req: Request, res: Response) {
 
     const freqRaw: string = (req.query.frequency as string) ?? 'monthly';
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
+    const customDates = parseDateRange(req.query as Record<string, unknown>);
 
     try {
-        const cacheKey = `${profileId}:${frequency}`;
+        const cacheKey = `${profileId}:${frequency}:${customDates ? `${customDates.start.toISOString()}_${customDates.end.toISOString()}` : 'default'}`;
         let reportData = getCached(cacheKey);
         if (!reportData) {
-            reportData = await generateReportData(profileId, frequency);
+            reportData = await generateReportData(profileId, frequency, customDates);
             setCached(cacheKey, reportData);
         }
         const aiAnalysis = await generateReportNarrative(reportData, profileId);
@@ -210,6 +233,7 @@ export async function getReportAIAnalysis(req: Request, res: Response) {
             resumo_executivo: aiAnalysis.resumo_executivo,
             diagnosticos: aiAnalysis.diagnosticos,
             proximos_passos: aiAnalysis.proximos_passos,
+            is_ai_fallback: aiAnalysis.is_ai_fallback ?? false,
         });
     } catch (err) {
         console.error('[Reports] AI analysis error:', err);
@@ -225,9 +249,10 @@ export async function generateReport(req: Request, res: Response) {
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
     const format: ReportFormat = req.body.format ?? 'xlsx';
     const dateStr = new Date().toISOString().split('T')[0];
+    const customDates = parseDateRange(req.body);
 
     try {
-        const reportData = await generateReportData(profileId, frequency);
+        const reportData = await generateReportData(profileId, frequency, customDates);
 
         // IA só é chamada para PDF — XLSX e JSON exportam rápido sem IA
         const aiAnalysis = format === 'pdf'

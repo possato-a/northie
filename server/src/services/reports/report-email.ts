@@ -227,6 +227,10 @@ function buildEmailHtml(opts: {
 </html>`;
 }
 
+// ── Retry helper ──────────────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 // ── Função principal de envio ─────────────────────────────────────────────────
 
 export async function sendReport(opts: {
@@ -251,19 +255,28 @@ export async function sendReport(opts: {
         ? opts.fileBuffer.toString('base64')
         : Buffer.from(opts.fileBuffer, 'utf-8').toString('base64');
 
-    const { data, error } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? 'Northie <onboarding@resend.dev>',
-        to: opts.to,
-        subject: `Relatório ${freqLabel} — Northie · ${new Date().toLocaleDateString('pt-BR')}`,
-        html,
-        attachments: [{ filename: opts.filename, content: contentBase64 }],
-    });
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
 
-    if (error) {
-        console.error('[ReportEmail] Erro ao enviar:', error);
-        throw new Error(error.message);
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const { data, error } = await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL ?? 'Northie <onboarding@resend.dev>',
+            to: opts.to,
+            subject: `Relatório ${freqLabel} — Northie · ${new Date().toLocaleDateString('pt-BR')}`,
+            html,
+            attachments: [{ filename: opts.filename, content: contentBase64 }],
+        });
+
+        if (!error) {
+            console.log(`[ReportEmail] Enviado para ${opts.to} — id ${data?.id} (tentativa ${attempt})`);
+            return data?.id ?? null;
+        }
+
+        lastError = new Error(error.message);
+        console.warn(`[ReportEmail] Tentativa ${attempt}/${MAX_RETRIES} falhou: ${error.message}`);
+        if (attempt < MAX_RETRIES) await sleep(attempt * 2000);
     }
 
-    console.log(`[ReportEmail] Enviado para ${opts.to} — id ${data?.id}`);
-    return data?.id ?? null;
+    console.error('[ReportEmail] Todas as tentativas falharam:', lastError?.message);
+    throw lastError!;
 }

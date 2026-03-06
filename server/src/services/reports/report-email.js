@@ -90,7 +90,7 @@ function buildEmailHtml(opts) {
             ${data.summary.revenue_change_pct >= 0 ? '▲' : '▼'} ${Math.abs(data.summary.revenue_change_pct).toFixed(1)}% vs período anterior
            </span>`
         : '';
-    const formatLabel = { pdf: 'PDF', csv: 'CSV', json: 'JSON' }[format] ?? format.toUpperCase();
+    const formatLabel = { pdf: 'PDF', xlsx: 'XLSX', csv: 'CSV', json: 'JSON' }[format] ?? format.toUpperCase();
     return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -197,6 +197,8 @@ function buildEmailHtml(opts) {
 </body>
 </html>`;
 }
+// ── Retry helper ──────────────────────────────────────────────────────────────
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 // ── Função principal de envio ─────────────────────────────────────────────────
 export async function sendReport(opts) {
     const resend = getResend();
@@ -209,18 +211,26 @@ export async function sendReport(opts) {
     const contentBase64 = Buffer.isBuffer(opts.fileBuffer)
         ? opts.fileBuffer.toString('base64')
         : Buffer.from(opts.fileBuffer, 'utf-8').toString('base64');
-    const { data, error } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL ?? 'Northie <onboarding@resend.dev>',
-        to: opts.to,
-        subject: `Relatório ${freqLabel} — Northie · ${new Date().toLocaleDateString('pt-BR')}`,
-        html,
-        attachments: [{ filename: opts.filename, content: contentBase64 }],
-    });
-    if (error) {
-        console.error('[ReportEmail] Erro ao enviar:', error);
-        throw new Error(error.message);
+    const MAX_RETRIES = 3;
+    let lastError = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const { data, error } = await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL ?? 'Northie <onboarding@resend.dev>',
+            to: opts.to,
+            subject: `Relatório ${freqLabel} — Northie · ${new Date().toLocaleDateString('pt-BR')}`,
+            html,
+            attachments: [{ filename: opts.filename, content: contentBase64 }],
+        });
+        if (!error) {
+            console.log(`[ReportEmail] Enviado para ${opts.to} — id ${data?.id} (tentativa ${attempt})`);
+            return data?.id ?? null;
+        }
+        lastError = new Error(error.message);
+        console.warn(`[ReportEmail] Tentativa ${attempt}/${MAX_RETRIES} falhou: ${error.message}`);
+        if (attempt < MAX_RETRIES)
+            await sleep(attempt * 2000);
     }
-    console.log(`[ReportEmail] Enviado para ${opts.to} — id ${data?.id}`);
-    return data?.id ?? null;
+    console.error('[ReportEmail] Todas as tentativas falharam:', lastError?.message);
+    throw lastError;
 }
 //# sourceMappingURL=report-email.js.map

@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { runOrchestratorPipeline } from './report-ai-orchestrator.js';
 // ── Anthropic client ──────────────────────────────────────────────────────────
 let _anthropic = null;
 function getAnthropic() {
@@ -141,13 +142,48 @@ Responda SOMENTE com JSON válido, sem markdown, sem texto extra:
   "proximos_passos": ["ação priorizada 1", "ação priorizada 2", "ação priorizada 3"]
 }`;
 }
-// ── Fallback ──────────────────────────────────────────────────────────────────
-const FALLBACK = {
-    situacao_geral: 'atencao',
-    resumo_executivo: 'Análise de IA indisponível. Consulte os dados numéricos do relatório.',
-    diagnosticos: [],
-    proximos_passos: [],
-};
+// ── Fallback inteligente — gera narrativa a partir dos dados sem chamar IA ────
+function generateFallbackNarrative(data) {
+    const { summary, channel_economics, at_risk_customers } = data;
+    const fmtBrl = (n) => `R$ ${n.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+    const situacao_geral = (summary.revenue_change_pct !== null && summary.revenue_change_pct < -20) ||
+        channel_economics.filter(c => c.status === 'prejuizo').length >= 2
+        ? 'critica'
+        : channel_economics.some(c => c.status === 'prejuizo') || at_risk_customers.length > 5
+            ? 'atencao'
+            : 'saudavel';
+    const changeText = summary.revenue_change_pct !== null
+        ? `, ${summary.revenue_change_pct >= 0 ? 'crescimento' : 'queda'} de ${Math.abs(summary.revenue_change_pct).toFixed(1)}% vs período anterior`
+        : '';
+    const resumo_executivo = `Receita líquida de ${fmtBrl(summary.revenue_net)} no período${changeText}. ROAS geral de ${summary.roas.toFixed(1)}x com ${summary.new_customers} novos clientes adquiridos. ${at_risk_customers.length > 0 ? `${at_risk_customers.length} clientes com alto risco de churn identificados.` : 'Base de clientes estável no período.'}`;
+    const diagnosticos = channel_economics
+        .filter(c => c.status === 'prejuizo' && c.channel !== 'desconhecido')
+        .slice(0, 3)
+        .map(c => ({
+        canal: c.channel,
+        severidade: c.value_created < -1000 ? 'critica' : 'alta',
+        sintoma: `LTV/CAC de ${c.ltv_cac_ratio?.toFixed(2) ?? '0'}x — canal operando em prejuízo`,
+        causa_raiz: `CAC (${fmtBrl(c.cac)}) superior ao LTV médio (${fmtBrl(c.avg_ltv)}) dos clientes adquiridos`,
+        consequencia: `Perda de ${fmtBrl(Math.abs(c.value_created))} no período se não corrigido`,
+        consequencia_financeira_brl: Math.abs(c.value_created),
+        acao_recomendada: 'Revisar segmentação e criativos. Pausar grupos de anúncios com LTV/CAC < 1x.',
+        prazo: 'esta_semana',
+    }));
+    const proximos_passos = [];
+    if (channel_economics.some(c => c.status === 'prejuizo')) {
+        proximos_passos.push('Revisar canais com LTV/CAC < 1x e pausar campanhas não rentáveis');
+    }
+    if (at_risk_customers.length > 0) {
+        proximos_passos.push(`Acionar campanha de reativação para os ${at_risk_customers.length} clientes em risco de churn`);
+    }
+    if (summary.revenue_change_pct !== null && summary.revenue_change_pct < 0) {
+        proximos_passos.push('Investigar queda de receita e identificar principal causa na semana');
+    }
+    if (proximos_passos.length < 2) {
+        proximos_passos.push('Manter monitoramento semanal das métricas de aquisição por canal');
+    }
+    return { situacao_geral, resumo_executivo, diagnosticos, proximos_passos, is_ai_fallback: true };
+}
 // ── Parser / validator ────────────────────────────────────────────────────────
 function parseAnalysis(raw) {
     const cleaned = raw
@@ -174,30 +210,44 @@ function parseAnalysis(raw) {
         : [];
     return {
         situacao_geral: validSituacao.includes(parsed.situacao_geral) ? parsed.situacao_geral : 'atencao',
-        resumo_executivo: parsed.resumo_executivo ?? FALLBACK.resumo_executivo,
+        resumo_executivo: parsed.resumo_executivo ?? 'Análise de IA indisponível. Consulte os dados numéricos do relatório.',
         diagnosticos,
         proximos_passos: Array.isArray(parsed.proximos_passos) ? parsed.proximos_passos.map(String) : [],
     };
 }
 // ── Main export ───────────────────────────────────────────────────────────────
-export async function generateReportNarrative(data) {
+export async function generateReportNarrative(data, profileId) {
+    // Agente V2: pipeline de dois agentes com tool_use + extended thinking
+    if (process.env.AI_AGENT_V2 === 'true' && profileId) {
+        return runOrchestratorPipeline(data, profileId);
+    }
+    // Legacy: prompt único (default)
     const generatedAt = new Date().toISOString();
     const model = 'claude-sonnet-4-6';
     try {
-        const response = await getAnthropic().messages.create({
+        const aiPromise = getAnthropic().messages.create({
             model,
             max_tokens: 4000,
             system: 'Você é um CFO/CMO sênior especialista em negócios digitais brasileiros. Analise dados cruzados de múltiplas fontes e diagnostique problemas com precisão clínica — sintoma, causa raiz, consequência em R$, ação. Nunca inclua dados pessoais identificáveis (PII). Responda SOMENTE com JSON válido, sem nenhum texto antes ou depois.',
             messages: [{ role: 'user', content: buildUserMessage(data) }],
         });
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI_TIMEOUT')), 45_000));
+        const response = await Promise.race([aiPromise, timeoutPromise]);
         const first = response.content[0];
         const raw = first && first.type === 'text' ? first.text : '';
         const result = parseAnalysis(raw);
         return { ...result, generated_at: generatedAt, model };
     }
     catch (err) {
-        console.error('[ReportAI] Falha na análise narrativa:', err);
-        return { ...FALLBACK, generated_at: generatedAt, model };
+        const isTimeout = err instanceof Error && err.message === 'AI_TIMEOUT';
+        if (isTimeout) {
+            console.warn('[ReportAI] Timeout — usando narrativa fallback baseada em dados');
+        }
+        else {
+            console.error('[ReportAI] Falha na análise narrativa:', err);
+        }
+        const fallback = generateFallbackNarrative(data);
+        return { ...fallback, generated_at: generatedAt, model: isTimeout ? 'fallback-timeout' : 'fallback-error' };
     }
 }
 //# sourceMappingURL=report-ai-analyst.js.map

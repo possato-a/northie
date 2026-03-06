@@ -67,17 +67,19 @@ export const pixelApi = {
 export const reportsApi = {
     getConfig: () => api.get('/reports/config'),
     saveConfig: (data: any) => api.post('/reports/config', data),
-    generate: (frequency: string, format: string) =>
-        api.post('/reports/generate', { frequency, format }, {
+    generate: (frequency: string, format: string, extra?: Record<string, unknown>) =>
+        api.post('/reports/generate', { frequency, format, ...extra }, {
             responseType: 'blob',
             timeout: format === 'pdf' ? 90000 : 20000,
         }),
     getLogs: (page = 0) => api.get('/reports/logs', { params: { page } }),
-    getPreview: (frequency: string) => api.get('/reports/preview', { params: { frequency }, timeout: 15000 }),
-    getAIAnalysis: (frequency: string) => api.get('/reports/ai-analysis', { params: { frequency }, timeout: 90000 }),
+    getPreview: (frequency: string, extra?: Record<string, unknown>) =>
+        api.get('/reports/preview', { params: { frequency, ...extra }, timeout: 15000 }),
+    getAIAnalysis: (frequency: string, extra?: Record<string, unknown>) =>
+        api.get('/reports/ai-analysis', { params: { frequency, ...extra }, timeout: 90000 }),
     sendEmail: (frequency: string, format: string, email?: string) =>
         api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 90000 }),
-    export: (format: 'pdf' | 'xlsx', period: '30d' | '90d') =>
+    exportQuick: (format: 'pdf' | 'xlsx', period: string) =>
         api.get('/reports/export', { params: { format, period }, responseType: 'blob', timeout: 60000 }),
     redownload: (logId: string, format: 'pdf' | 'xlsx' | 'json') =>
         api.get(`/reports/logs/${logId}/download`, { params: { format }, responseType: 'blob', timeout: 60000 }),
