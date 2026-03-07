@@ -5,11 +5,15 @@ import { runConversionAnalyst } from './agents/conversion-analyst.agent.js';
 import { runAttributionAgent } from './agents/attribution.agent.js';
 import { runStrategicAdvisor } from './agents/strategic-advisor.agent.js';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+let _anthropicClient = null;
 function getAnthropicClient() {
+    if (_anthropicClient)
+        return _anthropicClient;
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey)
         throw new Error('[GrowthIntelligence] ANTHROPIC_API_KEY não configurada');
-    return new Anthropic({ apiKey });
+    _anthropicClient = new Anthropic({ apiKey });
+    return _anthropicClient;
 }
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 /**
@@ -27,7 +31,8 @@ export async function runDiagnostic(profileId, dateRange) {
     const endDate = endIso.split('T')[0];
     console.log(`[GrowthIntelligence] Iniciando diagnóstico — profile: ${profileId} | período: ${startDate} → ${endDate}`);
     // ── 1. Buscar dados de todos os agentes em paralelo ───────────────────────
-    const [metricsResult, transactionsResult, attributionResult, profileResult] = await Promise.all([
+    // Merge das duas queries de transactions em uma só (antes eram 2 queries separadas)
+    const [metricsResult, transactionsResult, profileResult] = await Promise.all([
         supabase
             .from('ad_metrics')
             .select('platform, campaign_id, spend_brl, impressions, clicks, date')
@@ -36,17 +41,15 @@ export async function runDiagnostic(profileId, dateRange) {
             .lte('date', endDate),
         supabase
             .from('transactions')
-            .select('platform, status, amount_gross, amount_net, fee_platform, created_at, customer_id')
-            .eq('profile_id', profileId)
-            .gte('created_at', startIso)
-            .lte('created_at', endIso),
-        supabase
-            .from('transactions')
             .select(`
                     id,
-                    customer_id,
+                    platform,
+                    status,
+                    amount_gross,
                     amount_net,
+                    fee_platform,
                     created_at,
+                    customer_id,
                     northie_attribution_id,
                     customers(acquisition_channel, acquisition_campaign_id)
                 `)
@@ -66,10 +69,11 @@ export async function runDiagnostic(profileId, dateRange) {
         throw new Error(`[GrowthIntelligence] Erro ao buscar transactions: ${transactionsResult.error.message}`);
     }
     const metrics = metricsResult.data ?? [];
-    const transactions = transactionsResult.data ?? [];
+    const allTransactions = transactionsResult.data ?? [];
+    const transactions = allTransactions; // mesma referência — usado pelo ConversionAnalyst
     const businessType = profileResult.data?.business_type ?? 'desconhecido';
-    // Flatten attribution data — customers join may be null for unmatched rows
-    const attributionData = (attributionResult.data ?? []).map((row) => {
+    // Flatten attribution data da mesma query (antes era query separada)
+    const attributionData = allTransactions.map((row) => {
         const customers = row.customers;
         return {
             id: row.id,

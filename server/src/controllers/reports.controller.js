@@ -12,6 +12,7 @@ const FREQ_MAP = {
 // ── Preview data cache — evita dupla chamada generateReportData entre preview e IA ─
 const previewCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
+const MAX_CACHE_SIZE = 50; // previne crescimento indefinido de memória
 // Limpeza periódica — remove entradas expiradas para evitar acúmulo indefinido
 setInterval(() => {
     const now = Date.now();
@@ -32,6 +33,12 @@ function getCached(key) {
     return e.data;
 }
 function setCached(key, data) {
+    // Evictar entrada mais antiga se cache cheio
+    if (previewCache.size >= MAX_CACHE_SIZE) {
+        const oldestKey = previewCache.keys().next().value;
+        if (oldestKey)
+            previewCache.delete(oldestKey);
+    }
     previewCache.set(key, { data, ts: Date.now() });
 }
 function buildSnapshot(data, ai) {
@@ -71,7 +78,10 @@ function buildSnapshot(data, ai) {
 // ── Log helper (fire-and-forget — nunca bloqueia a resposta HTTP) ─────────────
 function writeReportLog(params) {
     const { profileId, freqRaw, format, period, situacao_geral, snapshot, resendEmailId, triggeredBy } = params;
-    supabase.from('report_logs').insert({
+    // Promise.resolve() converte PromiseLike para Promise real, habilitando .catch()
+    // Sem .catch(), o Supabase pode lançar exceção (projeto pausado, 522, etc.) que vira
+    // unhandledRejection e termina o processo Node 15+ → Vercel retorna 500 na próxima req
+    Promise.resolve(supabase.from('report_logs').insert({
         profile_id: profileId,
         frequency: freqRaw,
         format,
@@ -82,9 +92,11 @@ function writeReportLog(params) {
         snapshot,
         triggered_by: triggeredBy ?? 'manual',
         ...(resendEmailId ? { resend_email_id: resendEmailId, email_status: 'sent' } : {}),
-    }).then(({ error }) => {
+    })).then(({ error }) => {
         if (error)
             console.error('[Reports] Failed to write report_log:', error.message);
+    }).catch((err) => {
+        console.error('[Reports] writeReportLog threw unexpectedly:', err instanceof Error ? err.message : String(err));
     });
 }
 // ── Controllers ───────────────────────────────────────────────────────────────
@@ -94,7 +106,7 @@ export async function getReportConfig(req, res) {
         return res.status(400).json({ error: 'Missing x-profile-id' });
     const { data, error } = await supabase
         .from('report_configs')
-        .select('*')
+        .select('frequency, format, enabled, email, next_send_at, period_type, custom_start, custom_end')
         .eq('profile_id', profileId)
         .single();
     if (error && error.code !== 'PGRST116')
