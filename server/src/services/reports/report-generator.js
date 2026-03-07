@@ -106,7 +106,7 @@ export async function generateReportData(profileId, frequency, dates) {
             // Q6 — clientes em risco (churn > 60%), sem PII
             supabase
                 .from('customers')
-                .select('total_ltv, acquisition_channel, churn_probability, last_purchase_at, rfm_score')
+                .select('total_ltv, acquisition_channel, churn_probability, last_purchase_at, rfm_score, email')
                 .eq('profile_id', profileId)
                 .gt('churn_probability', 60)
                 .order('total_ltv', { ascending: false })
@@ -239,6 +239,7 @@ export async function generateReportData(profileId, frequency, dates) {
             ? Math.floor((Date.now() - new Date(c.last_purchase_at).getTime()) / 86400000)
             : null,
         rfm_score: c.rfm_score,
+        email: c.email ?? null,
     }));
     // ── RFM distribution (com fallback inline) ────────────────────────────────
     let rfmDistribution;
@@ -286,13 +287,31 @@ export async function generateReportData(profileId, frequency, dates) {
         const changePct = prev !== null && prev > 0 ? ((rev - prev) / prev) * 100 : null;
         return { month: label, revenue: rev, change_pct: changePct };
     });
-    // ── Transactions detail for Vendas section ────────────────────────────────
-    const { data: txDetailRaw } = await supabase
-        .from('transactions')
-        .select('id, customer_id, platform, amount_net, status, created_at')
-        .eq('profile_id', profileId)
-        .order('created_at', { ascending: false })
-        .limit(100);
+    // ── Transactions detail, refunds by product, cohort data ─────────────────
+    const [{ data: txDetailRaw }, { data: refundsByProductRaw }, { data: cohortCustomers }] = await Promise.all([
+        supabase
+            .from('transactions')
+            .select('id, customer_id, platform, amount_net, status, created_at, product_name')
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(100),
+        supabase
+            .from('transactions')
+            .select('product_name, amount_gross')
+            .eq('profile_id', profileId)
+            .eq('status', 'refunded')
+            .gte('created_at', periodStart.toISOString())
+            .lte('created_at', periodEnd.toISOString())
+            .not('product_name', 'is', null)
+            .limit(200),
+        supabase
+            .from('customers')
+            .select('id, created_at, last_purchase_at')
+            .eq('profile_id', profileId)
+            .gte('created_at', sixMonthsAgo.toISOString())
+            .lte('created_at', periodEnd.toISOString())
+            .limit(1000),
+    ]);
     const txCustomerIds = [...new Set((txDetailRaw ?? []).map(t => t.customer_id).filter((id) => id != null))];
     let custInfoMap = {};
     if (txCustomerIds.length > 0) {
@@ -313,6 +332,7 @@ export async function generateReportData(profileId, frequency, dates) {
         amount_net: t.amount_net ?? 0,
         status: String(t.status ?? ''),
         created_at: String(t.created_at ?? ''),
+        product_name: String(t.product_name ?? ''),
     }));
     const cacOverall = (newCustomers?.length ?? 0) > 0 && totalSpend > 0
         ? totalSpend / newCustomers.length
@@ -321,6 +341,68 @@ export async function generateReportData(profileId, frequency, dates) {
     const refundAmount = (refundTransactions ?? []).reduce((s, t) => s + (t.amount_gross ?? 0), 0);
     const refundCount = refundTransactions?.length ?? 0;
     const refundRate = Math.min(100, Math.max(0, (txCount + refundCount) > 0 ? (refundCount / (txCount + refundCount)) * 100 : 0));
+    // ── Daily revenue aggregation ──────────────────────────────────────────────
+    const dailyMap = new Map();
+    for (const t of (transactions ?? [])) {
+        const date = t.created_at.split('T')[0];
+        const existing = dailyMap.get(date) ?? { revenue: 0, transactions: 0 };
+        existing.revenue += t.amount_net ?? 0;
+        existing.transactions++;
+        dailyMap.set(date, existing);
+    }
+    const dailyRevenue = Array.from(dailyMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, dayData], i, arr) => {
+        const prevRev = i > 0 ? arr[i - 1][1].revenue : null;
+        const changePct = prevRev !== null && prevRev > 0
+            ? ((dayData.revenue - prevRev) / prevRev) * 100
+            : null;
+        return {
+            date,
+            revenue: dayData.revenue,
+            transactions: dayData.transactions,
+            aov: dayData.transactions > 0 ? dayData.revenue / dayData.transactions : 0,
+            change_pct: changePct,
+        };
+    });
+    // ── Cohort retention (simplified — uses last_purchase_at as retention proxy) ──
+    const cohortMap2 = new Map();
+    for (const c of (cohortCustomers ?? [])) {
+        if (!c.created_at)
+            continue;
+        const cohortDate = new Date(c.created_at);
+        const cohortKey = `${cohortDate.getFullYear()}-${String(cohortDate.getMonth() + 1).padStart(2, '0')}`;
+        const entry = cohortMap2.get(cohortKey) ?? { total: 0, retained: {} };
+        entry.total++;
+        if (c.last_purchase_at) {
+            const lastPurchase = new Date(c.last_purchase_at);
+            const monthsDiff = (lastPurchase.getFullYear() - cohortDate.getFullYear()) * 12
+                + (lastPurchase.getMonth() - cohortDate.getMonth());
+            for (let m = 0; m <= Math.min(monthsDiff, 5); m++) {
+                entry.retained[m] = (entry.retained[m] ?? 0) + 1;
+            }
+        }
+        else {
+            entry.retained[0] = (entry.retained[0] ?? 0) + 1;
+        }
+        cohortMap2.set(cohortKey, entry);
+    }
+    const cohortRetention = Array.from(cohortMap2.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, entry]) => {
+        const [year, month] = key.split('-');
+        const label = `${MONTH_NAMES[parseInt(month) - 1]}/${String(year).slice(2)}`;
+        const pct = (m) => entry.total > 0
+            ? Math.round(((entry.retained[m] ?? 0) / entry.total) * 100)
+            : null;
+        return { cohort: label, total: entry.total, m0: 100, m1: pct(1), m2: pct(2), m3: pct(3), m4: pct(4), m5: pct(5) };
+    });
+    // ── Refunds by product ─────────────────────────────────────────────────────
+    const refundsByProductMap = new Map();
+    for (const t of (refundsByProductRaw ?? [])) {
+        refundsByProductMap.set(t.product_name, (refundsByProductMap.get(t.product_name) ?? 0) + (t.amount_gross ?? 0));
+    }
+    const refundsByProduct = Object.fromEntries(refundsByProductMap);
     const profileInfo = profileData;
     return {
         period: { start: periodStart.toISOString(), end: periodEnd.toISOString(), days, frequency },
@@ -387,6 +469,9 @@ export async function generateReportData(profileId, frequency, dates) {
             business_model: identifyBusinessModel(revenueByPlatform).type,
         }),
         projections: computeProjections(revenueTrend, revenue, days),
+        daily_revenue: dailyRevenue,
+        cohort_retention: cohortRetention,
+        refunds_by_product: refundsByProduct,
         missing_integrations: detectMissingIntegrations(revenueByPlatform, spendByPlatform),
         integrations_active: [
             ...Object.keys(revenueByPlatform).filter(k => (revenueByPlatform[k] ?? 0) > 0),
