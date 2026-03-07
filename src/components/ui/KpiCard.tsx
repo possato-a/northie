@@ -106,8 +106,8 @@ export function KpiCard({
         />
 
         <span style={{
-          fontFamily: 'var(--font-display)',
-          fontWeight: 400,
+          fontFamily: 'var(--font-sans)',
+          fontWeight: 500,
           fontSize: 36,
           letterSpacing: '-1.4px',
           color: 'var(--fg)',

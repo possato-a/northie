@@ -20,24 +20,24 @@
   --color-muted-foreground:     var(--n-muted-fg);
   --color-accent:               var(--n-accent);
   --color-accent-foreground:    var(--n-text);
-  --color-destructive:          oklch(0.577 0.245 27.325);
-  --color-destructive-foreground: oklch(0.985 0 0);
+  --color-destructive:          #EF4444;
+  --color-destructive-foreground: #F8F9FA;
   --color-border:               var(--n-border);
   --color-input:                var(--n-border);
   --color-ring:                 var(--n-primary);
 
-  /* Radius */
-  --radius-sm:  3px;
-  --radius-md:  6px;
-  --radius-lg:  10px;
-  --radius-xl:  14px;
+  /* Radius — Supabase-style (slightly larger) */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
 
-  /* Chart palette — warm amber ramp */
-  --color-chart-1: oklch(0.837 0.128 66.29);
-  --color-chart-2: oklch(0.705 0.213 47.604);
-  --color-chart-3: oklch(0.646 0.222 41.116);
-  --color-chart-4: oklch(0.553 0.195 38.402);
-  --color-chart-5: oklch(0.47 0.157 37.304);
+  /* Chart palette — cool multi-color */
+  --color-chart-1: #3ECF8E;
+  --color-chart-2: #3B82F6;
+  --color-chart-3: #8B5CF6;
+  --color-chart-4: #F59E0B;
+  --color-chart-5: #EF4444;
 
   /* Sidebar */
   --color-sidebar:                 var(--bg);
@@ -70,79 +70,79 @@ body,
   height: 100%;
 }
 
-/* ── Northie Brand Tokens ─────────────────────────────────────────────────── */
+/* ── Northie Brand Tokens — Supabase Dark-First ──────────────────────────── */
 
 :root {
-  /* ── Northie Surfaces ─────────────────────────────────────────────────── */
-  --bg: #FAFAF9;
-  --surface: #FFFFFF;
-  --surface-glass: rgba(255, 255, 255, 0.75);
+  /* ── Surfaces (dark default — Supabase) ─────────────────────────────── */
+  --bg: #0C0E11;
+  --surface: #141619;
+  --surface-glass: rgba(20, 22, 25, 0.92);
 
-  /* ── Northie Foreground ───────────────────────────────────────────────── */
-  --fg: #1C1917;
-  --fg-rgb: 28, 25, 23;
+  /* ── Foreground ─────────────────────────────────────────────────────── */
+  --fg: #F8F9FA;
+  --fg-rgb: 248, 249, 250;
 
-  /* ── Northie Inverted ─────────────────────────────────────────────────── */
-  --inv: #1C1917;
-  --on-inv: #FAFAF9;
+  /* ── Inverted ───────────────────────────────────────────────────────── */
+  --inv: #F8F9FA;
+  --on-inv: #0C0E11;
 
-  /* ── Text ─────────────────────────────────────────────────────────────── */
-  --color-text-primary:   #1C1917;
-  --color-text-secondary: #78716C;
-  --color-text-tertiary:  #A8A29E;
+  /* ── Text ────────────────────────────────────────────────────────────── */
+  --color-text-primary:   #F8F9FA;
+  --color-text-secondary: #A1A1AA;
+  --color-text-tertiary:  #6B7280;
 
-  /* ── Backgrounds (warm stone scale) ──────────────────────────────────── */
-  --color-bg-primary:   #FFFFFF;
-  --color-bg-secondary: #F5F5F4;
-  --color-bg-tertiary:  #E7E5E4;
-  --color-border:       #E2E0DD;
+  /* ── Backgrounds (cool gray scale) ──────────────────────────────────── */
+  --color-bg-primary:   #141619;
+  --color-bg-secondary: #1C1F24;
+  --color-bg-tertiary:  #242830;
+  --color-border:       #1F2328;
 
-  /* ── Brand — Northie Orange ───────────────────────────────────────────── */
-  --color-primary:       oklch(0.646 0.222 41.116);
-  --color-primary-fg:    oklch(0.985 0.008 70);
-  --color-primary-hover: oklch(0.58  0.222 41.116);
-  --color-primary-light: oklch(0.97  0.04  70);
+  /* ── Brand — Supabase Green ──────────────────────────────────────────── */
+  --color-primary:       #3ECF8E;
+  --color-primary-fg:    #020305;
+  --color-primary-hover: #29BC79;
+  --color-primary-light: rgba(62, 207, 142, 0.15);
 
-  /* ── Bridge vars for @theme inline (avoid circular refs) ─────────────── */
-  --n-card:       #FFFFFF;
-  --n-text:       #1C1917;
-  --n-primary:    oklch(0.646 0.222 41.116);
-  --n-primary-fg: oklch(0.985 0.008 70);
-  --n-secondary:  #F5F5F4;
-  --n-muted-fg:   #A8A29E;
-  --n-accent:     #E7E5E4;
-  --n-border:     #E2E0DD;
+  /* ── Bridge vars for @theme inline (avoid circular refs) ────────────── */
+  --n-card:       #141619;
+  --n-text:       #F8F9FA;
+  --n-primary:    #3ECF8E;
+  --n-primary-fg: #020305;
+  --n-secondary:  #1C1F24;
+  --n-muted-fg:   #6B7280;
+  --n-accent:     #242830;
+  --n-border:     #1F2328;
 
-  /* ── Status ───────────────────────────────────────────────────────────── */
-  --status-not-started:    #78716C;
-  --status-not-started-bg: #F5F5F4;
-  --status-planning:       oklch(0.75 0.183 55.934);
-  --status-planning-bg:    oklch(0.97 0.04  70);
+  /* ── Status ──────────────────────────────────────────────────────────── */
+  --status-not-started:    #6B7280;
+  --status-not-started-bg: #1C1F24;
+  --status-planning:       #F59E0B;
+  --status-planning-bg:    rgba(245, 158, 11, 0.12);
   --status-in-progress:    #3B82F6;
-  --status-in-progress-bg: #EFF6FF;
-  --status-complete:       #0F7B6C;
-  --status-complete-bg:    #DCFCE7;
+  --status-in-progress-bg: rgba(59, 130, 246, 0.12);
+  --status-complete:       #3ECF8E;
+  --status-complete-bg:    rgba(62, 207, 142, 0.12);
 
-  /* ── Priority ─────────────────────────────────────────────────────────── */
-  --priority-low:       #1C1917;
-  --priority-low-bg:    #E7E5E4;
-  --priority-medium:    oklch(0.646 0.222 41.116);
-  --priority-medium-bg: oklch(0.97 0.04 70);
-  --priority-high:      oklch(0.577 0.245 27.325);
-  --priority-high-bg:   oklch(0.97 0.06 27);
+  /* ── Priority ────────────────────────────────────────────────────────── */
+  --priority-low:       #A1A1AA;
+  --priority-low-bg:    #242830;
+  --priority-medium:    #F59E0B;
+  --priority-medium-bg: rgba(245, 158, 11, 0.12);
+  --priority-high:      #EF4444;
+  --priority-high-bg:   rgba(239, 68, 68, 0.12);
 
-  /* ── Semantic Accents ─────────────────────────────────────────────────── */
-  --accent-red:    oklch(0.577 0.245 27.325);
-  --accent-orange: oklch(0.646 0.222 41.116);
-  --accent-amber:  oklch(0.75  0.183 55.934);
-  --accent-yellow: oklch(0.85  0.17  85);
-  --accent-green:  #0F7B6C;
+  /* ── Semantic Accents ────────────────────────────────────────────────── */
+  --accent-red:    #EF4444;
+  --accent-orange: #F97316;
+  --accent-amber:  #F59E0B;
+  --accent-yellow: #EAB308;
+  --accent-green:  #3ECF8E;
   --accent-blue:   #3B82F6;
-  --accent-purple: #7C3AED;
+  --accent-purple: #8B5CF6;
 
-  /* ── Typography ───────────────────────────────────────────────────────── */
+  /* ── Typography ──────────────────────────────────────────────────────── */
   --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display:  'Poppins', sans-serif;
+  --font-display:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-serif:    'Lora', serif;
   --font-mono:     'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --font-light:    300;
@@ -151,7 +151,7 @@ body,
   --font-semibold: 600;
   --font-bold:     700;
 
-  /* ── Type Scale ───────────────────────────────────────────────────────── */
+  /* ── Type Scale ──────────────────────────────────────────────────────── */
   --text-xs:   11px;
   --text-sm:   12px;
   --text-base: 14px;
@@ -162,7 +162,7 @@ body,
   --text-3xl:  32px;
   --text-4xl:  40px;
 
-  /* ── Spacing — 8px grid ───────────────────────────────────────────────── */
+  /* ── Spacing — 8px grid ──────────────────────────────────────────────── */
   --space-1:  4px;
   --space-2:  8px;
   --space-3:  12px;
@@ -174,7 +174,7 @@ body,
   --space-12: 48px;
   --space-16: 64px;
 
-  /* ── Layout ───────────────────────────────────────────────────────────── */
+  /* ── Layout ──────────────────────────────────────────────────────────── */
   --sidebar-width:      240px;
   --content-max-width:  1120px;
   --table-row-height:   42px;
@@ -182,86 +182,86 @@ body,
   --avatar-size-md:     24px;
   --avatar-size-lg:     32px;
 
-  /* ── Border Radius ────────────────────────────────────────────────────── */
-  --radius-sm:   3px;
-  --radius-md:   6px;
-  --radius-lg:   10px;
-  --radius-xl:   14px;
+  /* ── Border Radius ───────────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
   --radius-full: 9999px;
 
-  /* ── Shadows (warm-tinted) ────────────────────────────────────────────── */
-  --shadow-sm:        0 1px 2px rgba(28, 25, 23, 0.07);
-  --shadow-md:        0 0 0 1px rgba(28, 25, 23, 0.07), 0 1px 3px rgba(28, 25, 23, 0.07);
-  --shadow-lg:        0 0 0 1px rgba(28, 25, 23, 0.07), 0 4px 12px rgba(28, 25, 23, 0.1);
-  --shadow-xl:        0 0 0 1px rgba(28, 25, 23, 0.07), 0 8px 24px rgba(28, 25, 23, 0.12);
-  --shadow-card:      0 0 0 1px rgba(28, 25, 23, 0.05), 0 1px 3px rgba(28, 25, 23, 0.05);
-  --shadow-card-hover:0 0 0 1px rgba(28, 25, 23, 0.09), 0 2px 8px rgba(28, 25, 23, 0.08);
+  /* ── Shadows (dark-appropriate — borders > shadows) ──────────────────── */
+  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md:         0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg:         0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-xl:         0 0 0 1px rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-card:       0 0 0 1px rgba(255, 255, 255, 0.03), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px rgba(0, 0, 0, 0.4);
 
-  /* ── Transitions ──────────────────────────────────────────────────────── */
+  /* ── Transitions ─────────────────────────────────────────────────────── */
   --transition-fast: 60ms ease;
   --transition-base: 120ms ease;
   --transition-slow: 200ms ease;
 }
 
-/* ── Dark Mode ────────────────────────────────────────────────────────────── */
+/* ── Light Mode — Supabase Light ─────────────────────────────────────────── */
 
-[data-theme="dark"] {
-  /* ── Northie Dark — warm carbon ─────────────────────────────────────── */
-  --bg:           #0C0A09;
-  --surface:      #1C1917;
-  --surface-glass: rgba(28, 25, 23, 0.92);
+[data-theme="light"] {
+  --bg:           #F9FAFB;
+  --surface:      #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, 0.8);
 
-  --fg:     #FAF9F8;
-  --fg-rgb: 250, 249, 248;
+  --fg:     #111827;
+  --fg-rgb: 17, 24, 39;
 
-  --inv:    #FAF9F8;
-  --on-inv: #0C0A09;
+  --inv:    #111827;
+  --on-inv: #F9FAFB;
 
-  --color-text-primary:   #FAF9F8;
-  --color-text-secondary: #A8A29E;
-  --color-text-tertiary:  #78716C;
+  --color-text-primary:   #111827;
+  --color-text-secondary: #374151;
+  --color-text-tertiary:  #9CA3AF;
 
-  --color-bg-primary:   #1C1917;
-  --color-bg-secondary: #292524;
-  --color-bg-tertiary:  #3C3533;
-  --color-border:       rgba(250, 249, 248, 0.08);
+  --color-bg-primary:   #FFFFFF;
+  --color-bg-secondary: #F3F4F6;
+  --color-bg-tertiary:  #E5E7EB;
+  --color-border:       #E5E7EB;
 
-  /* Primary stays orange — slightly lighter for dark bg */
-  --color-primary:       oklch(0.705 0.213 47.604);
-  --color-primary-fg:    oklch(0.141 0.005 285.823);
-  --color-primary-hover: oklch(0.76  0.2   50);
-  --color-primary-light: oklch(0.25  0.07  47);
+  /* Green stays in both modes */
+  --color-primary:       #3ECF8E;
+  --color-primary-fg:    #020305;
+  --color-primary-hover: #29BC79;
+  --color-primary-light: rgba(62, 207, 142, 0.12);
 
-  --status-not-started:    #78716C;
-  --status-not-started-bg: #292524;
-  --status-planning:       oklch(0.75 0.183 55.934);
-  --status-planning-bg:    oklch(0.22 0.06 55);
-  --status-in-progress:    #60A5FA;
-  --status-in-progress-bg: rgba(96, 165, 250, 0.12);
-  --status-complete:       #34D399;
-  --status-complete-bg:    rgba(52, 211, 153, 0.12);
+  --n-card:       #FFFFFF;
+  --n-text:       #111827;
+  --n-primary:    #3ECF8E;
+  --n-primary-fg: #020305;
+  --n-secondary:  #F3F4F6;
+  --n-muted-fg:   #9CA3AF;
+  --n-accent:     #E5E7EB;
+  --n-border:     #E5E7EB;
 
-  --priority-medium:    oklch(0.705 0.213 47.604);
-  --priority-medium-bg: oklch(0.22 0.07 47);
-  --priority-high:      oklch(0.704 0.191 22.216);
-  --priority-high-bg:   oklch(0.22 0.06 27);
+  --status-not-started:    #9CA3AF;
+  --status-not-started-bg: #F3F4F6;
+  --status-planning:       #D97706;
+  --status-planning-bg:    rgba(217, 119, 6, 0.08);
+  --status-in-progress:    #2563EB;
+  --status-in-progress-bg: rgba(37, 99, 235, 0.08);
+  --status-complete:       #059669;
+  --status-complete-bg:    rgba(5, 150, 105, 0.08);
 
-  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md:         0 0 0 1px rgba(250,249,248,0.06), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-lg:         0 0 0 1px rgba(250,249,248,0.06), 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-xl:         0 0 0 1px rgba(250,249,248,0.06), 0 8px 24px rgba(0, 0, 0, 0.6);
-  --shadow-card:       0 0 0 1px rgba(250,249,248,0.04), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover: 0 0 0 1px rgba(250,249,248,0.08), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --priority-low:       #374151;
+  --priority-low-bg:    #E5E7EB;
+  --priority-medium:    #D97706;
+  --priority-medium-bg: rgba(217, 119, 6, 0.08);
+  --priority-high:      #DC2626;
+  --priority-high-bg:   rgba(220, 38, 38, 0.08);
 
-  /* Bridge vars — dark overrides */
-  --n-card:       #1C1917;
-  --n-text:       #FAF9F8;
-  --n-primary:    oklch(0.705 0.213 47.604);
-  --n-primary-fg: oklch(0.141 0.005 285.823);
-  --n-secondary:  #292524;
-  --n-muted-fg:   #78716C;
-  --n-accent:     #3C3533;
-  --n-border:     rgba(250, 249, 248, 0.08);
+  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md:         0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-lg:         0 0 0 1px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-xl:         0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-card:       0 0 0 1px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 /* ── Base Styles ──────────────────────────────────────────────────────────── */
@@ -446,25 +446,7 @@ body {
   background: rgba(var(--fg-rgb), 0.22);
 }
 
-/* ── Grain texture — subtle sand/noise overlay ────────────────────────────── */
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.032;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-size: 200px 200px;
-  background-repeat: repeat;
-}
-
-[data-theme="dark"] body::after {
-  opacity: 0.045;
-}
-
-/* ── Spotlight — concentrated light beam, top-center ─────────────────────── */
+/* ── Spotlight — green glow, top-center (Supabase style) ─────────────────── */
 
 body::before {
   content: '';
@@ -472,34 +454,34 @@ body::before {
   top: -300px;
   left: 50%;
   transform: translateX(-50%);
-  width: 700px;
-  height: 580px;
+  width: 800px;
+  height: 600px;
   pointer-events: none;
   z-index: 0;
   background: radial-gradient(ellipse 60% 55% at 50% 0%,
-      oklch(0.837 0.128 66.29 / 0.12) 0%,
-      oklch(0.705 0.213 47.604 / 0.04) 40%,
+      rgba(62, 207, 142, 0.07) 0%,
+      rgba(62, 207, 142, 0.02) 40%,
       transparent 70%);
   border-radius: 50%;
 }
 
-[data-theme="dark"] body::before {
+[data-theme="light"] body::before {
   background: radial-gradient(ellipse 60% 55% at 50% 0%,
-      oklch(0.646 0.222 41.116 / 0.08) 0%,
-      oklch(0.553 0.195 38.402 / 0.03) 40%,
+      rgba(62, 207, 142, 0.06) 0%,
+      rgba(62, 207, 142, 0.02) 40%,
       transparent 70%);
 }
 
-/* ── Global text selection ────────────────────────────────────────────────── */
+/* ── Global text selection — green ───────────────────────────────────────── */
 
 ::selection {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+  background: rgba(62, 207, 142, 0.25);
+  color: #F8F9FA;
 }
 
-[data-theme="dark"] ::selection {
-  background: oklch(0.646 0.222 41.116 / 0.25);
-  color: oklch(0.985 0.008 70);
+[data-theme="light"] ::selection {
+  background: rgba(62, 207, 142, 0.2);
+  color: #111827;
 }
 
 /* ── Placeholder global ───────────────────────────────────────────────────── */
@@ -509,7 +491,7 @@ body::before {
   opacity: 1;
 }
 
-/* ── Notion-style focus outline removal ───────────────────────────────────── */
+/* ── Focus outline ────────────────────────────────────────────────────────── */
 
 :focus-visible {
   outline: 2px solid var(--color-primary);
@@ -524,7 +506,7 @@ a:focus-visible {
   border-radius: var(--radius-sm);
 }
 
-/* ── Skeleton shimmer animation ──────────────────────────────────────────── */
+/* ── Skeleton shimmer animation ───────────────────────────────────────────── */
 
 @keyframes shimmer {
   0% { background-position: -200% 0; }
@@ -543,7 +525,13 @@ a:focus-visible {
   border-radius: var(--radius-md);
 }
 
-/* ── Reduced motion ──────────────────────────────────────────────────────── */
+/* ── Headings — tight letter-spacing ──────────────────────────────────────── */
+
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   *,

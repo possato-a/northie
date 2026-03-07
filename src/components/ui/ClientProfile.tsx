@@ -50,7 +50,7 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
                     <div>
-                        <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: 'var(--fg)', margin: 0 }}>
+                        <p style={{ fontFamily: "var(--font-sans)", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: 'var(--fg)', margin: 0 }}>
                             {client.name}
                         </p>
                         <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', margin: '6px 0 0', letterSpacing: '0.03em' }}>
@@ -80,7 +80,7 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                     ].map((m) => (
                         <div key={m.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.07)' }}>
                             <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>{m.label}</span>
-                            <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 15, letterSpacing: '-0.4px', color: 'var(--fg)' }}>{m.value}</span>
+                            <span style={{ fontFamily: "var(--font-sans)", fontSize: 15, letterSpacing: '-0.4px', color: 'var(--fg)' }}>{m.value}</span>
                         </div>
                     ))}
 
@@ -88,7 +88,7 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                     <div style={{ padding: '13px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.07)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                             <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>PROB. CHURN</span>
-                            <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 15, letterSpacing: '-0.4px', color: client.churnProb > 60 ? 'rgba(var(--fg-rgb), 0.45)' : 'var(--fg)' }}>
+                            <span style={{ fontFamily: "var(--font-sans)", fontSize: 15, letterSpacing: '-0.4px', color: client.churnProb > 60 ? 'rgba(var(--fg-rgb), 0.45)' : 'var(--fg)' }}>
                                 {client.churnProb}%
                             </span>
                         </div>
@@ -109,7 +109,7 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {products.map(([name, qty]) => (
                             <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.8)' }}>{name}</span>
+                                <span style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.8)' }}>{name}</span>
                                 <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)' }}>{qty}×</span>
                             </div>
                         ))}
@@ -129,7 +129,7 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)' }}
                             >
                                 <div>
-                                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 12, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0 }}>{p.product}</p>
+                                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0 }}>{p.product}</p>
                                     <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{p.date}</p>
                                 </div>
                                 <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.7)' }}>

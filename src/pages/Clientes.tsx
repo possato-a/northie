@@ -74,7 +74,7 @@ function Dropdown<T extends string>({ value, options, label, open, onToggle, onS
                 whileTap={{ scale: 0.97 }}
                 style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px',
+                    fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px',
                     padding: '5px 12px', borderRadius: 3,
                     border: '1px solid rgba(var(--fg-rgb), 0.13)',
                     background: 'transparent', cursor: 'pointer',
@@ -98,7 +98,7 @@ function Dropdown<T extends string>({ value, options, label, open, onToggle, onS
                                 key={opt}
                                 onClick={() => { onSelect(opt); onToggle() }}
                                 whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
-                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: value === opt ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)', fontWeight: value === opt ? 500 : 400 }}
+                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: value === opt ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)', fontWeight: value === opt ? 500 : 400 }}
                             >
                                 {opt}
                             </motion.button>
@@ -146,7 +146,7 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
                             key={s}
                             onClick={() => setStatusFilter(s)}
                             whileTap={{ scale: 0.97 }}
-                            style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: 'none', cursor: 'pointer', background: statusFilter === s ? 'rgba(var(--fg-rgb), 0.09)' : 'transparent', color: statusFilter === s ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.5)', transition: 'background 0.15s, color 0.15s' }}
+                            style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: 'none', cursor: 'pointer', background: statusFilter === s ? 'rgba(var(--fg-rgb), 0.09)' : 'transparent', color: statusFilter === s ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.5)', transition: 'background 0.15s, color 0.15s' }}
                         >
                             {s}
                         </motion.button>
@@ -162,7 +162,7 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
                     </svg>
                     <input
                         value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
-                        style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', width: 90 }}
+                        style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', width: 90 }}
                     />
                 </div>
             </div>
@@ -184,7 +184,7 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
                             <SkeletonTable rows={PAGE_SIZE} columns={6} />
                         </motion.div>
                     ) : filtered.length === 0 ? (
-                        <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
+                        <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
                             Nenhum cliente encontrado
                         </motion.p>
                     ) : paginated.map((c, i) => (
@@ -199,7 +199,7 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
                             style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', alignItems: 'center', padding: '13px 6px', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)', cursor: 'pointer', borderRadius: 3, margin: '0 -6px' }}
                         >
                             <div>
-                                <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+                                <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
                                 <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{c.channel}</p>
                             </div>
                             <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>R$ {fmtBR(c.totalSpent)}</span>
@@ -320,7 +320,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{ fontFamily: "'Poppins',sans-serif", fontWeight: 400, fontSize: 40, letterSpacing: '-1.6px', color: 'var(--fg)', lineHeight: 1, margin: 0 }}
+                style={{ fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 40, letterSpacing: '-1.6px', color: 'var(--fg)', lineHeight: 1, margin: 0 }}
             >
                 Clientes
             </motion.h1>

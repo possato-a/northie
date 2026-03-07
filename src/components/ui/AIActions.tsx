@@ -38,7 +38,7 @@ export default function AIActions() {
                     <motion.p
                         key="empty"
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '8px 0' }}
+                        style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '8px 0' }}
                     >
                         Todas as sugestões foram processadas.
                     </motion.p>
@@ -61,7 +61,7 @@ export default function AIActions() {
                             }}
                         >
                             <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 14, letterSpacing: '-0.4px', color: 'var(--fg)', margin: 0 }}>
+                                <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, letterSpacing: '-0.4px', color: 'var(--fg)', margin: 0 }}>
                                     <span style={{ fontFamily: "'Geist Mono',monospace", fontWeight: 500, color: 'var(--fg)' }}>{action.count}</span>
                                     {' '}{action.description}.
                                 </p>
@@ -78,7 +78,7 @@ export default function AIActions() {
                                     whileHover={{ opacity: isApproved ? 1 : 0.8 }}
                                     whileTap={{ scale: 0.96 }}
                                     style={{
-                                        fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px',
+                                        fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px',
                                         padding: '7px 16px', borderRadius: 3, border: 'none', cursor: 'pointer',
                                         background: isApproved ? 'rgba(var(--fg-rgb), 0.85)' : 'var(--inv)',
                                         color: 'var(--on-inv)', transition: 'background 0.2s',
@@ -91,7 +91,7 @@ export default function AIActions() {
                                     whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.05)' }}
                                     whileTap={{ scale: 0.96 }}
                                     style={{
-                                        fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px',
+                                        fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px',
                                         padding: '7px 12px', borderRadius: 3,
                                         border: '1px solid rgba(var(--fg-rgb), 0.13)',
                                         background: 'transparent', cursor: 'pointer',

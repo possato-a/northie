@@ -162,7 +162,7 @@ export default function App() {
                 transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
                 style={{
                   paddingTop: 64,
-                  fontFamily: "'Poppins', sans-serif",
+                  fontFamily: "var(--font-sans)",
                   fontSize: 40,
                   fontWeight: 400,
                   letterSpacing: '-1.6px',

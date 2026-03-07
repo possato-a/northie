@@ -51,8 +51,8 @@ export function PageHeader({ title, subtitle, actions, breadcrumb, delay = 0 }: 
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.45, delay, ease: [0.25, 0.1, 0.25, 1] }}
                         style={{
-                            fontFamily: 'var(--font-display)',
-                            fontWeight: 400,
+                            fontFamily: 'var(--font-sans)',
+                            fontWeight: 500,
                             fontSize: 40,
                             letterSpacing: '-1.6px',
                             color: 'var(--fg)',
@@ -158,7 +158,7 @@ interface ButtonProps {
 const BUTTON_STYLES: Record<ButtonVariant, React.CSSProperties> = {
     primary: {
         background: 'var(--color-primary)',
-        color: 'white',
+        color: 'var(--color-primary-fg)',
         border: 'none',
     },
     secondary: {
@@ -179,7 +179,7 @@ const BUTTON_STYLES: Record<ButtonVariant, React.CSSProperties> = {
 }
 
 const BUTTON_HOVER: Record<ButtonVariant, React.CSSProperties> = {
-    primary: { background: '#1a72cc' },
+    primary: { background: 'var(--color-primary-hover)' },
     secondary: { background: 'var(--color-bg-tertiary)', color: 'var(--color-text-primary)' },
     ghost: { background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)' },
     danger: { background: 'var(--priority-high-bg)' },
@@ -295,8 +295,8 @@ export function Modal({ children, onClose, maxWidth = 520, title, subtitle }: Mo
                     <div style={{ marginBottom: 24 }}>
                         {title && (
                             <h2 style={{
-                                fontFamily: 'var(--font-display)',
-                                fontWeight: 400,
+                                fontFamily: 'var(--font-sans)',
+                                fontWeight: 500,
                                 fontSize: 'var(--text-xl)',
                                 letterSpacing: '-0.5px',
                                 color: 'var(--color-text-primary)',

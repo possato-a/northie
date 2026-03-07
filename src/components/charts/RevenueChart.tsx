@@ -193,7 +193,7 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
               </text>
               <text
                 x={tx + 13} y={ty + 37}
-                fontFamily="'Poppins', sans-serif" fontSize={14} fontWeight={500}
+                fontFamily="var(--font-sans)" fontSize={14} fontWeight={500}
                 style={{ fill: 'var(--fg)' }}
               >
                 R$ {fmtBR(hd.amount)}

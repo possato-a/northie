@@ -92,7 +92,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                     <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', margin: 0 }}>
                         SEGMENTAÇÃO RFM
                     </p>
-                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.4)', margin: '4px 0 0', letterSpacing: '-0.2px' }}>
+                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.4)', margin: '4px 0 0', letterSpacing: '-0.2px' }}>
                         Recência · Frequência · Valor
                     </p>
                 </div>
@@ -104,7 +104,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                             background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
                             cursor: activeIndex === 0 ? 'default' : 'pointer',
                             color: 'var(--fg)', opacity: activeIndex === 0 ? 0.2 : 0.6, padding: '4px 10px',
-                            fontFamily: "'Poppins',sans-serif", fontSize: 12,
+                            fontFamily: "var(--font-sans)", fontSize: 12,
                         }}
                     >
                         ←
@@ -119,7 +119,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                             background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
                             cursor: activeIndex === SEGMENTS.length - 1 ? 'default' : 'pointer',
                             color: 'var(--fg)', opacity: activeIndex === SEGMENTS.length - 1 ? 0.2 : 0.6, padding: '4px 10px',
-                            fontFamily: "'Poppins',sans-serif", fontSize: 12,
+                            fontFamily: "var(--font-sans)", fontSize: 12,
                         }}
                     >
                         →
@@ -190,7 +190,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                 {/* Card header */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
                                     <div>
-                                        <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 18, letterSpacing: '-0.5px', color: 'var(--fg)', margin: 0 }}>
+                                        <p style={{ fontFamily: "var(--font-sans)", fontSize: 18, letterSpacing: '-0.5px', color: 'var(--fg)', margin: 0 }}>
                                             {cfg.label}
                                         </p>
                                         <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)', margin: '5px 0 0', letterSpacing: '0.03em' }}>
@@ -219,7 +219,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                             <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 9, color: 'rgba(var(--fg-rgb), 0.38)', letterSpacing: '0.06em', margin: '0 0 6px', textTransform: 'uppercase' as const }}>
                                                 {m.label}
                                             </p>
-                                            <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: mi === 0 ? 28 : 16, fontWeight: 400, letterSpacing: mi === 0 ? '-1px' : '-0.4px', color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>
+                                            <p style={{ fontFamily: "var(--font-sans)", fontSize: mi === 0 ? 28 : 16, fontWeight: 400, letterSpacing: mi === 0 ? '-1px' : '-0.4px', color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>
                                                 {m.value}
                                             </p>
                                         </div>
@@ -248,7 +248,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
                                         <path d="M5 1L6.2 4.2H9.5L6.9 6.3L7.9 9.5L5 7.4L2.1 9.5L3.1 6.3L0.5 4.2H3.8L5 1Z" fill="currentColor"/>
                                     </svg>
-                                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.6)', margin: 0, lineHeight: 1.4 }}>
+                                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.6)', margin: 0, lineHeight: 1.4 }}>
                                         {cfg.suggestion}
                                     </p>
                                 </div>

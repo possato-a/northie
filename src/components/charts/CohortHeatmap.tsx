@@ -110,7 +110,7 @@ export default function CohortHeatmap({ initialData }: { initialData?: CohortRow
                 <p style={{ fontFamily: "'Geist Mono', monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.08em', margin: '0 0 8px', textTransform: 'uppercase' }}>
                     Insight de Retenção
                 </p>
-                <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.7)', margin: 0, lineHeight: 1.6, letterSpacing: '-0.2px' }}>
+                <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.7)', margin: 0, lineHeight: 1.6, letterSpacing: '-0.2px' }}>
                     Este gráfico mostra a porcentagem de clientes que realizaram uma nova compra após X dias da primeira compra, agrupados pelo mês em que se tornaram clientes (Safra).
                 </p>
             </motion.div>

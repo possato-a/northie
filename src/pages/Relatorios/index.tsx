@@ -749,7 +749,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                             </div>
                             <iframe
                                 src={previewBlobUrl}
-                                style={{ flex: 1, border: 'none', background: '#525659' }}
+                                style={{ flex: 1, border: 'none', background: 'var(--color-bg-tertiary)' }}
                                 title="Preview do relatório PDF"
                             />
                         </motion.div>

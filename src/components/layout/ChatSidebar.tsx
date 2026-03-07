@@ -423,7 +423,7 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
                                     whileTap={{ scale: 0.95 }}
                                     style={{
                                         background: input.trim() ? 'var(--color-primary)' : 'var(--color-border)',
-                                        color: input.trim() ? 'white' : 'var(--color-text-tertiary)',
+                                        color: input.trim() ? 'var(--color-primary-fg)' : 'var(--color-text-tertiary)',
                                         border: 'none',
                                         borderRadius: 'var(--radius-md)',
                                         width: 28, height: 28,

@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
             const stored = localStorage.getItem('northie-theme')
             if (stored === 'dark' || stored === 'light') return stored
         } catch {}
-        return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
     })
 
     useEffect(() => {

@@ -89,7 +89,7 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
                 {/* Day Labels */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 0 6px', height: 130 }}>
                     {DAYS.map((d, i) => i % 2 === 1 && (
-                        <span key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.3)', lineHeight: 1 }}>{d}</span>
+                        <span key={d} style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.3)', lineHeight: 1 }}>{d}</span>
                     ))}
                 </div>
 
@@ -100,7 +100,7 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
                                 {/* Month label logic */}
                                 {wi % 4 === 0 && (
                                     <span style={{
-                                        fontFamily: "'Poppins', sans-serif",
+                                        fontFamily: "var(--font-sans)",
                                         fontSize: 11,
                                         color: 'rgba(var(--fg-rgb), 0.4)',
                                         marginBottom: 6,
@@ -134,11 +134,11 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Menos</span>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Menos</span>
                 {[0, 2, 5, 10, 15].map(c => (
                     <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: getColor(c) }} />
                 ))}
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Mais</span>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Mais</span>
             </div>
         </div>
     )

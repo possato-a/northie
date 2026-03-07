@@ -98,7 +98,7 @@ function ImagePanel() {
         <div style={{
             flex: '0 0 55%',
             position: 'relative',
-            background: isDark ? '#000' : 'var(--color-bg-secondary)',
+            background: isDark ? 'var(--bg)' : 'var(--color-bg-secondary)',
             overflow: 'hidden',
             borderRight: '1px solid var(--color-border)',
             display: 'flex',
