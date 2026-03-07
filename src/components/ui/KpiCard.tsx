@@ -99,7 +99,7 @@ export function KpiCard({
             width: 2,
             height: 36,
             borderRadius: 2,
-            background: 'rgba(var(--fg-rgb), 0.15)',
+            background: 'rgba(62, 207, 142, 0.3)',
             flexShrink: 0,
             transformOrigin: 'top',
           }}

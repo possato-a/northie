@@ -26,9 +26,9 @@
   --color-input:                var(--n-border);
   --color-ring:                 var(--n-primary);
 
-  /* Radius — Supabase-style (slightly larger) */
+  /* Radius — Supabase exact (6px buttons, 12px cards) */
   --radius-sm:  4px;
-  --radius-md:  8px;
+  --radius-md:  6px;
   --radius-lg:  12px;
   --radius-xl:  16px;
 
@@ -73,49 +73,51 @@ body,
 /* ── Northie Brand Tokens — Supabase Dark-First ──────────────────────────── */
 
 :root {
-  /* ── Surfaces (dark default — Supabase) ─────────────────────────────── */
-  --bg: #0C0E11;
-  --surface: #141619;
-  --surface-glass: rgba(20, 22, 25, 0.92);
+  /* ── Surfaces (dark default — exact Supabase Figma values) ──────────── */
+  --bg: #101010;
+  --surface: #171717;
+  --surface-glass: rgba(23, 23, 23, 0.92);
 
   /* ── Foreground ─────────────────────────────────────────────────────── */
-  --fg: #F8F9FA;
-  --fg-rgb: 248, 249, 250;
+  --fg: #FAFAFA;
+  --fg-rgb: 250, 250, 250;
 
   /* ── Inverted ───────────────────────────────────────────────────────── */
-  --inv: #F8F9FA;
-  --on-inv: #0C0E11;
+  --inv: #FAFAFA;
+  --on-inv: #101010;
 
   /* ── Text ────────────────────────────────────────────────────────────── */
-  --color-text-primary:   #F8F9FA;
-  --color-text-secondary: #A1A1AA;
-  --color-text-tertiary:  #6B7280;
+  --color-text-primary:   #FAFAFA;
+  --color-text-secondary: #898989;
+  --color-text-tertiary:  #575757;
 
-  /* ── Backgrounds (cool gray scale) ──────────────────────────────────── */
-  --color-bg-primary:   #141619;
-  --color-bg-secondary: #1C1F24;
-  --color-bg-tertiary:  #242830;
-  --color-border:       #1F2328;
+  /* ── Backgrounds (Supabase gray scale) ──────────────────────────────── */
+  --color-bg-primary:   #171717;
+  --color-bg-secondary: #1C1C1C;
+  --color-bg-tertiary:  #242424;
+  --color-border:       #2E2E2E;
 
   /* ── Brand — Supabase Green ──────────────────────────────────────────── */
   --color-primary:       #3ECF8E;
-  --color-primary-fg:    #020305;
-  --color-primary-hover: #29BC79;
+  --color-primary-fg:    #FAFAFA;
+  --color-primary-hover: #3ABD81;
   --color-primary-light: rgba(62, 207, 142, 0.15);
+  --color-primary-dark:  #006239;
+  --color-primary-border: rgba(62, 207, 142, 0.3);
 
   /* ── Bridge vars for @theme inline (avoid circular refs) ────────────── */
-  --n-card:       #141619;
-  --n-text:       #F8F9FA;
+  --n-card:       #171717;
+  --n-text:       #FAFAFA;
   --n-primary:    #3ECF8E;
-  --n-primary-fg: #020305;
-  --n-secondary:  #1C1F24;
-  --n-muted-fg:   #6B7280;
-  --n-accent:     #242830;
-  --n-border:     #1F2328;
+  --n-primary-fg: #FAFAFA;
+  --n-secondary:  #1C1C1C;
+  --n-muted-fg:   #575757;
+  --n-accent:     #242424;
+  --n-border:     #2E2E2E;
 
   /* ── Status ──────────────────────────────────────────────────────────── */
-  --status-not-started:    #6B7280;
-  --status-not-started-bg: #1C1F24;
+  --status-not-started:    #575757;
+  --status-not-started-bg: #1C1C1C;
   --status-planning:       #F59E0B;
   --status-planning-bg:    rgba(245, 158, 11, 0.12);
   --status-in-progress:    #3B82F6;
@@ -124,8 +126,8 @@ body,
   --status-complete-bg:    rgba(62, 207, 142, 0.12);
 
   /* ── Priority ────────────────────────────────────────────────────────── */
-  --priority-low:       #A1A1AA;
-  --priority-low-bg:    #242830;
+  --priority-low:       #898989;
+  --priority-low-bg:    #242424;
   --priority-medium:    #F59E0B;
   --priority-medium-bg: rgba(245, 158, 11, 0.12);
   --priority-high:      #EF4444;
@@ -184,18 +186,18 @@ body,
 
   /* ── Border Radius ───────────────────────────────────────────────────── */
   --radius-sm:   4px;
-  --radius-md:   8px;
+  --radius-md:   6px;
   --radius-lg:   12px;
   --radius-xl:   16px;
   --radius-full: 9999px;
 
-  /* ── Shadows (dark-appropriate — borders > shadows) ──────────────────── */
-  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md:         0 0 0 1px rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-lg:         0 0 0 1px rgba(255, 255, 255, 0.04), 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-xl:         0 0 0 1px rgba(255, 255, 255, 0.04), 0 8px 24px rgba(0, 0, 0, 0.6);
-  --shadow-card:       0 0 0 1px rgba(255, 255, 255, 0.03), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 8px rgba(0, 0, 0, 0.4);
+  /* ── Shadows (Supabase: borders > shadows, minimal depth) ────────────── */
+  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:         0 0 0 1px #2E2E2E;
+  --shadow-lg:         0 0 0 1px #2E2E2E, 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-xl:         0 0 0 1px #2E2E2E, 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-card:       0 0 0 1px #2E2E2E;
+  --shadow-card-hover: 0 0 0 1px #363636;
 
   /* ── Transitions ─────────────────────────────────────────────────────── */
   --transition-fast: 60ms ease;
@@ -227,9 +229,11 @@ body,
 
   /* Green stays in both modes */
   --color-primary:       #3ECF8E;
-  --color-primary-fg:    #020305;
+  --color-primary-fg:    #FFFFFF;
   --color-primary-hover: #29BC79;
   --color-primary-light: rgba(62, 207, 142, 0.12);
+  --color-primary-dark:  #006239;
+  --color-primary-border: rgba(62, 207, 142, 0.3);
 
   --n-card:       #FFFFFF;
   --n-text:       #111827;
@@ -257,11 +261,11 @@ body,
   --priority-high-bg:   rgba(220, 38, 38, 0.08);
 
   --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md:         0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-lg:         0 0 0 1px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-xl:         0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
-  --shadow-card:       0 0 0 1px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.04);
-  --shadow-card-hover: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md:         0 0 0 1px var(--color-border);
+  --shadow-lg:         0 0 0 1px var(--color-border), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-xl:         0 0 0 1px var(--color-border), 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-card:       0 0 0 1px var(--color-border);
+  --shadow-card-hover: 0 0 0 1px #D1D5DB;
 }
 
 /* ── Base Styles ──────────────────────────────────────────────────────────── */
@@ -416,16 +420,16 @@ body {
   color: var(--color-text-primary);
 }
 
-/* Notion card */
+/* Notion card — Supabase style (border > shadow) */
 .notion-card {
   background: var(--color-bg-primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  transition: box-shadow var(--transition-base), background var(--transition-base);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  transition: border-color var(--transition-base), background var(--transition-base);
 }
 
 .notion-card:hover {
-  box-shadow: var(--shadow-lg);
+  border-color: #363636;
 }
 
 ::-webkit-scrollbar {
@@ -523,6 +527,38 @@ a:focus-visible {
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
   border-radius: var(--radius-md);
+}
+
+/* ── Supabase card — gradient border via background trick ─────────────────── */
+
+.supa-card {
+  background: linear-gradient(180deg, #2E2E2E 0%, rgba(46, 46, 46, 0.5) 100%);
+  border-radius: var(--radius-lg);
+  padding: 1px;
+  transition: background var(--transition-base);
+}
+
+.supa-card:hover {
+  background: linear-gradient(180deg, #363636 0%, rgba(54, 54, 54, 0.6) 100%);
+}
+
+.supa-card-inner {
+  background: var(--color-bg-primary);
+  border-radius: calc(var(--radius-lg) - 1px);
+  height: 100%;
+  overflow: hidden;
+}
+
+[data-theme="light"] .supa-card {
+  background: linear-gradient(180deg, #D1D5DB 0%, rgba(209, 213, 219, 0.5) 100%);
+}
+
+[data-theme="light"] .supa-card:hover {
+  background: linear-gradient(180deg, #9CA3AF 0%, rgba(156, 163, 175, 0.5) 100%);
+}
+
+[data-theme="light"] .supa-card-inner {
+  background: var(--color-bg-primary);
 }
 
 /* ── Headings — tight letter-spacing ──────────────────────────────────────── */

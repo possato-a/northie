@@ -83,7 +83,7 @@ function NavItem({ icon, label, pageId, activePage, onPageChange, collapsed, del
             bottom: '20%',
             width: 2.5,
             borderRadius: 2,
-            background: 'var(--color-text-primary)',
+            background: 'var(--color-primary)',
           }}
           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
         />

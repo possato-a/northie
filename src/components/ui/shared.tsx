@@ -157,14 +157,14 @@ interface ButtonProps {
 
 const BUTTON_STYLES: Record<ButtonVariant, React.CSSProperties> = {
     primary: {
-        background: 'var(--color-primary)',
+        background: 'var(--color-primary-dark)',
         color: 'var(--color-primary-fg)',
-        border: 'none',
+        border: '1px solid var(--color-primary-border)',
     },
     secondary: {
-        background: 'var(--color-bg-secondary)',
+        background: 'var(--color-bg-tertiary)',
         color: 'var(--color-text-primary)',
-        border: '1px solid var(--color-border)',
+        border: '1px solid #363636',
     },
     ghost: {
         background: 'transparent',
@@ -179,8 +179,8 @@ const BUTTON_STYLES: Record<ButtonVariant, React.CSSProperties> = {
 }
 
 const BUTTON_HOVER: Record<ButtonVariant, React.CSSProperties> = {
-    primary: { background: 'var(--color-primary-hover)' },
-    secondary: { background: 'var(--color-bg-tertiary)', color: 'var(--color-text-primary)' },
+    primary: { background: '#007A47', borderColor: 'rgba(62, 207, 142, 0.45)' },
+    secondary: { background: '#2A2A2A', borderColor: '#444444' },
     ghost: { background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)' },
     danger: { background: 'var(--priority-high-bg)' },
 }
