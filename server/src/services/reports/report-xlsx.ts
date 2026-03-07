@@ -430,7 +430,7 @@ export async function generateXlsx(
     styleHeaderRow(vHeaderRow, vendaCols, darkFill());
 
     setWsDefaults(wsVendas, 3);
-    setColWidths(wsVendas, [16, 36, 20, 32, 22, 16, 16]);
+    setColWidths(wsVendas, [20, 36, 20, 32, 22, 20, 20]);
 
     const sortedTx = [...data.transactions_detail].sort((a, b) => {
         const da = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -509,7 +509,7 @@ export async function generateXlsx(
     styleHeaderRow(cHeaderRow, canalColCount, darkFill());
 
     setWsDefaults(wsCanais, 3);
-    setColWidths(wsCanais, [24, 26, 28, 16, 20, 22, 16, 22]);
+    setColWidths(wsCanais, [24, 26, 28, 20, 20, 22, 20, 22]);
 
     const channels = [...data.channel_economics].sort((a, b) => {
         const roasA = a.total_spend > 0 ? a.total_ltv / a.total_spend : -1;
@@ -621,7 +621,7 @@ export async function generateXlsx(
     styleHeaderRow(pHeaderRow, prodCols, darkFill());
 
     setWsDefaults(wsProdutos, 3);
-    setColWidths(wsProdutos, [48, 26, 18, 24, 16]);
+    setColWidths(wsProdutos, [48, 26, 20, 24, 20]);
 
     if (data.top_products.length === 0) {
         wsProdutos.mergeCells(4, 1, 4, prodCols);
@@ -696,7 +696,7 @@ export async function generateXlsx(
     styleHeaderRow(rHeaderRow2, riscoCols, darkFill());
 
     setWsDefaults(wsRisco, 3);
-    setColWidths(wsRisco, [8, 22, 24, 24, 20, 16, 40]);
+    setColWidths(wsRisco, [20, 22, 24, 24, 20, 20, 40]);
 
     const atRisk = data.at_risk_customers;
 
@@ -780,7 +780,7 @@ export async function generateXlsx(
     styleHeaderRow(rfmHeaderRow, rfmCols, darkFill());
 
     setWsDefaults(wsRfm, 3);
-    setColWidths(wsRfm, [44, 16, 16, 26, 24]);
+    setColWidths(wsRfm, [44, 20, 20, 26, 24]);
 
     const RFM_COLORS: Record<string, string> = {
         champions: C.success,
@@ -1034,7 +1034,7 @@ export async function generateXlsx(
     styleHeaderRow(mensalHeaderRow, mensalCols, darkFill());
 
     setWsDefaults(wsMensal, 3);
-    setColWidths(wsMensal, [16, 30, 22, 38]);
+    setColWidths(wsMensal, [20, 30, 22, 38]);
 
     if (data.revenue_trend.length === 0) {
         wsMensal.mergeCells(4, 1, 4, mensalCols);
@@ -1126,7 +1126,7 @@ export async function generateXlsx(
     styleHeaderRow(cohortHeaderRow, cohortCols, darkFill());
 
     setWsDefaults(wsCohort, 4);
-    setColWidths(wsCohort, [20, 14, 20, 16, 16, 16, 16, 16]);
+    setColWidths(wsCohort, [22, 20, 22, 20, 20, 20, 20, 20]);
 
     const cohortRetention = (data as unknown as {
         cohort_retention?: { cohort: string; total: number; m0: number; m1: number | null; m2: number | null; m3: number | null; m4: number | null; m5: number | null }[];
@@ -1191,12 +1191,18 @@ export async function generateXlsx(
         properties: { tabColor: { argb: 'FFF97316' } },
     });
 
-    const grafCols = 6;
-    writeSectionTitle(wsGraf, 1, 'GRÁFICOS DE PERFORMANCE', grafCols);
-    writePeriodRow(wsGraf, 2, generatedStr, grafCols);
+    const grafCols    = 6;   // colunas visíveis de dados (A–F)
+    const grafFullCols = 16; // largura total incluindo cols ocultas O/P (A–P)
+    writeSectionTitle(wsGraf, 1, 'GRÁFICOS DE PERFORMANCE', grafFullCols);
+    writePeriodRow(wsGraf, 2, generatedStr, grafFullCols);
 
     wsGraf.views = [{ showGridLines: false }];
-    setColWidths(wsGraf, [4, 22, 22, 18, 18, 18]);
+    // Cols visíveis A–F
+    setColWidths(wsGraf, [4, 22, 22, 20, 20, 20]);
+    // Cols G–N (7–14): vazias mas com largura definida para evitar default 8.43
+    for (let c = 7; c <= 14; c++) {
+        wsGraf.getColumn(c).width = 20;
+    }
 
     // Cols O (15) e P (16) — dados brutos ocultos para uso em gráficos nativos
     wsGraf.getColumn(15).width  = 22;
