@@ -21,28 +21,28 @@ const RFM_CONFIG: Record<RFMSegment, RFMConfig> = {
         sub: 'Recência alta · Frequência alta · Valor alto',
         criteria: 'R ≥ 4 · F ≥ 3 · M ≥ 3',
         suggestion: 'Criar Lookalike no Meta com base nesse segmento',
-        accentColor: 'rgba(var(--fg-rgb), 0.85)',
+        accentColor: 'var(--color-text-primary)',
     },
     'Em Risco': {
         label: 'Em Risco',
         sub: 'Compravam bem, pararam de comprar',
         criteria: 'R ≤ 2 com F ≥ 3 ou M ≥ 3',
         suggestion: 'Disparar campanha de reativação urgente',
-        accentColor: 'rgba(var(--fg-rgb), 0.5)',
+        accentColor: 'var(--color-text-tertiary)',
     },
     'Novos Promissores': {
         label: 'Novos Promissores',
         sub: 'Compra recente, potencial de crescimento',
         criteria: 'Score médio — fora dos extremos',
         suggestion: 'Nurturing pós-compra e upsell imediato',
-        accentColor: 'rgba(var(--fg-rgb), 0.65)',
+        accentColor: 'var(--color-text-secondary)',
     },
     'Inativos': {
         label: 'Inativos',
         sub: 'Sem atividade — score geral baixo',
         criteria: 'Média RFM ≤ 2',
         suggestion: 'Campanha de winback ou exclusão de lista',
-        accentColor: 'rgba(var(--fg-rgb), 0.3)',
+        accentColor: 'var(--color-text-tertiary)',
     },
 }
 
@@ -89,10 +89,10 @@ export default function RFMCards({ clients }: RFMCardsProps) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
                 <div>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', margin: 0 }}>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'var(--color-text-tertiary)', letterSpacing: '0.06em', margin: 0 }}>
                         SEGMENTAÇÃO RFM
                     </p>
-                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.4)', margin: '4px 0 0', letterSpacing: '-0.2px' }}>
+                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: 'var(--color-text-tertiary)', margin: '4px 0 0', letterSpacing: '-0.2px' }}>
                         Recência · Frequência · Valor
                     </p>
                 </div>
@@ -101,7 +101,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                         onClick={() => setActiveIndex(p => Math.max(0, p - 1))}
                         whileTap={{ scale: 0.95 }}
                         style={{
-                            background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
+                            background: 'none', border: '1px solid var(--color-border)', borderRadius: 4,
                             cursor: activeIndex === 0 ? 'default' : 'pointer',
                             color: 'var(--fg)', opacity: activeIndex === 0 ? 0.2 : 0.6, padding: '4px 10px',
                             fontFamily: "var(--font-sans)", fontSize: 12,
@@ -109,14 +109,14 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                     >
                         ←
                     </motion.button>
-                    <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)', alignSelf: 'center' }}>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', alignSelf: 'center' }}>
                         {activeIndex + 1} / {SEGMENTS.length}
                     </span>
                     <motion.button
                         onClick={() => setActiveIndex(p => Math.min(SEGMENTS.length - 1, p + 1))}
                         whileTap={{ scale: 0.95 }}
                         style={{
-                            background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
+                            background: 'none', border: '1px solid var(--color-border)', borderRadius: 4,
                             cursor: activeIndex === SEGMENTS.length - 1 ? 'default' : 'pointer',
                             color: 'var(--fg)', opacity: activeIndex === SEGMENTS.length - 1 ? 0.2 : 0.6, padding: '4px 10px',
                             fontFamily: "var(--font-sans)", fontSize: 12,
@@ -171,7 +171,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                     x: offset * 32,
                                     y: offset * -12,
                                     zIndex: SEGMENTS.length - i,
-                                    boxShadow: isFront ? '0 12px 40px rgba(var(--fg-rgb), 0.1)' : '0 4px 12px rgba(var(--fg-rgb), 0.04)',
+                                    boxShadow: isFront ? '0 12px 40px var(--color-border)' : '0 4px 12px var(--color-bg-secondary)',
                                     filter: isFront ? 'blur(0px)' : 'blur(1px)',
                                 }}
                                 exit={{ opacity: 0, x: -100, rotate: -10 }}
@@ -180,7 +180,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                     position: 'absolute', top: 0, left: 0,
                                     width: 'calc(100% - 110px)',
                                     background: 'var(--bg)',
-                                    border: '1px solid rgba(var(--fg-rgb), 0.1)',
+                                    border: '1px solid var(--color-border)',
                                     borderRadius: 12,
                                     padding: '28px 32px',
                                     cursor: isFront ? 'default' : 'pointer',
@@ -193,15 +193,15 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                         <p style={{ fontFamily: "var(--font-sans)", fontSize: 18, letterSpacing: '-0.5px', color: 'var(--fg)', margin: 0 }}>
                                             {cfg.label}
                                         </p>
-                                        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)', margin: '5px 0 0', letterSpacing: '0.03em' }}>
+                                        <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--color-text-tertiary)', margin: '5px 0 0', letterSpacing: '0.03em' }}>
                                             {cfg.criteria}
                                         </p>
                                     </div>
                                     <div style={{
                                         padding: '3px 10px', borderRadius: 20,
-                                        border: '1px solid rgba(var(--fg-rgb), 0.1)',
-                                        fontFamily: "'Geist Mono',monospace", fontSize: 11,
-                                        color: 'rgba(var(--fg-rgb), 0.5)',
+                                        border: '1px solid var(--color-border)',
+                                        fontFamily: "var(--font-mono)", fontSize: 11,
+                                        color: 'var(--color-text-tertiary)',
                                     }}>
                                         {pctBase}% da base
                                     </div>
@@ -215,8 +215,8 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                         { label: 'LTV MÉDIO', value: `R$ ${fmtBR(avgLtv)}` },
                                         { label: 'CHURN MÉDIO', value: `${avgChurn.toFixed(1)}%` },
                                     ].map((m, mi) => (
-                                        <div key={m.label} style={{ paddingRight: 16, borderRight: mi < 3 ? '1px solid rgba(var(--fg-rgb), 0.07)' : 'none', paddingLeft: mi > 0 ? 16 : 0 }}>
-                                            <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 9, color: 'rgba(var(--fg-rgb), 0.38)', letterSpacing: '0.06em', margin: '0 0 6px', textTransform: 'uppercase' as const }}>
+                                        <div key={m.label} style={{ paddingRight: 16, borderRight: mi < 3 ? '1px solid var(--color-border)' : 'none', paddingLeft: mi > 0 ? 16 : 0 }}>
+                                            <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--color-text-tertiary)', letterSpacing: '0.06em', margin: '0 0 6px', textTransform: 'uppercase' as const }}>
                                                 {m.label}
                                             </p>
                                             <p style={{ fontFamily: "var(--font-sans)", fontSize: mi === 0 ? 28 : 16, fontWeight: 400, letterSpacing: mi === 0 ? '-1px' : '-0.4px', color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>
@@ -229,7 +229,7 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                 {/* Barra de churn visual */}
                                 {data.count > 0 && (
                                     <div style={{ marginBottom: 18 }}>
-                                        <div style={{ height: 2, background: 'rgba(var(--fg-rgb), 0.06)', borderRadius: 2, overflow: 'hidden' }}>
+                                        <div style={{ height: 2, background: 'var(--color-border)', borderRadius: 2, overflow: 'hidden' }}>
                                             <motion.div
                                                 initial={{ width: 0 }}
                                                 animate={{ width: `${Math.min(avgChurn, 100)}%` }}
@@ -237,18 +237,18 @@ export default function RFMCards({ clients }: RFMCardsProps) {
                                                 style={{ height: '100%', background: cfg.accentColor, borderRadius: 2 }}
                                             />
                                         </div>
-                                        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 9, color: 'rgba(var(--fg-rgb), 0.3)', margin: '4px 0 0', letterSpacing: '0.04em' }}>
+                                        <p style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: 'var(--color-text-tertiary)', margin: '4px 0 0', letterSpacing: '0.04em' }}>
                                             RISCO DE CHURN
                                         </p>
                                     </div>
                                 )}
 
                                 {/* Estratégia */}
-                                <div style={{ borderTop: '1px solid rgba(var(--fg-rgb), 0.07)', paddingTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
                                         <path d="M5 1L6.2 4.2H9.5L6.9 6.3L7.9 9.5L5 7.4L2.1 9.5L3.1 6.3L0.5 4.2H3.8L5 1Z" fill="currentColor"/>
                                     </svg>
-                                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.6)', margin: 0, lineHeight: 1.4 }}>
+                                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.4 }}>
                                         {cfg.suggestion}
                                     </p>
                                 </div>

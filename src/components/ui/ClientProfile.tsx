@@ -4,7 +4,6 @@
  */
 
 import { useMemo } from 'react'
-import { motion } from 'framer-motion'
 import { fmtBR } from '../../lib/utils'
 import type { ClientUI } from '../../types'
 
@@ -23,25 +22,17 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
     return (
         <>
             {/* Overlay */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+            <div
                 onClick={onClose}
-                style={{ position: 'fixed', inset: 0, background: 'rgba(var(--fg-rgb), 0.12)', zIndex: 300 }}
+                style={{ position: 'fixed', inset: 0, background: 'var(--color-bg-tertiary)', zIndex: 300 }}
             />
 
             {/* Panel */}
-            <motion.div
-                initial={{ x: 400, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: 400, opacity: 0 }}
-                transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
+            <div
                 style={{
                     position: 'fixed', top: 0, right: 0, bottom: 0,
                     width: 380, background: 'var(--bg)',
-                    borderLeft: '1px solid rgba(var(--fg-rgb), 0.12)',
+                    borderLeft: '1px solid var(--color-border)',
                     zIndex: 301, overflowY: 'auto',
                     padding: '28px 32px 48px',
                     display: 'flex', flexDirection: 'column', gap: 0,
@@ -53,21 +44,19 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                         <p style={{ fontFamily: "var(--font-sans)", fontSize: 22, fontWeight: 400, letterSpacing: '-0.8px', color: 'var(--fg)', margin: 0 }}>
                             {client.name}
                         </p>
-                        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', margin: '6px 0 0', letterSpacing: '0.03em' }}>
+                        <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', margin: '6px 0 0', letterSpacing: '0.03em' }}>
                             {client.channel} · {client.segment}
                         </p>
                     </div>
-                    <motion.button
+                    <button
                         onClick={onClose}
-                        whileHover={{ opacity: 0.6 }}
-                        whileTap={{ scale: 0.92 }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'rgba(var(--fg-rgb), 0.5)', display: 'flex' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--color-text-tertiary)', display: 'flex' }}
                     >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                             <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                             <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                         </svg>
-                    </motion.button>
+                    </button>
                 </div>
 
                 {/* Metrics */}
@@ -78,26 +67,23 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
                         { label: 'LTV', value: `R$ ${fmtBR(client.ltv)}` },
                         { label: 'MARGEM', value: `${client.margin}%` },
                     ].map((m) => (
-                        <div key={m.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.07)' }}>
-                            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>{m.label}</span>
+                        <div key={m.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '13px 0', borderBottom: '1px solid var(--color-border)' }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', letterSpacing: '0.04em' }}>{m.label}</span>
                             <span style={{ fontFamily: "var(--font-sans)", fontSize: 15, letterSpacing: '-0.4px', color: 'var(--fg)' }}>{m.value}</span>
                         </div>
                     ))}
 
                     {/* Churn probability */}
-                    <div style={{ padding: '13px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.07)' }}>
+                    <div style={{ padding: '13px 0', borderBottom: '1px solid var(--color-border)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em' }}>PROB. CHURN</span>
-                            <span style={{ fontFamily: "var(--font-sans)", fontSize: 15, letterSpacing: '-0.4px', color: client.churnProb > 60 ? 'rgba(var(--fg-rgb), 0.45)' : 'var(--fg)' }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', letterSpacing: '0.04em' }}>PROB. CHURN</span>
+                            <span style={{ fontFamily: "var(--font-sans)", fontSize: 15, letterSpacing: '-0.4px', color: client.churnProb > 60 ? 'var(--color-text-tertiary)' : 'var(--fg)' }}>
                                 {client.churnProb}%
                             </span>
                         </div>
-                        <div style={{ height: 3, background: 'rgba(var(--fg-rgb), 0.07)', borderRadius: 99 }}>
-                            <motion.div
-                                style={{ height: '100%', borderRadius: 99, background: `rgba(var(--fg-rgb), ${0.15 + client.churnProb / 100 * 0.7})` }}
-                                initial={{ width: 0 }}
-                                animate={{ width: `${client.churnProb}%` }}
-                                transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
+                        <div style={{ height: 3, background: 'var(--color-border)', borderRadius: 99 }}>
+                            <div
+                                style={{ height: '100%', borderRadius: 99, background: 'var(--color-text-tertiary)', width: `${client.churnProb}%` }}
                             />
                         </div>
                     </div>
@@ -105,12 +91,12 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
 
                 {/* Produtos */}
                 <div style={{ marginBottom: 28 }}>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.06em', marginBottom: 12 }}>PRODUTOS</p>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', letterSpacing: '0.06em', marginBottom: 12 }}>PRODUTOS</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {products.map(([name, qty]) => (
                             <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.8)' }}>{name}</span>
-                                <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)' }}>{qty}×</span>
+                                <span style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--color-text-primary)' }}>{name}</span>
+                                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)' }}>{qty}×</span>
                             </div>
                         ))}
                     </div>
@@ -118,28 +104,25 @@ export default function ClientProfile({ client, onClose }: ClientProfileProps) {
 
                 {/* Purchase history */}
                 <div>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.06em', marginBottom: 12 }}>HISTÓRICO</p>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', letterSpacing: '0.06em', marginBottom: 12 }}>HISTÓRICO</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                         {client.purchases.map((p, i) => (
-                            <motion.div
+                            <div
                                 key={i}
-                                initial={{ opacity: 0, x: 8 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ duration: 0.2, delay: i * 0.04 }}
-                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)' }}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}
                             >
                                 <div>
                                     <p style={{ fontFamily: "var(--font-sans)", fontSize: 12, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0 }}>{p.product}</p>
-                                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{p.date}</p>
+                                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'var(--color-text-tertiary)', margin: '2px 0 0' }}>{p.date}</p>
                                 </div>
-                                <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.7)' }}>
+                                <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: 'var(--color-text-secondary)' }}>
                                     R$ {fmtBR(p.value)}
                                 </span>
-                            </motion.div>
+                            </div>
                         ))}
                     </div>
                 </div>
-            </motion.div>
+            </div>
         </>
     )
 }

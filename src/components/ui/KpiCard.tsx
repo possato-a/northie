@@ -45,7 +45,7 @@ export function AnimatedNumber({
   return <span>{prefix}{formatted}{suffix}</span>
 }
 
-// ── KpiCard — estilo original com barra "|" à esquerda do número ──────────────
+// ── KpiCard — Supabase-style: minimal, data-first ────────────────────────────
 interface KpiCardProps {
   label: string
   value: number
@@ -71,45 +71,30 @@ export function KpiCard({
 }: KpiCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: [0.25, 0.1, 0.25, 1] }}
-      style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 120 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 120 }}
     >
-      {/* Label — Geist Mono uppercase */}
+      {/* Label */}
       <span style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--text-xs)',
-        fontWeight: 500,
-        color: 'var(--color-text-secondary)',
-        letterSpacing: '0.07em',
+        fontSize: 11,
+        fontWeight: 400,
+        color: 'var(--color-text-tertiary)',
+        letterSpacing: '0.06em',
         textTransform: 'uppercase',
       }}>
         {label}
       </span>
 
-      {/* Valor com barra "|" à esquerda */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Barra vertical — high-tech marker */}
-        <motion.div
-          initial={{ scaleY: 0, opacity: 0 }}
-          animate={{ scaleY: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: delay + 0.1, ease: [0.4, 0, 0.2, 1] }}
-          style={{
-            width: 2,
-            height: 36,
-            borderRadius: 2,
-            background: 'rgba(62, 207, 142, 0.3)',
-            flexShrink: 0,
-            transformOrigin: 'top',
-          }}
-        />
-
+      {/* Value + trend inline */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
         <span style={{
           fontFamily: 'var(--font-sans)',
           fontWeight: 500,
-          fontSize: 36,
-          letterSpacing: '-1.4px',
+          fontSize: 28,
+          letterSpacing: '-0.5px',
           color: 'var(--fg)',
           lineHeight: 1,
           whiteSpace: 'nowrap',
@@ -120,28 +105,23 @@ export function KpiCard({
             suffix={suffix}
             locale={locale}
             decimals={decimals}
-            delay={delay + 0.15}
+            delay={delay}
           />
         </span>
-      </div>
 
-      {/* Trend badge */}
-      {trend && (
-        <motion.span
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: delay + 0.4 }}
-          style={{
+        {trend && (
+          <span style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 11,
-            fontWeight: 500,
-            letterSpacing: '0.04em',
+            fontWeight: 400,
+            letterSpacing: '0.02em',
             color: positive ? 'var(--accent-green)' : 'var(--accent-red)',
-          }}
-        >
-          {positive ? '▲' : '▼'} {trend} vs mês anterior
-        </motion.span>
-      )}
+            whiteSpace: 'nowrap',
+          }}>
+            {positive ? '+' : '-'}{trend}
+          </span>
+        )}
+      </div>
     </motion.div>
   )
 }

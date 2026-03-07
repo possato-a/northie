@@ -65,20 +65,20 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
 
     const getColor = (count: number) => {
         if (count === -1) return 'transparent'
-        if (count === 0) return 'rgba(var(--fg-rgb), 0.03)'
-        if (count <= 2) return 'rgba(var(--fg-rgb), 0.1)'
-        if (count <= 5) return 'rgba(var(--fg-rgb), 0.25)'
-        if (count <= 10) return 'rgba(var(--fg-rgb), 0.5)'
-        return 'var(--inv)'
+        if (count === 0) return 'var(--color-bg-secondary)'
+        if (count <= 2) return 'rgba(62, 207, 142, 0.15)'
+        if (count <= 5) return 'rgba(62, 207, 142, 0.3)'
+        if (count <= 10) return 'rgba(62, 207, 142, 0.5)'
+        return 'rgba(62, 207, 142, 0.75)'
     }
 
-    if (loading) return <div style={{ height: 160, marginTop: 40, background: 'rgba(var(--fg-rgb), 0.02)', borderRadius: 8 }} />
+    if (loading) return <div style={{ height: 160, marginTop: 40, background: 'var(--color-bg-secondary)', borderRadius: 8 }} />
 
     return (
         <div style={{ marginTop: 40, overflow: 'hidden' }}>
             <p style={{
-                fontFamily: "'Geist Mono', monospace",
-                fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)',
+                fontFamily: "var(--font-mono)",
+                fontSize: 12, color: 'var(--color-text-tertiary)',
                 letterSpacing: '0.06em', marginBottom: 24,
                 textTransform: 'uppercase'
             }}>
@@ -89,7 +89,7 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
                 {/* Day Labels */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 0 6px', height: 130 }}>
                     {DAYS.map((d, i) => i % 2 === 1 && (
-                        <span key={d} style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.3)', lineHeight: 1 }}>{d}</span>
+                        <span key={d} style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>{d}</span>
                     ))}
                 </div>
 
@@ -102,7 +102,7 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
                                     <span style={{
                                         fontFamily: "var(--font-sans)",
                                         fontSize: 11,
-                                        color: 'rgba(var(--fg-rgb), 0.4)',
+                                        color: 'var(--color-text-tertiary)',
                                         marginBottom: 6,
                                         height: 14,
                                         whiteSpace: 'nowrap'
@@ -134,11 +134,11 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Menos</span>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: 'var(--color-text-tertiary)' }}>Menos</span>
                 {[0, 2, 5, 10, 15].map(c => (
                     <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: getColor(c) }} />
                 ))}
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Mais</span>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: 'var(--color-text-tertiary)' }}>Mais</span>
             </div>
         </div>
     )

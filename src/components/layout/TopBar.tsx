@@ -1,12 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
 
 interface TopBarProps {
   onToggleChat?: () => void
 }
-
-const DROPDOWN_EASING = { duration: 0.14, ease: [0.25, 0.1, 0.25, 1] as const }
 
 export default function TopBar(_props: TopBarProps) {
   const [query, setQuery] = useState('')
@@ -55,12 +52,7 @@ export default function TopBar(_props: TopBarProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-      style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}
-    >
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
       {/* Search */}
       <div
         style={{
@@ -74,8 +66,7 @@ export default function TopBar(_props: TopBarProps) {
           paddingLeft: 12,
           paddingRight: 12,
           background: focused ? 'var(--color-bg-primary)' : 'var(--color-bg-secondary)',
-          transition: 'border-color var(--transition-base), background var(--transition-base), box-shadow var(--transition-base)',
-          boxShadow: focused ? '0 0 0 2px var(--color-primary-light)' : 'none',
+          transition: 'border-color var(--transition-base), background var(--transition-base)',
         }}
       >
         <svg width="14" height="14" viewBox="0 0 15 15" fill="none" style={{ flexShrink: 0, color: 'var(--color-text-tertiary)' }}>
@@ -99,28 +90,12 @@ export default function TopBar(_props: TopBarProps) {
             letterSpacing: '-0.1px',
           }}
         />
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-xs)',
-            color: 'var(--color-text-tertiary)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '2px 5px',
-            flexShrink: 0,
-            background: 'var(--color-bg-primary)',
-          }}
-        >
-          ⌘K
-        </span>
       </div>
 
       {/* Notification bell */}
       <div ref={notifRef} style={{ position: 'relative', flexShrink: 0 }}>
-        <motion.button
+        <button
           onClick={() => { setNotifOpen(o => !o); setProfileOpen(false) }}
-          whileHover={{ background: 'var(--color-bg-tertiary)' } as any}
-          whileTap={{ scale: 0.93 }}
           style={{
             width: 36, height: 36,
             border: `1px solid ${notifOpen ? 'var(--color-primary)' : 'var(--color-border)'}`,
@@ -138,69 +113,61 @@ export default function TopBar(_props: TopBarProps) {
             <path d="M6.5 13.5a1.5 1.5 0 0 0 3 0"
               stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
-        </motion.button>
+        </button>
 
-        <AnimatePresence>
-          {notifOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.97 }}
-              transition={DROPDOWN_EASING}
-              style={{
-                position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                width: 300,
-                background: 'var(--color-bg-primary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-lg)',
-                boxShadow: 'var(--shadow-lg)',
-                zIndex: 500,
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--color-border)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        {notifOpen && (
+          <div
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              width: 300,
+              background: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: 'var(--shadow-lg)',
+              zIndex: 500,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--color-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 600,
+                color: 'var(--color-text-primary)',
+                letterSpacing: '-0.1px',
               }}>
-                <span style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: 600,
-                  color: 'var(--color-text-primary)',
-                  letterSpacing: '-0.1px',
-                }}>
-                  Notificações
-                </span>
-              </div>
-              <div style={{
-                padding: '36px 16px',
-                textAlign: 'center',
+                Notificações
+              </span>
+            </div>
+            <div style={{
+              padding: '36px 16px',
+              textAlign: 'center',
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 10px', display: 'block' }}>
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              <p style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-tertiary)',
+                margin: 0,
               }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 10px', display: 'block' }}>
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <p style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)',
-                  color: 'var(--color-text-tertiary)',
-                  margin: 0,
-                }}>
-                  Nenhuma notificação
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                Nenhuma notificação
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Avatar + profile menu */}
       <div ref={profileRef} style={{ position: 'relative', flexShrink: 0 }}>
-        <motion.div
+        <div
           onClick={() => { setProfileOpen(o => !o); setNotifOpen(false) }}
-          whileHover={{ opacity: 0.85 }}
-          whileTap={{ scale: 0.95 }}
           style={{
             width: 32, height: 32,
             borderRadius: 'var(--radius-full)',
@@ -219,26 +186,21 @@ export default function TopBar(_props: TopBarProps) {
           }}>
             {initial}
           </span>
-        </motion.div>
+        </div>
 
-        <AnimatePresence>
-          {profileOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.97 }}
-              transition={DROPDOWN_EASING}
-              style={{
-                position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                width: 224,
-                background: 'var(--color-bg-primary)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-lg)',
-                boxShadow: 'var(--shadow-lg)',
-                zIndex: 500,
-                overflow: 'hidden',
-              }}
-            >
+        {profileOpen && (
+          <div
+            style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              width: 224,
+              background: 'var(--color-bg-primary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: 'var(--shadow-lg)',
+              zIndex: 500,
+              overflow: 'hidden',
+            }}
+          >
               {/* User info header */}
               <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--color-border)' }}>
                 <p style={{
@@ -295,11 +257,10 @@ export default function TopBar(_props: TopBarProps) {
                   danger
                 />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          </div>
+        )}
       </div>
-    </motion.div>
+    </div>
   )
 }
 

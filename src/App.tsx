@@ -166,7 +166,7 @@ export default function App() {
                   fontSize: 40,
                   fontWeight: 400,
                   letterSpacing: '-1.6px',
-                  color: 'rgba(var(--fg-rgb), 0.25)',
+                  color: 'var(--color-text-tertiary)',
                 }}
               >
                 Em breve

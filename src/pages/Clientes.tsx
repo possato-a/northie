@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import { KpiGrid, SectionCard, SkeletonTable } from '../components/ui/shared'
 import TopBar from '../components/layout/TopBar'
@@ -55,7 +54,7 @@ const STATUS_STYLE: Record<ClientStatus, React.CSSProperties> = {
 
 function StatusBadge({ status }: { status: ClientStatus }) {
     return (
-        <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, letterSpacing: '0.02em', padding: '4px 8px', borderRadius: 3, whiteSpace: 'nowrap', ...STATUS_STYLE[status] }}>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, letterSpacing: '0.02em', padding: '4px 8px', borderRadius: 3, whiteSpace: 'nowrap', ...STATUS_STYLE[status] }}>
             {status}
         </span>
     )
@@ -69,9 +68,8 @@ function Dropdown<T extends string>({ value, options, label, open, onToggle, onS
 }) {
     return (
         <div style={{ position: 'relative' }}>
-            <motion.button
+            <button
                 onClick={onToggle}
-                whileTap={{ scale: 0.97 }}
                 style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px',
@@ -85,27 +83,24 @@ function Dropdown<T extends string>({ value, options, label, open, onToggle, onS
                 <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
                     <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-            </motion.button>
-            <AnimatePresence>
-                {open && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.15 }}
-                        style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.14)', borderRadius: 4, padding: '6px 0', zIndex: 200, minWidth: 170, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.07)' }}
-                    >
-                        {options.map(opt => (
-                            <motion.button
-                                key={opt}
-                                onClick={() => { onSelect(opt); onToggle() }}
-                                whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.04)' }}
-                                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: value === opt ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)', fontWeight: value === opt ? 500 : 400 }}
-                            >
-                                {opt}
-                            </motion.button>
-                        ))}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            </button>
+            {open && (
+                <div
+                    style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--bg)', border: '1px solid rgba(var(--fg-rgb), 0.14)', borderRadius: 4, padding: '6px 0', zIndex: 200, minWidth: 170, boxShadow: '0 4px 20px rgba(var(--fg-rgb), 0.07)' }}
+                >
+                    {options.map(opt => (
+                        <button
+                            key={opt}
+                            onClick={() => { onSelect(opt); onToggle() }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(var(--fg-rgb), 0.04)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: value === opt ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.65)', fontWeight: value === opt ? 500 : 400, transition: 'background 0.1s' }}
+                        >
+                            {opt}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -136,20 +131,19 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
 
     return (
         <div>
-            <p style={{ fontFamily: "'Geist Mono','Courier New',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', marginBottom: 20 }}>CLIENTES</p>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', marginBottom: 20 }}>CLIENTES</p>
 
             {/* Filters */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
                     {STATUS_FILTERS.map(s => (
-                        <motion.button
+                        <button
                             key={s}
                             onClick={() => setStatusFilter(s)}
-                            whileTap={{ scale: 0.97 }}
                             style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', padding: '5px 12px', borderRadius: 3, border: 'none', cursor: 'pointer', background: statusFilter === s ? 'rgba(var(--fg-rgb), 0.09)' : 'transparent', color: statusFilter === s ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.5)', transition: 'background 0.15s, color 0.15s' }}
                         >
                             {s}
-                        </motion.button>
+                        </button>
                     ))}
                 </div>
                 <div style={{ flex: 1 }} />
@@ -170,7 +164,7 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
             {/* Table header */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', paddingBottom: 10, borderBottom: '1px solid rgba(var(--fg-rgb), 0.1)', marginBottom: 2 }}>
                 {['NOME', 'TOTAL GASTO', 'CAC', 'LTV', 'MARGEM', 'STATUS'].map((h, i) => (
-                    <span key={h} style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em', textAlign: i > 0 && i < 5 ? 'right' : 'left' }}>
+                    <span key={h} style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', letterSpacing: '0.04em', textAlign: i > 0 && i < 5 ? 'right' : 'left' }}>
                         {h}
                     </span>
                 ))}
@@ -178,54 +172,49 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
 
             {/* Rows */}
             <div style={{ minHeight: 360 }}>
-                <AnimatePresence mode="popLayout" initial={false}>
-                    {loading ? (
-                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ padding: '8px 0' }}>
-                            <SkeletonTable rows={PAGE_SIZE} columns={6} />
-                        </motion.div>
-                    ) : filtered.length === 0 ? (
-                        <motion.p key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
-                            Nenhum cliente encontrado
-                        </motion.p>
-                    ) : paginated.map((c, i) => (
-                        <motion.div
-                            key={c.id}
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.25, delay: i * 0.03, ease: [0.25, 0.1, 0.25, 1] }}
-                            onClick={() => onSelect(c)}
-                            whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.025)' }}
-                            style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', alignItems: 'center', padding: '13px 6px', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)', cursor: 'pointer', borderRadius: 3, margin: '0 -6px' }}
-                        >
-                            <div>
-                                <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
-                                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{c.channel}</p>
-                            </div>
-                            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>R$ {fmtBR(c.totalSpent)}</span>
-                            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>{c.cac > 0 ? `R$ ${fmtBR(c.cac)}` : '—'}</span>
-                            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>R$ {fmtBR(c.ltv)}</span>
-                            <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>{c.margin}%</span>
-                            <StatusBadge status={c.status} />
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
+                {loading ? (
+                    <div style={{ padding: '8px 0' }}>
+                        <SkeletonTable rows={PAGE_SIZE} columns={6} />
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '24px 0', textAlign: 'center' }}>
+                        Nenhum cliente encontrado
+                    </p>
+                ) : paginated.map((c) => (
+                    <div
+                        key={c.id}
+                        onClick={() => onSelect(c)}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(var(--fg-rgb), 0.025)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 70px 64px 90px', gap: '0 12px', alignItems: 'center', padding: '13px 6px', borderBottom: '1px solid rgba(var(--fg-rgb), 0.055)', cursor: 'pointer', borderRadius: 3, margin: '0 -6px', transition: 'background 0.1s' }}
+                    >
+                        <div>
+                            <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px', color: 'var(--fg)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
+                            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.38)', margin: '2px 0 0' }}>{c.channel}</p>
+                        </div>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: 'var(--fg)', textAlign: 'right' }}>R$ {fmtBR(c.totalSpent)}</span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>{c.cac > 0 ? `R$ ${fmtBR(c.cac)}` : '—'}</span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>R$ {fmtBR(c.ltv)}</span>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.6)', textAlign: 'right' }}>{c.margin}%</span>
+                        <StatusBadge status={c.status} />
+                    </div>
+                ))}
             </div>
 
             {/* Pagination */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
-                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.35)' }}>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.35)' }}>
                     {filtered.length} cliente{filtered.length !== 1 ? 's' : ''}
                 </p>
                 {totalPages > 1 && (
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                        <motion.button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} whileTap={{ scale: 0.95 }} style={{ background: 'none', border: 'none', cursor: page === 0 ? 'default' : 'pointer', color: 'var(--fg)', opacity: page === 0 ? 0.2 : 0.6, padding: 4 }}>
+                        <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ background: 'none', border: 'none', cursor: page === 0 ? 'default' : 'pointer', color: 'var(--fg)', opacity: page === 0 ? 0.2 : 0.6, padding: 4 }}>
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </motion.button>
-                        <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)' }}>{page + 1} / {totalPages}</span>
-                        <motion.button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} whileTap={{ scale: 0.95 }} style={{ background: 'none', border: 'none', cursor: page === totalPages - 1 ? 'default' : 'pointer', color: 'var(--fg)', opacity: page === totalPages - 1 ? 0.2 : 0.6, padding: 4 }}>
+                        </button>
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)' }}>{page + 1} / {totalPages}</span>
+                        <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} style={{ background: 'none', border: 'none', cursor: page === totalPages - 1 ? 'default' : 'pointer', color: 'var(--fg)', opacity: page === totalPages - 1 ? 0.2 : 0.6, padding: 4 }}>
                             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 11L9 7L5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        </motion.button>
+                        </button>
                     </div>
                 )}
             </div>
@@ -316,32 +305,24 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
         <div style={{ paddingBottom: 40 }}>
             <TopBar onToggleChat={onToggleChat} />
 
-            <motion.h1
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{ fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 40, letterSpacing: '-1.6px', color: 'var(--fg)', lineHeight: 1, margin: 0 }}
-            >
+            <h1 style={{ fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 40, letterSpacing: '-1.6px', color: 'var(--fg)', lineHeight: 1, margin: 0 }}>
                 Clientes
-            </motion.h1>
+            </h1>
 
             {/* KPIs */}
-            <motion.div
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: 0.1 }}
-                style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 32, marginTop: 40 }}>
                 <DatePicker />
                 <KpiGrid style={{ marginTop: 40 }}>
-                    <KpiCard label="CLIENTES ATIVOS" value={kpis.ativos} decimals={0} delay={0.1} />
-                    <KpiCard label="LTV MÉDIO" value={kpis.ltvMedio} prefix="R$ " decimals={0} delay={0.18} />
-                    <KpiCard label="CHURN MÉDIO" value={kpis.churnMedio} suffix="%" decimals={1} delay={0.26} />
-                    <KpiCard label="LUCRATIVOS" value={kpis.lucrativos} decimals={0} delay={0.34} />
-                    <KpiCard label="EM PAYBACK" value={kpis.payback} decimals={0} delay={0.42} />
-                    <KpiCard label="EM RISCO" value={kpis.emRisco} decimals={0} delay={0.50} />
+                    <KpiCard label="CLIENTES ATIVOS" value={kpis.ativos} decimals={0} />
+                    <KpiCard label="LTV MÉDIO" value={kpis.ltvMedio} prefix="R$ " decimals={0} />
+                    <KpiCard label="CHURN MÉDIO" value={kpis.churnMedio} suffix="%" decimals={1} />
+                    <KpiCard label="LUCRATIVOS" value={kpis.lucrativos} decimals={0} />
+                    <KpiCard label="EM PAYBACK" value={kpis.payback} decimals={0} />
+                    <KpiCard label="EM RISCO" value={kpis.emRisco} decimals={0} />
                 </KpiGrid>
-            </motion.div>
+            </div>
 
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.5 }} style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 52, marginBottom: 48 }} />
+            <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 52, marginBottom: 48 }} />
 
             {/* Row 1: Cohort + Client List */}
             <SectionCard>
@@ -359,11 +340,9 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
             </SectionCard>
 
             {/* Client profile drawer */}
-            <AnimatePresence>
-                {selectedClient && (
-                    <ClientProfile client={selectedClient} onClose={() => setSelectedClient(null)} />
-                )}
-            </AnimatePresence>
+            {selectedClient && (
+                <ClientProfile client={selectedClient} onClose={() => setSelectedClient(null)} />
+            )}
         </div>
     )
 }

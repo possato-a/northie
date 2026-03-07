@@ -5,7 +5,6 @@
  */
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 
 // ── Page Header ───────────────────────────────────────────────────────────────
 
@@ -17,15 +16,12 @@ interface PageHeaderProps {
     delay?: number
 }
 
-export function PageHeader({ title, subtitle, actions, breadcrumb, delay = 0 }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, actions, breadcrumb }: PageHeaderProps) {
     return (
         <div style={{ marginBottom: 0 }}>
             {breadcrumb && (
-                <motion.button
+                <button
                     onClick={breadcrumb.onClick}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    whileHover={{ x: -2 }}
                     style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         background: 'none', border: 'none', cursor: 'pointer',
@@ -42,31 +38,25 @@ export function PageHeader({ title, subtitle, actions, breadcrumb, delay = 0 }: 
                         <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
                     </svg>
                     {breadcrumb.label}
-                </motion.button>
+                </button>
             )}
             <div style={{ display: 'flex', alignItems: subtitle ? 'flex-start' : 'center', justifyContent: 'space-between', gap: 24 }}>
                 <div>
-                    <motion.h1
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.45, delay, ease: [0.25, 0.1, 0.25, 1] }}
+                    <h1
                         style={{
                             fontFamily: 'var(--font-sans)',
                             fontWeight: 500,
-                            fontSize: 40,
-                            letterSpacing: '-1.6px',
+                            fontSize: 32,
+                            letterSpacing: '-1px',
                             color: 'var(--fg)',
                             lineHeight: 1,
                             margin: 0,
                         }}
                     >
                         {title}
-                    </motion.h1>
+                    </h1>
                     {subtitle && (
-                        <motion.p
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.4, delay: delay + 0.1 }}
+                        <p
                             style={{
                                 fontFamily: 'var(--font-sans)',
                                 fontSize: 'var(--text-base)',
@@ -76,18 +66,13 @@ export function PageHeader({ title, subtitle, actions, breadcrumb, delay = 0 }: 
                             }}
                         >
                             {subtitle}
-                        </motion.p>
+                        </p>
                     )}
                 </div>
                 {actions && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: delay + 0.15 }}
-                        style={{ flexShrink: 0 }}
-                    >
+                    <div style={{ flexShrink: 0 }}>
                         {actions}
-                    </motion.div>
+                    </div>
                 )}
             </div>
         </div>
@@ -195,11 +180,10 @@ export function Btn({ children, onClick, variant = 'secondary', size = 'md', dis
     const [hovered, setHovered] = useState(false)
 
     return (
-        <motion.button
+        <button
             type={type}
             onClick={onClick}
             disabled={disabled}
-            whileTap={disabled ? undefined : { scale: 0.97 }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             style={{
@@ -223,7 +207,7 @@ export function Btn({ children, onClick, variant = 'secondary', size = 'md', dis
         >
             {icon && <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>}
             {children}
-        </motion.button>
+        </button>
     )
 }
 
@@ -240,24 +224,17 @@ interface ModalProps {
 export function Modal({ children, onClose, maxWidth = 520, title, subtitle }: ModalProps) {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+            <div
                 onClick={onClose}
-                style={{ position: 'absolute', inset: 0, background: 'rgba(var(--fg-rgb), 0.3)', backdropFilter: 'blur(6px)' }}
+                style={{ position: 'absolute', inset: 0, background: 'rgba(0, 0, 0, 0.6)' }}
             />
-            <motion.div
-                initial={{ opacity: 0, y: 24, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 12, scale: 0.97 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            <div
                 style={{
                     width: '100%',
                     maxWidth,
                     background: 'var(--color-bg-primary)',
                     border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-xl)',
+                    borderRadius: 'var(--radius-lg)',
                     padding: '32px',
                     position: 'relative',
                     zIndex: 1001,
@@ -297,7 +274,7 @@ export function Modal({ children, onClose, maxWidth = 520, title, subtitle }: Mo
                             <h2 style={{
                                 fontFamily: 'var(--font-sans)',
                                 fontWeight: 500,
-                                fontSize: 'var(--text-xl)',
+                                fontSize: 'var(--text-lg)',
                                 letterSpacing: '-0.5px',
                                 color: 'var(--color-text-primary)',
                                 margin: '0 0 6px',
@@ -316,7 +293,7 @@ export function Modal({ children, onClose, maxWidth = 520, title, subtitle }: Mo
                     </div>
                 )}
                 {children}
-            </motion.div>
+            </div>
         </div>
     )
 }
@@ -477,10 +454,7 @@ export function SelectField({ label, style, children, ...rest }: React.SelectHTM
 
 export function EmptyState({ title, description, action, icon }: { title: string; description?: string; action?: React.ReactNode; icon?: React.ReactNode }) {
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+        <div
             style={{
                 textAlign: 'center',
                 padding: '56px 32px',
@@ -512,7 +486,7 @@ export function EmptyState({ title, description, action, icon }: { title: string
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '0 0 20px', maxWidth: 340, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>{description}</p>
             )}
             {action}
-        </motion.div>
+        </div>
     )
 }
 
@@ -629,13 +603,10 @@ export function NotionRow({ children, style, onClick }: { children: React.ReactN
     const [hovered, setHovered] = useState(false)
 
     return (
-        <motion.div
+        <div
             onClick={onClick}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
-            initial={false}
-            animate={{ background: hovered ? 'var(--color-bg-secondary)' : 'transparent' }}
-            transition={{ duration: 0.08 }}
             style={{
                 borderBottom: '1px solid var(--color-border)',
                 height: 'var(--table-row-height)',
@@ -645,11 +616,13 @@ export function NotionRow({ children, style, onClick }: { children: React.ReactN
                 paddingRight: 4,
                 borderRadius: 'var(--radius-sm)',
                 cursor: onClick ? 'pointer' : 'default',
+                background: hovered ? 'var(--color-bg-secondary)' : 'transparent',
+                transition: 'background var(--transition-base)',
                 ...style,
             }}
         >
             {children}
-        </motion.div>
+        </div>
     )
 }
 
@@ -717,12 +690,9 @@ export function Skeleton({ width = '100%', height = 16, borderRadius, style }: S
 
 export function SkeletonKpi() {
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <Skeleton width={80} height={11} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Skeleton width={2} height={36} />
-                <Skeleton width={120} height={32} />
-            </div>
+            <Skeleton width={120} height={28} />
         </div>
     )
 }
@@ -771,10 +741,9 @@ export function FilterPills({ options, active, onChange }: FilterPillsProps) {
     return (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {options.map(opt => (
-                <motion.button
+                <button
                     key={opt}
                     onClick={() => onChange(opt)}
-                    whileTap={{ scale: 0.97 }}
                     style={{
                         padding: '5px 10px',
                         borderRadius: 'var(--radius-md)',
@@ -790,7 +759,7 @@ export function FilterPills({ options, active, onChange }: FilterPillsProps) {
                     }}
                 >
                     {opt}
-                </motion.button>
+                </button>
             ))}
         </div>
     )

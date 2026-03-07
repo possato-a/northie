@@ -30,7 +30,7 @@ export default function AIActions() {
 
     return (
         <div>
-            <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', marginBottom: 20 }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: 'var(--color-text-tertiary)', letterSpacing: '0.06em', marginBottom: 20 }}>
                 AÇÕES DA IA
             </p>
             <AnimatePresence mode="popLayout">
@@ -38,7 +38,7 @@ export default function AIActions() {
                     <motion.p
                         key="empty"
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: 'rgba(var(--fg-rgb), 0.35)', padding: '8px 0' }}
+                        style={{ fontFamily: "var(--font-sans)", fontSize: 14, color: 'var(--color-text-tertiary)', padding: '8px 0' }}
                     >
                         Todas as sugestões foram processadas.
                     </motion.p>
@@ -55,17 +55,17 @@ export default function AIActions() {
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 16,
                                 padding: '16px 20px',
-                                border: '1px solid rgba(var(--fg-rgb), 0.09)',
+                                border: '1px solid var(--color-border)',
                                 borderRadius: 6,
                                 marginBottom: 8,
                             }}
                         >
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <p style={{ fontFamily: "var(--font-sans)", fontSize: 14, letterSpacing: '-0.4px', color: 'var(--fg)', margin: 0 }}>
-                                    <span style={{ fontFamily: "'Geist Mono',monospace", fontWeight: 500, color: 'var(--fg)' }}>{action.count}</span>
+                                    <span style={{ fontFamily: "var(--font-mono)", fontWeight: 500, color: 'var(--fg)' }}>{action.count}</span>
                                     {' '}{action.description}.
                                 </p>
-                                <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.45)', margin: '4px 0 0', letterSpacing: '0.03em' }}>
+                                <p style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: 'var(--color-text-tertiary)', margin: '4px 0 0', letterSpacing: '0.03em' }}>
                                     {action.action} · {action.segment}
                                 </p>
                             </div>
@@ -80,7 +80,7 @@ export default function AIActions() {
                                     style={{
                                         fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px',
                                         padding: '7px 16px', borderRadius: 3, border: 'none', cursor: 'pointer',
-                                        background: isApproved ? 'rgba(var(--fg-rgb), 0.85)' : 'var(--inv)',
+                                        background: isApproved ? 'var(--color-text-primary)' : 'var(--inv)',
                                         color: 'var(--on-inv)', transition: 'background 0.2s',
                                     }}
                                 >
@@ -88,14 +88,14 @@ export default function AIActions() {
                                 </motion.button>
                                 <motion.button
                                     onClick={() => setDismissed(s => new Set([...s, action.id]))}
-                                    whileHover={{ backgroundColor: 'rgba(var(--fg-rgb), 0.05)' }}
+                                    whileHover={{ backgroundColor: 'var(--color-border)' }}
                                     whileTap={{ scale: 0.96 }}
                                     style={{
                                         fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: '-0.3px',
                                         padding: '7px 12px', borderRadius: 3,
-                                        border: '1px solid rgba(var(--fg-rgb), 0.13)',
+                                        border: '1px solid var(--color-border)',
                                         background: 'transparent', cursor: 'pointer',
-                                        color: 'rgba(var(--fg-rgb), 0.5)',
+                                        color: 'var(--color-text-tertiary)',
                                     }}
                                 >
                                     Ignorar
