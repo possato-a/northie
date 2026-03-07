@@ -100,6 +100,10 @@ function darkFill(): Fill {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E1E1E' } };
 }
 
+function darkBlueFill(): Fill {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } };
+}
+
 function zebraFill(): Fill {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F6F3' } };
 }
@@ -109,7 +113,11 @@ function whiteFill(): Fill {
 }
 
 function subheaderFill(): Fill {
-    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9F9F7' } };
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F1EF' } };
+}
+
+function dividerFill(): Fill {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEECEA' } };
 }
 
 // ── Font helpers (all with Calibri) ───────────────────────────────────────────
@@ -133,10 +141,9 @@ function thinBorder(): Partial<Borders> {
     return { top: side, bottom: side, left: side, right: side };
 }
 
-function sectionTopBorder(): Partial<Borders> {
-    const top: Partial<ExcelBorder>    = { style: 'thin', color: { argb: 'FFE3E2E0' } };
-    const normal: Partial<ExcelBorder> = { style: 'thin', color: { argb: 'FFE5E5E5' } };
-    return { top, bottom: normal, left: normal, right: normal };
+function bottomBorder(): Partial<Borders> {
+    const bottom: Partial<ExcelBorder> = { style: 'thin', color: { argb: 'FFE8E6E0' } };
+    return { bottom };
 }
 
 // ── Value helpers ─────────────────────────────────────────────────────────────
@@ -191,25 +198,24 @@ function churnColor(prob: number | null): string {
 // ── Row stylers ───────────────────────────────────────────────────────────────
 
 function styleHeaderRow(row: Row, colCount: number, fill: Fill = darkFill()): void {
-    row.height = 36;
+    row.height = 38;
     for (let c = 1; c <= colCount; c++) {
         const cell = row.getCell(c);
         cell.fill      = fill;
         cell.font      = whiteFont(true, 10);
         cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'center', wrapText: false };
         cell.border    = thinBorder();
-        // Uppercase the text value if it's a string
         if (typeof cell.value === 'string') cell.value = cell.value.toUpperCase();
     }
 }
 
 function styleDataRow(row: Row, colCount: number, idx: number): void {
-    row.height = 28;
+    row.height = 30;
     const bg = idx % 2 === 0 ? zebraFill() : whiteFill();
     for (let c = 1; c <= colCount; c++) {
         const cell = row.getCell(c);
         cell.fill      = bg;
-        cell.border    = thinBorder();
+        cell.border    = bottomBorder();
         cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'right' };
         if (!cell.font) cell.font = { name: 'Calibri', size: 10 };
     }
@@ -218,21 +224,31 @@ function styleDataRow(row: Row, colCount: number, idx: number): void {
 function writeSectionTitle(ws: Worksheet, rowNum: number, text: string, lastCol: number): void {
     ws.mergeCells(rowNum, 1, rowNum, lastCol);
     const cell = ws.getCell(rowNum, 1);
-    cell.value     = `  ${text}`;
+    cell.value     = `   ${text}`;
     cell.fill      = accentFill();
     cell.font      = whiteFont(true, 15);
     cell.alignment = { vertical: 'middle', horizontal: 'left' };
-    ws.getRow(rowNum).height = 52;
+    ws.getRow(rowNum).height = 56;
 }
 
 function writePeriodRow(ws: Worksheet, rowNum: number, text: string, lastCol: number): void {
     ws.mergeCells(rowNum, 1, rowNum, lastCol);
     const cell = ws.getCell(rowNum, 1);
-    cell.value     = `  ${text}`;
+    cell.value     = `   ${text}`;
     cell.fill      = subheaderFill();
-    cell.font      = colorFont(C.textSecondary, false, 10);
+    cell.font      = { name: 'Calibri', color: { argb: 'FF6B7280' }, italic: true, size: 10 };
     cell.alignment = { vertical: 'middle' };
-    ws.getRow(rowNum).height = 24;
+    ws.getRow(rowNum).height = 26;
+}
+
+function writeSectionDivider(ws: Worksheet, rowNum: number, label: string, lastCol: number): void {
+    ws.mergeCells(rowNum, 1, rowNum, lastCol);
+    const cell = ws.getCell(rowNum, 1);
+    cell.value     = `   ${label}`;
+    cell.fill      = dividerFill();
+    cell.font      = { name: 'Calibri', color: { argb: 'FFF97316' }, bold: true, size: 9 };
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    ws.getRow(rowNum).height = 26;
 }
 
 function writeTotalsRow(
@@ -242,10 +258,10 @@ function writeTotalsRow(
     cells: { col: number; value: string | number }[],
 ): void {
     const row = ws.getRow(rowNum);
-    row.height = 32;
+    row.height = 34;
     for (let c = 1; c <= colCount; c++) {
         const cell = row.getCell(c);
-        cell.fill      = accentFill();
+        cell.fill      = darkBlueFill();
         cell.font      = whiteFont(true, 10);
         cell.border    = thinBorder();
         cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'left' : 'right' };
@@ -264,7 +280,7 @@ function writeChartTitle(ws: Worksheet, rowNum: number, colStart: number, colEnd
     ws.getRow(rowNum).height = 32;
 }
 
-// ── Column width setter (replaces autoFitColumns) ─────────────────────────────
+// ── Column width setter ───────────────────────────────────────────────────────
 
 function setColWidths(ws: Worksheet, widths: number[]): void {
     widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
@@ -308,7 +324,7 @@ export async function generateXlsx(
     styleHeaderRow(rHeaderRow, resumoCols);
 
     setWsDefaults(wsResumo, 3);
-    setColWidths(wsResumo, [44, 30]);
+    setColWidths(wsResumo, [52, 38]);
 
     const changeStr = data.summary.revenue_change_pct !== null
         ? `${data.summary.revenue_change_pct >= 0 ? '+' : ''}${fmtNum(data.summary.revenue_change_pct)}% vs período anterior`
@@ -316,69 +332,82 @@ export async function generateXlsx(
     const changeColor = data.summary.revenue_change_pct !== null && data.summary.revenue_change_pct < 0
         ? C.danger : C.success;
 
-    type KpiRow = [string, string, string | undefined, boolean?];
+    type KpiItem =
+        | { kind: 'divider'; label: string }
+        | { kind: 'kpi'; label: string; value: string; color?: string | undefined };
+
     const hs = data.health_score as { score: number; label: string };
 
-    const kpis: KpiRow[] = [
-        ['Faturamento Total (Receita Líquida)', fmtBrl(data.summary.revenue_net),             undefined],
-        ['Variação vs Período Anterior',         changeStr,                                     changeColor],
-        ['Receita Bruta',                        fmtBrl(data.summary.revenue_gross),            undefined],
-        ['Margem Bruta (%)',                     `${fmtNum(data.summary.gross_margin_pct)}%`,   undefined],
-        ['Transações',                           data.summary.transactions.toLocaleString('pt-BR'), undefined],
-        ['Ticket Médio (AOV)',                   fmtBrl(data.summary.aov),                      undefined],
-        ['LTV Médio (novos clientes)',           fmtBrl(data.summary.ltv_avg),                  undefined],
-        ['CAC Médio',                            data.cac_overall > 0 ? fmtBrl(data.cac_overall) : '—', undefined],
-        ['LTV / CAC',                            data.ltv_cac_overall !== null ? `${fmtNum(data.ltv_cac_overall)}x` : '—',
-            data.ltv_cac_overall !== null ? ltvCacColor(data.ltv_cac_overall) : undefined],
-        ['ROAS Consolidado',                     data.summary.roas > 0 ? `${fmtNum(data.summary.roas)}x` : '—',
-            data.summary.roas > 0 ? roasColor(data.summary.roas) : undefined],
-        ['Margem de Contribuição (%)',           `${fmtNum(data.margin_contribution_pct)}%`,
-            data.margin_contribution_pct < 0 ? C.danger : undefined],
-        ['Margem de Contribuição (R$)',          fmtBrl(data.margin_contribution_brl),
-            data.margin_contribution_brl < 0 ? C.danger : undefined],
-        ['Investimento em Ads',                  fmtBrl(data.summary.ad_spend),                 undefined, true],
-        ['Novos Clientes no Período',            data.summary.new_customers.toLocaleString('pt-BR'), undefined],
-        ['Base Total de Clientes',               data.summary.total_customers.toLocaleString('pt-BR'), undefined],
-        ['Impressões',                           data.summary.impressions.toLocaleString('pt-BR'), undefined],
-        ['Cliques',                              data.summary.clicks.toLocaleString('pt-BR'),   undefined],
-        ['CTR',                                  `${fmtNum(data.summary.ctr)}%`,                undefined],
-        ['Taxa de Reembolso',                    `${fmtNum(data.summary.refund_rate)}%`,
-            data.summary.refund_rate > 5 ? C.danger : undefined],
-        ['Valor Reembolsado',                    fmtBrl(data.summary.refund_amount),             undefined],
-        ['MRR Projetado',                        fmtBrl(data.mrr_projected),                    undefined, true],
-        ['ARR Projetado',                        fmtBrl(data.arr_projected),                    undefined],
-        ['Payback Period',                       data.payback_months !== null ? `${fmtNum(data.payback_months, 1)} meses` : '—', undefined],
-        ['Saúde do Negócio',                     `${hs.score}/100 — ${hs.label}`,               undefined, true],
+    const resumoItems: KpiItem[] = [
+        { kind: 'divider', label: 'FINANCEIRO' },
+        { kind: 'kpi', label: 'Faturamento Total (Receita Líquida)', value: fmtBrl(data.summary.revenue_net) },
+        { kind: 'kpi', label: 'Variação vs Período Anterior',         value: changeStr, color: changeColor },
+        { kind: 'kpi', label: 'Receita Bruta',                        value: fmtBrl(data.summary.revenue_gross) },
+        { kind: 'kpi', label: 'Margem Bruta (%)',                     value: `${fmtNum(data.summary.gross_margin_pct)}%` },
+        { kind: 'kpi', label: 'Transações',                           value: data.summary.transactions.toLocaleString('pt-BR') },
+        { kind: 'kpi', label: 'Ticket Médio (AOV)',                   value: fmtBrl(data.summary.aov) },
+        { kind: 'divider', label: 'CLIENTES & UNIT ECONOMICS' },
+        { kind: 'kpi', label: 'LTV Médio (novos clientes)',           value: fmtBrl(data.summary.ltv_avg) },
+        { kind: 'kpi', label: 'CAC Médio',                            value: data.cac_overall > 0 ? fmtBrl(data.cac_overall) : '—' },
+        { kind: 'kpi', label: 'LTV / CAC',                            value: data.ltv_cac_overall !== null ? `${fmtNum(data.ltv_cac_overall)}x` : '—',
+            color: data.ltv_cac_overall !== null ? ltvCacColor(data.ltv_cac_overall) : undefined },
+        { kind: 'kpi', label: 'ROAS Consolidado',                     value: data.summary.roas > 0 ? `${fmtNum(data.summary.roas)}x` : '—',
+            color: data.summary.roas > 0 ? roasColor(data.summary.roas) : undefined },
+        { kind: 'kpi', label: 'Margem de Contribuição (%)',           value: `${fmtNum(data.margin_contribution_pct)}%`,
+            color: data.margin_contribution_pct < 0 ? C.danger : undefined },
+        { kind: 'kpi', label: 'Margem de Contribuição (R$)',          value: fmtBrl(data.margin_contribution_brl),
+            color: data.margin_contribution_brl < 0 ? C.danger : undefined },
+        { kind: 'kpi', label: 'Investimento em Ads',                  value: fmtBrl(data.summary.ad_spend) },
+        { kind: 'kpi', label: 'Novos Clientes no Período',            value: data.summary.new_customers.toLocaleString('pt-BR') },
+        { kind: 'kpi', label: 'Base Total de Clientes',               value: data.summary.total_customers.toLocaleString('pt-BR') },
+        { kind: 'divider', label: 'TRÁFEGO' },
+        { kind: 'kpi', label: 'Impressões',                           value: data.summary.impressions.toLocaleString('pt-BR') },
+        { kind: 'kpi', label: 'Cliques',                              value: data.summary.clicks.toLocaleString('pt-BR') },
+        { kind: 'kpi', label: 'CTR',                                  value: `${fmtNum(data.summary.ctr)}%` },
+        { kind: 'divider', label: 'REEMBOLSOS' },
+        { kind: 'kpi', label: 'Taxa de Reembolso',                    value: `${fmtNum(data.summary.refund_rate)}%`,
+            color: data.summary.refund_rate > 5 ? C.danger : undefined },
+        { kind: 'kpi', label: 'Valor Reembolsado',                    value: fmtBrl(data.summary.refund_amount) },
+        { kind: 'divider', label: 'PROJEÇÕES & SAÚDE' },
+        { kind: 'kpi', label: 'MRR Projetado',                        value: fmtBrl(data.mrr_projected) },
+        { kind: 'kpi', label: 'ARR Projetado',                        value: fmtBrl(data.arr_projected) },
+        { kind: 'kpi', label: 'Payback Period',                       value: data.payback_months !== null ? `${fmtNum(data.payback_months, 1)} meses` : '—' },
+        { kind: 'kpi', label: 'Saúde do Negócio',                     value: `${hs.score}/100 — ${hs.label}` },
     ];
 
     let r = 4;
-    for (const [label, value, color, sectionStart] of kpis) {
-        const rowIndex = r - 4;
-        const cellA    = wsResumo.getCell(r, 1);
-        const cellB    = wsResumo.getCell(r, 2);
-        const bg       = rowIndex % 2 === 0 ? zebraFill() : whiteFill();
-
-        cellA.value     = label;
-        cellA.font      = { name: 'Calibri', bold: true, size: 10 };
-        cellA.fill      = bg;
-        cellA.border    = sectionStart ? sectionTopBorder() : thinBorder();
-        cellA.alignment = { vertical: 'middle' };
-
-        cellB.fill      = bg;
-        cellB.border    = sectionStart ? sectionTopBorder() : thinBorder();
-        cellB.alignment = { vertical: 'middle', horizontal: 'right' };
-
-        if (isBlank(value)) {
-            applyNd(cellB);
-        } else if (color) {
-            cellB.value = value;
-            cellB.font  = colorFont(color, true, 10);
+    let kpiIdx = 0;
+    for (const item of resumoItems) {
+        if (item.kind === 'divider') {
+            writeSectionDivider(wsResumo, r, item.label, resumoCols);
         } else {
-            cellB.value = value;
-            cellB.font  = { name: 'Calibri', size: 10 };
-        }
+            const cellA = wsResumo.getCell(r, 1);
+            const cellB = wsResumo.getCell(r, 2);
+            const bg    = kpiIdx % 2 === 0 ? zebraFill() : whiteFill();
 
-        wsResumo.getRow(r).height = 28;
+            cellA.value     = item.label;
+            cellA.font      = { name: 'Calibri', bold: true, size: 10 };
+            cellA.fill      = bg;
+            cellA.border    = bottomBorder();
+            cellA.alignment = { vertical: 'middle' };
+
+            cellB.fill      = bg;
+            cellB.border    = bottomBorder();
+            cellB.alignment = { vertical: 'middle', horizontal: 'right' };
+
+            if (isBlank(item.value)) {
+                applyNd(cellB);
+            } else if (item.color) {
+                cellB.value = item.value;
+                cellB.font  = colorFont(item.color, true, 10);
+            } else {
+                cellB.value = item.value;
+                cellB.font  = { name: 'Calibri', size: 10 };
+            }
+
+            wsResumo.getRow(r).height = 30;
+            kpiIdx++;
+        }
         r++;
     }
 
@@ -401,7 +430,7 @@ export async function generateXlsx(
     styleHeaderRow(vHeaderRow, vendaCols, darkFill());
 
     setWsDefaults(wsVendas, 3);
-    setColWidths(wsVendas, [14, 30, 18, 28, 16, 14, 14]);
+    setColWidths(wsVendas, [16, 36, 20, 32, 22, 16, 16]);
 
     const sortedTx = [...data.transactions_detail].sort((a, b) => {
         const da = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -438,14 +467,13 @@ export async function generateXlsx(
             applyNd(dr.getCell(6));
         }
 
-        // Status with color
         const isApproved  = t.status === 'approved';
         const isRefunded  = t.status === 'refunded';
         dr.getCell(7).value     = statusLabel;
         dr.getCell(7).alignment = { vertical: 'middle', horizontal: 'center' };
-        if (isApproved)  dr.getCell(7).font = colorFont(C.success, true, 10);
-        else if (isRefunded) dr.getCell(7).font = colorFont(C.danger, true, 10);
-        else dr.getCell(7).font = darkFont(false, 10);
+        if (isApproved)       dr.getCell(7).font = colorFont(C.success, true, 10);
+        else if (isRefunded)  dr.getCell(7).font = colorFont(C.danger, true, 10);
+        else                  dr.getCell(7).font = darkFont(false, 10);
 
         if (t.status === 'approved') totalVendas += t.amount_net;
     });
@@ -481,7 +509,7 @@ export async function generateXlsx(
     styleHeaderRow(cHeaderRow, canalColCount, darkFill());
 
     setWsDefaults(wsCanais, 3);
-    setColWidths(wsCanais, [20, 20, 22, 14, 16, 18, 14, 18]);
+    setColWidths(wsCanais, [24, 26, 28, 16, 20, 22, 16, 22]);
 
     const channels = [...data.channel_economics].sort((a, b) => {
         const roasA = a.total_spend > 0 ? a.total_ltv / a.total_spend : -1;
@@ -593,7 +621,7 @@ export async function generateXlsx(
     styleHeaderRow(pHeaderRow, prodCols, darkFill());
 
     setWsDefaults(wsProdutos, 3);
-    setColWidths(wsProdutos, [38, 20, 16, 18, 14]);
+    setColWidths(wsProdutos, [48, 26, 18, 24, 16]);
 
     if (data.top_products.length === 0) {
         wsProdutos.mergeCells(4, 1, 4, prodCols);
@@ -668,7 +696,7 @@ export async function generateXlsx(
     styleHeaderRow(rHeaderRow2, riscoCols, darkFill());
 
     setWsDefaults(wsRisco, 3);
-    setColWidths(wsRisco, [8, 18, 20, 20, 18, 14, 34]);
+    setColWidths(wsRisco, [8, 22, 24, 24, 20, 16, 40]);
 
     const atRisk = data.at_risk_customers;
 
@@ -752,7 +780,7 @@ export async function generateXlsx(
     styleHeaderRow(rfmHeaderRow, rfmCols, darkFill());
 
     setWsDefaults(wsRfm, 3);
-    setColWidths(wsRfm, [36, 14, 14, 20, 20]);
+    setColWidths(wsRfm, [44, 16, 16, 26, 24]);
 
     const RFM_COLORS: Record<string, string> = {
         champions: C.success,
@@ -835,7 +863,7 @@ export async function generateXlsx(
     styleHeaderRow(projHeaderRow, projCols, darkFill());
 
     setWsDefaults(wsProj, 3);
-    setColWidths(wsProj, [32, 22, 22, 22]);
+    setColWidths(wsProj, [40, 28, 28, 28]);
 
     const { conservative: cons, moderate: mod, optimistic: opt } = data.projections;
 
@@ -886,11 +914,11 @@ export async function generateXlsx(
         const dr = wsProj.getRow(rv);
         const bg = idx % 2 === 0 ? zebraFill() : whiteFill();
 
-        dr.height = 28;
+        dr.height = 30;
         dr.getCell(1).value     = label;
         dr.getCell(1).font      = { name: 'Calibri', bold: true, size: 10 };
         dr.getCell(1).fill      = bg;
-        dr.getCell(1).border    = thinBorder();
+        dr.getCell(1).border    = bottomBorder();
         dr.getCell(1).alignment = { vertical: 'middle' };
 
         wsProj.mergeCells(rv, 2, rv, projCols);
@@ -898,7 +926,7 @@ export async function generateXlsx(
         dr.getCell(2).font      = { name: 'Calibri', size: 10 };
         dr.getCell(2).fill      = bg;
         dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
-        dr.getCell(2).border    = thinBorder();
+        dr.getCell(2).border    = bottomBorder();
     });
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -920,7 +948,7 @@ export async function generateXlsx(
     styleHeaderRow(perfHeaderRow, perfCols, darkFill());
 
     setWsDefaults(wsPerf, 3);
-    setColWidths(wsPerf, [16, 20, 16, 20, 24]);
+    setColWidths(wsPerf, [18, 26, 18, 26, 30]);
 
     const dailyRevenue = (data as unknown as {
         daily_revenue?: { date: string; revenue: number; transactions: number; aov: number; change_pct: number | null }[];
@@ -1006,7 +1034,7 @@ export async function generateXlsx(
     styleHeaderRow(mensalHeaderRow, mensalCols, darkFill());
 
     setWsDefaults(wsMensal, 3);
-    setColWidths(wsMensal, [14, 24, 18, 30]);
+    setColWidths(wsMensal, [16, 30, 22, 38]);
 
     if (data.revenue_trend.length === 0) {
         wsMensal.mergeCells(4, 1, 4, mensalCols);
@@ -1063,9 +1091,9 @@ export async function generateXlsx(
             noteCell.value     = `Melhor mês no período: ${peakMonth} — ${fmtBrl(peakRev)}`;
             noteCell.font      = colorFont(C.teal, true, 10);
             noteCell.fill      = whiteFill();
-            noteCell.border    = thinBorder();
+            noteCell.border    = bottomBorder();
             noteCell.alignment = { vertical: 'middle', horizontal: 'center' };
-            wsMensal.getRow(noteR).height = 28;
+            wsMensal.getRow(noteR).height = 30;
         }
     }
 
@@ -1084,11 +1112,11 @@ export async function generateXlsx(
     // Note row (linha 3 — extra antes do header)
     wsCohort.mergeCells(3, 1, 3, cohortCols);
     const methodNote     = wsCohort.getCell(3, 1);
-    methodNote.value     = '  Retenção estimada: % de clientes do cohort que realizaram compra em cada mês subsequente (baseado em last_purchase_at)';
+    methodNote.value     = '   Retenção estimada: % de clientes do cohort que realizaram compra em cada mês subsequente (baseado em last_purchase_at)';
     methodNote.font      = colorFont(C.textSecondary, false, 9);
     methodNote.fill      = subheaderFill();
     methodNote.alignment = { vertical: 'middle' };
-    wsCohort.getRow(3).height = 20;
+    wsCohort.getRow(3).height = 22;
 
     // Header row is row 4 (linha extra de nota em 3)
     const cohortHeaderRow = wsCohort.getRow(4);
@@ -1097,9 +1125,8 @@ export async function generateXlsx(
     });
     styleHeaderRow(cohortHeaderRow, cohortCols, darkFill());
 
-    // Freeze at row 4 (freeze after row 4, dados a partir da 5)
     setWsDefaults(wsCohort, 4);
-    setColWidths(wsCohort, [18, 12, 18, 12, 12, 12, 12, 12]);
+    setColWidths(wsCohort, [20, 14, 20, 16, 16, 16, 16, 16]);
 
     const cohortRetention = (data as unknown as {
         cohort_retention?: { cohort: string; total: number; m0: number; m1: number | null; m2: number | null; m3: number | null; m4: number | null; m5: number | null }[];
@@ -1151,13 +1178,13 @@ export async function generateXlsx(
         legendCell.value     = 'Legenda: Verde ≥ 70%  |  Amarelo 40–69%  |  Vermelho < 40%  |  — dado ainda não disponível (cohort recente)';
         legendCell.font      = colorFont(C.textSecondary, false, 9);
         legendCell.fill      = subheaderFill();
-        legendCell.border    = thinBorder();
+        legendCell.border    = bottomBorder();
         legendCell.alignment = { vertical: 'middle', horizontal: 'left' };
-        wsCohort.getRow(legendR).height = 20;
+        wsCohort.getRow(legendR).height = 22;
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ABA 11 — Gráficos (dados estruturados para visualização)
+    // ABA 11 — Gráficos (dados estruturados + raw data em cols ocultas O/P)
     // ══════════════════════════════════════════════════════════════════════════
 
     const wsGraf = workbook.addWorksheet('Gráficos', {
@@ -1171,8 +1198,60 @@ export async function generateXlsx(
     wsGraf.views = [{ showGridLines: false }];
     setColWidths(wsGraf, [4, 22, 22, 18, 18, 18]);
 
+    // Cols O (15) e P (16) — dados brutos ocultos para uso em gráficos nativos
+    wsGraf.getColumn(15).width  = 22;
+    wsGraf.getColumn(16).width  = 18;
+    wsGraf.getColumn(15).hidden = true;
+    wsGraf.getColumn(16).hidden = true;
+
+    // ── RAW DATA — Receita por Mês (cols O/P a partir da linha 1) ─────────────
+    const trendData = data.revenue_trend;
+
+    wsGraf.getCell(1, 15).value = 'MÊS';
+    wsGraf.getCell(1, 16).value = 'RECEITA';
+    wsGraf.getCell(1, 15).font  = whiteFont(true, 9);
+    wsGraf.getCell(1, 16).font  = whiteFont(true, 9);
+    wsGraf.getCell(1, 15).fill  = darkFill();
+    wsGraf.getCell(1, 16).fill  = darkFill();
+
+    trendData.forEach((t, idx) => {
+        wsGraf.getCell(idx + 2, 15).value = t.month;
+        wsGraf.getCell(idx + 2, 16).value = t.revenue;
+    });
+
+    // ── RAW DATA — RFM (cols O/P a partir da linha 12) ───────────────────────
+    const rfmRawStart = 12;
+    wsGraf.getCell(rfmRawStart, 15).value = 'SEGMENTO';
+    wsGraf.getCell(rfmRawStart, 16).value = 'CLIENTES';
+    wsGraf.getCell(rfmRawStart, 15).font  = whiteFont(true, 9);
+    wsGraf.getCell(rfmRawStart, 16).font  = whiteFont(true, 9);
+    wsGraf.getCell(rfmRawStart, 15).fill  = darkFill();
+    wsGraf.getCell(rfmRawStart, 16).fill  = darkFill();
+
+    data.rfm_distribution.forEach((seg, idx) => {
+        wsGraf.getCell(rfmRawStart + 1 + idx, 15).value = RFM_LABELS[seg.segment] ?? seg.segment;
+        wsGraf.getCell(rfmRawStart + 1 + idx, 16).value = seg.count;
+    });
+
+    // ── RAW DATA — Projeções (cols O/P a partir da linha 22) ─────────────────
+    const projRawStart = 22;
+    wsGraf.getCell(projRawStart, 15).value = 'MÊS';
+    wsGraf.getCell(projRawStart, 16).value = 'MODERADO';
+    wsGraf.getCell(projRawStart, 15).font  = whiteFont(true, 9);
+    wsGraf.getCell(projRawStart, 16).font  = whiteFont(true, 9);
+    wsGraf.getCell(projRawStart, 15).fill  = darkFill();
+    wsGraf.getCell(projRawStart, 16).fill  = darkFill();
+
+    [
+        ['Mês 1', mod.month1],
+        ['Mês 2', mod.month2],
+        ['Mês 3', mod.month3],
+    ].forEach(([label, val], idx) => {
+        wsGraf.getCell(projRawStart + 1 + idx, 15).value = label;
+        wsGraf.getCell(projRawStart + 1 + idx, 16).value = val;
+    });
+
     // ── GRÁFICO 1 — Receita por Mês ──────────────────────────────────────────
-    // Título em B5, dados a partir de B6
     writeChartTitle(wsGraf, 5, 2, 5, 'GRÁFICO 1 — Receita por Mês (R$)');
 
     const g1HRow = wsGraf.getRow(6);
@@ -1184,9 +1263,8 @@ export async function generateXlsx(
         cell.border    = thinBorder();
         cell.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'right' };
     });
-    g1HRow.height = 36;
+    g1HRow.height = 38;
 
-    const trendData = data.revenue_trend;
     if (trendData.length === 0) {
         wsGraf.mergeCells(7, 2, 7, 5);
         const noData     = wsGraf.getCell(7, 2);
@@ -1194,13 +1272,13 @@ export async function generateXlsx(
         noData.font      = colorFont(C.textSecondary, false, 10);
         noData.alignment = { vertical: 'middle', horizontal: 'center' };
         noData.fill      = whiteFill();
-        wsGraf.getRow(7).height = 28;
+        wsGraf.getRow(7).height = 30;
     } else {
         trendData.forEach((t, idx) => {
             const rv  = idx + 7;
             const bg  = idx % 2 === 0 ? zebraFill() : whiteFill();
             const dr  = wsGraf.getRow(rv);
-            dr.height = 28;
+            dr.height = 30;
 
             const cells = [
                 { col: 2, val: t.month, align: 'left' as const, font: darkFont(true, 10) },
@@ -1226,14 +1304,13 @@ export async function generateXlsx(
                 cell.value     = val;
                 cell.fill      = bg;
                 cell.font      = font;
-                cell.border    = thinBorder();
+                cell.border    = bottomBorder();
                 cell.alignment = { vertical: 'middle', horizontal: align };
             });
         });
     }
 
     // ── GRÁFICO 2 — Segmentação RFM ──────────────────────────────────────────
-    // Título em B28, dados a partir de B29
     writeChartTitle(wsGraf, 28, 2, 5, 'GRÁFICO 2 — Segmentação RFM — Clientes por Segmento');
 
     const g2HRow = wsGraf.getRow(29);
@@ -1245,22 +1322,22 @@ export async function generateXlsx(
         cell.border    = thinBorder();
         cell.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'right' };
     });
-    g2HRow.height = 36;
+    g2HRow.height = 38;
 
     const rfmDataForChart = data.rfm_distribution.filter(s => s.count > 0);
     rfmDataForChart.forEach((seg, idx) => {
         const rv     = idx + 30;
         const bg     = idx % 2 === 0 ? zebraFill() : whiteFill();
         const dr     = wsGraf.getRow(rv);
-        dr.height    = 28;
+        dr.height    = 30;
         const segColor = RFM_COLORS[seg.segment] ?? C.textSecondary;
         const pct    = totalRfmClientes > 0 ? `${fmtNum((seg.count / totalRfmClientes) * 100, 1)}%` : '—';
         const avgLtv = seg.count > 0 ? seg.ltv / seg.count : 0;
 
         const g2Cells = [
             { col: 2, val: RFM_LABELS[seg.segment] ?? seg.segment, align: 'left' as const, font: colorFont(segColor, true, 10) },
-            { col: 3, val: seg.count,    align: 'right' as const, font: darkFont(false, 10) },
-            { col: 4, val: pct,          align: 'right' as const, font: darkFont(false, 10) },
+            { col: 3, val: seg.count,      align: 'right' as const, font: darkFont(false, 10) },
+            { col: 4, val: pct,            align: 'right' as const, font: darkFont(false, 10) },
             { col: 5, val: fmtBrl(avgLtv), align: 'right' as const, font: darkFont(false, 10) },
         ];
 
@@ -1269,13 +1346,12 @@ export async function generateXlsx(
             cell.value     = val;
             cell.fill      = bg;
             cell.font      = font;
-            cell.border    = thinBorder();
+            cell.border    = bottomBorder();
             cell.alignment = { vertical: 'middle', horizontal: align };
         });
     });
 
     // ── GRÁFICO 3 — Projeções 3 Cenários ─────────────────────────────────────
-    // Título em B52, dados a partir de B53
     writeChartTitle(wsGraf, 52, 2, 6, 'GRÁFICO 3 — Projeções de Receita — 3 Cenários');
 
     const g3HRow = wsGraf.getRow(53);
@@ -1287,7 +1363,7 @@ export async function generateXlsx(
         cell.border    = thinBorder();
         cell.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'right' };
     });
-    g3HRow.height = 36;
+    g3HRow.height = 38;
 
     const projDataForChart: Array<[string, string, string, string]> = [
         ['Mês 1', fmtBrl(cons.month1), fmtBrl(mod.month1), fmtBrl(opt.month1)],
@@ -1300,7 +1376,7 @@ export async function generateXlsx(
         const rv  = idx + 54;
         const bg  = idx % 2 === 0 ? zebraFill() : whiteFill();
         const dr  = wsGraf.getRow(rv);
-        dr.height = 28;
+        dr.height = 30;
 
         [
             { col: 2, val: label, font: darkFont(true, 10) },
@@ -1312,7 +1388,7 @@ export async function generateXlsx(
             cell.value     = val;
             cell.fill      = bg;
             cell.font      = font;
-            cell.border    = thinBorder();
+            cell.border    = bottomBorder();
             cell.alignment = { vertical: 'middle', horizontal: col === 2 ? 'left' : 'right' };
         });
     });
@@ -1321,12 +1397,12 @@ export async function generateXlsx(
     const legR = 58;
     wsGraf.mergeCells(legR, 2, legR, 5);
     const legCell     = wsGraf.getCell(legR, 2);
-    legCell.value     = 'Conservador = azul  |  Moderado = laranja  |  Otimista = verde';
+    legCell.value     = 'Conservador = azul  |  Moderado = laranja  |  Otimista = verde  |  Dados brutos nas colunas O/P (ocultas)';
     legCell.font      = colorFont(C.textSecondary, false, 9);
     legCell.fill      = subheaderFill();
-    legCell.border    = thinBorder();
+    legCell.border    = bottomBorder();
     legCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    wsGraf.getRow(legR).height = 20;
+    wsGraf.getRow(legR).height = 22;
 
     // ── Buffer ────────────────────────────────────────────────────────────────
 
