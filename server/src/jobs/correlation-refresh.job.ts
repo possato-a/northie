@@ -44,7 +44,7 @@ async function upsertMonthlySnapshots(): Promise<void> {
             // Buscar dados de performance do mês atual
             const { data: perfRows } = await supabase
                 .from('mv_campaign_ltv_performance')
-                .select('*')
+                .select('channel, campaign_name, customers_acquired, total_ltv_brl, avg_ltv_brl, total_spend_brl, true_roi, avg_churn_probability, high_churn_count')
                 .eq('profile_id', profile.id);
 
             if (!perfRows?.length) continue;
@@ -52,7 +52,7 @@ async function upsertMonthlySnapshots(): Promise<void> {
             // Buscar retenção do mês atual
             const { data: retRows } = await supabase
                 .from('mv_cohort_retention')
-                .select('*')
+                .select('acquisition_channel, retention_rate_30d')
                 .eq('profile_id', profile.id)
                 .eq('cohort_month', snapshotMonthStr);
 

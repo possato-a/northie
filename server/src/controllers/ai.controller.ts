@@ -18,11 +18,10 @@ export async function handleChatMessage(req: Request, res: Response) {
 
     try {
         // Parallel fetch: history + all data needed for rich context
-        const [historyResult, transResult, customersResult, rfmResult, recsCountResult] = await Promise.all([
+        const [historyResult, transResult, customersResult, recsCountResult] = await Promise.all([
             supabase.from('ai_chat_history').select('role, content').eq('profile_id', profileId).order('created_at', { ascending: false }).limit(HISTORY_LIMIT),
             supabase.from('transactions').select('amount_net, created_at').eq('profile_id', profileId).eq('status', 'approved'),
             supabase.from('customers').select('email, acquisition_channel, total_ltv, churn_probability, rfm_score, last_purchase_at').eq('profile_id', profileId),
-            supabase.from('customers').select('rfm_score, total_ltv').eq('profile_id', profileId).not('rfm_score', 'is', null),
             supabase.from('growth_recommendations').select('id', { count: 'exact', head: true }).eq('profile_id', profileId).eq('status', 'pending'),
         ]);
 
@@ -38,7 +37,7 @@ export async function handleChatMessage(req: Request, res: Response) {
         const avgTicket = allTransactions.length > 0 ? totalRevenue / allTransactions.length : 0;
 
         // RFM segments
-        const rfmData = rfmResult.data || [];
+        const rfmData = customers.filter(c => c.rfm_score != null);
         const rfmSegments = {
             Champions: { count: 0, ltvSum: 0 },
             'Em Risco': { count: 0, ltvSum: 0 },
@@ -177,10 +176,9 @@ export async function handleGrowthChatMessage(req: Request, res: Response) {
             (historyRows || []).reverse() as any;
 
         // Buscar dados do workspace (paralelo)
-        const [transResult, customersResult, rfmResult, recsResult, channelPerfResult] = await Promise.all([
+        const [transResult, customersResult, recsResult, channelPerfResult] = await Promise.all([
             supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
-            supabase.from('customers').select('total_ltv, churn_probability, acquisition_channel').eq('profile_id', profileId),
-            supabase.from('customers').select('rfm_score').eq('profile_id', profileId).not('rfm_score', 'is', null),
+            supabase.from('customers').select('total_ltv, churn_probability, acquisition_channel, rfm_score').eq('profile_id', profileId),
             supabase.from('growth_recommendations').select('id, type, title, narrative, impact_estimate, sources, meta, status').eq('profile_id', profileId).in('status', ['pending', 'approved', 'executing', 'completed', 'failed']).order('created_at', { ascending: false }).limit(10),
             supabase.from('mv_campaign_ltv_performance').select('acquisition_channel, customers_acquired, avg_ltv_brl, total_spend_brl, true_roi').eq('profile_id', profileId),
         ]);
@@ -193,7 +191,7 @@ export async function handleGrowthChatMessage(req: Request, res: Response) {
 
         // RFM segment counts
         const rfmCounts = { Champions: 0, 'Em Risco': 0, 'Novos Promissores': 0, Inativos: 0 };
-        for (const c of rfmResult.data || []) {
+        for (const c of customers.filter(c => c.rfm_score != null)) {
             const score = c.rfm_score as string;
             if (!score || score.length !== 3) { rfmCounts['Novos Promissores']++; continue; }
             const r = parseInt(score[0]!), f = parseInt(score[1]!), m = parseInt(score[2]!);
