@@ -163,7 +163,7 @@ async function processScheduledReportsWithMutex(): Promise<void> {
 }
 
 export function startReportsJob() {
-    processScheduledReportsWithMutex();
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(processScheduledReportsWithMutex, 4 * 60 * 60 * 1000); // a cada 4h
     console.log('[Reports] Scheduled reports job started');
 }

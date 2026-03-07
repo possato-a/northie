@@ -237,11 +237,7 @@ async function runRfmForAllProfiles(): Promise<void> {
 
 export function startRfmCalcJob(): void {
     console.log('[RFM] Job registered — will run every 24 hours.');
-
-    // Rodar imediatamente
-    runRfmForAllProfiles();
-
-    // E a cada 24 horas
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(runRfmForAllProfiles, 24 * 60 * 60 * 1000);
 }
 

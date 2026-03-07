@@ -564,6 +564,6 @@ export async function runHotmartSyncForAllProfiles(): Promise<void> {
  */
 export function startHotmartSyncJob(): void {
     console.log('[HotmartSync] Job registered — will run every 6 hours.');
-    runHotmartSyncForAllProfiles();
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(runHotmartSyncForAllProfiles, 6 * 60 * 60 * 1000);
 }

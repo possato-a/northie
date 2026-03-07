@@ -690,9 +690,9 @@ async function runGrowthCorrelationsWithMutex(): Promise<void> {
 }
 
 export function startGrowthCorrelationsJob(): void {
-    console.log('[Growth] Job registered — will run every 30 minutes.');
-    runGrowthCorrelationsWithMutex();
-    setInterval(runGrowthCorrelationsWithMutex, 30 * 60 * 1000);
+    console.log('[Growth] Job registered — will run every 1 hour.');
+    // Não roda imediato no boot — espera o primeiro intervalo
+    setInterval(runGrowthCorrelationsWithMutex, 60 * 60 * 1000);
 }
 
 export { runGrowthCorrelationsForAllProfiles };
