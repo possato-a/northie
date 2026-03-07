@@ -19,6 +19,7 @@ const FREQ_MAP: Record<string, ReportFrequency> = {
 // ── Preview data cache — evita dupla chamada generateReportData entre preview e IA ─
 const previewCache = new Map<string, { data: Awaited<ReturnType<typeof generateReportData>>; ts: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
+const MAX_CACHE_SIZE = 50; // previne crescimento indefinido de memória
 
 // Limpeza periódica — remove entradas expiradas para evitar acúmulo indefinido
 setInterval(() => {
@@ -38,6 +39,11 @@ function getCached(key: string) {
 }
 
 function setCached(key: string, data: Awaited<ReturnType<typeof generateReportData>>) {
+    // Evictar entrada mais antiga se cache cheio
+    if (previewCache.size >= MAX_CACHE_SIZE) {
+        const oldestKey = previewCache.keys().next().value;
+        if (oldestKey) previewCache.delete(oldestKey);
+    }
     previewCache.set(key, { data, ts: Date.now() });
 }
 
@@ -125,7 +131,7 @@ export async function getReportConfig(req: Request, res: Response) {
 
     const { data, error } = await supabase
         .from('report_configs')
-        .select('*')
+        .select('frequency, format, enabled, email, next_send_at, period_type, custom_start, custom_end')
         .eq('profile_id', profileId)
         .single();
 

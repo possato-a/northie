@@ -328,7 +328,7 @@ export async function handleWebhook(req: Request, res: Response) {
                 payload,
                 processed: false
             })
-            .select()
+            .select('id')
             .single();
 
         if (rawError) throw rawError;

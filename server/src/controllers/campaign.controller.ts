@@ -104,45 +104,51 @@ export async function listCampaignCreators(req: Request, res: Response) {
     if (!ownerCheck) return res.status(403).json({ error: 'Campanha não encontrada' });
 
     try {
-        const { data, error } = await supabase
-            .from('campaign_creators')
-            .select(`
-                status,
-                creator:creators(*)
-            `)
-            .eq('campaign_id', campaignId);
-
-        if (error) throw error;
-
-        // For each creator, calculate their personalized stats
-        const creatorsWithStats = await Promise.all(data.map(async (item: any) => {
-            const creator = item.creator;
-
-            // Stats: Revenue, Sales, Pending Commission
-            const { data: sales } = await supabase
+        // 3 queries fixas em paralelo (antes: 2N queries dentro de loop)
+        const [{ data, error }, { data: campaignSales }, { data: allCommissions }] = await Promise.all([
+            supabase
+                .from('campaign_creators')
+                .select(`
+                    status,
+                    creator:creators(*)
+                `)
+                .eq('campaign_id', campaignId),
+            supabase
                 .from('transactions')
                 .select('amount_net')
                 .eq('campaign_id', campaignId)
-                .eq('status', 'approved'); // In a real scenario, filter by creator_id if we had it in transactions or via attribution
-
-            const { data: commissions } = await supabase
+                .eq('status', 'approved'),
+            supabase
                 .from('commissions')
-                .select('amount, status')
-                .eq('campaign_id', campaignId)
-                .eq('creator_id', creator.id);
+                .select('amount, status, creator_id')
+                .eq('campaign_id', campaignId),
+        ]);
 
-            const revenue = sales?.reduce((sum, s) => sum + Number(s.amount_net), 0) || 0;
-            const paid = commissions?.filter(c => c.status === 'paid').reduce((sum, c) => sum + Number(c.amount), 0) || 0;
-            const pending = commissions?.filter(c => c.status === 'pending').reduce((sum, c) => sum + Number(c.amount), 0) || 0;
+        if (error) throw error;
 
+        const totalRevenue = (campaignSales ?? []).reduce((sum, s) => sum + Number(s.amount_net), 0);
+        const totalSalesCount = campaignSales?.length ?? 0;
+
+        // Pre-index commissions por creator_id
+        const commByCreator = new Map<string, { paid: number; pending: number }>();
+        for (const c of (allCommissions ?? [])) {
+            if (!commByCreator.has(c.creator_id)) commByCreator.set(c.creator_id, { paid: 0, pending: 0 });
+            const entry = commByCreator.get(c.creator_id)!;
+            if (c.status === 'paid') entry.paid += Number(c.amount);
+            else if (c.status === 'pending') entry.pending += Number(c.amount);
+        }
+
+        const creatorsWithStats = (data ?? []).map((item: any) => {
+            const creator = item.creator;
+            const comm = commByCreator.get(creator.id) ?? { paid: 0, pending: 0 };
             return {
                 ...creator,
-                revenue,
-                sales_count: sales?.length || 0,
-                paid_commission: paid,
-                pending_commission: pending
+                revenue: totalRevenue,
+                sales_count: totalSalesCount,
+                paid_commission: comm.paid,
+                pending_commission: comm.pending,
             };
-        }));
+        });
 
         res.status(200).json(creatorsWithStats);
     } catch (error: any) {

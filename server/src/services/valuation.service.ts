@@ -26,22 +26,17 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    // ARR = sum of approved transactions last 12 months
-    const { data: txData } = await supabase
-        .from('transactions')
-        .select('amount_net')
-        .eq('profile_id', profileId)
-        .eq('status', 'approved')
-        .gte('created_at', twelveMonthsAgo.toISOString());
+    // Buscar tudo em paralelo (6 queries sequenciais → 1 round-trip)
+    const [{ data: txData }, { data: customerData }, { data: adData }, { count: newCustomerCount }, { data: profileData }] = await Promise.all([
+        supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', twelveMonthsAgo.toISOString()),
+        supabase.from('customers').select('total_ltv, churn_probability').eq('profile_id', profileId),
+        supabase.from('ad_metrics').select('spend_brl').eq('profile_id', profileId).gte('date', sixMonthsAgo.toISOString().split('T')[0]),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('profile_id', profileId).gte('created_at', sixMonthsAgo.toISOString()),
+        supabase.from('profiles').select('business_type').eq('id', profileId).single(),
+    ]);
 
     const arr_brl = (txData || []).reduce((a, t) => a + (t.amount_net || 0), 0);
     const mrr_brl = arr_brl / 12;
-
-    // Customer metrics
-    const { data: customerData } = await supabase
-        .from('customers')
-        .select('total_ltv, churn_probability')
-        .eq('profile_id', profileId);
 
     const customers = customerData || [];
     const ltv_avg_brl = customers.length > 0
@@ -51,29 +46,9 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
         ? customers.reduce((a, c) => a + (c.churn_probability || 0), 0) / customers.length
         : 0;
 
-    // CAC — spend last 6 months / new customers last 6 months
-    const { data: adData } = await supabase
-        .from('ad_metrics')
-        .select('spend_brl')
-        .eq('profile_id', profileId)
-        .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
     const totalSpend = (adData || []).reduce((a, m) => a + (m.spend_brl || 0), 0);
-
-    const { data: newCustomers } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('profile_id', profileId)
-        .gte('created_at', sixMonthsAgo.toISOString());
-    const newCustomerCount = (newCustomers || []).length;
-    const cac_avg_brl = newCustomerCount > 0 && totalSpend > 0 ? totalSpend / newCustomerCount : 0;
+    const cac_avg_brl = (newCustomerCount ?? 0) > 0 && totalSpend > 0 ? totalSpend / (newCustomerCount ?? 0) : 0;
     const ltv_cac_ratio = cac_avg_brl > 0 && ltv_avg_brl > 0 ? ltv_avg_brl / cac_avg_brl : 0;
-
-    // Profile business_type
-    const { data: profileData } = await supabase
-        .from('profiles')
-        .select('business_type')
-        .eq('id', profileId)
-        .single();
 
     const businessType = profileData?.business_type || 'saas';
 
@@ -126,12 +101,14 @@ export async function calculateValuation(profileId: string): Promise<ValuationRe
     const snapshotDate = new Date(now.getFullYear(), now.getMonth(), 1);
     const snapshot_month = snapshotDate.toISOString().split('T')[0];
 
-    // Get previous month snapshots for same business_type
+    // Get latest snapshots for same business_type (limitar a 200 para não carregar tudo)
     const { data: otherSnapshots } = await supabase
         .from('valuation_snapshots')
         .select('valuation_brl, profile_id')
         .eq('business_type', businessType)
-        .neq('profile_id', profileId);
+        .neq('profile_id', profileId)
+        .order('snapshot_month', { ascending: false })
+        .limit(200);
 
     let benchmark_percentile = 50; // default if no data
     if (otherSnapshots && otherSnapshots.length > 0) {

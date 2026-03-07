@@ -25,12 +25,17 @@ interface QueueItem {
 
 const MAX_RETRIES = 5;
 const BASE_DELAY_MS = 2_000; // 2s → 4s → 8s → 16s → 32s
+const MAX_QUEUE_SIZE = 500; // previne OOM em flood de webhooks
 
 class WebhookQueue {
     private queue: QueueItem[] = [];
     private running = false;
 
     enqueue(rawId: string, platform: string, payload: any, profileId: string): void {
+        if (this.queue.length >= MAX_QUEUE_SIZE) {
+            console.warn(`[Queue] ⚠ Queue full (${MAX_QUEUE_SIZE}), dropping oldest item`);
+            this.queue.shift(); // remove o mais antigo
+        }
         this.queue.push({ rawId, platform, payload, profileId, attempts: 0, nextRetry: Date.now() });
         if (!this.running) this.drain();
     }
@@ -51,8 +56,9 @@ class WebhookQueue {
                 continue;
             }
 
-            // Remove da fila temporariamente
-            this.queue = this.queue.filter(i => i !== item);
+            // Remove da fila temporariamente (splice O(n) mas evita recriar array)
+            const idx = this.queue.indexOf(item);
+            if (idx !== -1) this.queue.splice(idx, 1);
 
             try {
                 await normalizeData(item.rawId, item.platform, item.payload, item.profileId);
@@ -91,7 +97,8 @@ class WebhookQueue {
             .select('id, platform, payload, profile_id')
             .eq('processed', false)
             .is('failed_at', null)
-            .limit(100);
+            .order('created_at', { ascending: true })
+            .limit(20);
 
         if (!pending?.length) return;
 

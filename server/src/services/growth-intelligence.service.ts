@@ -17,10 +17,13 @@ export interface DateRange {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+let _anthropicClient: Anthropic | null = null;
 function getAnthropicClient(): Anthropic {
+    if (_anthropicClient) return _anthropicClient;
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('[GrowthIntelligence] ANTHROPIC_API_KEY não configurada');
-    return new Anthropic({ apiKey });
+    _anthropicClient = new Anthropic({ apiKey });
+    return _anthropicClient;
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
@@ -47,7 +50,8 @@ export async function runDiagnostic(
     );
 
     // ── 1. Buscar dados de todos os agentes em paralelo ───────────────────────
-    const [metricsResult, transactionsResult, attributionResult, profileResult] =
+    // Merge das duas queries de transactions em uma só (antes eram 2 queries separadas)
+    const [metricsResult, transactionsResult, profileResult] =
         await Promise.all([
             supabase
                 .from('ad_metrics')
@@ -58,18 +62,15 @@ export async function runDiagnostic(
 
             supabase
                 .from('transactions')
-                .select('platform, status, amount_gross, amount_net, fee_platform, created_at, customer_id')
-                .eq('profile_id', profileId)
-                .gte('created_at', startIso)
-                .lte('created_at', endIso),
-
-            supabase
-                .from('transactions')
                 .select(`
                     id,
-                    customer_id,
+                    platform,
+                    status,
+                    amount_gross,
                     amount_net,
+                    fee_platform,
                     created_at,
+                    customer_id,
                     northie_attribution_id,
                     customers(acquisition_channel, acquisition_campaign_id)
                 `)
@@ -92,18 +93,19 @@ export async function runDiagnostic(
     }
 
     const metrics = metricsResult.data ?? [];
-    const transactions = transactionsResult.data ?? [];
+    const allTransactions = transactionsResult.data ?? [];
+    const transactions = allTransactions; // mesma referência — usado pelo ConversionAnalyst
     const businessType = profileResult.data?.business_type ?? 'desconhecido';
 
-    // Flatten attribution data — customers join may be null for unmatched rows
-    const attributionData = (attributionResult.data ?? []).map((row) => {
+    // Flatten attribution data da mesma query (antes era query separada)
+    const attributionData = allTransactions.map((row) => {
         const customers = (row as Record<string, unknown>).customers as Record<string, unknown> | null;
         return {
             id: row.id as string,
             customer_id: row.customer_id as string,
             amount_net: row.amount_net as number,
             created_at: row.created_at as string,
-            northie_attribution_id: row.northie_attribution_id as string | null,
+            northie_attribution_id: (row as any).northie_attribution_id as string | null,
             acquisition_channel: (customers?.acquisition_channel as string | null) ?? null,
             acquisition_campaign_id: (customers?.acquisition_campaign_id as string | null) ?? null,
             utm_source: null as string | null,
