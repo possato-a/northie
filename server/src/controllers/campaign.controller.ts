@@ -8,30 +8,43 @@ export async function listCampaigns(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
 
     try {
-        const { data, error } = await supabase
-            .from('campaigns')
-            .select('*')
-            .eq('profile_id', profileId)
-            .order('created_at', { ascending: false });
+        // Buscar tudo em paralelo (4 queries fixas, independente do número de campanhas)
+        const [{ data, error }, { data: allCreators }, { data: allCommissions }, { data: allSales }] = await Promise.all([
+            supabase.from('campaigns').select('id, name, type, commission_rate, description, product_name, start_date, end_date, status, created_at, updated_at').eq('profile_id', profileId).order('created_at', { ascending: false }),
+            supabase.from('campaign_creators').select('campaign_id').eq('campaign_id', profileId ? undefined as any : ''),  // placeholder
+            supabase.from('commissions').select('campaign_id, amount').eq('profile_id', profileId),
+            supabase.from('transactions').select('campaign_id').eq('profile_id', profileId).eq('status', 'approved').not('campaign_id', 'is', null),
+        ]);
 
         if (error) throw error;
 
-        // Fetch aggregated stats for each campaign
-        const campaignsWithCreators = await Promise.all(data.map(async (camp: any) => {
-            const [{ count: creatorsCount }, { data: commissions }, { count: salesCount }] = await Promise.all([
-                supabase.from('campaign_creators').select('*', { count: 'exact', head: true }).eq('campaign_id', camp.id),
-                supabase.from('commissions').select('amount').eq('campaign_id', camp.id),
-                supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('campaign_id', camp.id).eq('status', 'approved'),
-            ]);
+        // Fetch creators count por campaign (1 query para todas)
+        const campaignIds = (data || []).map((c: any) => c.id);
+        const { data: creatorLinks } = campaignIds.length > 0
+            ? await supabase.from('campaign_creators').select('campaign_id').in('campaign_id', campaignIds)
+            : { data: [] };
 
-            const commissionTotal = commissions?.reduce((sum: number, c: any) => sum + Number(c.amount), 0) || 0;
+        // Pre-index por campaign_id em O(N)
+        const creatorsCountMap = new Map<string, number>();
+        for (const cl of (creatorLinks ?? [])) {
+            creatorsCountMap.set(cl.campaign_id, (creatorsCountMap.get(cl.campaign_id) ?? 0) + 1);
+        }
 
-            return {
-                ...camp,
-                creators_count: creatorsCount || 0,
-                commission_total: commissionTotal,
-                sales_count: salesCount || 0,
-            };
+        const commissionMap = new Map<string, number>();
+        for (const c of (allCommissions ?? [])) {
+            commissionMap.set(c.campaign_id, (commissionMap.get(c.campaign_id) ?? 0) + Number(c.amount));
+        }
+
+        const salesCountMap = new Map<string, number>();
+        for (const s of (allSales ?? [])) {
+            salesCountMap.set(s.campaign_id, (salesCountMap.get(s.campaign_id) ?? 0) + 1);
+        }
+
+        const campaignsWithCreators = (data || []).map((camp: any) => ({
+            ...camp,
+            creators_count: creatorsCountMap.get(camp.id) ?? 0,
+            commission_total: commissionMap.get(camp.id) ?? 0,
+            sales_count: salesCountMap.get(camp.id) ?? 0,
         }));
 
         res.status(200).json(campaignsWithCreators);

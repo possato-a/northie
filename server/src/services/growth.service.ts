@@ -27,20 +27,22 @@ interface ExecutionStep {
     detail?: string;
 }
 
+// In-memory log buffer — evita read+write no DB a cada step (antes: 30 queries por execução)
+const logBuffers = new Map<string, ExecutionStep[]>();
+
 async function appendLog(recId: string, step: ExecutionStep): Promise<void> {
-    const { data: rec } = await supabase
-        .from('growth_recommendations')
-        .select('execution_log')
-        .eq('id', recId)
-        .single();
+    if (!logBuffers.has(recId)) logBuffers.set(recId, []);
+    logBuffers.get(recId)!.push(step);
 
-    const log = (rec?.execution_log as ExecutionStep[]) || [];
-    log.push(step);
-
+    // Flush to DB (write-only, sem read)
     await supabase
         .from('growth_recommendations')
-        .update({ execution_log: log, updated_at: new Date().toISOString() })
+        .update({ execution_log: logBuffers.get(recId), updated_at: new Date().toISOString() })
         .eq('id', recId);
+}
+
+function clearLogBuffer(recId: string): void {
+    logBuffers.delete(recId);
 }
 
 async function updateStatus(recId: string, status: string): Promise<void> {
@@ -472,7 +474,7 @@ async function executeEmRiscoAltoValor(profileId: string, recId: string, meta: a
 export async function executeRecommendation(profileId: string, recId: string): Promise<void> {
     const { data: rec } = await supabase
         .from('growth_recommendations')
-        .select('*')
+        .select('id, type, status, meta')
         .eq('id', recId)
         .eq('profile_id', profileId)
         .single();
@@ -482,6 +484,8 @@ export async function executeRecommendation(profileId: string, recId: string): P
         return;
     }
 
+    // Inicializa log buffer com log existente (se houver)
+    clearLogBuffer(recId);
     await updateStatus(recId, 'executing');
     const meta = rec.meta as any;
 
@@ -522,5 +526,7 @@ export async function executeRecommendation(profileId: string, recId: string): P
         console.error(`[Growth] Execution error for rec ${recId}:`, err.message);
         await appendLog(recId, { step: 'Erro inesperado', status: 'failed', timestamp: new Date().toISOString(), detail: err.message });
         await updateStatus(recId, 'failed');
+    } finally {
+        clearLogBuffer(recId);
     }
 }
