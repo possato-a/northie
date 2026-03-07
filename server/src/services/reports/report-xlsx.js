@@ -73,8 +73,8 @@ function darkFill() {
 function darkBlueFill() {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } };
 }
-function orangeFill() {
-    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF97316' } };
+function greenAccentFill() {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF22C55E' } };
 }
 function zebraFill() {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F6F3' } };
@@ -103,15 +103,15 @@ function bottomBorder() {
     return { bottom: { style: 'thin', color: { argb: 'FFE8E6E0' } } };
 }
 function headerBorder() {
-    // Dark sides + laranja na base (destaque)
+    // Dark sides + verde na base (destaque)
     const dark = { style: 'thin', color: { argb: 'FF1E1E1E' } };
-    const orange = { style: 'medium', color: { argb: 'FFF97316' } };
-    return { top: dark, bottom: orange, left: dark, right: dark };
+    const green = { style: 'medium', color: { argb: 'FF22C55E' } };
+    return { top: dark, bottom: green, left: dark, right: dark };
 }
 function totalsTopBorder() {
-    const orange = { style: 'medium', color: { argb: 'FFF97316' } };
+    const green = { style: 'medium', color: { argb: 'FF22C55E' } };
     const thin = { style: 'thin', color: { argb: 'FFE5E5E5' } };
-    return { top: orange, bottom: thin, left: thin, right: thin };
+    return { top: green, bottom: thin, left: thin, right: thin };
 }
 // ── Value helpers ─────────────────────────────────────────────────────────────
 function isBlank(v) {
@@ -215,14 +215,14 @@ function writeSectionDivider(ws, rowNum, label) {
     const cell = ws.getCell(rowNum, 1);
     cell.value = `  ▸  ${label}`;
     cell.fill = dividerFill();
-    cell.font = { name: 'Calibri', color: { argb: 'FFF97316' }, bold: true, size: 9 };
+    cell.font = { name: 'Calibri', color: { argb: 'FF22C55E' }, bold: true, size: 9 };
     cell.alignment = { vertical: 'middle', horizontal: 'left' };
     ws.getRow(rowNum).height = 26;
 }
 function writeOrangeAccentRow(ws, rowNum) {
     // Linha laranja fina (4px) após o cabeçalho de tabela
     for (let c = 1; c <= HC; c++) {
-        ws.getCell(rowNum, c).fill = orangeFill();
+        ws.getCell(rowNum, c).fill = greenAccentFill();
     }
     ws.getRow(rowNum).height = 4;
 }
@@ -244,7 +244,7 @@ function writeChartTitle(ws, rowNum, colStart, colEnd, text) {
     ws.mergeCells(rowNum, colStart, rowNum, colEnd);
     const cell = ws.getCell(rowNum, colStart);
     cell.value = text;
-    cell.font = { name: 'Calibri', color: { argb: 'FFF97316' }, bold: true, size: 12 };
+    cell.font = { name: 'Calibri', color: { argb: 'FF22C55E' }, bold: true, size: 12 };
     cell.alignment = { vertical: 'middle', horizontal: 'left' };
     ws.getRow(rowNum).height = 32;
 }
@@ -1099,7 +1099,7 @@ export async function generateXlsx(data, _ai) {
     // ABA 11 — Gráficos
     // ══════════════════════════════════════════════════════════════════════════
     const wsGraf = workbook.addWorksheet('Gráficos', {
-        properties: { tabColor: { argb: 'FFF97316' } },
+        properties: { tabColor: { argb: 'FF22C55E' } },
     });
     setColWidths(wsGraf, [4, 26, 24, 20, 20, 14, 14, 14]);
     wsGraf.views = [{ showGridLines: false }];

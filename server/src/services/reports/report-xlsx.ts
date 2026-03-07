@@ -107,8 +107,8 @@ function darkBlueFill(): Fill {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF111827' } };
 }
 
-function orangeFill(): Fill {
-    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF97316' } };
+function greenAccentFill(): Fill {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF22C55E' } };
 }
 
 function zebraFill(): Fill {
@@ -148,16 +148,16 @@ function bottomBorder(): Partial<Borders> {
 }
 
 function headerBorder(): Partial<Borders> {
-    // Dark sides + laranja na base (destaque)
-    const dark:   Partial<ExcelBorder> = { style: 'thin',   color: { argb: 'FF1E1E1E' } };
-    const orange: Partial<ExcelBorder> = { style: 'medium', color: { argb: 'FFF97316' } };
-    return { top: dark, bottom: orange, left: dark, right: dark };
+    // Dark sides + verde na base (destaque)
+    const dark:  Partial<ExcelBorder> = { style: 'thin',   color: { argb: 'FF1E1E1E' } };
+    const green: Partial<ExcelBorder> = { style: 'medium', color: { argb: 'FF22C55E' } };
+    return { top: dark, bottom: green, left: dark, right: dark };
 }
 
 function totalsTopBorder(): Partial<Borders> {
-    const orange: Partial<ExcelBorder> = { style: 'medium', color: { argb: 'FFF97316' } };
-    const thin:   Partial<ExcelBorder> = { style: 'thin',   color: { argb: 'FFE5E5E5' } };
-    return { top: orange, bottom: thin, left: thin, right: thin };
+    const green: Partial<ExcelBorder> = { style: 'medium', color: { argb: 'FF22C55E' } };
+    const thin:  Partial<ExcelBorder> = { style: 'thin',   color: { argb: 'FFE5E5E5' } };
+    return { top: green, bottom: thin, left: thin, right: thin };
 }
 
 // ── Value helpers ─────────────────────────────────────────────────────────────
@@ -262,7 +262,7 @@ function writeSectionDivider(ws: Worksheet, rowNum: number, label: string): void
     const cell = ws.getCell(rowNum, 1);
     cell.value     = `  ▸  ${label}`;
     cell.fill      = dividerFill();
-    cell.font      = { name: 'Calibri', color: { argb: 'FFF97316' }, bold: true, size: 9 };
+    cell.font      = { name: 'Calibri', color: { argb: 'FF22C55E' }, bold: true, size: 9 };
     cell.alignment = { vertical: 'middle', horizontal: 'left' };
     ws.getRow(rowNum).height = 26;
 }
@@ -270,7 +270,7 @@ function writeSectionDivider(ws: Worksheet, rowNum: number, label: string): void
 function writeOrangeAccentRow(ws: Worksheet, rowNum: number): void {
     // Linha laranja fina (4px) após o cabeçalho de tabela
     for (let c = 1; c <= HC; c++) {
-        ws.getCell(rowNum, c).fill = orangeFill();
+        ws.getCell(rowNum, c).fill = greenAccentFill();
     }
     ws.getRow(rowNum).height = 4;
 }
@@ -299,7 +299,7 @@ function writeChartTitle(ws: Worksheet, rowNum: number, colStart: number, colEnd
     ws.mergeCells(rowNum, colStart, rowNum, colEnd);
     const cell = ws.getCell(rowNum, colStart);
     cell.value     = text;
-    cell.font      = { name: 'Calibri', color: { argb: 'FFF97316' }, bold: true, size: 12 };
+    cell.font      = { name: 'Calibri', color: { argb: 'FF22C55E' }, bold: true, size: 12 };
     cell.alignment = { vertical: 'middle', horizontal: 'left' };
     ws.getRow(rowNum).height = 32;
 }
@@ -1329,7 +1329,7 @@ export async function generateXlsx(
     // ══════════════════════════════════════════════════════════════════════════
 
     const wsGraf = workbook.addWorksheet('Gráficos', {
-        properties: { tabColor: { argb: 'FFF97316' } },
+        properties: { tabColor: { argb: 'FF22C55E' } },
     });
 
     setColWidths(wsGraf, [4, 26, 24, 20, 20, 14, 14, 14]);
