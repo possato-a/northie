@@ -164,25 +164,16 @@ export async function handleGrowthChatMessage(req: Request, res: Response) {
     }
 
     try {
-        // Buscar histórico de chat
-        const { data: historyRows } = await supabase
-            .from('ai_chat_history')
-            .select('role, content')
-            .eq('profile_id', profileId)
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-        const history: Array<{ role: 'user' | 'assistant'; content: string }> =
-            (historyRows || []).reverse() as any;
-
-        // Buscar dados do workspace (paralelo)
-        const [transResult, customersResult, recsResult, channelPerfResult] = await Promise.all([
+        // Buscar tudo em paralelo (5 queries → 1 round-trip)
+        const [historyResult, transResult, customersResult, recsResult, channelPerfResult] = await Promise.all([
+            supabase.from('ai_chat_history').select('role, content').eq('profile_id', profileId).order('created_at', { ascending: false }).limit(10),
             supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
             supabase.from('customers').select('total_ltv, churn_probability, acquisition_channel, rfm_score').eq('profile_id', profileId),
             supabase.from('growth_recommendations').select('id, type, title, narrative, impact_estimate, sources, meta, status').eq('profile_id', profileId).in('status', ['pending', 'approved', 'executing', 'completed', 'failed']).order('created_at', { ascending: false }).limit(10),
             supabase.from('mv_campaign_ltv_performance').select('acquisition_channel, customers_acquired, avg_ltv_brl, total_spend_brl, true_roi').eq('profile_id', profileId),
         ]);
 
+        const history = (historyResult.data || []).reverse() as Array<{ role: 'user' | 'assistant'; content: string }>;
         const customers = customersResult.data || [];
         const totalRevenue = (transResult.data || []).reduce((s, t) => s + Number(t.amount_net), 0);
         const avgLtv = customers.length > 0 ? customers.reduce((s, c) => s + Number(c.total_ltv), 0) / customers.length : 0;
