@@ -62,7 +62,7 @@ export async function processScheduledReports() {
 
     const { data: configs } = await supabase
         .from('report_configs')
-        .select('*')
+        .select('id, profile_id, frequency, format, email, next_send_at')
         .eq('enabled', true)
         .lte('next_send_at', now);
 

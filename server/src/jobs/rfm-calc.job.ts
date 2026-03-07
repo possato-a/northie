@@ -68,10 +68,13 @@ async function buildChannelCacMap(
     profileId: string
 ): Promise<Record<string, number>> {
     // Total de spend por plataforma
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const { data: metrics } = await supabase
         .from('ad_metrics')
         .select('platform, spend_brl')
-        .eq('profile_id', profileId);
+        .eq('profile_id', profileId)
+        .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
 
     const spendByChannel: Record<string, number> = {};
     for (const m of metrics || []) {
@@ -142,12 +145,15 @@ async function calcRfmForProfile(profileId: string): Promise<void> {
         .eq('profile_id', profileId)
         .eq('status', 'approved');
 
-    // 2. Calcular métricas brutas por customer
+    // 2. Pre-agrupar transações por customer (O(M) uma vez, vs O(N*M) com filter)
     const now = Date.now();
+    const txByCustomer = new Map<string, number>();
+    for (const t of transactions || []) {
+        txByCustomer.set(t.customer_id, (txByCustomer.get(t.customer_id) || 0) + 1);
+    }
 
     const customerMetrics = customers.map(c => {
-        const txs = (transactions || []).filter(t => t.customer_id === c.id);
-        const frequency = txs.length;
+        const frequency = txByCustomer.get(c.id) || 0;
         const monetary = Number(c.total_ltv) || 0;
         const lastPurchase = c.last_purchase_at
             ? new Date(c.last_purchase_at).getTime()

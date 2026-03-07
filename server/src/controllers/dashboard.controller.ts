@@ -12,20 +12,17 @@ export async function getGeneralStats(req: Request, res: Response) {
     }
 
     try {
-        // Parallel fetch: revenue data, customer count, transaction count
-        const [transResult, customerCountResult, txCountResult] = await Promise.all([
-            supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
-            supabase.from('customers').select('*', { count: 'exact', head: true }).eq('profile_id', profileId),
-            supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('profile_id', profileId).eq('status', 'approved'),
-        ]);
+        // Single RPC call replaces 3 parallel queries
+        const { data: stats, error: statsError } = await supabase.rpc('get_dashboard_stats', {
+            p_profile_id: profileId,
+            p_days: 30,
+        });
 
-        if (transResult.error) throw transResult.error;
-        if (customerCountResult.error) throw customerCountResult.error;
-        if (txCountResult.error) throw txCountResult.error;
+        if (statsError) throw statsError;
 
-        const totalRevenue = transResult.data?.reduce((sum, t) => sum + Number(t.amount_net), 0) || 0;
-        const customerCount = customerCountResult.count || 0;
-        const transactionCount = txCountResult.count || 0;
+        const totalRevenue = stats?.total_revenue || 0;
+        const customerCount = stats?.total_customers || 0;
+        const transactionCount = stats?.total_transactions || 0;
 
         // Average Ticket (AOV) — revenue / number of transactions
         const averageTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
@@ -137,38 +134,17 @@ export async function getGrowthMetrics(req: Request, res: Response) {
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
-        const now = new Date();
-        const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-        const sixtyDaysAgo = new Date(now.getTime() - (60 * 24 * 60 * 60 * 1000));
+        const { data: stats, error } = await supabase.rpc('get_dashboard_stats', {
+            p_profile_id: profileId,
+            p_days: 30,
+        });
 
-        // Current Period
-        const { data: currentSales } = await supabase
-            .from('transactions')
-            .select('amount_net')
-            .eq('profile_id', profileId)
-            .eq('status', 'approved')
-            .gte('created_at', thirtyDaysAgo.toISOString());
-
-        // Previous Period
-        const { data: previousSales } = await supabase
-            .from('transactions')
-            .select('amount_net')
-            .eq('profile_id', profileId)
-            .eq('status', 'approved')
-            .gte('created_at', sixtyDaysAgo.toISOString())
-            .lt('created_at', thirtyDaysAgo.toISOString());
-
-        const currentTotal = (currentSales || []).reduce((sum, t) => sum + Number(t.amount_net), 0);
-        const previousTotal = (previousSales || []).reduce((sum, t) => sum + Number(t.amount_net), 0);
-
-        const growthPercent = previousTotal > 0
-            ? ((currentTotal - previousTotal) / previousTotal) * 100
-            : null;
+        if (error) throw error;
 
         res.status(200).json({
-            current_revenue: currentTotal,
-            previous_revenue: previousTotal,
-            growth_percentage: growthPercent !== null ? Number(growthPercent.toFixed(2)) : null
+            current_revenue: stats?.current_revenue || 0,
+            previous_revenue: stats?.previous_revenue || 0,
+            growth_percentage: stats?.growth_percentage ?? null,
         });
     } catch (error: any) {
         console.error('Growth Metrics Error:', error);
@@ -262,59 +238,26 @@ export async function getRetentionCohort(req: Request, res: Response) {
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
 
     try {
-        // Fetch all customers and their first purchase date
-        const { data: customers } = await supabase
-            .from('customers')
-            .select('id, created_at')
-            .eq('profile_id', profileId);
-
-        if (!customers) return res.status(200).json([]);
-
-        // Fetch all approved transactions to check for repurchases
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select('customer_id, created_at')
+        const { data: cohorts, error } = await supabase
+            .from('mv_cohort_retention')
+            .select('cohort_month, cohort_size, retention_rate_30d, retention_rate_60d, retention_rate_90d')
             .eq('profile_id', profileId)
-            .eq('status', 'approved');
+            .gt('cohort_size', 0)
+            .order('cohort_month', { ascending: false })
+            .limit(12);
 
-        const cohortData: Record<string, { n: number, retentions: Record<number, number> }> = {};
+        if (error) throw error;
 
-        customers.forEach(cust => {
-            const birth = new Date(cust.created_at);
-            const cohortMonth = `${birth.getFullYear()}-${String(birth.getMonth() + 1).padStart(2, '0')}`;
-
-            if (!cohortData[cohortMonth]) {
-                cohortData[cohortMonth] = { n: 0, retentions: { 30: 0, 60: 0, 90: 0, 180: 0 } };
-            }
-            cohortData[cohortMonth].n += 1;
-
-            // Check if this customer has transactions in subsequent months
-            const custTransactions = transactions?.filter(t => t.customer_id === cust.id) || [];
-
-            [30, 60, 90, 180].forEach(days => {
-                const windowEnd = new Date(birth.getTime() + (days * 24 * 60 * 60 * 1000));
-                const hasPurchaseInWindow = custTransactions.some(t => {
-                    const txDate = new Date(t.created_at);
-                    return txDate > birth && txDate <= windowEnd;
-                });
-                const cohort = cohortData[cohortMonth];
-                if (hasPurchaseInWindow && cohort) {
-                    cohort.retentions[days] = (cohort.retentions[days] || 0) + 1;
-                }
-            });
-        });
-
-        // Format for UI
-        const formatted = Object.entries(cohortData).map(([month, data]) => ({
-            month,
-            n: data.n,
+        const formatted = (cohorts || []).map(c => ({
+            month: c.cohort_month,
+            n: Number(c.cohort_size),
             retentions: {
-                '30d': Math.round((data.retentions[30] || 0) / data.n * 100),
-                '60d': Math.round((data.retentions[60] || 0) / data.n * 100),
-                '90d': Math.round((data.retentions[90] || 0) / data.n * 100),
-                '180d': Math.round((data.retentions[180] || 0) / data.n * 100)
+                '30d': Math.round(Number(c.retention_rate_30d || 0)),
+                '60d': Math.round(Number(c.retention_rate_60d || 0)),
+                '90d': Math.round(Number(c.retention_rate_90d || 0)),
+                '180d': 0,
             }
-        })).sort((a, b) => b.month.localeCompare(a.month));
+        }));
 
         res.status(200).json(formatted);
     } catch (error: any) {
@@ -375,32 +318,53 @@ export async function getChannelTrends(req: Request, res: Response) {
             .eq('status', 'approved')
             .gte('created_at', fifteenDaysAgo.toISOString());
 
+        // Pre-index campaigns by platform+date and txs by channel+date (O(N) once vs O(30*N) with filter)
+        type CampAgg = { spend: number; revenue: number; purchases: number };
+        const campIndex = new Map<string, CampAgg>();
+        for (const r of campaigns || []) {
+            const key = `${r.platform}|${r.date}`;
+            const existing = campIndex.get(key) || { spend: 0, revenue: 0, purchases: 0 };
+            existing.spend += Number(r.spend_brl || 0);
+            existing.revenue += Number(r.purchase_value || 0);
+            existing.purchases += Number(r.purchases || 0);
+            campIndex.set(key, existing);
+        }
+
+        type TxAgg = { revenue: number; count: number };
+        const txIndex = new Map<string, TxAgg>();
+        for (const t of txs || []) {
+            const ch = (t as any).customers?.acquisition_channel as string;
+            if (!ch) continue;
+            const dateKey = t.created_at.split('T')[0];
+            const key = `${ch}|${dateKey}`;
+            const existing = txIndex.get(key) || { revenue: 0, count: 0 };
+            existing.revenue += Number(t.amount_net);
+            existing.count += 1;
+            txIndex.set(key, existing);
+        }
+
+        const channelMap: Record<string, string> = { meta: 'meta_ads', google: 'google_ads' };
         const trends: Record<string, any> = {};
 
         ['meta', 'google'].forEach(p => {
             trends[p] = { roas: [], cac: [] };
+            const channelKey = channelMap[p] || p;
             for (let i = 0; i < 15; i++) {
                 const d = new Date();
                 d.setDate(d.getDate() - (14 - i));
                 const dateStr = d.toISOString().split('T')[0]!;
 
-                // Spend and ad-attributed revenue from ad_campaigns API data
-                const dayRows = (campaigns || []).filter(r => r.platform === p && r.date === dateStr);
-                const daySpend = dayRows.reduce((s, r) => s + Number(r.spend_brl || 0), 0);
-                const dayAdRevenue = dayRows.reduce((s, r) => s + Number(r.purchase_value || 0), 0);
-                const dayAdPurchases = dayRows.reduce((s, r) => s + Number(r.purchases || 0), 0);
+                const camp = campIndex.get(`${p}|${dateStr}`);
+                const daySpend = camp?.spend || 0;
+                const dayAdRevenue = camp?.revenue || 0;
+                const dayAdPurchases = camp?.purchases || 0;
 
-                // Pixel/webhook attributed revenue via customer acquisition_channel
-                const channelMap: Record<string, string> = { meta: 'meta_ads', google: 'google_ads' };
-                const channelKey = channelMap[p] || p;
-                const dayTxRevenue = (txs || [])
-                    .filter(t => (t as any).customers?.acquisition_channel === channelKey && t.created_at.startsWith(dateStr))
-                    .reduce((s, t) => s + Number(t.amount_net), 0);
+                const tx = txIndex.get(`${channelKey}|${dateStr}`);
+                const dayTxRevenue = tx?.revenue || 0;
+                const dayTxCount = tx?.count || 0;
 
-                // Use ad_campaigns revenue as primary; add pixel revenue only if ad_campaigns has none for that day
                 const dayRevenue = dayAdRevenue > 0 ? dayAdRevenue : dayTxRevenue;
-                const dayPurchases = dayAdPurchases > 0 ? dayAdPurchases
-                    : (txs || []).filter(t => (t as any).customers?.acquisition_channel === channelKey && t.created_at.startsWith(dateStr)).length;
+                const dayPurchases = dayAdPurchases > 0 ? dayAdPurchases : dayTxCount;
 
                 const roas = daySpend > 0 ? dayRevenue / daySpend : 0;
                 const cac = dayPurchases > 0 ? daySpend / dayPurchases : 0;
@@ -533,41 +497,18 @@ export async function getFullDashboard(req: Request, res: Response) {
 
     const [statsR, growthR, chartR, attributionR, heatmapR, topCustomersR, adCampaignsR] = await Promise.allSettled([
 
-        // ── Stats ─────────────────────────────────────────────────────────────
+        // ── Stats + Growth (single RPC) ──────────────────────────────────────
         (async () => {
-            const [transResult, custCountR, txCountR] = await Promise.all([
-                supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved'),
-                supabase.from('customers').select('*', { count: 'exact', head: true }).eq('profile_id', profileId),
-                supabase.from('transactions').select('*', { count: 'exact', head: true }).eq('profile_id', profileId).eq('status', 'approved'),
-            ]);
-            if (transResult.error) throw transResult.error;
-            const totalRevenue = transResult.data?.reduce((s, t) => s + Number(t.amount_net), 0) || 0;
-            const transactionCount = txCountR.count || 0;
-            return {
-                total_revenue: totalRevenue,
-                total_customers: custCountR.count || 0,
-                total_transactions: transactionCount,
-                average_ticket: Number((transactionCount > 0 ? totalRevenue / transactionCount : 0).toFixed(2)),
-                currency: 'BRL',
-            };
+            const { data: stats, error } = await supabase.rpc('get_dashboard_stats', {
+                p_profile_id: profileId,
+                p_days: days,
+            });
+            if (error) throw error;
+            return stats;
         })(),
 
-        // ── Growth ────────────────────────────────────────────────────────────
-        (async () => {
-            const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-            const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-            const [curR, prevR] = await Promise.all([
-                supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', thirtyDaysAgo.toISOString()),
-                supabase.from('transactions').select('amount_net').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', sixtyDaysAgo.toISOString()).lt('created_at', thirtyDaysAgo.toISOString()),
-            ]);
-            const cur = (curR.data || []).reduce((s, t) => s + Number(t.amount_net), 0);
-            const prev = (prevR.data || []).reduce((s, t) => s + Number(t.amount_net), 0);
-            return {
-                current_revenue: cur,
-                previous_revenue: prev,
-                growth_percentage: Number((prev > 0 ? ((cur - prev) / prev) * 100 : 100).toFixed(2)),
-            };
-        })(),
+        // Growth is included in stats RPC — resolved below
+        Promise.resolve(null),
 
         // ── Revenue Chart ─────────────────────────────────────────────────────
         (async () => {
@@ -674,9 +615,20 @@ export async function getFullDashboard(req: Request, res: Response) {
 
     const ok = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
 
+    const dashStats = ok(statsR);
     res.status(200).json({
-        stats: ok(statsR),
-        growth: ok(growthR),
+        stats: dashStats ? {
+            total_revenue: dashStats.total_revenue,
+            total_customers: dashStats.total_customers,
+            total_transactions: dashStats.total_transactions,
+            average_ticket: dashStats.average_ticket,
+            currency: 'BRL',
+        } : null,
+        growth: dashStats ? {
+            current_revenue: dashStats.current_revenue,
+            previous_revenue: dashStats.previous_revenue,
+            growth_percentage: dashStats.growth_percentage,
+        } : null,
         chart: ok(chartR),
         attribution: ok(attributionR),
         heatmap: ok(heatmapR),

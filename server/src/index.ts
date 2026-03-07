@@ -30,6 +30,7 @@ import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
+import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
 
@@ -121,6 +122,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         startValuationCalcJob();
         startShopifySyncJob();
         startReportsJob();
+        startChatCleanupJob();
     });
 }
 
