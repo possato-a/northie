@@ -369,6 +369,227 @@ export async function generateXlsx(data, _ai) {
         };
     }
     autoFitColumns(wsCanais);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ABA 4 — Produtos
+    // ══════════════════════════════════════════════════════════════════════════
+    const wsProdutos = workbook.addWorksheet('Produtos', {
+        properties: { tabColor: { argb: 'FFF59E0B' } },
+    });
+    const prodCols = 4;
+    writeSectionTitle(wsProdutos, 1, 'TOP PRODUTOS POR RECEITA', prodCols);
+    writePeriodRow(wsProdutos, 2, generatedStr, prodCols);
+    const prodHeaders = ['Produto', 'Receita Total (R$)', 'Transações', '% do Total'];
+    const pHeaderRow = wsProdutos.getRow(3);
+    prodHeaders.forEach((h, i) => { pHeaderRow.getCell(i + 1).value = h; });
+    styleHeaderRow(pHeaderRow, prodCols, darkFill());
+    if (data.top_products.length === 0) {
+        wsProdutos.mergeCells(4, 1, 4, prodCols);
+        const eCell = wsProdutos.getCell(4, 1);
+        eCell.value = 'Sem dados de produtos no período (Hotmart/Shopify não conectados)';
+        eCell.font = colorFont(C.textSecondary, false, 10);
+        eCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        eCell.fill = whiteFill();
+        wsProdutos.getRow(4).height = 32;
+    }
+    else {
+        data.top_products.forEach((p, idx) => {
+            const rv = idx + 4;
+            const dr = wsProdutos.getRow(rv);
+            styleDataRow(dr, prodCols, idx);
+            dr.getCell(1).value = p.product_name;
+            dr.getCell(1).font = { size: 10 };
+            dr.getCell(2).value = fmtBrl(p.revenue);
+            dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
+            dr.getCell(3).value = p.transactions;
+            dr.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' };
+            dr.getCell(4).value = `${p.pct_of_total}%`;
+            dr.getCell(4).alignment = { vertical: 'middle', horizontal: 'right' };
+        });
+        wsProdutos.autoFilter = {
+            from: { row: 3, column: 1 },
+            to: { row: 3 + data.top_products.length, column: prodCols },
+        };
+    }
+    autoFitColumns(wsProdutos);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ABA 5 — Clientes em Risco
+    // ══════════════════════════════════════════════════════════════════════════
+    const wsRisco = workbook.addWorksheet('Clientes em Risco', {
+        properties: { tabColor: { argb: 'FFEF4444' } },
+    });
+    const riscoCols = 5;
+    writeSectionTitle(wsRisco, 1, 'CLIENTES EM RISCO DE CHURN (CHURN > 60%)', riscoCols);
+    writePeriodRow(wsRisco, 2, generatedStr, riscoCols);
+    const riscoHeaders = ['#', 'LTV (R$)', 'Probabilidade de Churn', 'Dias Sem Comprar', 'Canal de Aquisição'];
+    const rHeaderRow2 = wsRisco.getRow(3);
+    riscoHeaders.forEach((h, i) => { rHeaderRow2.getCell(i + 1).value = h; });
+    styleHeaderRow(rHeaderRow2, riscoCols, darkFill());
+    const atRisk = data.at_risk_customers;
+    if (atRisk.length === 0) {
+        wsRisco.mergeCells(4, 1, 4, riscoCols);
+        const eCell = wsRisco.getCell(4, 1);
+        eCell.value = 'Nenhum cliente com probabilidade de churn acima de 60%';
+        eCell.font = colorFont(C.textSecondary, false, 10);
+        eCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        eCell.fill = whiteFill();
+        wsRisco.getRow(4).height = 32;
+    }
+    else {
+        atRisk.forEach((c, idx) => {
+            const rv = idx + 4;
+            const dr = wsRisco.getRow(rv);
+            styleDataRow(dr, riscoCols, idx);
+            dr.getCell(1).value = idx + 1;
+            dr.getCell(1).alignment = { vertical: 'middle', horizontal: 'center' };
+            dr.getCell(2).value = fmtBrl(c.ltv ?? 0);
+            dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
+            const churnPct = c.churn_probability !== null ? `${fmtNum(c.churn_probability)}%` : 'N/D';
+            const churnColor = (c.churn_probability ?? 0) > 80 ? C.danger : C.warning;
+            dr.getCell(3).value = churnPct;
+            dr.getCell(3).font = colorFont(churnColor, true, 10);
+            dr.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' };
+            const days = c.days_since_purchase !== null ? `${c.days_since_purchase} dias` : 'N/D';
+            dr.getCell(4).value = days;
+            dr.getCell(4).alignment = { vertical: 'middle', horizontal: 'right' };
+            setCellText(dr.getCell(5), translateChannel(c.channel ?? 'desconhecido'));
+        });
+        wsRisco.autoFilter = {
+            from: { row: 3, column: 1 },
+            to: { row: 3 + atRisk.length, column: riscoCols },
+        };
+    }
+    autoFitColumns(wsRisco);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ABA 6 — Segmentação RFM
+    // ══════════════════════════════════════════════════════════════════════════
+    const wsRfm = workbook.addWorksheet('Segmentação RFM', {
+        properties: { tabColor: { argb: 'FF8B5CF6' } },
+    });
+    const rfmCols = 3;
+    const rfmTitle = data.rfm_source === 'estimated'
+        ? 'SEGMENTAÇÃO RFM (ESTIMADO — JOB RFM PENDENTE)'
+        : 'SEGMENTAÇÃO RFM';
+    writeSectionTitle(wsRfm, 1, rfmTitle, rfmCols);
+    writePeriodRow(wsRfm, 2, generatedStr, rfmCols);
+    const rfmHeaders = ['Segmento', 'Clientes', 'LTV Total (R$)'];
+    const rfmHeaderRow = wsRfm.getRow(3);
+    rfmHeaders.forEach((h, i) => { rfmHeaderRow.getCell(i + 1).value = h; });
+    styleHeaderRow(rfmHeaderRow, rfmCols, darkFill());
+    const RFM_COLORS = {
+        champions: C.success,
+        loyalists: '#3B82F6',
+        em_risco: C.warning,
+        perdidos: C.danger,
+        novos: '#8B5CF6',
+        outros: C.textSecondary,
+    };
+    const RFM_LABELS = {
+        champions: 'Champions (melhores clientes)',
+        loyalists: 'Leais (compram com frequência)',
+        em_risco: 'Em Risco (reduzindo atividade)',
+        perdidos: 'Perdidos (inativos há muito tempo)',
+        novos: 'Novos (primeira compra recente)',
+        outros: 'Outros',
+    };
+    data.rfm_distribution.forEach((seg, idx) => {
+        const rv = idx + 4;
+        const dr = wsRfm.getRow(rv);
+        styleDataRow(dr, rfmCols, idx);
+        const segColor = RFM_COLORS[seg.segment] ?? C.textSecondary;
+        dr.getCell(1).value = RFM_LABELS[seg.segment] ?? seg.segment;
+        dr.getCell(1).font = colorFont(segColor, true, 10);
+        dr.getCell(2).value = seg.count;
+        dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
+        dr.getCell(3).value = fmtBrl(seg.ltv);
+        dr.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' };
+    });
+    // Linha de total
+    if (data.rfm_distribution.length > 0) {
+        const totalRow = data.rfm_distribution.length + 4;
+        const totalClientes = data.rfm_distribution.reduce((s, r) => s + r.count, 0);
+        const totalLtv = data.rfm_distribution.reduce((s, r) => s + r.ltv, 0);
+        const tr = wsRfm.getRow(totalRow);
+        tr.height = 24;
+        tr.getCell(1).value = 'TOTAL';
+        tr.getCell(1).font = whiteFont(true, 10);
+        tr.getCell(1).fill = accentFill();
+        tr.getCell(2).value = totalClientes;
+        tr.getCell(2).font = whiteFont(true, 10);
+        tr.getCell(2).fill = accentFill();
+        tr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
+        tr.getCell(3).value = fmtBrl(totalLtv);
+        tr.getCell(3).font = whiteFont(true, 10);
+        tr.getCell(3).fill = accentFill();
+        tr.getCell(3).alignment = { vertical: 'middle', horizontal: 'right' };
+    }
+    autoFitColumns(wsRfm);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ABA 7 — Projeções
+    // ══════════════════════════════════════════════════════════════════════════
+    const wsProj = workbook.addWorksheet('Projeções', {
+        properties: { tabColor: { argb: 'FF10B981' } },
+    });
+    const projCols = 4;
+    writeSectionTitle(wsProj, 1, 'PROJEÇÕES DE RECEITA — 3 CENÁRIOS', projCols);
+    writePeriodRow(wsProj, 2, generatedStr, projCols);
+    const projHeaderRow = wsProj.getRow(3);
+    ['Métrica', 'Conservador', 'Moderado', 'Otimista'].forEach((h, i) => {
+        projHeaderRow.getCell(i + 1).value = h;
+    });
+    styleHeaderRow(projHeaderRow, projCols, darkFill());
+    const { conservative: cons, moderate: mod, optimistic: opt } = data.projections;
+    const projRows = [
+        ['Mês 1 (Receita)', fmtBrl(cons.month1), fmtBrl(mod.month1), fmtBrl(opt.month1)],
+        ['Mês 2 (Receita)', fmtBrl(cons.month2), fmtBrl(mod.month2), fmtBrl(opt.month2)],
+        ['Mês 3 (Receita)', fmtBrl(cons.month3), fmtBrl(mod.month3), fmtBrl(opt.month3)],
+        ['Taxa de Crescimento/mês', `${fmtNum(cons.rate_pct)}%`, `${fmtNum(mod.rate_pct)}%`, `${fmtNum(opt.rate_pct)}%`],
+    ];
+    projRows.forEach(([label, c, m, o], idx) => {
+        const rv = idx + 4;
+        const dr = wsProj.getRow(rv);
+        styleDataRow(dr, projCols, idx);
+        dr.getCell(1).value = label;
+        dr.getCell(1).font = { bold: true, size: 10 };
+        const applyProjCell = (colIdx, val, color) => {
+            const cell = dr.getCell(colIdx);
+            cell.value = val;
+            cell.font = colorFont(color, true, 10);
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+        };
+        applyProjCell(2, c, '#2563EB');
+        applyProjCell(3, m, '#F97316');
+        applyProjCell(4, o, '#10B981');
+    });
+    // Linha separadora
+    const sepRow = projRows.length + 4;
+    wsProj.mergeCells(sepRow, 1, sepRow, projCols);
+    wsProj.getRow(sepRow).height = 8;
+    // Métricas gerais
+    const generalMetrics = [
+        ['MRR Projetado', fmtBrl(data.mrr_projected)],
+        ['ARR Projetado', fmtBrl(data.arr_projected)],
+        ['Payback Period', data.payback_months !== null ? `${fmtNum(data.payback_months, 1)} meses` : 'N/D'],
+        ['LTV / CAC Geral', data.ltv_cac_overall !== null ? `${fmtNum(data.ltv_cac_overall, 2)}x` : 'N/D'],
+        ['Margem de Contribuição', `${fmtNum(data.margin_contribution_pct)}% (${fmtBrl(data.margin_contribution_brl)})`],
+    ];
+    generalMetrics.forEach(([label, val], idx) => {
+        const rv = sepRow + 1 + idx;
+        const dr = wsProj.getRow(rv);
+        const rowIndex = idx;
+        const bg = rowIndex % 2 === 0 ? zebraFill() : whiteFill();
+        dr.height = 22;
+        dr.getCell(1).value = label;
+        dr.getCell(1).font = { bold: true, size: 10 };
+        dr.getCell(1).fill = bg;
+        dr.getCell(1).border = thinBorder();
+        wsProj.mergeCells(rv, 2, rv, projCols);
+        dr.getCell(2).value = val;
+        dr.getCell(2).font = { size: 10 };
+        dr.getCell(2).fill = bg;
+        dr.getCell(2).alignment = { vertical: 'middle', horizontal: 'right' };
+        dr.getCell(2).border = thinBorder();
+    });
+    autoFitColumns(wsProj);
     // ── Buffer ────────────────────────────────────────────────────────────────
     const arrayBuffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(arrayBuffer);

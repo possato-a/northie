@@ -358,44 +358,95 @@ export async function generateReport(req: Request, res: Response) {
             return res.send(pdfBuffer);
         }
 
-        // JSON — estruturado em seções
+        // JSON — estruturado em seções completas
         const jsonBody = {
             northie_relatorio: {
                 gerado_em: new Date().toISOString(),
                 frequencia: freqRaw,
                 periodo: reportData.period,
                 tipo_negocio: reportData.business_type ?? null,
+                perfil: reportData.profile_name ?? null,
+                modelo_negocio: reportData.business_model_info,
+                integracoes_ativas: reportData.integrations_active,
+                integracoes_faltantes: reportData.missing_integrations,
             },
-            resumo: {
+            resumo_financeiro: {
                 receita_liquida: reportData.summary.revenue_net,
                 receita_bruta: reportData.summary.revenue_gross,
                 margem_bruta_pct: reportData.summary.gross_margin_pct,
                 variacao_receita_pct: reportData.summary.revenue_change_pct,
+                receita_periodo_anterior: reportData.summary.prev_revenue_net,
                 transacoes: reportData.summary.transactions,
                 ticket_medio: reportData.summary.aov,
-                gasto_ads: reportData.summary.ad_spend,
-                roas: reportData.summary.roas,
-                novos_clientes: reportData.summary.new_customers,
-                ltv_medio: reportData.summary.ltv_avg,
                 taxa_reembolso_pct: reportData.summary.refund_rate,
                 valor_reembolsado: reportData.summary.refund_amount,
                 total_clientes_base: reportData.summary.total_customers,
             },
-            economia_por_canal: reportData.channel_economics.map(ch => ({
+            metricas_aquisicao: {
+                gasto_total_ads: reportData.summary.ad_spend,
+                roas: reportData.summary.roas,
+                novos_clientes: reportData.summary.new_customers,
+                ltv_medio_novos: reportData.summary.ltv_avg,
+                cac_medio: reportData.cac_overall,
+                ltv_cac_ratio: reportData.ltv_cac_overall,
+                impressoes: reportData.summary.impressions,
+                cliques: reportData.summary.clicks,
+                ctr_pct: reportData.summary.ctr,
+                gasto_por_plataforma: reportData.spend_by_platform,
+                receita_por_plataforma: reportData.revenue_by_platform,
+            },
+            saude_financeira: {
+                health_score: reportData.health_score.score,
+                classificacao: reportData.health_score.label,
+                breakdown: reportData.health_score.breakdown,
+                margem_contribuicao_pct: reportData.margin_contribution_pct,
+                margem_contribuicao_brl: reportData.margin_contribution_brl,
+                payback_meses: reportData.payback_months,
+                mrr_projetado: reportData.mrr_projected,
+                arr_projetado: reportData.arr_projected,
+            },
+            canais_de_aquisicao: reportData.channel_economics.map(ch => ({
                 canal: ch.channel,
                 novos_clientes: ch.new_customers,
                 ltv_medio: ch.avg_ltv,
+                ltv_total: ch.total_ltv,
                 cac: ch.cac,
                 ltv_cac_ratio: ch.ltv_cac_ratio,
-                receita_total_ltv: ch.total_ltv,
                 gasto_canal: ch.total_spend,
                 valor_criado: ch.value_created,
                 status: ch.status,
             })),
-            tendencia_receita: reportData.revenue_trend,
-            top_produtos: reportData.top_products,
-            segmentacao_rfm: { fonte: reportData.rfm_source, segmentos: reportData.rfm_distribution },
-            clientes_em_risco: reportData.at_risk_customers,
+            produtos: {
+                top_produtos: reportData.top_products,
+            },
+            clientes: {
+                segmentacao_rfm: {
+                    fonte: reportData.rfm_source,
+                    segmentos: reportData.rfm_distribution,
+                },
+                em_risco_churn: reportData.at_risk_customers,
+                top_clientes: reportData.top_customers,
+            },
+            tendencia_historica: {
+                receita_mensal: reportData.revenue_trend,
+                receita_consolidada: reportData.consolidated_revenue,
+            },
+            projecoes: {
+                conservador: reportData.projections.conservative,
+                moderado: reportData.projections.moderate,
+                otimista: reportData.projections.optimistic,
+                base_mensal: reportData.projections.base_monthly,
+                nota_trajetoria: reportData.projections.trajectory_note,
+            },
+            analise_ia: {
+                situacao_geral: aiAnalysis.situacao_geral,
+                resumo_executivo: aiAnalysis.resumo_executivo,
+                diagnosticos: aiAnalysis.diagnosticos,
+                proximos_passos: aiAnalysis.proximos_passos,
+                gerado_em: aiAnalysis.generated_at,
+                modelo: aiAnalysis.model,
+            },
+            transacoes_detalhadas: reportData.transactions_detail,
         };
         // Loga APÓS montar o JSON com sucesso (fire-and-forget)
         writeReportLog({ profileId, freqRaw, format, period: reportData.period, situacao_geral: null, snapshot });
