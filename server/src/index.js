@@ -1,4 +1,4 @@
-import express from 'express';
+import express, {} from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -81,6 +81,16 @@ app.use('/api/reports', authMiddleware, reportsRoutes);
 // Basic Route
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
+});
+// Global error handler — captura qualquer erro não tratado nas rotas (Express 5 propaga async throws)
+// Sem isso, Express retorna HTML 500; com isso, retorna JSON consistente
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err, _req, res, _next) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[Express] Unhandled error:', message);
+    if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error', debug: { message } });
+    }
 });
 // Start server only if not in Vercel (Production)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
