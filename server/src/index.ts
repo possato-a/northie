@@ -44,6 +44,9 @@ app.use(helmet());
 
 const allowedOrigins = [
     process.env.FRONTEND_URL,
+    // Vercel injeta essas vars automaticamente — cobre deploy de preview e produção
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null,
     'http://localhost:5173',
     'http://localhost:3001',
 ].filter(Boolean) as string[];

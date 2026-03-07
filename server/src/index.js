@@ -30,6 +30,7 @@ import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
+import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
 dotenv.config({ path: '.env.local' });
@@ -39,6 +40,9 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 const allowedOrigins = [
     process.env.FRONTEND_URL,
+    // Vercel injeta essas vars automaticamente — cobre deploy de preview e produção
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null,
     'http://localhost:5173',
     'http://localhost:3001',
 ].filter(Boolean);
@@ -96,19 +100,36 @@ app.use((err, _req, res, _next) => {
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
         console.log(`Northie Backend running on port ${PORT}`);
-        startTokenRefreshJob();
-        startAdsSyncJob();
-        startHotmartSyncJob();
-        startRfmCalcJob();
+        // ── Staggered startup — evita thundering herd no DB (512MB) ──
+        // Jobs escalonados com delays crescentes para não sobrecarregar
+        const delay = (ms, fn) => setTimeout(fn, ms);
+        // Imediato: só webhook recovery (leve, sem queries pesadas)
         webhookQueue.recoverPending();
-        startAlertsJob();
-        startGrowthCorrelationsJob();
-        startCorrelationRefreshJob();
+        // 5s: token refresh (query leve em integrations)
+        delay(5_000, () => startTokenRefreshJob());
+        // 30s: correlation refresh (schedule-based, não roda imediato)
+        delay(30_000, () => startCorrelationRefreshJob());
+        // 60s: chat cleanup (leve)
+        delay(60_000, () => startChatCleanupJob());
+        // 2min: alerts
+        delay(2 * 60_000, () => startAlertsJob());
+        // 4min: growth correlations
+        delay(4 * 60_000, () => startGrowthCorrelationsJob());
+        // 6min: RFM calc
+        delay(6 * 60_000, () => startRfmCalcJob());
+        // 10min: ads sync (pesado)
+        delay(10 * 60_000, () => startAdsSyncJob());
+        // 12min: hotmart sync
+        delay(12 * 60_000, () => startHotmartSyncJob());
+        // 15min: shopify sync (schedule-based)
+        delay(15 * 60_000, () => startShopifySyncJob());
+        // 20min: reports
+        delay(20 * 60_000, () => startReportsJob());
+        // SafetyNet já tem delay interno de 3h
         startSafetyNetJob();
-        startCapitalScoreJob();
-        startValuationCalcJob();
-        startShopifySyncJob();
-        startReportsJob();
+        // Capital + Valuation: mensais, não precisam rodar no boot
+        delay(30 * 60_000, () => startCapitalScoreJob());
+        delay(35 * 60_000, () => startValuationCalcJob());
     });
 }
 export default app;
