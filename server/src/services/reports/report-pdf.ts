@@ -4,7 +4,8 @@
  * Identidade visual Northie: #F97316 (laranja), #0F0F23 (dark), Poppins + Geist Mono.
  */
 
-import puppeteer from 'puppeteer';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 import type { generateReportData } from './report-generator.js';
 import type { ReportAIAnalysis, ChannelDiagnosis } from './report-ai-analyst.js';
 
@@ -1067,20 +1068,30 @@ export async function generatePdf(data: ReportData, ai?: ReportAIAnalysis): Prom
     const analysis = ai ?? FALLBACK_AI;
     const html     = buildHTML(data, analysis);
 
+    // Em produção (Vercel serverless) usa @sparticuz/chromium.
+    // Em desenvolvimento local usa Chrome instalado na máquina.
+    const isVercel = !!process.env.VERCEL;
+
+    const executablePath = isVercel
+        ? await chromium.executablePath()
+        : process.platform === 'win32'
+            ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+            : '/usr/bin/google-chrome';
+
+    const args = isVercel
+        ? chromium.args
+        : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'];
+
     const browser = await puppeteer.launch({
+        args,
+        executablePath,
         headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--font-render-hinting=none',
-        ],
     });
 
     try {
         const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60_000 });
+        // networkidle2 (vs networkidle0) tolera conexões abertas — mais robusto em serverless
+        await page.setContent(html, { waitUntil: 'networkidle2', timeout: 60_000 });
         const pdf = await page.pdf({
             format:          'A4',
             printBackground: true,
