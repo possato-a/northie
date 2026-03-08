@@ -67,3 +67,10 @@ export function calcGrowth(current: number, previous: number): number | null {
     if (previous === 0) return null
     return ((current - previous) / previous) * 100
 }
+
+/**
+ * Combina classes CSS condicionalmente (compatível com shadcn/ui).
+ */
+export function cn(...classes: (string | undefined | null | false)[]): string {
+    return classes.filter(Boolean).join(' ')
+}
