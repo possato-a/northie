@@ -309,14 +309,24 @@ function inputStyle(focused: boolean): React.CSSProperties {
 }
 
 function PerfilPanel({ user }: { user?: any }) {
-    const initialName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
     const email = user?.email || ''
 
-    // Nome
-    const [name, setName] = useState(initialName)
+    // Nome — fonte primária é o profiles.full_name (DB), fallback para session metadata
+    const [name, setName] = useState(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
+    const [nameLoaded, setNameLoaded] = useState(false)
     const [nameFocused, setNameFocused] = useState(false)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+
+    // Carrega nome do DB para evitar stale data do JWT em cache
+    useEffect(() => {
+        if (!user?.id || nameLoaded) return
+        supabase.from('profiles').select('full_name').eq('id', user.id).single()
+            .then(({ data }) => {
+                if (data?.full_name) setName(data.full_name)
+                setNameLoaded(true)
+            }, () => setNameLoaded(true))
+    }, [user?.id, nameLoaded])
 
     // Email change
     const [emailEditing, setEmailEditing] = useState(false)
@@ -330,6 +340,8 @@ function PerfilPanel({ user }: { user?: any }) {
     const [newPw, setNewPw] = useState('')
     const [confirmPw, setConfirmPw] = useState('')
     const [pwFocused, setPwFocused] = useState<string | null>(null)
+    const [showNewPw, setShowNewPw] = useState(false)
+    const [showConfirmPw, setShowConfirmPw] = useState(false)
     const [pwState, setPwState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
     const [pwError, setPwError] = useState<string | null>(null)
 
@@ -599,28 +611,60 @@ function PerfilPanel({ user }: { user?: any }) {
                             style={{ overflow: 'hidden' }}
                         >
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                {/* Nova senha com show/hide */}
+                                <div style={{ position: 'relative', width: 260 }}>
                                     <input
-                                        type="password"
+                                        type={showNewPw ? 'text' : 'password'}
                                         value={newPw}
                                         onChange={e => { setNewPw(e.target.value); setPwError(null) }}
                                         onFocus={() => setPwFocused('new')}
                                         onBlur={() => setPwFocused(null)}
                                         placeholder="Nova senha (mín. 8 caracteres)"
-                                        style={{ ...inputStyle(pwFocused === 'new'), width: 260 }}
+                                        style={{ ...inputStyle(pwFocused === 'new'), width: '100%', paddingRight: 36 }}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNewPw(v => !v)}
+                                        style={{
+                                            position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            color: 'var(--color-text-tertiary)', padding: 0, display: 'flex',
+                                        }}
+                                        tabIndex={-1}
+                                    >
+                                        {showNewPw
+                                            ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        }
+                                    </button>
                                 </div>
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                {/* Confirmar senha com show/hide */}
+                                <div style={{ position: 'relative', width: 260 }}>
                                     <input
-                                        type="password"
+                                        type={showConfirmPw ? 'text' : 'password'}
                                         value={confirmPw}
                                         onChange={e => { setConfirmPw(e.target.value); setPwError(null) }}
                                         onFocus={() => setPwFocused('confirm')}
                                         onBlur={() => setPwFocused(null)}
                                         placeholder="Confirmar nova senha"
-                                        style={{ ...inputStyle(pwFocused === 'confirm'), width: 260 }}
+                                        style={{ ...inputStyle(pwFocused === 'confirm'), width: '100%', paddingRight: 36 }}
                                         onKeyDown={e => e.key === 'Enter' && handlePasswordChange()}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPw(v => !v)}
+                                        style={{
+                                            position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            color: 'var(--color-text-tertiary)', padding: 0, display: 'flex',
+                                        }}
+                                        tabIndex={-1}
+                                    >
+                                        {showConfirmPw
+                                            ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        }
+                                    </button>
                                 </div>
                                 {pwError && (
                                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--status-critical)', margin: 0 }}>{pwError}</p>
