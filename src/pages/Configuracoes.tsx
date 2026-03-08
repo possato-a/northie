@@ -446,7 +446,13 @@ function PerfilPanel({ user }: { user?: any }) {
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>Excluir conta</p>
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>Todos os seus dados serão permanentemente removidos.</p>
                     </div>
-                    <button style={{
+                    <button
+                        onClick={() => {
+                            if (window.confirm('Tem certeza? Esta ação é irreversível e todos os seus dados serão permanentemente removidos.\n\nPara continuar, entre em contato com suporte@northie.com.br')) {
+                                window.location.href = 'mailto:suporte@northie.com.br?subject=Solicitação de exclusão de conta&body=Olá, gostaria de solicitar a exclusão permanente da minha conta.'
+                            }
+                        }}
+                        style={{
                         padding: '7px 14px',
                         borderRadius: 'var(--radius-md)',
                         border: '1px solid var(--priority-high)',
@@ -467,12 +473,11 @@ function PerfilPanel({ user }: { user?: any }) {
 }
 
 function PreferenciasPanel({ user }: { user?: any }) {
-    const { isDark, toggleTheme } = useTheme()
+    const { isDark, toggleTheme, isCompact, setCompact } = useTheme()
     const [language, setLanguage] = useState('Português (Brasil)')
     const [dateFormat, setDateFormat] = useState('DD/MM/AAAA')
     const [startWeekMonday, setStartWeekMonday] = useState(true)
     const [autoTimezone, setAutoTimezone] = useState(true)
-    const [compactMode, setCompactMode] = useState(false)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
 
@@ -486,7 +491,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
                 if (prefs.dateFormat) setDateFormat(prefs.dateFormat)
                 if (prefs.startWeekMonday !== undefined) setStartWeekMonday(prefs.startWeekMonday)
                 if (prefs.autoTimezone !== undefined) setAutoTimezone(prefs.autoTimezone)
-                if (prefs.compactMode !== undefined) setCompactMode(prefs.compactMode)
+                if (prefs.compactMode !== undefined) setCompact(prefs.compactMode)
             })
     }, [user?.id])
 
@@ -497,7 +502,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
             const { data } = await supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
             const current = data?.workspace_config || {}
             await supabase.from('profiles').update({
-                workspace_config: { ...current, preferences: { language, dateFormat, startWeekMonday, autoTimezone, compactMode } }
+                workspace_config: { ...current, preferences: { language, dateFormat, startWeekMonday, autoTimezone, compactMode: isCompact } }
             }).eq('id', user.id)
             setSaved(true)
             setTimeout(() => setSaved(false), 2000)
@@ -541,7 +546,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
                 title="Modo compacto"
                 description="Reduz o espaçamento entre elementos para exibir mais informações."
             >
-                <Toggle value={compactMode} onChange={setCompactMode} />
+                <Toggle value={isCompact} onChange={setCompact} />
             </SettingRow>
 
             <div style={{ marginTop: 32, marginBottom: 8 }}>
@@ -703,7 +708,6 @@ function NotificacoesPanel({ user }: { user?: any }) {
 }
 
 function SegurancaPanel() {
-    const [twoFactor, setTwoFactor] = useState(false)
     const [signingOut, setSigningOut] = useState(false)
 
     const handleSignOut = async () => {
@@ -717,23 +721,41 @@ function SegurancaPanel() {
 
             <SettingRow
                 title="Autenticação em dois fatores"
-                description="Adicione uma camada extra de segurança à sua conta."
+                description="Disponível em breve. Adicione uma camada extra de segurança à sua conta."
             >
-                <Toggle value={twoFactor} onChange={setTwoFactor} />
+                <span style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 500,
+                    color: 'var(--color-text-tertiary)',
+                    background: 'var(--color-bg-tertiary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '3px 8px',
+                    letterSpacing: '0.03em',
+                }}>Em breve</span>
             </SettingRow>
 
             <SettingRow
                 title="Sessões ativas"
                 description="Gerencie onde sua conta está conectada."
             >
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Ver sessões
+                <button
+                    disabled
+                    className="notion-btn"
+                    style={{ border: '1px solid var(--color-border)', opacity: 0.45, cursor: 'default' }}
+                >
+                    Em breve
                 </button>
             </SettingRow>
 
             <SettingRow title="Log de atividade" description="Histórico de acessos e ações da conta.">
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Exportar log
+                <button
+                    disabled
+                    className="notion-btn"
+                    style={{ border: '1px solid var(--color-border)', opacity: 0.45, cursor: 'default' }}
+                >
+                    Em breve
                 </button>
             </SettingRow>
 

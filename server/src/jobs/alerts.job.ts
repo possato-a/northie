@@ -208,21 +208,27 @@ async function checkOrganicSpike(profileId: string): Promise<void> {
 async function runAlertsForAllProfiles(): Promise<void> {
     console.log('[Alerts] Running alert checks...');
 
-    const { data: profiles } = await supabase.from('profiles').select('id');
+    const { data: profiles } = await supabase.from('profiles').select('id, workspace_config');
 
     for (const profile of profiles || []) {
         try {
-            // allSettled: uma falha não cancela as outras verificações
-            const results = await Promise.allSettled([
-                checkRoasDrop(profile.id),
-                checkHighChurn(profile.id),
-                checkRevenueZero(profile.id),
-                checkOrganicSpike(profile.id),
-            ]);
+            const notif = (profile as any).workspace_config?.notifications ?? {};
+            // Default true — só desativa se o usuário explicitamente desligou
+            const alertRoasEnabled = notif.alertRoas !== false;
+
+            // Checks críticos (churn, receita zero, orgânico) sempre rodam
+            // checkRoasDrop respeita preferência do usuário
+            const checks: { fn: Promise<void>; name: string }[] = [
+                ...(alertRoasEnabled ? [{ fn: checkRoasDrop(profile.id), name: 'checkRoasDrop' }] : []),
+                { fn: checkHighChurn(profile.id),   name: 'checkHighChurn' },
+                { fn: checkRevenueZero(profile.id), name: 'checkRevenueZero' },
+                { fn: checkOrganicSpike(profile.id), name: 'checkOrganicSpike' },
+            ];
+
+            const results = await Promise.allSettled(checks.map(c => c.fn));
             results.forEach((r, i) => {
                 if (r.status === 'rejected') {
-                    const names = ['checkRoasDrop', 'checkHighChurn', 'checkRevenueZero', 'checkOrganicSpike'];
-                    console.error(`[Alerts] ${names[i]} failed for ${profile.id}:`, r.reason?.message);
+                    console.error(`[Alerts] ${checks[i]!.name} failed for ${profile.id}:`, r.reason?.message);
                 }
             });
         } catch (err: any) {

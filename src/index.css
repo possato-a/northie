@@ -567,6 +567,18 @@ h1, h2, h3 {
   letter-spacing: -0.02em;
 }
 
+/* ── Compact mode ────────────────────────────────────────────────────────── */
+
+[data-compact="true"] {
+  --space-4:  12px;  /* 16px → 12px */
+  --space-5:  14px;  /* 20px → 14px */
+  --space-6:  16px;  /* 24px → 16px */
+  --space-8:  20px;  /* 32px → 20px */
+  --space-10: 28px;  /* 40px → 28px */
+  --space-12: 36px;  /* 48px → 36px */
+  --space-16: 48px;  /* 64px → 48px */
+}
+
 /* ── Reduced motion ───────────────────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
