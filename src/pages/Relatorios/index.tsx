@@ -455,7 +455,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     // Recipients
     const [emailRecipients, setEmailRecipients] = useState<string[]>([])
     const [recipientInput, setRecipientInput] = useState('')
-    const [recipientError, setRecipientError] = useState<string | null>(null)
+    const [recipientError] = useState<string | null>(null)
 
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
