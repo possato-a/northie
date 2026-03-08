@@ -1528,7 +1528,7 @@ function buildTopClientes(data: ReportData, profile: string, period: string, gen
         .slice(0, 10);
 
     const totalLtv = allClients.reduce((sum, c) => sum + (c.ltv ?? 0), 0);
-    const maxLtv   = allClients.length > 0 ? (allClients[0].ltv ?? 1) : 1;
+    const maxLtv   = allClients.length > 0 ? (allClients[0]?.ltv ?? 1) : 1;
     const baseLtv  = s.ltv_avg * s.total_customers;
     const top10pct = baseLtv > 0 ? ((totalLtv / baseLtv) * 100).toFixed(1) : '—';
 
