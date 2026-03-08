@@ -467,14 +467,17 @@ function PerfilPanel({ user }: { user?: any }) {
 }
 
 function PreferenciasPanel({ user }: { user?: any }) {
-    const { isDark, toggleTheme } = useTheme()
-    const [language, setLanguage] = useState('Português (Brasil)')
-    const [dateFormat, setDateFormat] = useState('DD/MM/AAAA')
-    const [startWeekMonday, setStartWeekMonday] = useState(true)
+    const { isDark, setTheme, isCompact, setCompact, language, setLanguage, dateFormat, setDateFormat, startWeekMonday, setStartWeekMonday } = useTheme()
     const [autoTimezone, setAutoTimezone] = useState(true)
-    const [compactMode, setCompactMode] = useState(false)
+    const [detectedTz, setDetectedTz] = useState('')
     const [saving, setSaving] = useState(false)
-    const [saved, setSaved] = useState(false)
+
+    useEffect(() => {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+        setDetectedTz(tz)
+        // Se autoTimezone já estava ativo (valor padrão true), persiste no localStorage
+        try { localStorage.setItem('northie-timezone', tz) } catch {}
+    }, [])
 
     useEffect(() => {
         if (!user?.id) return
@@ -482,33 +485,76 @@ function PreferenciasPanel({ user }: { user?: any }) {
             .then(({ data }) => {
                 const prefs = data?.workspace_config?.preferences
                 if (!prefs) return
-                if (prefs.language) setLanguage(prefs.language)
-                if (prefs.dateFormat) setDateFormat(prefs.dateFormat)
-                if (prefs.startWeekMonday !== undefined) setStartWeekMonday(prefs.startWeekMonday)
                 if (prefs.autoTimezone !== undefined) setAutoTimezone(prefs.autoTimezone)
-                if (prefs.compactMode !== undefined) setCompactMode(prefs.compactMode)
             })
     }, [user?.id])
 
-    const handleSave = async () => {
+    const savePrefs = async (patch: Record<string, unknown>) => {
         if (!user?.id) return
         setSaving(true)
         try {
             const { data } = await supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
             const current = data?.workspace_config || {}
             await supabase.from('profiles').update({
-                workspace_config: { ...current, preferences: { language, dateFormat, startWeekMonday, autoTimezone, compactMode } }
+                workspace_config: { ...current, preferences: { ...(current.preferences || {}), ...patch } }
             }).eq('id', user.id)
-            setSaved(true)
-            setTimeout(() => setSaved(false), 2000)
         } finally {
             setSaving(false)
         }
     }
 
+    const handleTheme = (label: string) => {
+        const t = label === 'Escuro' ? 'dark' : 'light'
+        setTheme(t)
+        savePrefs({ theme: t })
+    }
+
+    const handleCompact = (v: boolean) => {
+        setCompact(v)
+        savePrefs({ compactMode: v })
+    }
+
+    const handleLanguage = (v: string) => {
+        setLanguage(v)
+        savePrefs({ language: v })
+    }
+
+    const handleDateFormat = (v: string) => {
+        setDateFormat(v)
+        savePrefs({ dateFormat: v })
+    }
+
+    const handleStartWeek = (v: boolean) => {
+        setStartWeekMonday(v)
+        savePrefs({ startWeekMonday: v })
+    }
+
+    const handleAutoTimezone = (v: boolean) => {
+        setAutoTimezone(v)
+        const patch: Record<string, unknown> = { autoTimezone: v }
+        if (v) {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+            setDetectedTz(tz)
+            patch.timezone = tz
+            try { localStorage.setItem('northie-timezone', tz) } catch {}
+            supabase.from('profiles').update({ timezone: tz }).eq('id', user?.id).then()
+        } else {
+            try { localStorage.removeItem('northie-timezone') } catch {}
+        }
+        savePrefs(patch)
+    }
+
     return (
         <div>
-            <SectionHeading>Aparência</SectionHeading>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <SectionHeading>Aparência</SectionHeading>
+                {saving && (
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                        Salvando...
+                    </span>
+                )}
+            </div>
+
             <SettingRow
                 title="Tema"
                 description="Escolha entre modo claro e escuro para a plataforma."
@@ -517,7 +563,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
                     {['Claro', 'Escuro'].map(t => (
                         <button
                             key={t}
-                            onClick={() => { if ((t === 'Escuro') !== isDark) toggleTheme() }}
+                            onClick={() => handleTheme(t)}
                             style={{
                                 padding: '6px 14px',
                                 borderRadius: 'var(--radius-md)',
@@ -541,7 +587,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
                 title="Modo compacto"
                 description="Reduz o espaçamento entre elementos para exibir mais informações."
             >
-                <Toggle value={compactMode} onChange={setCompactMode} />
+                <Toggle value={isCompact} onChange={handleCompact} />
             </SettingRow>
 
             <div style={{ marginTop: 32, marginBottom: 8 }}>
@@ -552,47 +598,29 @@ function PreferenciasPanel({ user }: { user?: any }) {
                 <Select
                     value={language}
                     options={['Português (Brasil)', 'English (US)', 'Español']}
-                    onChange={setLanguage}
+                    onChange={handleLanguage}
                 />
             </SettingRow>
 
             <SettingRow title="Iniciar semana na segunda-feira" description="Afeta calendários e visões de data.">
-                <Toggle value={startWeekMonday} onChange={setStartWeekMonday} />
+                <Toggle value={startWeekMonday} onChange={handleStartWeek} />
             </SettingRow>
 
             <SettingRow title="Formato de data">
                 <Select
                     value={dateFormat}
                     options={['DD/MM/AAAA', 'MM/DD/AAAA', 'AAAA-MM-DD', 'Relativo']}
-                    onChange={setDateFormat}
+                    onChange={handleDateFormat}
                 />
             </SettingRow>
 
-            <SettingRow title="Detectar fuso horário automaticamente" description="Lembretes e notificações serão enviados no seu horário local." divider={false}>
-                <Toggle value={autoTimezone} onChange={setAutoTimezone} />
+            <SettingRow
+                title="Detectar fuso horário automaticamente"
+                description={autoTimezone && detectedTz ? `Detectado: ${detectedTz}` : 'Lembretes e notificações serão enviados no seu horário local.'}
+                divider={false}
+            >
+                <Toggle value={autoTimezone} onChange={handleAutoTimezone} />
             </SettingRow>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
-                <button
-                    onClick={handleSave}
-                    disabled={saving || !user?.id}
-                    style={{
-                        padding: '7px 20px',
-                        borderRadius: 'var(--radius-md)',
-                        border: 'none',
-                        background: saved ? 'var(--accent-green)' : 'var(--color-primary)',
-                        color: 'white',
-                        fontFamily: 'var(--font-sans)',
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: 500,
-                        cursor: saving ? 'default' : 'pointer',
-                        opacity: saving ? 0.7 : 1,
-                        transition: 'background 0.2s',
-                    }}
-                >
-                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar preferências'}
-                </button>
-            </div>
         </div>
     )
 }

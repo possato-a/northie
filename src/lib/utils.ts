@@ -3,20 +3,32 @@
  * Funções utilitárias compartilhadas por toda a plataforma Northie.
  */
 
-/**
- * Formata número para o padrão brasileiro sem casas decimais.
- * Ex: 1234567 → "1.234.567"
- */
-export function fmtBR(v: number): string {
-    return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
+/** Lê o locale do usuário salvo no localStorage. */
+function _locale(): string {
+    try {
+        const map: Record<string, string> = {
+            'Português (Brasil)': 'pt-BR',
+            'English (US)': 'en-US',
+            'Español': 'es-ES',
+        }
+        return map[localStorage.getItem('northie-language') || ''] ?? 'pt-BR'
+    } catch { return 'pt-BR' }
 }
 
 /**
- * Formata número para BRL com casas decimais.
- * Ex: 1234.56 → "R$ 1.234,56"
+ * Formata número respeitando o locale do usuário.
+ * Ex (pt-BR): 1234567 → "1.234.567"
+ */
+export function fmtBR(v: number): string {
+    return new Intl.NumberFormat(_locale(), { maximumFractionDigits: 0 }).format(v)
+}
+
+/**
+ * Formata número para moeda respeitando o locale do usuário.
+ * Ex (pt-BR): 1234.56 → "R$ 1.234,56"
  */
 export function fmtCurrency(v: number, decimals = 2): string {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat(_locale(), {
         style: 'currency',
         currency: 'BRL',
         minimumFractionDigits: decimals,
@@ -25,11 +37,10 @@ export function fmtCurrency(v: number, decimals = 2): string {
 }
 
 /**
- * Formata percentual.
- * Ex: 0.1234 → "12,34%"
+ * Formata percentual respeitando o locale do usuário.
  */
 export function fmtPercent(v: number, decimals = 1): string {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat(_locale(), {
         style: 'percent',
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
@@ -37,19 +48,19 @@ export function fmtPercent(v: number, decimals = 1): string {
 }
 
 /**
- * Formata data ISO para padrão brasileiro.
- * Ex: "2024-01-15" → "15/01/2024"
+ * Formata data ISO respeitando o locale do usuário.
+ * Ex: "2024-01-15" → "15/01/2024" (pt-BR) ou "01/15/2024" (en-US)
  */
 export function fmtDate(iso: string): string {
-    return new Date(iso).toLocaleDateString('pt-BR')
+    return new Date(iso).toLocaleDateString(_locale())
 }
 
 /**
- * Formata data ISO para padrão curto (dia + mês abreviado).
- * Ex: "2024-01-15" → "15 jan"
+ * Formata data ISO para padrão curto respeitando o locale do usuário.
+ * Ex: "2024-01-15" → "15 jan" (pt-BR)
  */
 export function fmtDateShort(iso: string): string {
-    return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+    return new Date(iso).toLocaleDateString(_locale(), { day: '2-digit', month: 'short' })
 }
 
 /**

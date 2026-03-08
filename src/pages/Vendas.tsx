@@ -172,7 +172,7 @@ export default function Vendas({ onToggleChat }: { onToggleChat?: () => void; us
       const rawTx = Array.isArray(txRes.data) ? txRes.data : []
       const mapped = rawTx.map((t: any) => ({
         id: t.id,
-        date: new Date(t.created_at).toLocaleDateString('pt-BR'),
+        date: t.created_at,
         client: t.customers?.name || t.customers?.email || 'Desconhecido',
         product: t.product_name || '—',
         value: Number(t.amount_net),

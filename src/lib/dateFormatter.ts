@@ -22,6 +22,13 @@ export function getDateFormat(): string {
     return getStoredPref('northie-dateformat', 'DD/MM/AAAA')
 }
 
+export function getTimezone(): string {
+    try {
+        return localStorage.getItem('northie-timezone') ||
+            Intl.DateTimeFormat().resolvedOptions().timeZone
+    } catch { return 'America/Sao_Paulo' }
+}
+
 /** Formata uma data curta (ex: 15/03/2026) respeitando o formato salvo. */
 export function formatDate(date: Date | string | null | undefined): string {
     if (!date) return '—'
@@ -56,14 +63,16 @@ export function formatDate(date: Date | string | null | undefined): string {
     }
 }
 
-/** Formata data + hora curta (ex: 15/03/2026 14:32). */
+/** Formata data + hora respeitando timezone e locale do usuário. */
 export function formatDateTime(date: Date | string | null | undefined): string {
     if (!date) return '—'
     const d = typeof date === 'string' ? new Date(date) : date
     if (isNaN(d.getTime())) return '—'
-    const h = String(d.getHours()).padStart(2, '0')
-    const m = String(d.getMinutes()).padStart(2, '0')
-    return `${formatDate(d)} ${h}:${m}`
+    return new Intl.DateTimeFormat(getLocale(), {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: getTimezone(),
+    }).format(d)
 }
 
 /** Formata data por extenso respeitando o idioma. */

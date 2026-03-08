@@ -17,6 +17,7 @@ import Login from './pages/Login'
 import { supabase } from './lib/supabase'
 import { Session } from '@supabase/supabase-js'
 import { setProfileId } from './lib/api'
+import { useTheme } from './ThemeContext'
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -25,6 +26,24 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [isChatFull, setIsChatFull] = useState(false)
+  const { setTheme, setCompact, setLanguage, setDateFormat, setStartWeekMonday, isCompact } = useTheme()
+
+  // Sync preferences from DB when user logs in
+  useEffect(() => {
+    const uid = session?.user?.id
+    if (!uid) return
+    supabase.from('profiles').select('workspace_config').eq('id', uid).single()
+      .then(({ data }) => {
+        const prefs = data?.workspace_config?.preferences
+        if (!prefs) return
+        if (prefs.theme === 'light' || prefs.theme === 'dark') setTheme(prefs.theme)
+        if (prefs.compactMode !== undefined) setCompact(prefs.compactMode)
+        if (prefs.language) setLanguage(prefs.language)
+        if (prefs.dateFormat) setDateFormat(prefs.dateFormat)
+        if (prefs.startWeekMonday !== undefined) setStartWeekMonday(prefs.startWeekMonday)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
 
   // Listen for navigation events dispatched by TopBar
   useEffect(() => {
@@ -126,7 +145,7 @@ export default function App() {
         {activePage === 'growth' ? (
           <Growth />
         ) : (
-          <div style={{ padding: '28px 64px 80px' }}>
+          <div style={{ padding: isCompact ? '14px 32px 48px' : '28px 64px 80px', maxWidth: 'var(--content-max-width)', width: '100%' }}>
             {activePage === 'visao-geral' && (
               <Dashboard
                 onToggleChat={() => setChatOpen(!chatOpen)}

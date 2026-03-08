@@ -8,6 +8,8 @@ import RFMCards from '../components/ui/RFMCards'
 import ClientProfile from '../components/ui/ClientProfile'
 import { dataApi, dashboardApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
+import { formatDate } from '../lib/dateFormatter'
+import { useTheme } from '../ThemeContext'
 import type { ClientUI, ClientStatus, AcquisitionChannel, RFMSegment } from '../types'
 
 // Deriva o segmento RFM a partir do rfm_score (ex: "345" → 'Em Risco')
@@ -235,9 +237,10 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }) {
-    const [selectedClient, setSelectedClient] = useState<ClientUI | null>(null)
+    const [selectedId, setSelectedId] = useState<string | null>(null)
     const [clients, setClients] = useState<ClientUI[]>([])
     const [loading, setLoading] = useState(true)
+    const { language, dateFormat } = useTheme()
 
     useEffect(() => {
         const custPromise = dataApi.getCustomers().catch(() => ({ data: [] }))
@@ -262,7 +265,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                 if (tx.status !== 'approved') continue
                 const list = purchasesByCustomer.get(tx.customer_id) || []
                 list.push({
-                    date: new Date(tx.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }),
+                    date: tx.created_at,  // raw ISO — formatado no render via displayClients
                     product: tx.product_name || '—',
                     value: Number(tx.amount_net),
                     _sortDate: new Date(tx.created_at).getTime(),
@@ -290,7 +293,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                     margin,
                     status,
                     segment: rfmSegmentFromScore(c.rfm_score),
-                    lastPurchase: c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : 'N/A',
+                    lastPurchase: c.last_purchase_at || '',  // raw ISO — formatado no render
                     purchases,
                     churnProb: Number(c.churn_probability || 0),
                 }
@@ -310,6 +313,21 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
             emRisco: clients.filter(c => c.status === 'Risco').length,
         }
     }, [clients])
+
+    // Re-formata datas quando idioma ou formato mudam (sem refetch da API)
+    const displayClients = useMemo(() =>
+        clients.map(c => ({
+            ...c,
+            lastPurchase: formatDate(c.lastPurchase) || '—',
+            purchases: c.purchases.map(p => ({ ...p, date: formatDate(p.date) })),
+        })),
+        [clients, language, dateFormat]  // eslint-disable-line react-hooks/exhaustive-deps
+    )
+
+    const selectedClient = useMemo(
+        () => selectedId ? displayClients.find(c => c.id === selectedId) ?? null : null,
+        [selectedId, displayClients]
+    )
 
     return (
         <div style={{ paddingTop: 28, paddingBottom: 80 }}>
@@ -349,7 +367,7 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
                 style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.25fr)', gap: 64, marginBottom: 64 }}
             >
                 <CohortHeatmap />
-                <ClientList clients={clients} loading={loading} onSelect={setSelectedClient} />
+                <ClientList clients={displayClients} loading={loading} onSelect={c => setSelectedId(c.id)} />
             </motion.div>
 
             <div style={{ height: 1, background: 'rgba(var(--fg-rgb), 0.08)', marginTop: 12, marginBottom: 48 }} />
@@ -363,11 +381,9 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
             </motion.div>
 
             {/* Client profile drawer */}
-            <AnimatePresence>
-                {selectedClient && (
-                    <ClientProfile client={selectedClient} onClose={() => setSelectedClient(null)} />
-                )}
-            </AnimatePresence>
+            {selectedClient && (
+                <ClientProfile client={selectedClient} onClose={() => setSelectedId(null)} />
+            )}
         </div>
     )
 }
