@@ -65,10 +65,13 @@ export function rfmSegment(score) {
  */
 async function buildChannelCacMap(profileId) {
     // Total de spend por plataforma
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const { data: metrics } = await supabase
         .from('ad_metrics')
         .select('platform, spend_brl')
-        .eq('profile_id', profileId);
+        .eq('profile_id', profileId)
+        .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
     const spendByChannel = {};
     for (const m of metrics || []) {
         const ch = m.platform === 'meta' ? 'meta_ads' : m.platform === 'google' ? 'google_ads' : m.platform;
@@ -125,11 +128,14 @@ async function calcRfmForProfile(profileId) {
         .select('customer_id, amount_net, created_at')
         .eq('profile_id', profileId)
         .eq('status', 'approved');
-    // 2. Calcular métricas brutas por customer
+    // 2. Pre-agrupar transações por customer (O(M) uma vez, vs O(N*M) com filter)
     const now = Date.now();
+    const txByCustomer = new Map();
+    for (const t of transactions || []) {
+        txByCustomer.set(t.customer_id, (txByCustomer.get(t.customer_id) || 0) + 1);
+    }
     const customerMetrics = customers.map(c => {
-        const txs = (transactions || []).filter(t => t.customer_id === c.id);
-        const frequency = txs.length;
+        const frequency = txByCustomer.get(c.id) || 0;
         const monetary = Number(c.total_ltv) || 0;
         const lastPurchase = c.last_purchase_at
             ? new Date(c.last_purchase_at).getTime()
@@ -197,9 +203,7 @@ async function runRfmForAllProfiles() {
 // ── Job starter ───────────────────────────────────────────────────────────────
 export function startRfmCalcJob() {
     console.log('[RFM] Job registered — will run every 24 hours.');
-    // Rodar imediatamente
-    runRfmForAllProfiles();
-    // E a cada 24 horas
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(runRfmForAllProfiles, 24 * 60 * 60 * 1000);
 }
 export { runRfmForAllProfiles, calcRfmForProfile };

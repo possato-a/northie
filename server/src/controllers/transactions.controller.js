@@ -12,7 +12,7 @@ export async function listTransactions(req, res) {
     try {
         let query = supabase
             .from('transactions')
-            .select(`*, customers (name, email, acquisition_channel)`)
+            .select(`id, customer_id, platform, external_id, amount_gross, amount_net, fee_platform, status, product_name, payment_method, created_at, customers (name, email, acquisition_channel)`)
             .eq('profile_id', profileId)
             .order('created_at', { ascending: false })
             .limit(500);

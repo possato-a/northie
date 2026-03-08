@@ -80,7 +80,7 @@ export async function getCapitalScore(req, res) {
         // Try to fetch latest snapshot first
         const { data, error } = await supabase
             .from('capital_score_history')
-            .select('*')
+            .select('snapshot_month, score, credit_limit_brl, dimensions, metrics')
             .eq('profile_id', profileId)
             .order('snapshot_month', { ascending: false })
             .limit(1)

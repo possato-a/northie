@@ -351,22 +351,20 @@ export async function backfillHotmart(profileId, days, force = false) {
         console.log(`[HotmartSync] Fetched ${sales.length} sales for profile ${profileId}`);
         // Store raw API response in debug
         Object.assign(debugExtra, { api_response: fetchResult.rawFirstPage, http_status: fetchResult.httpStatus });
+        // Pre-fetch existing external_ids para evitar 2 count queries por venda
+        const { data: existingTxs } = await supabase
+            .from('transactions')
+            .select('external_id')
+            .eq('profile_id', profileId)
+            .in('external_id', sales.map(s => s.transaction));
+        const existingIds = new Set((existingTxs ?? []).map(t => t.external_id));
         for (const sale of sales) {
             try {
-                const before = await supabase
-                    .from('transactions')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('profile_id', profileId)
-                    .eq('external_id', sale.transaction);
                 await processSale(profileId, sale);
-                const after = await supabase
-                    .from('transactions')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('profile_id', profileId)
-                    .eq('external_id', sale.transaction);
-                (after.count ?? 0) > (before.count ?? 0) ? synced++ : skipped++;
-                // Audit trail — persiste payload bruto (best-effort, não bloqueia o sync)
-                supabase
+                // Se não existia antes, foi synced; senão, skipped (upsert)
+                existingIds.has(sale.transaction) ? skipped++ : synced++;
+                // Audit trail (fire-and-forget)
+                void supabase
                     .from('platforms_data_raw')
                     .insert({ profile_id: profileId, platform: 'hotmart', payload: sale, processed: true })
                     .then(({ error }) => {
@@ -437,7 +435,7 @@ export async function runHotmartSyncForAllProfiles() {
  */
 export function startHotmartSyncJob() {
     console.log('[HotmartSync] Job registered — will run every 6 hours.');
-    runHotmartSyncForAllProfiles();
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(runHotmartSyncForAllProfiles, 6 * 60 * 60 * 1000);
 }
 //# sourceMappingURL=hotmart-sync.job.js.map

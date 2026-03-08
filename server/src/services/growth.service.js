@@ -6,18 +6,20 @@
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from './integration.service.js';
 import crypto from 'crypto';
+// In-memory log buffer — evita read+write no DB a cada step (antes: 30 queries por execução)
+const logBuffers = new Map();
 async function appendLog(recId, step) {
-    const { data: rec } = await supabase
-        .from('growth_recommendations')
-        .select('execution_log')
-        .eq('id', recId)
-        .single();
-    const log = rec?.execution_log || [];
-    log.push(step);
+    if (!logBuffers.has(recId))
+        logBuffers.set(recId, []);
+    logBuffers.get(recId).push(step);
+    // Flush to DB (write-only, sem read)
     await supabase
         .from('growth_recommendations')
-        .update({ execution_log: log, updated_at: new Date().toISOString() })
+        .update({ execution_log: logBuffers.get(recId), updated_at: new Date().toISOString() })
         .eq('id', recId);
+}
+function clearLogBuffer(recId) {
+    logBuffers.delete(recId);
 }
 async function updateStatus(recId, status) {
     await supabase
@@ -368,7 +370,7 @@ async function executeEmRiscoAltoValor(profileId, recId, meta) {
 export async function executeRecommendation(profileId, recId) {
     const { data: rec } = await supabase
         .from('growth_recommendations')
-        .select('*')
+        .select('id, type, status, meta')
         .eq('id', recId)
         .eq('profile_id', profileId)
         .single();
@@ -376,6 +378,8 @@ export async function executeRecommendation(profileId, recId) {
         console.error(`[Growth] Rec ${recId} not found for profile ${profileId}`);
         return;
     }
+    // Inicializa log buffer com log existente (se houver)
+    clearLogBuffer(recId);
     await updateStatus(recId, 'executing');
     const meta = rec.meta;
     try {
@@ -416,6 +420,9 @@ export async function executeRecommendation(profileId, recId) {
         console.error(`[Growth] Execution error for rec ${recId}:`, err.message);
         await appendLog(recId, { step: 'Erro inesperado', status: 'failed', timestamp: new Date().toISOString(), detail: err.message });
         await updateStatus(recId, 'failed');
+    }
+    finally {
+        clearLogBuffer(recId);
     }
 }
 //# sourceMappingURL=growth.service.js.map

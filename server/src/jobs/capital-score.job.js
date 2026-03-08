@@ -28,8 +28,7 @@ export function startCapitalScoreJob() {
         return;
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
     console.log('[capital-score.job] Scheduled monthly capital score job started.');
-    // Run once on startup then every 30 days
-    runCapitalScoreForAllProfiles().catch(console.error);
+    // Não roda imediato no boot — espera o primeiro intervalo
     setInterval(() => {
         runCapitalScoreForAllProfiles().catch(console.error);
     }, THIRTY_DAYS_MS);

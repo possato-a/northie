@@ -82,17 +82,16 @@ export async function getGrowthMetrics(req, res) {
     if (!profileId)
         return res.status(400).json({ error: 'Missing x-profile-id' });
     try {
-        // 1. Performance por canal (materialized view)
-        const { data: channelPerf } = await supabase
-            .from('mv_campaign_ltv_performance')
-            .select('channel, customers_acquired, total_ltv_brl, avg_ltv_brl, total_spend_brl, true_roi, high_churn_count, avg_churn_probability')
-            .eq('profile_id', profileId)
-            .gt('customers_acquired', 0);
-        // 2. Dados de customers para segmentos e métricas
-        const { data: customers } = await supabase
-            .from('customers')
-            .select('rfm_score, total_ltv, cac, churn_probability, acquisition_channel')
-            .eq('profile_id', profileId);
+        // Buscar tudo em paralelo (2 queries → 1 round-trip)
+        const [{ data: channelPerf }, { data: customers }] = await Promise.all([
+            supabase.from('mv_campaign_ltv_performance')
+                .select('channel, customers_acquired, total_ltv_brl, avg_ltv_brl, total_spend_brl, true_roi, high_churn_count, avg_churn_probability')
+                .eq('profile_id', profileId)
+                .gt('customers_acquired', 0),
+            supabase.from('customers')
+                .select('rfm_score, total_ltv, cac, churn_probability, acquisition_channel')
+                .eq('profile_id', profileId),
+        ]);
         if (!customers)
             return res.json({ channel_performance: [], segments: {}, summary: {} });
         // Segmentos RFM

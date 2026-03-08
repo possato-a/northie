@@ -377,14 +377,25 @@ export async function syncTransaction(profileId, email, platform, externalId, am
     let campaignId = null;
     let creatorId = null;
     console.log(`[Attribution] Looking for visit with visitor_id: ${visitorId} for profile: ${profileId}`);
-    const { data: latestVisit, error: vError } = await supabase
-        .from('visits')
-        .select('utm_source, utm_campaign, affiliate_id, visitor_id, profile_id')
-        .eq('profile_id', profileId)
-        .eq('visitor_id', visitorId || '00000000-0000-0000-0000-000000000000')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+    // Parallel: visit lookup + existing customer lookup (independent queries)
+    const [visitResult, existingCustomerResult] = await Promise.all([
+        supabase
+            .from('visits')
+            .select('utm_source, utm_campaign, affiliate_id, visitor_id, profile_id')
+            .eq('profile_id', profileId)
+            .eq('visitor_id', visitorId || '00000000-0000-0000-0000-000000000000')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single(),
+        supabase
+            .from('customers')
+            .select('id, total_ltv')
+            .eq('profile_id', profileId)
+            .eq('email', email)
+            .single(),
+    ]);
+    const { data: latestVisit, error: vError } = visitResult;
+    const { data: existingCustomer } = existingCustomerResult;
     if (vError && vError.code !== 'PGRST116') {
         console.error('[Attribution] Query error:', vError);
     }
@@ -433,12 +444,7 @@ export async function syncTransaction(profileId, email, platform, externalId, am
         console.log('[Attribution] No matching visit found.');
     }
     // 2. Upsert Customer (first-touch attribution — preserve original channel)
-    const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('id, total_ltv')
-        .eq('profile_id', profileId)
-        .eq('email', email)
-        .single();
+    // existingCustomer already fetched in parallel with visit lookup above
     const isNewCustomer = !existingCustomer;
     const upsertPayload = { profile_id: profileId, email };
     if (isNewCustomer) {

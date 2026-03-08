@@ -205,9 +205,9 @@ async function runAlertsWithMutex() {
     }
 }
 export function startAlertsJob() {
-    console.log('[Alerts] Job registered — will run every hour.');
-    runAlertsWithMutex();
-    setInterval(runAlertsWithMutex, 60 * 60 * 1000);
+    console.log('[Alerts] Job registered — will run every 2 hours.');
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
+    setInterval(runAlertsWithMutex, 2 * 60 * 60 * 1000);
 }
 export { runAlertsForAllProfiles };
 //# sourceMappingURL=alerts.job.js.map

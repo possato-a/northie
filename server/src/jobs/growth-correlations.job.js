@@ -36,26 +36,18 @@ async function upsertRecommendation(profileId, type, payload) {
 }
 // ── Detector 1: Reativação de clientes de alto LTV ────────────────────────────
 // Fontes: customers (LTV, churn_probability, last_purchase_at) + transactions (histórico)
-async function detectReativacaoAltoLtv(profileId) {
-    const { data: avgData } = await supabase
-        .from('customers')
-        .select('total_ltv')
-        .eq('profile_id', profileId);
-    if (!avgData?.length)
+async function detectReativacaoAltoLtv(profileId, allCustomers) {
+    if (!allCustomers.length)
         return;
-    const avgLtv = avgData.reduce((s, c) => s + Number(c.total_ltv), 0) / avgData.length;
+    const avgLtv = allCustomers.reduce((s, c) => s + Number(c.total_ltv), 0) / allCustomers.length;
     if (avgLtv <= 0)
         return;
     const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: segment } = await supabase
-        .from('customers')
-        .select('id, email, total_ltv, churn_probability, last_purchase_at')
-        .eq('profile_id', profileId)
-        .gte('total_ltv', avgLtv * 2)
-        .gte('churn_probability', 60)
-        .lt('last_purchase_at', sixtyDaysAgo)
-        .limit(100);
-    if (!segment || segment.length < 3)
+    const segment = allCustomers.filter(c => Number(c.total_ltv) >= avgLtv * 2 &&
+        Number(c.churn_probability) >= 60 &&
+        c.last_purchase_at != null &&
+        c.last_purchase_at < sixtyDaysAgo).slice(0, 100);
+    if (segment.length < 3)
         return;
     const totalLtv = segment.reduce((s, c) => s + Number(c.total_ltv), 0);
     const avgSegLtv = totalLtv / segment.length;
@@ -75,7 +67,7 @@ async function detectReativacaoAltoLtv(profileId) {
 }
 // ── Detector 2: Pausa de campanha com LTV baixo ───────────────────────────────
 // Fontes: ad_campaigns/ad_metrics (ROAS, spend) + customers (LTV por canal de aquisição)
-async function detectPausaCampanhaLtvBaixo(profileId) {
+async function detectPausaCampanhaLtvBaixo(profileId, allCustomers) {
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const { data: campaigns } = await supabase
         .from('ad_campaigns')
@@ -96,11 +88,7 @@ async function detectPausaCampanhaLtvBaixo(profileId) {
         campaignSpend[key].spend += Number(c.spend_brl);
     }
     // LTV médio global
-    const { data: allCustomers } = await supabase
-        .from('customers')
-        .select('total_ltv, acquisition_channel')
-        .eq('profile_id', profileId);
-    if (!allCustomers?.length)
+    if (!allCustomers.length)
         return;
     const globalAvgLtv = allCustomers.reduce((s, c) => s + Number(c.total_ltv), 0) / allCustomers.length;
     // LTV médio por canal
@@ -144,7 +132,7 @@ async function detectPausaCampanhaLtvBaixo(profileId) {
 }
 // ── Detector 3: Audience Sync dos Champions ───────────────────────────────────
 // Fontes: customers (rfm_score Champions) + integrations (Meta ativa)
-async function detectAudienceSyncChampions(profileId) {
+async function detectAudienceSyncChampions(profileId, allCustomers) {
     // Verifica se tem integração Meta ativa
     const { data: metaIntegration } = await supabase
         .from('integrations')
@@ -156,14 +144,8 @@ async function detectAudienceSyncChampions(profileId) {
     if (!metaIntegration)
         return;
     // Buscar Champions (rfm_score >= 444 — score alto em todas as dimensões)
-    const { data: champions } = await supabase
-        .from('customers')
-        .select('id, email, total_ltv, rfm_score')
-        .eq('profile_id', profileId)
-        .gte('total_ltv', 0)
-        .not('rfm_score', 'is', null)
-        .limit(500);
-    if (!champions)
+    const champions = allCustomers.filter(c => Number(c.total_ltv) >= 0 && c.rfm_score != null);
+    if (!champions.length)
         return;
     // Champions: R >= 4 AND F >= 4 AND M >= 4 (rfm_score é TEXT "RFM" ex: "545")
     const championSegment = champions.filter(c => {
@@ -193,7 +175,7 @@ async function detectAudienceSyncChampions(profileId) {
 }
 // ── Detector 4: Realocação de Budget ─────────────────────────────────────────
 // Fontes: ad_metrics (spend por canal) + customers (LTV médio por acquisition_channel)
-async function detectReaLocacaoBudget(profileId) {
+async function detectReaLocacaoBudget(profileId, allCustomers) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const { data: metrics } = await supabase
         .from('ad_metrics')
@@ -213,14 +195,10 @@ async function detectReaLocacaoBudget(profileId) {
     if (activeChannels.length < 2)
         return;
     // LTV médio por canal de aquisição
-    const { data: customers } = await supabase
-        .from('customers')
-        .select('total_ltv, acquisition_channel')
-        .eq('profile_id', profileId);
-    if (!customers?.length)
+    if (!allCustomers.length)
         return;
     const ltvByChannel = {};
-    for (const c of customers) {
+    for (const c of allCustomers) {
         const ch = c.acquisition_channel || 'desconhecido';
         if (!ltvByChannel[ch])
             ltvByChannel[ch] = { sum: 0, count: 0 };
@@ -493,13 +471,9 @@ async function detectCanalAltoLtvUnderinvested(profileId) {
 // ── Detector 9: CAC vs LTV — Clientes Não Rentabilizados ─────────────────────
 // Fontes: customers.cac (calculado pelo RFM job) + customers.total_ltv
 // Lógica: se LTV < CAC, o cliente ainda não pagou seu custo de aquisição
-async function detectCacVsLtvDeficit(profileId) {
-    const { data: customers } = await supabase
-        .from('customers')
-        .select('id, email, total_ltv, cac, acquisition_channel, rfm_score')
-        .eq('profile_id', profileId)
-        .gt('cac', 0);
-    if (!customers?.length)
+async function detectCacVsLtvDeficit(profileId, allCustomers) {
+    const customers = allCustomers.filter(c => Number(c.cac) > 0);
+    if (!customers.length)
         return;
     const unprofitable = customers.filter(c => Number(c.total_ltv) < Number(c.cac));
     if (unprofitable.length < 3)
@@ -529,14 +503,9 @@ async function detectCacVsLtvDeficit(profileId) {
 // Fontes: customers.rfm_score + customers.churn_probability + customers.total_ltv
 // Lógica: clientes com M >= 3 (alto valor histórico) mas R <= 2 (pararam de comprar)
 // — são os mais valiosos que estão em sinal amarelo
-async function detectEmRiscoAltoValor(profileId) {
-    const { data: customers } = await supabase
-        .from('customers')
-        .select('id, email, total_ltv, rfm_score, churn_probability, last_purchase_at')
-        .eq('profile_id', profileId)
-        .not('rfm_score', 'is', null)
-        .limit(500);
-    if (!customers?.length)
+async function detectEmRiscoAltoValor(profileId, allCustomers) {
+    const customers = allCustomers.filter(c => c.rfm_score != null);
+    if (!customers.length)
         return;
     // Em Risco de Alto Valor: M >= 3 (compravam bem) mas R <= 2 (sumiram)
     const atRisk = customers.filter(c => {
@@ -576,17 +545,23 @@ async function runGrowthCorrelationsForAllProfiles() {
     const { data: profiles } = await supabase.from('profiles').select('id');
     for (const profile of profiles || []) {
         try {
+            // Prefetch customers ONCE per profile — used by detectors 1, 2, 3, 4, 9, 10
+            const { data: customerRows } = await supabase
+                .from('customers')
+                .select('id, email, total_ltv, cac, churn_probability, rfm_score, acquisition_channel, last_purchase_at')
+                .eq('profile_id', profile.id);
+            const allCustomers = customerRows || [];
             await Promise.all([
-                detectReativacaoAltoLtv(profile.id),
-                detectPausaCampanhaLtvBaixo(profile.id),
-                detectAudienceSyncChampions(profile.id),
-                detectReaLocacaoBudget(profile.id),
+                detectReativacaoAltoLtv(profile.id, allCustomers),
+                detectPausaCampanhaLtvBaixo(profile.id, allCustomers),
+                detectAudienceSyncChampions(profile.id, allCustomers),
+                detectReaLocacaoBudget(profile.id, allCustomers),
                 detectUpsellCohort(profile.id),
                 detectDivergenciaRoiCanal(profile.id),
                 detectQuedaRetencaoCohort(profile.id),
                 detectCanalAltoLtvUnderinvested(profile.id),
-                detectCacVsLtvDeficit(profile.id),
-                detectEmRiscoAltoValor(profile.id),
+                detectCacVsLtvDeficit(profile.id, allCustomers),
+                detectEmRiscoAltoValor(profile.id, allCustomers),
             ]);
         }
         catch (err) {
@@ -609,9 +584,9 @@ async function runGrowthCorrelationsWithMutex() {
     }
 }
 export function startGrowthCorrelationsJob() {
-    console.log('[Growth] Job registered — will run every 30 minutes.');
-    runGrowthCorrelationsWithMutex();
-    setInterval(runGrowthCorrelationsWithMutex, 30 * 60 * 1000);
+    console.log('[Growth] Job registered — will run every 1 hour.');
+    // Não roda imediato no boot — espera o primeiro intervalo
+    setInterval(runGrowthCorrelationsWithMutex, 60 * 60 * 1000);
 }
 export { runGrowthCorrelationsForAllProfiles };
 //# sourceMappingURL=growth-correlations.job.js.map

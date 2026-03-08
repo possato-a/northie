@@ -176,15 +176,20 @@ export async function getCohortRepeatPurchase(profileId, months = 4) {
     if (!custData?.length)
         return [];
     const customerIds = custData.map(c => c.id);
-    const { data: txData } = await supabase
-        .from('transactions')
-        .select('customer_id')
-        .eq('profile_id', profileId)
-        .eq('status', 'approved')
-        .in('customer_id', customerIds);
+    // Batch .in() queries to avoid PostgREST URL length limits (~8KB)
+    const BATCH_SIZE = 100;
     const txCountByCust = {};
-    for (const tx of (txData ?? [])) {
-        txCountByCust[tx.customer_id] = (txCountByCust[tx.customer_id] ?? 0) + 1;
+    for (let i = 0; i < customerIds.length; i += BATCH_SIZE) {
+        const batch = customerIds.slice(i, i + BATCH_SIZE);
+        const { data: txBatch } = await supabase
+            .from('transactions')
+            .select('customer_id')
+            .eq('profile_id', profileId)
+            .eq('status', 'approved')
+            .in('customer_id', batch);
+        for (const tx of (txBatch ?? [])) {
+            txCountByCust[tx.customer_id] = (txCountByCust[tx.customer_id] ?? 0) + 1;
+        }
     }
     const groups = {};
     for (const c of custData) {

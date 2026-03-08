@@ -5,18 +5,18 @@ export async function getCurrentValuation(req, res) {
     if (!profileId)
         return res.status(400).json({ error: 'Missing x-profile-id header' });
     try {
-        const { data, error } = await supabase
-            .from('valuation_snapshots')
-            .select('*')
-            .eq('profile_id', profileId)
-            .order('snapshot_month', { ascending: false })
-            .limit(1)
-            .single();
-        // Compute benchmark stats from all profiles' most recent snapshot
-        const { data: allSnapshots } = await supabase
-            .from('valuation_snapshots')
-            .select('valuation_brl, profile_id')
-            .order('snapshot_month', { ascending: false });
+        // Buscar tudo em paralelo (2 queries → 1 round-trip)
+        const [{ data, error }, { data: allSnapshots }] = await Promise.all([
+            supabase.from('valuation_snapshots')
+                .select('snapshot_month, valuation_brl, multiple, arr_brl, mrr_brl, ltv_cac_ratio, churn_rate, benchmark_percentile, methodology')
+                .eq('profile_id', profileId)
+                .order('snapshot_month', { ascending: false })
+                .limit(1)
+                .single(),
+            supabase.from('valuation_snapshots')
+                .select('valuation_brl, profile_id')
+                .order('snapshot_month', { ascending: false }),
+        ]);
         // Get most recent snapshot per profile
         const latestByProfile = new Map();
         for (const s of allSnapshots || []) {

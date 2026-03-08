@@ -28,8 +28,7 @@ export function startValuationCalcJob() {
         return;
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
     console.log('[valuation-calc.job] Scheduled monthly valuation job started.');
-    // Run once on startup then every 30 days
-    runValuationForAllProfiles().catch(console.error);
+    // Não roda imediato no boot — espera o primeiro intervalo
     setInterval(() => {
         runValuationForAllProfiles().catch(console.error);
     }, THIRTY_DAYS_MS);

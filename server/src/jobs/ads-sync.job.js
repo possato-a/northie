@@ -968,7 +968,7 @@ async function runAdsSyncForAllProfiles() {
 // ── Job starter ───────────────────────────────────────────────────────────────
 export function startAdsSyncJob() {
     console.log('[AdsSync] Job registered — will run every 6 hours.');
-    runAdsSyncForAllProfiles();
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(runAdsSyncForAllProfiles, 6 * 60 * 60 * 1000);
 }
 export { runAdsSyncForAllProfiles };

@@ -6,14 +6,20 @@ export async function calculateCapitalScore(profileId) {
     const now = new Date();
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    // Parallel fetch all data needed for score calculation
+    const [txResult, customerResult, adResult, newCustResult, profileResult] = await Promise.all([
+        supabase.from('transactions').select('amount_net, created_at').eq('profile_id', profileId).eq('status', 'approved').gte('created_at', sixMonthsAgo.toISOString()),
+        supabase.from('customers').select('total_ltv, churn_probability').eq('profile_id', profileId),
+        supabase.from('ad_metrics').select('spend_brl').eq('profile_id', profileId).gte('date', sixMonthsAgo.toISOString().split('T')[0]),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('profile_id', profileId).gte('created_at', sixMonthsAgo.toISOString()),
+        supabase.from('profiles').select('created_at').eq('id', profileId).single(),
+    ]);
+    const txData = txResult.data;
+    const customerData = customerResult.data;
+    const adData = adResult.data;
+    const newCustomerCount = newCustResult.count || 0;
+    const profileData = profileResult.data;
     // 1. Revenue consistency — last 6 months of monthly revenue
-    const { data: txData } = await supabase
-        .from('transactions')
-        .select('amount_net, created_at')
-        .eq('profile_id', profileId)
-        .eq('status', 'approved')
-        .gte('created_at', sixMonthsAgo.toISOString());
-    // Group transactions by month to get monthly revenue
     const monthlyRevenue = {};
     for (const tx of txData || []) {
         const key = tx.created_at.substring(0, 7); // YYYY-MM
@@ -31,10 +37,6 @@ export async function calculateCapitalScore(profileId) {
     }
     const revenue_consistency = clamp(mrr_avg / 2000 * 15, 0, 15) + clamp((1 - variance_coeff) * 10, 0, 10);
     // 2. Customer quality — LTV avg + churn rate
-    const { data: customerData } = await supabase
-        .from('customers')
-        .select('total_ltv, churn_probability')
-        .eq('profile_id', profileId);
     const customers = customerData || [];
     const ltv_avg = customers.length > 0
         ? customers.reduce((a, c) => a + (c.total_ltv || 0), 0) / customers.length
@@ -44,27 +46,12 @@ export async function calculateCapitalScore(profileId) {
         : 0;
     const customer_quality = clamp(ltv_avg / 500 * 15, 0, 15) + clamp((1 - churn_rate / 100) * 10, 0, 10);
     // 3. Acquisition efficiency — LTV/CAC ratio
-    const { data: adData } = await supabase
-        .from('ad_metrics')
-        .select('spend_brl, date')
-        .eq('profile_id', profileId)
-        .gte('date', sixMonthsAgo.toISOString().split('T')[0]);
     const totalSpend = (adData || []).reduce((a, m) => a + (m.spend_brl || 0), 0);
-    const { data: newCustomers } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('profile_id', profileId)
-        .gte('created_at', sixMonthsAgo.toISOString());
-    const newCustomerCount = (newCustomers || []).length;
+    // newCustomerCount already fetched in parallel above
     const cac = newCustomerCount > 0 && totalSpend > 0 ? totalSpend / newCustomerCount : 0;
     const ltv_cac_ratio = cac > 0 && ltv_avg > 0 ? ltv_avg / cac : 0;
     const acquisition_efficiency = clamp((ltv_cac_ratio / 3) * 25, 0, 25);
     // 4. Platform tenure — months since profile created_at
-    const { data: profileData } = await supabase
-        .from('profiles')
-        .select('created_at')
-        .eq('id', profileId)
-        .single();
     let months_on_platform = 0;
     if (profileData?.created_at) {
         const created = new Date(profileData.created_at);

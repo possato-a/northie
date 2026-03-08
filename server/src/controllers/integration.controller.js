@@ -500,27 +500,25 @@ export async function cronSync(req, res) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
-        // Fase 0: renovar tokens antes de qualquer sync — tokens expirados causam falhas em cascata
+        // ── SEQUENCIAL para não sobrecarregar DB Micro (512MB) ──
+        // Cada fase espera a anterior terminar antes de iniciar
+        // Fase 0: renovar tokens
         await checkAndRefreshAll();
-        // Fase 1: sync de dados de plataformas (paralelo)
-        await Promise.allSettled([
-            runAdsSyncForAllProfiles(),
-            runHotmartSyncForAllProfiles(),
-            runStripeSyncForAllProfiles(),
-            runShopifySyncForAllProfiles(),
-        ]);
-        // Fase 2: jobs analíticos (após sync para ter dados frescos)
-        await Promise.allSettled([
-            runRfmForAllProfiles(), // Recalcula segmentos, CAC e churn de todos os clientes
-            runSafetyNet(), // Detecta e corrige gaps de webhook Hotmart
-            runCapitalScoreForAllProfiles(), // Atualiza Capital Score mensal
-            runValuationForAllProfiles(), // Atualiza Valuation mensal
-        ]);
-        // Fase 3: camada de correlação (após RFM e dados analíticos)
-        await refreshCorrelationViews(); // Refresh das materialized views
-        await runGrowthCorrelationsForAllProfiles(); // Detecta oportunidades de growth
-        // Fase 4: relatórios automáticos agendados
-        await processScheduledReports();
+        // Fase 1: sync de dados — SEQUENCIAL (cada sync é pesado)
+        await runAdsSyncForAllProfiles().catch(e => console.error('[cronSync] ads:', e.message));
+        await runHotmartSyncForAllProfiles().catch(e => console.error('[cronSync] hotmart:', e.message));
+        await runStripeSyncForAllProfiles().catch(e => console.error('[cronSync] stripe:', e.message));
+        await runShopifySyncForAllProfiles().catch(e => console.error('[cronSync] shopify:', e.message));
+        // Fase 2: jobs analíticos — SEQUENCIAL
+        await runRfmForAllProfiles().catch(e => console.error('[cronSync] rfm:', e.message));
+        await runSafetyNet().catch(e => console.error('[cronSync] safety-net:', e.message));
+        await runCapitalScoreForAllProfiles().catch(e => console.error('[cronSync] capital:', e.message));
+        await runValuationForAllProfiles().catch(e => console.error('[cronSync] valuation:', e.message));
+        // Fase 3: correlações (após RFM)
+        await refreshCorrelationViews().catch(e => console.error('[cronSync] views:', e.message));
+        await runGrowthCorrelationsForAllProfiles().catch(e => console.error('[cronSync] growth:', e.message));
+        // Fase 4: relatórios
+        await processScheduledReports().catch(e => console.error('[cronSync] reports:', e.message));
         return res.status(200).json({ message: 'Cron sync completed.' });
     }
     catch (error) {

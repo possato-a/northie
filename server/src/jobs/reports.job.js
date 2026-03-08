@@ -49,7 +49,7 @@ export async function processScheduledReports() {
     const now = new Date().toISOString();
     const { data: configs } = await supabase
         .from('report_configs')
-        .select('*')
+        .select('id, profile_id, frequency, format, email, next_send_at')
         .eq('enabled', true)
         .lte('next_send_at', now);
     if (!configs?.length)
@@ -143,7 +143,7 @@ async function processScheduledReportsWithMutex() {
     }
 }
 export function startReportsJob() {
-    processScheduledReportsWithMutex();
+    // Não roda imediato no boot — espera o primeiro intervalo para evitar sobrecarga
     setInterval(processScheduledReportsWithMutex, 4 * 60 * 60 * 1000); // a cada 4h
     console.log('[Reports] Scheduled reports job started');
 }
