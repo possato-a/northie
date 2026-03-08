@@ -102,4 +102,8 @@ export const reportsApi = {
         api.get(`/reports/logs/${logId}/download`, { params: { format }, responseType: 'blob', timeout: 60000 }),
 };
 
+export const profileApi = {
+    deleteAccount: () => api.delete('/profile'),
+};
+
 export default api;
