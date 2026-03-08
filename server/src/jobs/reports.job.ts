@@ -101,12 +101,12 @@ export async function processScheduledReports() {
             // Envia email se configurado e captura o ID do Resend
             let resendEmailId: string | null = null;
             if (config.email) {
+                const recipients = config.email.split(',').map((e: string) => e.trim()).filter(Boolean);
                 resendEmailId = await sendReport({
-                    to: config.email,
+                    to: recipients.length === 1 ? recipients[0] : recipients,
                     frequency: config.frequency,
                     format,
-                    fileBuffer,
-                    filename,
+                    attachments: [{ buffer: fileBuffer as Buffer, filename }],
                     data: reportData,
                     ai: aiAnalysis,
                 });

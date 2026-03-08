@@ -593,22 +593,33 @@ export async function sendReportByEmail(req: Request, res: Response) {
 
     const freqRaw: string = req.body.frequency ?? 'monthly';
     const frequency: ReportFrequency = FREQ_MAP[freqRaw] ?? 'monthly';
-    const format: ReportFormat = req.body.format ?? 'pdf';
+    const formatRaw: string = req.body.format ?? 'pdf';
 
-    // Email: do body ou da config salva
-    let email: string = req.body.email ?? '';
-    if (!email) {
+    // Build recipient list: recipients array > single email > saved config
+    const emailList: string[] = [];
+    if (Array.isArray(req.body.recipients) && req.body.recipients.length > 0) {
+        emailList.push(...(req.body.recipients as string[]));
+    } else if (req.body.email) {
+        emailList.push(req.body.email as string);
+    }
+
+    if (!emailList.length) {
         const { data: cfg } = await supabase
             .from('report_configs')
             .select('email')
             .eq('profile_id', profileId)
             .single();
-        email = cfg?.email ?? '';
+        const savedEmail: string = cfg?.email ?? '';
+        if (savedEmail) {
+            const parsed = savedEmail.split(',').map((e: string) => e.trim()).filter(Boolean);
+            emailList.push(...parsed);
+        }
     }
-    if (!email) return res.status(400).json({ error: 'Email não configurado. Configure em Relatórios > Envio automático.' });
+
+    if (!emailList.length) return res.status(400).json({ error: 'Email não configurado. Configure em Relatórios > Envio automático.' });
 
     try {
-        // FIX 3: reutilizar cache do preview se disponível (evita duplo roundtrip ao banco)
+        // Reutilizar cache do preview se disponível (evita duplo roundtrip ao banco)
         const cacheKey = `${profileId}:${frequency}`;
         let reportData = getCached(cacheKey);
         if (!reportData) {
@@ -619,33 +630,40 @@ export async function sendReportByEmail(req: Request, res: Response) {
         const snapshot = buildSnapshot(reportData, aiAnalysis);
         const dateStr = new Date().toISOString().split('T')[0];
 
-        let fileBuffer: Buffer | string;
-        let filename: string;
+        const attachments: Array<{ buffer: Buffer | string; filename: string }> = [];
+        let logFormat = formatRaw;
 
-        if (format === 'pdf') {
-            fileBuffer = await generatePdf(reportData, aiAnalysis);
-            filename = `northie-report-${freqRaw}-${dateStr}.pdf`;
-        } else if (format === 'xlsx') {
-            fileBuffer = Buffer.from(await generateXlsx(reportData, aiAnalysis));
-            filename = `northie-report-${freqRaw}-${dateStr}.xlsx`;
+        if (formatRaw === 'both') {
+            const pdfBuffer = await generatePdf(reportData, aiAnalysis);
+            attachments.push({ buffer: pdfBuffer, filename: `northie-report-${freqRaw}-${dateStr}.pdf` });
+            const xlsxBuffer = Buffer.from(await generateXlsx(reportData, aiAnalysis));
+            attachments.push({ buffer: xlsxBuffer, filename: `northie-report-${freqRaw}-${dateStr}.xlsx` });
+            logFormat = 'pdf'; // log principal como pdf quando ambos
+        } else if (formatRaw === 'pdf') {
+            const pdfBuffer = await generatePdf(reportData, aiAnalysis);
+            attachments.push({ buffer: pdfBuffer, filename: `northie-report-${freqRaw}-${dateStr}.pdf` });
+        } else if (formatRaw === 'xlsx') {
+            const xlsxBuffer = Buffer.from(await generateXlsx(reportData, aiAnalysis));
+            attachments.push({ buffer: xlsxBuffer, filename: `northie-report-${freqRaw}-${dateStr}.xlsx` });
         } else {
-            fileBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
-            filename = `northie-report-${freqRaw}-${dateStr}.json`;
+            const jsonBuffer = JSON.stringify({ ...reportData, ai_analysis: aiAnalysis }, null, 2);
+            attachments.push({ buffer: jsonBuffer, filename: `northie-report-${freqRaw}-${dateStr}.json` });
         }
 
+        const toField: string | string[] = emailList.length === 1 ? emailList[0]! : emailList;
+
         const resendEmailId = await sendReport({
-            to: email,
+            to: toField,
             frequency: freqRaw,
-            format,
-            fileBuffer,
-            filename,
+            format: formatRaw,
+            attachments,
             data: reportData,
             ai: aiAnalysis,
         });
 
         // Loga APÓS email enviado com sucesso (fire-and-forget)
         writeReportLog({
-            profileId, freqRaw, format,
+            profileId, freqRaw, format: logFormat,
             period: reportData.period,
             situacao_geral: aiAnalysis.situacao_geral,
             snapshot,
@@ -653,7 +671,7 @@ export async function sendReportByEmail(req: Request, res: Response) {
             triggeredBy: 'email',
         });
 
-        return res.json({ ok: true, to: email, email_id: resendEmailId });
+        return res.json({ ok: true, to: emailList, email_id: resendEmailId });
     } catch (err) {
         console.error('[Reports] sendReportByEmail error:', err);
         return res.status(500).json({ error: 'Falha ao enviar relatório por email' });

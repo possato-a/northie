@@ -94,8 +94,8 @@ export const reportsApi = {
         api.get('/reports/preview', { params: { frequency, ...extra }, timeout: 15000 }),
     getAIAnalysis: (frequency: string, extra?: Record<string, unknown>) =>
         api.get('/reports/ai-analysis', { params: { frequency, ...extra }, timeout: 90000 }),
-    sendEmail: (frequency: string, format: string, email?: string) =>
-        api.post('/reports/send-email', { frequency, format, ...(email ? { email } : {}) }, { timeout: 90000 }),
+    sendEmail: (frequency: string, format: string, recipients?: string[]) =>
+        api.post('/reports/send-email', { frequency, format, ...(recipients?.length ? { recipients } : {}) }, { timeout: 90000 }),
     exportQuick: (format: 'pdf' | 'xlsx', period: string) =>
         api.get('/reports/export', { params: { format, period }, responseType: 'blob', timeout: 60000 }),
     redownload: (logId: string, format: 'pdf' | 'xlsx' | 'json') =>
