@@ -72,24 +72,8 @@ function NavItem({ icon, label, pageId, activePage, onPageChange, collapsed, del
         if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
       }}
     >
-      {/* Active indicator bar */}
-      {isActive && (
-        <motion.div
-          layoutId="sidebar-active-indicator"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: '20%',
-            bottom: '20%',
-            width: 2.5,
-            borderRadius: 2,
-            background: 'var(--color-primary)',
-          }}
-          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-        />
-      )}
       <motion.span
-        style={{ display: 'flex', flexShrink: 0, opacity: isActive ? 1 : 0.55 }}
+        style={{ display: 'flex', flexShrink: 0, opacity: isActive ? 1 : 0.65 }}
         animate={{ scale: isActive ? 1.02 : 1 }}
         transition={{ duration: 0.15 }}
       >
@@ -245,11 +229,10 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
           <span style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 9,
-            letterSpacing: '0.1em',
+            letterSpacing: '0.12em',
             color: 'var(--color-text-tertiary)',
             textTransform: 'uppercase',
-            padding: '4px 10px 6px',
-            opacity: 0.7,
+            padding: '2px 10px 6px',
           }}>
             Produtos
           </span>
@@ -267,17 +250,16 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
         ))}
 
         {/* Divisor do contexto */}
-        <div style={{ height: 1, background: 'var(--color-border)', margin: '10px 0 8px' }} />
+        <div style={{ height: 1, background: 'var(--color-border)', margin: '8px 0' }} />
 
         {!collapsed && (
           <span style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 9,
-            letterSpacing: '0.1em',
+            letterSpacing: '0.12em',
             color: 'var(--color-text-tertiary)',
             textTransform: 'uppercase',
-            padding: '4px 10px 6px',
-            opacity: 0.7,
+            padding: '2px 10px 6px',
           }}>
             Contexto
           </span>

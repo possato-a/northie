@@ -4,7 +4,7 @@ import TopBar from '../components/layout/TopBar'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { dashboardApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
-import { PageHeader, SectionLabel, TH, Divider, TabBar, SectionCard, KpiGrid, SkeletonKpi, SkeletonTable } from '../components/ui/shared'
+import { PageHeader, SectionLabel, TH, Divider, TabBar } from '../components/ui/shared'
 
 // ── Primitives ─────────────────────────────────────────────────────────────────
 
@@ -487,7 +487,7 @@ function TopAdsTable({ campaigns, days }: { campaigns: any[]; days: number }) {
             .finally(() => setLoading(false))
     }, [campaigns.map(c => c.campaign_id).join(','), days])
 
-    if (loading) return <SkeletonTable rows={3} columns={6} />
+    if (loading) return <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>Carregando anúncios...</p>
     if (ads.length === 0) return <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>Nenhum anúncio encontrado no período.</p>
 
     const TOP_ADS_GRID = 'minmax(180px,1.8fr) 60px 80px 70px 60px 60px'
@@ -954,7 +954,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
     const tabHasData = channelPerf.some(c => c.channel === activeChannelTab) || activeChannelTab === 'Todos'
 
     return (
-        <div>
+        <div style={{ paddingTop: 28, paddingBottom: 80 }}>
             <TopBar onToggleChat={onToggleChat} />
 
             {/* Header */}
@@ -967,25 +967,19 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
             </div>
 
             {/* ── Seção 1: KPIs globais ── */}
-            {loading ? (
-                <KpiGrid style={{ marginTop: 40 }}>
-                    <SkeletonKpi />
-                    <SkeletonKpi />
-                    <SkeletonKpi />
-                    <SkeletonKpi />
-                    <SkeletonKpi />
-                    <SkeletonKpi />
-                </KpiGrid>
-            ) : (
-                <KpiGrid style={{ marginTop: 40 }}>
-                    <KpiCard label="GASTO TOTAL" value={totals.spend} prefix="R$ " decimals={0} delay={0.1} />
-                    <KpiCard label="RECEITA ATRIBUÍDA" value={totals.revenue} prefix="R$ " decimals={0} delay={0.2} />
-                    <KpiCard label="ROAS" value={avgRoas} suffix="x" decimals={2} delay={0.3} />
-                    <KpiCard label="CUSTO POR COMPRA" value={avgCac} prefix="R$ " decimals={0} delay={0.4} />
-                    {totals.leads > 0 && <KpiCard label="CUSTO POR LEAD" value={avgCpl} prefix="R$ " decimals={2} delay={0.5} />}
-                    <KpiCard label="IMPRESSÕES" value={totals.impressions} decimals={0} delay={0.6} />
-                </KpiGrid>
-            )}
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                style={{ display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap', marginTop: 40 }}
+            >
+                <KpiCard label="GASTO TOTAL" value={totals.spend} prefix="R$ " decimals={0} delay={0.1} />
+                <KpiCard label="RECEITA ATRIBUÍDA" value={totals.revenue} prefix="R$ " decimals={0} delay={0.2} />
+                <KpiCard label="ROAS" value={avgRoas} suffix="x" decimals={2} delay={0.3} />
+                <KpiCard label="CUSTO POR COMPRA" value={avgCac} prefix="R$ " decimals={0} delay={0.4} />
+                {totals.leads > 0 && <KpiCard label="CUSTO POR LEAD" value={avgCpl} prefix="R$ " decimals={2} delay={0.5} />}
+                <KpiCard label="IMPRESSÕES" value={totals.impressions} decimals={0} delay={0.6} />
+            </motion.div>
 
             {/* ── Seção 2: Visualizações (2x2 grid) ── */}
             {!loading && rawCampaigns.length > 0 && (
@@ -1038,7 +1032,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
             )}
 
             {/* ── Seção 3: Análise por Canal (tabs) ── */}
-            <SectionCard style={{ marginTop: 48 }}>
+            <div style={{ marginTop: 72, paddingTop: 56, borderTop: '2px solid var(--color-border)' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 24 }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-2xl)', fontWeight: 400, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.5px' }}>
                         Análise por Canal
@@ -1132,7 +1126,7 @@ export default function Canais({ onToggleChat }: { onToggleChat?: () => void }) 
                         )}
                     </motion.div>
                 </AnimatePresence>
-            </SectionCard>
+            </div>
 
             {/* Campaign Detail Drawer */}
             <AnimatePresence>
@@ -1153,7 +1147,7 @@ function CampaignsTable({ campaigns, days, onOpenDrawer, loading }: { campaigns:
                 <SectionLabel gutterBottom={0}>Campanhas ({campaigns.length})</SectionLabel>
             </div>
             {loading ? (
-                <SkeletonTable rows={5} columns={9} />
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>Carregando campanhas...</p>
             ) : campaigns.length === 0 ? (
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-tertiary)' }}>Nenhuma campanha encontrada no período.</p>
             ) : (

@@ -2,14 +2,6 @@
  * @file lib/utils.ts
  * Funções utilitárias compartilhadas por toda a plataforma Northie.
  */
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-
-/** Combina classes Tailwind sem conflito (padrão shadcn/ui). */
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-
 
 /**
  * Formata número para o padrão brasileiro sem casas decimais.

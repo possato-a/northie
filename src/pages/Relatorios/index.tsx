@@ -332,84 +332,6 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
     )
 }
 
-// ── RecipientChips ────────────────────────────────────────────────────────────
-
-function RecipientChips({
-    recipients,
-    input,
-    onInputChange,
-    onAdd,
-    onRemove,
-    error,
-}: {
-    recipients: string[]
-    input: string
-    onInputChange: (v: string) => void
-    onAdd: (email: string) => void
-    onRemove: (email: string) => void
-    error: string | null
-}) {
-    function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-        if (e.key === 'Enter' || e.key === ',') {
-            e.preventDefault()
-            const val = input.trim().replace(/,$/, '')
-            if (val && isValidEmail(val)) {
-                onAdd(val)
-                onInputChange('')
-            }
-        }
-        if (e.key === 'Backspace' && !input && recipients.length > 0) {
-            onRemove(recipients[recipients.length - 1])
-        }
-    }
-    return (
-        <div
-            style={{
-                display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
-                padding: '7px 10px', minHeight: 40,
-                background: 'var(--color-bg-secondary)',
-                border: `1px solid ${error ? 'var(--accent-red)' : 'var(--color-border)'}`,
-                borderRadius: 'var(--radius-md)', cursor: 'text',
-            }}
-            onClick={() => document.getElementById('recipient-input')?.focus()}
-        >
-            {recipients.map(email => (
-                <span key={email} style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                    padding: '2px 8px', borderRadius: 99,
-                    background: 'var(--color-bg-tertiary)',
-                    border: '1px solid var(--color-border)',
-                    fontFamily: 'var(--font-sans)', fontSize: 12,
-                    color: 'var(--color-text-primary)',
-                }}>
-                    {email}
-                    <button onClick={(e) => { e.stopPropagation(); onRemove(email) }} style={{
-                        border: 'none', background: 'none', cursor: 'pointer', padding: 0, lineHeight: 1,
-                        color: 'var(--color-text-secondary)', fontSize: 14, display: 'flex', alignItems: 'center',
-                    }}>×</button>
-                </span>
-            ))}
-            <input
-                id="recipient-input"
-                type="email"
-                placeholder={recipients.length === 0 ? 'adicionar@email.com — Enter para confirmar' : ''}
-                value={input}
-                onChange={e => onInputChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onBlur={() => {
-                    const val = input.trim()
-                    if (val && isValidEmail(val)) { onAdd(val); onInputChange('') }
-                }}
-                style={{
-                    flex: 1, minWidth: 200, border: 'none', outline: 'none',
-                    background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13,
-                    color: 'var(--color-text-primary)',
-                }}
-            />
-        </div>
-    )
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface RelatoriosProps {
@@ -419,7 +341,7 @@ interface RelatoriosProps {
 
 // ── Generating step messages ──────────────────────────────────────────────────
 
-function getStepMessage(step: 0 | 1 | 2 | 3, format: 'xlsx' | 'json' | 'pdf' | 'both' | null): string {
+function getStepMessage(step: 0 | 1 | 2 | 3, format: 'xlsx' | 'json' | 'pdf' | null): string {
     if (step === 0) return 'Consultando banco de dados...'
     if (step === 1) return 'Cruzando fontes e calculando métricas...'
     if (step === 2) return format === 'pdf' ? 'Enviando para análise de IA — pode levar até 45s...' : `Montando arquivo ${format?.toUpperCase() ?? ''}...`
@@ -452,14 +374,9 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [aiError, setAiError] = useState(false)
     const [aiTimedOut, setAiTimedOut] = useState(false)
 
-    // Recipients
-    const [emailRecipients, setEmailRecipients] = useState<string[]>([])
-    const [recipientInput, setRecipientInput] = useState('')
-    const [recipientError] = useState<string | null>(null)
-
     // Generate on-demand
     const [genFrequency, setGenFrequency] = useState<ReportConfig['frequency']>('mensal')
-    const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'both' | 'json'>('pdf')
+    const [genFormat, setGenFormat] = useState<'pdf' | 'xlsx' | 'json'>('pdf')
     const [generating, setGenerating] = useState<'xlsx' | 'json' | 'pdf' | null>(null)
     const [generatingStep, setGeneratingStep] = useState<0 | 1 | 2 | 3>(0)
     const [sendingEmail, setSendingEmail] = useState(false)
@@ -627,14 +544,10 @@ export default function Relatorios(_props: RelatoriosProps) {
     }
 
     async function handleSaveConfig() {
-        // F9 — validate email(s) before saving
-        if (config.email) {
-            const emails = config.email.split(',').map(e => e.trim()).filter(Boolean)
-            const allValid = emails.every(e => isValidEmail(e))
-            if (!allValid) {
-                setEmailError('Um ou mais emails inválidos')
-                return
-            }
+        // F9 — validate email before saving
+        if (config.email && !isValidEmail(config.email)) {
+            setEmailError('Email inválido')
+            return
         }
         setSavingConfig(true)
         try {
@@ -676,25 +589,9 @@ export default function Relatorios(_props: RelatoriosProps) {
             a.href = url; a.download = `northie-relatorio-${genFrequency}-${new Date().toISOString().slice(0, 10)}.${format}`; a.click()
             URL.revokeObjectURL(url)
             reportsApi.getLogs(0).then(res => { const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }; setLogs(data || []); setHasMoreLogs(hasMore); setLogsPage(0); }).then(() => {}, () => {})
-        } catch (err: unknown) {
-            // responseType: 'blob' faz a resposta de erro também vir como Blob — converte para JSON
-            let msg = `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.`
-            if (err && typeof err === 'object' && 'response' in err) {
-                const axiosErr = err as { response?: { data?: Blob | { error?: string } } }
-                const raw = axiosErr.response?.data
-                if (raw instanceof Blob) {
-                    try {
-                        const text = await raw.text()
-                        const json = JSON.parse(text)
-                        if (json?.debug?.message) msg = `Erro: ${json.debug.message}`
-                        else if (json?.error) msg = json.error
-                    } catch { /* ignora parse error */ }
-                } else if (raw && typeof raw === 'object' && 'error' in raw && raw.error) {
-                    msg = raw.error as string
-                }
-            }
-            setEmailFeedback({ ok: false, msg })
-            setTimeout(() => setEmailFeedback(null), 8000)
+        } catch {
+            setEmailFeedback({ ok: false, msg: `Falha ao gerar ${format.toUpperCase()}. Verifique as integrações e tente novamente.` })
+            setTimeout(() => setEmailFeedback(null), 5000)
         } finally {
             clearTimeout(t1)
             clearTimeout(t2)
@@ -751,31 +648,18 @@ export default function Relatorios(_props: RelatoriosProps) {
     }
 
     async function handleSendEmail() {
-        const recipients = emailRecipients.length > 0 ? emailRecipients : null
-        const fallbackEmail = config.email || savedConfig?.email || ''
-
-        if (!recipients && !fallbackEmail) {
-            setEmailFeedback({ ok: false, msg: 'Adicione pelo menos um destinatário ou configure um email na seção "Envio automático".' })
-            setTimeout(() => setEmailFeedback(null), 5000)
+        const email = config.email || savedConfig?.email || ''
+        if (!email) {
+            setEmailFeedback({ ok: false, msg: 'Configure um email na seção "Envio automático" abaixo.' })
+            setTimeout(() => setEmailFeedback(null), 4000)
             return
         }
-
         setSendingEmail(true)
         setEmailFeedback(null)
         try {
-            await reportsApi.sendEmail(
-                genFrequency,
-                genFormat,
-                recipients ?? (fallbackEmail ? [fallbackEmail] : undefined)
-            )
-            const toStr = recipients ? recipients.join(', ') : fallbackEmail
-            setEmailFeedback({ ok: true, msg: `Enviado para ${toStr}` })
-            reportsApi.getLogs(0).then(res => {
-                const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }
-                setLogs(data || [])
-                setHasMoreLogs(hasMore)
-                setLogsPage(0)
-            }).then(() => {}, () => {})
+            await reportsApi.sendEmail(genFrequency, genFormat, email)
+            setEmailFeedback({ ok: true, msg: `Enviado para ${email}` })
+            reportsApi.getLogs(0).then(res => { const { data, hasMore } = res.data as { data: ReportLog[]; hasMore: boolean }; setLogs(data || []); setHasMoreLogs(hasMore); setLogsPage(0); }).then(() => {}, () => {})
         } catch (err: unknown) {
             const axiosErr = err as { response?: { data?: { error?: string } } }
             const serverMsg = (axiosErr.response?.data?.error ?? '').toLowerCase()
@@ -783,7 +667,7 @@ export default function Relatorios(_props: RelatoriosProps) {
             setEmailFeedback({
                 ok: false,
                 msg: isResendMissing
-                    ? 'Serviço de email não configurado. Adicione RESEND_API_KEY nas variáveis de ambiente.'
+                    ? 'Serviço de email não configurado. Adicione RESEND_API_KEY nas variáveis de ambiente do servidor (Vercel → Settings → Env Vars).'
                     : 'Falha ao enviar. Tente novamente.',
             })
         } finally {
@@ -799,9 +683,7 @@ export default function Relatorios(_props: RelatoriosProps) {
             ? 'Enviar PDF por email'
             : genFormat === 'xlsx'
                 ? 'Enviar Excel por email'
-                : genFormat === 'both'
-                    ? 'Enviar PDF + Excel por email'
-                    : 'Enviar JSON por email'
+                : 'Enviar JSON por email'
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
@@ -851,7 +733,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                             </div>
                             <iframe
                                 src={previewBlobUrl}
-                                style={{ flex: 1, border: 'none', background: 'var(--color-bg-tertiary)' }}
+                                style={{ flex: 1, border: 'none', background: '#525659' }}
                                 title="Preview do relatório PDF"
                             />
                         </motion.div>
@@ -1312,10 +1194,10 @@ export default function Relatorios(_props: RelatoriosProps) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato para email</span>
                             <SegmentedControl
-                                options={['pdf', 'xlsx', 'both', 'json'] as const}
+                                options={['pdf', 'xlsx', 'json'] as const}
                                 value={genFormat}
                                 onChange={setGenFormat}
-                                labels={{ pdf: 'PDF com IA', xlsx: 'Excel', both: 'PDF + Excel', json: 'JSON' }}
+                                labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }}
                             />
                         </div>
 
@@ -1335,27 +1217,6 @@ export default function Relatorios(_props: RelatoriosProps) {
                                 icon={<EyeIcon />}>
                                 {previewPdfLoading ? 'Carregando...' : 'Pré-visualizar PDF'}
                             </Btn>
-                        </div>
-
-                        {/* Recipients field */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                Destinatários do email
-                            </span>
-                            <RecipientChips
-                                recipients={emailRecipients}
-                                input={recipientInput}
-                                onInputChange={setRecipientInput}
-                                onAdd={email => setEmailRecipients(prev => prev.includes(email) ? prev : [...prev, email])}
-                                onRemove={email => setEmailRecipients(prev => prev.filter(e => e !== email))}
-                                error={recipientError}
-                            />
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                                Pressione Enter ou vírgula para adicionar. Sem destinatários, usa o email salvo nas configurações.
-                            </span>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
                             {/* F3 — dynamic email button label */}
                             <Btn variant="secondary"
@@ -1423,20 +1284,18 @@ export default function Relatorios(_props: RelatoriosProps) {
 
                         {/* F9 — email validation */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Emails de envio (separados por vírgula)</span>
+                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email de envio</span>
                             <input
-                                type="text"
-                                placeholder="email1@exemplo.com, email2@exemplo.com"
+                                type="email"
+                                placeholder="seu@email.com"
                                 value={config.email}
                                 onChange={e => {
                                     setConfig(c => ({ ...c, email: e.target.value }))
                                     setEmailError(null)
                                 }}
                                 onBlur={e => {
-                                    if (e.target.value) {
-                                        const emails = e.target.value.split(',').map(em => em.trim()).filter(Boolean)
-                                        const allValid = emails.every(em => isValidEmail(em))
-                                        if (!allValid) setEmailError('Um ou mais emails inválidos')
+                                    if (e.target.value && !isValidEmail(e.target.value)) {
+                                        setEmailError('Email inválido')
                                     }
                                 }}
                                 style={{
@@ -1449,7 +1308,7 @@ export default function Relatorios(_props: RelatoriosProps) {
                                     fontSize: 14,
                                     outline: 'none',
                                     width: '100%',
-                                    maxWidth: 500,
+                                    maxWidth: 360,
                                     boxSizing: 'border-box',
                                     transition: 'border-color 0.15s',
                                 }}

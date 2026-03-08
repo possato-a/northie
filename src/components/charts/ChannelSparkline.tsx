@@ -48,8 +48,8 @@ export default function ChannelSparkline({ data, height = 40, id = 'default' }: 
             >
                 <defs>
                     <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" style={{ stopColor: 'var(--color-border)' }} />
-                        <stop offset="100%" style={{ stopColor: 'transparent' }} />
+                        <stop offset="0%" style={{ stopColor: 'rgba(var(--fg-rgb), 0.07)' }} />
+                        <stop offset="100%" style={{ stopColor: 'rgba(var(--fg-rgb), 0)' }} />
                     </linearGradient>
                 </defs>
                 <path d={fillData} fill={`url(#${gradId})`} />
@@ -59,7 +59,7 @@ export default function ChannelSparkline({ data, height = 40, id = 'default' }: 
                     transition={{ duration: 1.4, ease: 'easeOut' }}
                     d={pathData}
                     fill="none"
-                    stroke="var(--color-text-tertiary)"
+                    stroke="rgba(var(--fg-rgb), 0.45)"
                     strokeWidth={1.8}
                     vectorEffect="non-scaling-stroke"
                     strokeLinecap="round"

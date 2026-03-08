@@ -1,61 +1,3 @@
-@import "tailwindcss";
-
-/* ── shadcn/ui theme — mapeado sobre os tokens Northie ───────────────────── */
-
-@theme inline {
-  /* Surfaces — referencia vars brutas sem colisão de nome */
-  --color-background:           var(--bg);
-  --color-foreground:           var(--fg);
-  --color-card:                 var(--n-card);
-  --color-card-foreground:      var(--n-text);
-  --color-popover:              var(--n-card);
-  --color-popover-foreground:   var(--n-text);
-
-  /* Brand */
-  --color-primary:              var(--n-primary);
-  --color-primary-foreground:   var(--n-primary-fg);
-  --color-secondary:            var(--n-secondary);
-  --color-secondary-foreground: var(--n-text);
-  --color-muted:                var(--n-secondary);
-  --color-muted-foreground:     var(--n-muted-fg);
-  --color-accent:               var(--n-accent);
-  --color-accent-foreground:    var(--n-text);
-  --color-destructive:          #EF4444;
-  --color-destructive-foreground: #F8F9FA;
-  --color-border:               var(--n-border);
-  --color-input:                var(--n-border);
-  --color-ring:                 var(--n-primary);
-
-  /* Radius — Supabase exact (6px buttons, 12px cards) */
-  --radius-sm:  4px;
-  --radius-md:  6px;
-  --radius-lg:  12px;
-  --radius-xl:  16px;
-
-  /* Chart palette — cool multi-color */
-  --color-chart-1: #3ECF8E;
-  --color-chart-2: #3B82F6;
-  --color-chart-3: #8B5CF6;
-  --color-chart-4: #F59E0B;
-  --color-chart-5: #EF4444;
-
-  /* Sidebar */
-  --color-sidebar:                 var(--bg);
-  --color-sidebar-foreground:      var(--fg);
-  --color-sidebar-primary:         var(--n-primary);
-  --color-sidebar-primary-foreground: var(--n-primary-fg);
-  --color-sidebar-accent:          var(--n-accent);
-  --color-sidebar-accent-foreground: var(--n-text);
-  --color-sidebar-border:          var(--n-border);
-  --color-sidebar-ring:            var(--n-primary);
-}
-
-@layer base {
-  * {
-    border-color: var(--n-border);
-  }
-}
-
 *,
 *::before,
 *::after {
@@ -70,202 +12,152 @@ body,
   height: 100%;
 }
 
-/* ── Northie Brand Tokens — Supabase Dark-First ──────────────────────────── */
+/* ── Northie Brand Tokens ─────────────────────────────────────────────────── */
 
 :root {
-  /* ── Surfaces (dark default — exact Supabase Figma values) ──────────── */
-  --bg: #101010;
-  --surface: #171717;
-  --surface-glass: rgba(23, 23, 23, 0.92);
+  /* Northie surfaces */
+  --bg: #FCF8F8;
+  --surface: #FFFFFF;
+  --surface-glass: rgba(255, 255, 255, 0.7);
 
-  /* ── Foreground ─────────────────────────────────────────────────────── */
-  --fg: #FAFAFA;
-  --fg-rgb: 250, 250, 250;
+  /* Northie foreground */
+  --fg: #37352F;
+  --fg-rgb: 55, 53, 47;
 
-  /* ── Inverted ───────────────────────────────────────────────────────── */
-  --inv: #FAFAFA;
-  --on-inv: #101010;
+  /* Northie inverted elements */
+  --inv: #37352F;
+  --on-inv: #FFFFFF;
 
-  /* ── Text ────────────────────────────────────────────────────────────── */
-  --color-text-primary:   #FAFAFA;
-  --color-text-secondary: #898989;
-  --color-text-tertiary:  #575757;
+  /* ── Notion Design Tokens ─────────────────────────────────────────────── */
 
-  /* ── Backgrounds (Supabase gray scale) ──────────────────────────────── */
-  --color-bg-primary:   #171717;
-  --color-bg-secondary: #1C1C1C;
-  --color-bg-tertiary:  #242424;
-  --color-border:       #2E2E2E;
+  /* Colors - Text */
+  --color-text-primary: #37352F;
+  --color-text-secondary: #787774;
+  --color-text-tertiary: #9B9A97;
 
-  /* ── Brand — Supabase Green ──────────────────────────────────────────── */
-  --color-primary:       #3ECF8E;
-  --color-primary-fg:    #FAFAFA;
-  --color-primary-hover: #3ABD81;
-  --color-primary-light: rgba(62, 207, 142, 0.15);
-  --color-primary-dark:  #006239;
-  --color-primary-border: rgba(62, 207, 142, 0.3);
+  /* Colors - Background */
+  --color-bg-primary: #FFFFFF;
+  --color-bg-secondary: #F7F6F3;
+  --color-bg-tertiary: #EFEEEB;
+  --color-border: #E3E2E0;
 
-  /* ── Bridge vars for @theme inline (avoid circular refs) ────────────── */
-  --n-card:       #171717;
-  --n-text:       #FAFAFA;
-  --n-primary:    #3ECF8E;
-  --n-primary-fg: #FAFAFA;
-  --n-secondary:  #1C1C1C;
-  --n-muted-fg:   #575757;
-  --n-accent:     #242424;
-  --n-border:     #2E2E2E;
+  /* Colors - Action (Notion blue) */
+  --color-primary: #2383E2;
+  --color-primary-hover: #0B6BCB;
+  --color-primary-light: #E7F3FF;
 
-  /* ── Status ──────────────────────────────────────────────────────────── */
-  --status-not-started:    #575757;
-  --status-not-started-bg: #1C1C1C;
-  --status-planning:       #F59E0B;
-  --status-planning-bg:    rgba(245, 158, 11, 0.12);
-  --status-in-progress:    #3B82F6;
-  --status-in-progress-bg: rgba(59, 130, 246, 0.12);
-  --status-complete:       #3ECF8E;
-  --status-complete-bg:    rgba(62, 207, 142, 0.12);
+  /* Colors - Status */
+  --status-not-started: #787774;
+  --status-not-started-bg: #F1F1EF;
+  --status-planning: #D9730D;
+  --status-planning-bg: #FBF3DB;
+  --status-in-progress: #2383E2;
+  --status-in-progress-bg: #E7F3FF;
+  --status-complete: #0F7B6C;
+  --status-complete-bg: #DBEDDB;
 
-  /* ── Priority ────────────────────────────────────────────────────────── */
-  --priority-low:       #898989;
-  --priority-low-bg:    #242424;
-  --priority-medium:    #F59E0B;
-  --priority-medium-bg: rgba(245, 158, 11, 0.12);
-  --priority-high:      #EF4444;
-  --priority-high-bg:   rgba(239, 68, 68, 0.12);
+  /* Colors - Priority */
+  --priority-low: #37352F;
+  --priority-low-bg: #E3E2E0;
+  --priority-medium: #D9730D;
+  --priority-medium-bg: #FBF3DB;
+  --priority-high: #E03E3E;
+  --priority-high-bg: #FFE2DD;
 
-  /* ── Semantic Accents ────────────────────────────────────────────────── */
-  --accent-red:    #EF4444;
-  --accent-orange: #F97316;
-  --accent-amber:  #F59E0B;
-  --accent-yellow: #EAB308;
-  --accent-green:  #3ECF8E;
-  --accent-blue:   #3B82F6;
-  --accent-purple: #8B5CF6;
+  /* Colors - Accent */
+  --accent-red: #E16259;
+  --accent-orange: #D9730D;
+  --accent-yellow: #DFAB01;
+  --accent-green: #4DAB9A;
+  --accent-blue: #2383E2;
+  --accent-purple: #9065B0;
 
-  /* ── Typography ──────────────────────────────────────────────────────── */
-  --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-serif:    'Lora', serif;
-  --font-mono:     'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  --font-light:    300;
-  --font-regular:  400;
-  --font-medium:   500;
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Poppins', sans-serif;
+  --font-serif: 'Lora', serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
   --font-semibold: 600;
-  --font-bold:     700;
+  --font-bold: 700;
 
-  /* ── Type Scale ──────────────────────────────────────────────────────── */
-  --text-xs:   11px;
-  --text-sm:   12px;
+  /* Type Scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
   --text-base: 14px;
-  --text-md:   16px;
-  --text-lg:   18px;
-  --text-xl:   20px;
-  --text-2xl:  24px;
-  --text-3xl:  32px;
-  --text-4xl:  40px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --text-4xl: 40px;
 
-  /* ── Spacing — 8px grid ──────────────────────────────────────────────── */
-  --space-1:  4px;
-  --space-2:  8px;
-  --space-3:  12px;
-  --space-4:  16px;
-  --space-5:  20px;
-  --space-6:  24px;
-  --space-8:  32px;
+  /* Spacing — 8px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
 
-  /* ── Layout ──────────────────────────────────────────────────────────── */
-  --sidebar-width:      240px;
-  --content-max-width:  1120px;
-  --table-row-height:   42px;
-  --avatar-size-sm:     20px;
-  --avatar-size-md:     24px;
-  --avatar-size-lg:     32px;
+  /* Layout */
+  --sidebar-width: 240px;
+  --content-max-width: 900px;
+  --table-row-height: 42px;
+  --avatar-size-sm: 20px;
+  --avatar-size-md: 24px;
+  --avatar-size-lg: 32px;
 
-  /* ── Border Radius ───────────────────────────────────────────────────── */
-  --radius-sm:   4px;
-  --radius-md:   6px;
-  --radius-lg:   12px;
-  --radius-xl:   16px;
+  /* Border Radius */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-full: 9999px;
 
-  /* ── Shadows (Supabase: borders > shadows, minimal depth) ────────────── */
-  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md:         0 0 0 1px #2E2E2E;
-  --shadow-lg:         0 0 0 1px #2E2E2E, 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-xl:         0 0 0 1px #2E2E2E, 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-card:       0 0 0 1px #2E2E2E;
-  --shadow-card-hover: 0 0 0 1px #363636;
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(55, 53, 47, 0.08);
+  --shadow-md: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 1px 2px rgba(55, 53, 47, 0.08);
+  --shadow-lg: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 4px 12px rgba(55, 53, 47, 0.12);
+  --shadow-xl: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 8px 24px rgba(55, 53, 47, 0.14);
 
-  /* ── Transitions ─────────────────────────────────────────────────────── */
+  /* Transitions */
   --transition-fast: 60ms ease;
   --transition-base: 120ms ease;
   --transition-slow: 200ms ease;
 }
 
-/* ── Light Mode — Supabase Light ─────────────────────────────────────────── */
+/* ── Dark Mode ────────────────────────────────────────────────────────────── */
 
-[data-theme="light"] {
-  --bg:           #F9FAFB;
-  --surface:      #FFFFFF;
-  --surface-glass: rgba(255, 255, 255, 0.8);
+[data-theme="dark"] {
+  --bg: #131110;
+  --surface: #1D1A17;
+  --surface-glass: rgba(29, 26, 23, 0.9);
 
-  --fg:     #111827;
-  --fg-rgb: 17, 24, 39;
+  --fg: #EDE9E4;
+  --fg-rgb: 237, 233, 228;
 
-  --inv:    #111827;
-  --on-inv: #F9FAFB;
+  --inv: #EDE9E4;
+  --on-inv: #131110;
 
-  --color-text-primary:   #111827;
-  --color-text-secondary: #374151;
-  --color-text-tertiary:  #9CA3AF;
-
-  --color-bg-primary:   #FFFFFF;
-  --color-bg-secondary: #F3F4F6;
-  --color-bg-tertiary:  #E5E7EB;
-  --color-border:       #E5E7EB;
-
-  /* Green stays in both modes */
-  --color-primary:       #3ECF8E;
-  --color-primary-fg:    #FFFFFF;
-  --color-primary-hover: #29BC79;
-  --color-primary-light: rgba(62, 207, 142, 0.12);
-  --color-primary-dark:  #006239;
-  --color-primary-border: rgba(62, 207, 142, 0.3);
-
-  --n-card:       #FFFFFF;
-  --n-text:       #111827;
-  --n-primary:    #3ECF8E;
-  --n-primary-fg: #020305;
-  --n-secondary:  #F3F4F6;
-  --n-muted-fg:   #9CA3AF;
-  --n-accent:     #E5E7EB;
-  --n-border:     #E5E7EB;
-
-  --status-not-started:    #9CA3AF;
-  --status-not-started-bg: #F3F4F6;
-  --status-planning:       #D97706;
-  --status-planning-bg:    rgba(217, 119, 6, 0.08);
-  --status-in-progress:    #2563EB;
-  --status-in-progress-bg: rgba(37, 99, 235, 0.08);
-  --status-complete:       #059669;
-  --status-complete-bg:    rgba(5, 150, 105, 0.08);
-
-  --priority-low:       #374151;
-  --priority-low-bg:    #E5E7EB;
-  --priority-medium:    #D97706;
-  --priority-medium-bg: rgba(217, 119, 6, 0.08);
-  --priority-high:      #DC2626;
-  --priority-high-bg:   rgba(220, 38, 38, 0.08);
-
-  --shadow-sm:         0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md:         0 0 0 1px var(--color-border);
-  --shadow-lg:         0 0 0 1px var(--color-border), 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-xl:         0 0 0 1px var(--color-border), 0 8px 24px rgba(0, 0, 0, 0.1);
-  --shadow-card:       0 0 0 1px var(--color-border);
-  --shadow-card-hover: 0 0 0 1px #D1D5DB;
+  /* Notion tokens — dark overrides */
+  --color-text-primary: rgba(255, 255, 255, 0.87);
+  --color-text-secondary: rgba(255, 255, 255, 0.62);
+  --color-text-tertiary: rgba(255, 255, 255, 0.37);
+  --color-bg-primary: #2F3437;
+  --color-bg-secondary: #25282A;
+  --color-bg-tertiary: #373C3F;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 /* ── Base Styles ──────────────────────────────────────────────────────────── */
@@ -376,7 +268,6 @@ body {
 .notion-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-light);
-  outline: none;
 }
 
 /* Notion-style button secondary */
@@ -420,16 +311,16 @@ body {
   color: var(--color-text-primary);
 }
 
-/* Notion card — Supabase style (border > shadow) */
+/* Notion card */
 .notion-card {
   background: var(--color-bg-primary);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  transition: border-color var(--transition-base), background var(--transition-base);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  transition: box-shadow var(--transition-base), background var(--transition-base);
 }
 
 .notion-card:hover {
-  border-color: #363636;
+  box-shadow: var(--shadow-lg);
 }
 
 ::-webkit-scrollbar {
@@ -450,42 +341,60 @@ body {
   background: rgba(var(--fg-rgb), 0.22);
 }
 
-/* ── Spotlight — green glow, top-center (Supabase style) ─────────────────── */
+/* ── Grain texture — subtle sand/noise overlay ────────────────────────────── */
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.032;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  background-repeat: repeat;
+}
+
+[data-theme="dark"] body::after {
+  opacity: 0.045;
+}
+
+/* ── Spotlight — concentrated light beam, top-center ─────────────────────── */
 
 body::before {
   content: '';
   position: fixed;
-  top: -300px;
+  top: -280px;
   left: 50%;
   transform: translateX(-50%);
-  width: 800px;
-  height: 600px;
+  width: 600px;
+  height: 560px;
   pointer-events: none;
   z-index: 0;
-  background: radial-gradient(ellipse 60% 55% at 50% 0%,
-      rgba(62, 207, 142, 0.07) 0%,
-      rgba(62, 207, 142, 0.02) 40%,
+  background: radial-gradient(ellipse 55% 55% at 50% 0%,
+      rgba(255, 252, 245, 0.18) 0%,
+      rgba(255, 252, 245, 0.06) 35%,
       transparent 70%);
   border-radius: 50%;
 }
 
-[data-theme="light"] body::before {
-  background: radial-gradient(ellipse 60% 55% at 50% 0%,
-      rgba(62, 207, 142, 0.06) 0%,
-      rgba(62, 207, 142, 0.02) 40%,
+[data-theme="dark"] body::before {
+  background: radial-gradient(ellipse 55% 55% at 50% 0%,
+      rgba(255, 250, 235, 0.09) 0%,
+      rgba(255, 250, 235, 0.03) 35%,
       transparent 70%);
 }
 
-/* ── Global text selection — green ───────────────────────────────────────── */
+/* ── Global text selection ────────────────────────────────────────────────── */
 
 ::selection {
-  background: rgba(62, 207, 142, 0.25);
-  color: #F8F9FA;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
-[data-theme="light"] ::selection {
-  background: rgba(62, 207, 142, 0.2);
-  color: #111827;
+[data-theme="dark"] ::selection {
+  background: rgba(35, 131, 226, 0.25);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* ── Placeholder global ───────────────────────────────────────────────────── */
@@ -495,12 +404,11 @@ body::before {
   opacity: 1;
 }
 
-/* ── Focus outline ────────────────────────────────────────────────────────── */
+/* ── Notion-style focus outline removal ───────────────────────────────────── */
 
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 button:focus-visible,
@@ -508,89 +416,4 @@ a:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
-}
-
-/* ── Skeleton shimmer animation ───────────────────────────────────────────── */
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-bg-tertiary) 25%,
-    var(--color-bg-secondary) 50%,
-    var(--color-bg-tertiary) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
-  border-radius: var(--radius-md);
-}
-
-/* ── Supabase card — gradient border via background trick ─────────────────── */
-
-.supa-card {
-  background: linear-gradient(180deg, #2E2E2E 0%, rgba(46, 46, 46, 0.5) 100%);
-  border-radius: var(--radius-lg);
-  padding: 1px;
-  transition: background var(--transition-base);
-}
-
-.supa-card:hover {
-  background: linear-gradient(180deg, #363636 0%, rgba(54, 54, 54, 0.6) 100%);
-}
-
-.supa-card-inner {
-  background: var(--color-bg-primary);
-  border-radius: calc(var(--radius-lg) - 1px);
-  height: 100%;
-  overflow: hidden;
-}
-
-[data-theme="light"] .supa-card {
-  background: linear-gradient(180deg, #D1D5DB 0%, rgba(209, 213, 219, 0.5) 100%);
-}
-
-[data-theme="light"] .supa-card:hover {
-  background: linear-gradient(180deg, #9CA3AF 0%, rgba(156, 163, 175, 0.5) 100%);
-}
-
-[data-theme="light"] .supa-card-inner {
-  background: var(--color-bg-primary);
-}
-
-/* ── Headings — tight letter-spacing ──────────────────────────────────────── */
-
-h1, h2, h3 {
-  letter-spacing: -0.02em;
-}
-
-/* ── Compact mode ────────────────────────────────────────────────────────── */
-
-[data-compact="true"] {
-  --space-4:  12px;  /* 16px → 12px */
-  --space-5:  14px;  /* 20px → 14px */
-  --space-6:  16px;  /* 24px → 16px */
-  --space-8:  20px;  /* 32px → 20px */
-  --space-10: 28px;  /* 40px → 28px */
-  --space-12: 36px;  /* 48px → 36px */
-  --space-16: 48px;  /* 64px → 48px */
-}
-
-/* ── Reduced motion ───────────────────────────────────────────────────────── */
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
-  .skeleton {
-    animation: none;
-  }
 }

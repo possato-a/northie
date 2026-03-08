@@ -4,7 +4,7 @@ import TopBar from '../components/layout/TopBar'
 import { integrationApi, setProfileId, pixelApi } from '../lib/api'
 import {
     PageHeader, SectionLabel,
-    Btn, EmptyState, FilterPills, Input, SectionCard
+    Btn, EmptyState, FilterPills, Input
 } from '../components/ui/shared'
 
 // ── Types & Mock Data ────────────────────────────────────────────────────────
@@ -538,7 +538,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }, [selectedPlugin, currentPlugins])
 
     return (
-        <div style={{ paddingBottom: 40 }}>
+        <div style={{ paddingTop: 28, paddingBottom: 80 }}>
             {!selectedPlugin && <TopBar onToggleChat={onToggleChat} />}
 
             <AnimatePresence mode='wait'>
@@ -584,27 +584,25 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                             />
                         </div>
 
-                        <SectionCard style={{ marginTop: 32 }}>
-                            <div style={{
-                                display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20
-                            }}>
-                                {filteredPlugins.map(plugin => (
-                                    <PluginCard
-                                        key={plugin.id}
-                                        plugin={plugin as Plugin}
-                                        onClick={() => setSelectedPlugin(plugin as Plugin)}
-                                    />
-                                ))}
-                            </div>
-
-                            {filteredPlugins.length === 0 && (
-                                <EmptyState
-                                    title="Não encontramos este App"
-                                    description={`Não existem resultados para "${searchQuery}" nesta categoria.`}
-                                    action={<Btn variant="secondary" size="sm" onClick={() => setSearchQuery('')}>Limpar busca</Btn>}
+                        <div style={{
+                            display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20, marginTop: 32
+                        }}>
+                            {filteredPlugins.map(plugin => (
+                                <PluginCard
+                                    key={plugin.id}
+                                    plugin={plugin as Plugin}
+                                    onClick={() => setSelectedPlugin(plugin as Plugin)}
                                 />
-                            )}
-                        </SectionCard>
+                            ))}
+                        </div>
+
+                        {filteredPlugins.length === 0 && (
+                            <EmptyState
+                                title="Não encontramos este App"
+                                description={`Não existem resultados para "${searchQuery}" nesta categoria.`}
+                                action={<Btn variant="secondary" size="sm" onClick={() => setSearchQuery('')}>Limpar busca</Btn>}
+                            />
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

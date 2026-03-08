@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../ThemeContext'
 import { supabase } from '../lib/supabase'
-import { integrationApi, profileApi } from '../lib/api'
+import { integrationApi } from '../lib/api'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -291,74 +291,16 @@ function NavItem({
 
 // ── Settings Panels ────────────────────────────────────────────────────────────
 
-// ── Shared input style helper ──────────────────────────────────────────────────
-function inputStyle(focused: boolean): React.CSSProperties {
-    return {
-        padding: '7px 12px',
-        background: 'var(--color-bg-secondary)',
-        border: `1px solid ${focused ? 'var(--color-primary)' : 'var(--color-border)'}`,
-        borderRadius: 'var(--radius-md)',
-        color: 'var(--color-text-primary)',
-        fontFamily: 'var(--font-sans)',
-        fontSize: 'var(--text-base)',
-        outline: 'none',
-        width: 220,
-        boxShadow: focused ? '0 0 0 2px var(--color-primary-light)' : 'none',
-        transition: 'border-color var(--transition-base), box-shadow var(--transition-base)',
-    }
-}
-
 function PerfilPanel({ user }: { user?: any }) {
+    const initialName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
     const email = user?.email || ''
-
-    // Nome — fonte primária é o profiles.full_name (DB), fallback para session metadata
-    const [name, setName] = useState(user?.user_metadata?.full_name || user?.email?.split('@')[0] || '')
-    const [nameLoaded, setNameLoaded] = useState(false)
-    const [nameFocused, setNameFocused] = useState(false)
+    const [name, setName] = useState(initialName)
+    const [focused, setFocused] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [pwResetState, setPwResetState] = useState<'idle' | 'sending' | 'sent'>('idle')
 
-    // Carrega nome do DB para evitar stale data do JWT em cache
-    useEffect(() => {
-        if (!user?.id || nameLoaded) return
-        supabase.from('profiles').select('full_name').eq('id', user.id).single()
-            .then(({ data }) => {
-                if (data?.full_name) setName(data.full_name)
-                setNameLoaded(true)
-            }, () => setNameLoaded(true))
-    }, [user?.id, nameLoaded])
-
-    // Email change
-    const [emailEditing, setEmailEditing] = useState(false)
-    const [newEmail, setNewEmail] = useState('')
-    const [emailFocused, setEmailFocused] = useState(false)
-    const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
-    const [emailError, setEmailError] = useState<string | null>(null)
-
-    // Password change
-    const [pwEditing, setPwEditing] = useState(false)
-    const [newPw, setNewPw] = useState('')
-    const [confirmPw, setConfirmPw] = useState('')
-    const [pwFocused, setPwFocused] = useState<string | null>(null)
-    const [showNewPw, setShowNewPw] = useState(false)
-    const [showConfirmPw, setShowConfirmPw] = useState(false)
-    const [pwState, setPwState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-    const [pwError, setPwError] = useState<string | null>(null)
-
-    // Sign out
-    const [signingOut, setSigningOut] = useState(false)
-
-    // Delete modal
-    const [deleteOpen, setDeleteOpen] = useState(false)
-    const [deleteInput, setDeleteInput] = useState('')
-    const [deleting, setDeleting] = useState(false)
-    const [deleteError, setDeleteError] = useState<string | null>(null)
-
-    const initial = name?.[0]?.toUpperCase() || email?.[0]?.toUpperCase() || 'N'
-
-    // ── Handlers ──────────────────────────────────────────────────────────────
-
-    const handleSaveName = async () => {
+    const handleSave = async () => {
         if (!user?.id || !name.trim()) return
         setSaving(true)
         try {
@@ -371,67 +313,22 @@ function PerfilPanel({ user }: { user?: any }) {
         }
     }
 
-    const handleEmailChange = async () => {
-        if (!newEmail.trim() || !/\S+@\S+\.\S+/.test(newEmail)) {
-            setEmailError('Digite um email válido.')
-            return
-        }
-        if (newEmail.trim() === email) {
-            setEmailError('O novo email é igual ao atual.')
-            return
-        }
-        setEmailError(null)
-        setEmailState('sending')
-        const { error } = await supabase.auth.updateUser({ email: newEmail.trim() })
-        if (error) {
-            setEmailState('error')
-            setEmailError(error.message)
-        } else {
-            setEmailState('sent')
-        }
+    const handlePasswordReset = async () => {
+        if (!email || pwResetState !== 'idle') return
+        setPwResetState('sending')
+        await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/?reset_password=true`,
+        })
+        setPwResetState('sent')
+        setTimeout(() => setPwResetState('idle'), 5000)
     }
 
-    const handlePasswordChange = async () => {
-        setPwError(null)
-        if (newPw.length < 8) { setPwError('A senha deve ter pelo menos 8 caracteres.'); return }
-        if (newPw !== confirmPw) { setPwError('As senhas não coincidem.'); return }
-        setPwState('saving')
-        const { error } = await supabase.auth.updateUser({ password: newPw })
-        if (error) {
-            setPwState('error')
-            setPwError(error.message)
-        } else {
-            setPwState('saved')
-            setNewPw('')
-            setConfirmPw('')
-            setTimeout(() => { setPwState('idle'); setPwEditing(false) }, 2000)
-        }
-    }
-
-    const handleSignOut = async () => {
-        setSigningOut(true)
-        await supabase.auth.signOut()
-    }
-
-    const handleDeleteAccount = async () => {
-        setDeleting(true)
-        setDeleteError(null)
-        try {
-            await profileApi.deleteAccount()
-            await supabase.auth.signOut()
-        } catch (err: any) {
-            setDeleteError(err?.response?.data?.error || 'Falha ao excluir conta. Tente novamente.')
-            setDeleting(false)
-        }
-    }
-
-    // ── Render ────────────────────────────────────────────────────────────────
+    const initial = name?.[0]?.toUpperCase() || email?.[0]?.toUpperCase() || 'N'
 
     return (
         <div>
             <SectionHeading>Conta</SectionHeading>
 
-            {/* Avatar + info */}
             <div style={{
                 padding: '20px 0',
                 borderBottom: '1px solid var(--color-border)',
@@ -447,7 +344,8 @@ function PerfilPanel({ user }: { user?: any }) {
                     border: '1px solid var(--color-border)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontFamily: 'var(--font-display)',
-                    fontSize: 20, fontWeight: 400,
+                    fontSize: 20,
+                    fontWeight: 400,
                     color: 'var(--color-text-primary)',
                     flexShrink: 0,
                 }}>{initial}</div>
@@ -457,20 +355,62 @@ function PerfilPanel({ user }: { user?: any }) {
                 </div>
             </div>
 
-            {/* Nome */}
             <SettingRow title="Nome" description="Seu nome é visível para todos os membros do workspace.">
                 <input
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    onFocus={() => setNameFocused(true)}
-                    onBlur={() => setNameFocused(false)}
-                    style={inputStyle(nameFocused)}
+                    onFocus={() => setFocused('name')}
+                    onBlur={() => setFocused(null)}
+                    style={{
+                        padding: '7px 12px',
+                        background: 'var(--color-bg-secondary)',
+                        border: `1px solid ${focused === 'name' ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--color-text-primary)',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-base)',
+                        outline: 'none',
+                        width: 220,
+                        boxShadow: focused === 'name' ? '0 0 0 2px var(--color-primary-light)' : 'none',
+                        transition: 'border-color var(--transition-base), box-shadow var(--transition-base)',
+                    }}
                 />
             </SettingRow>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 4 }}>
+            <SettingRow title="Email" description="Endereço de email associado à sua conta.">
+                <span style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-base)',
+                    color: 'var(--color-text-secondary)',
+                    padding: '7px 12px',
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'block',
+                    width: 220,
+                }}>
+                    {email}
+                </span>
+            </SettingRow>
+
+            <SettingRow title="Senha" description={pwResetState === 'sent' ? 'Email enviado! Verifique sua caixa de entrada.' : 'Altere sua senha de acesso.'}>
                 <button
-                    onClick={handleSaveName}
+                    className="notion-btn"
+                    onClick={handlePasswordReset}
+                    disabled={pwResetState !== 'idle'}
+                    style={{
+                        border: '1px solid var(--color-border)',
+                        opacity: pwResetState !== 'idle' ? 0.7 : 1,
+                        transition: 'opacity 0.2s',
+                    }}
+                >
+                    {pwResetState === 'sending' ? 'Enviando...' : pwResetState === 'sent' ? 'Email enviado ✓' : 'Alterar senha'}
+                </button>
+            </SettingRow>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
+                <button
+                    onClick={handleSave}
                     disabled={saving || !name.trim()}
                     style={{
                         padding: '7px 20px',
@@ -481,262 +421,19 @@ function PerfilPanel({ user }: { user?: any }) {
                         fontFamily: 'var(--font-sans)',
                         fontSize: 'var(--text-sm)',
                         fontWeight: 500,
-                        cursor: saving || !name.trim() ? 'default' : 'pointer',
+                        cursor: saving ? 'default' : 'pointer',
                         opacity: saving ? 0.7 : 1,
                         transition: 'background 0.2s',
                     }}
                 >
-                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar nome'}
+                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar alterações'}
                 </button>
             </div>
 
-            {/* Email */}
-            <div style={{ height: 1, background: 'var(--color-border)' }} />
-            <div style={{ padding: '18px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
-                    <div>
-                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>Email</p>
-                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>
-                            {emailState === 'sent'
-                                ? `Confirmação enviada para ${newEmail}. Verifique sua caixa de entrada.`
-                                : 'Endereço de email associado à sua conta.'}
-                        </p>
-                    </div>
-                    {!emailEditing && emailState !== 'sent' && (
-                        <div style={{ flexShrink: 0 }}>
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginRight: 12 }}>{email}</span>
-                            <button
-                                className="notion-btn"
-                                onClick={() => { setEmailEditing(true); setNewEmail('') }}
-                                style={{ border: '1px solid var(--color-border)' }}
-                            >Alterar</button>
-                        </div>
-                    )}
-                    {emailState === 'sent' && (
-                        <button
-                            className="notion-btn"
-                            onClick={() => { setEmailState('idle'); setEmailEditing(false); setNewEmail('') }}
-                            style={{ border: '1px solid var(--color-border)', flexShrink: 0 }}
-                        >OK</button>
-                    )}
-                </div>
-
-                <AnimatePresence>
-                    {emailEditing && emailState !== 'sent' && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            style={{ overflow: 'hidden' }}
-                        >
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
-                                <input
-                                    type="email"
-                                    value={newEmail}
-                                    onChange={e => { setNewEmail(e.target.value); setEmailError(null) }}
-                                    onFocus={() => setEmailFocused(true)}
-                                    onBlur={() => setEmailFocused(false)}
-                                    placeholder="novo@email.com"
-                                    style={{ ...inputStyle(emailFocused), width: 220 }}
-                                    onKeyDown={e => e.key === 'Enter' && handleEmailChange()}
-                                />
-                                <button
-                                    onClick={handleEmailChange}
-                                    disabled={emailState === 'sending' || !newEmail.trim()}
-                                    style={{
-                                        padding: '7px 14px',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: 'none',
-                                        background: 'var(--color-primary)',
-                                        color: 'white',
-                                        fontFamily: 'var(--font-sans)',
-                                        fontSize: 'var(--text-sm)',
-                                        fontWeight: 500,
-                                        cursor: emailState === 'sending' ? 'default' : 'pointer',
-                                        opacity: emailState === 'sending' ? 0.7 : 1,
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
-                                    {emailState === 'sending' ? 'Enviando...' : 'Confirmar'}
-                                </button>
-                                <button
-                                    onClick={() => { setEmailEditing(false); setEmailError(null); setEmailState('idle') }}
-                                    style={{
-                                        padding: '7px 10px',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: '1px solid var(--color-border)',
-                                        background: 'var(--color-bg-secondary)',
-                                        color: 'var(--color-text-secondary)',
-                                        fontFamily: 'var(--font-sans)',
-                                        fontSize: 'var(--text-sm)',
-                                        cursor: 'pointer',
-                                    }}
-                                >Cancelar</button>
-                            </div>
-                            {emailError && (
-                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--status-critical)', margin: '6px 0 0' }}>{emailError}</p>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* Senha */}
-            <div style={{ height: 1, background: 'var(--color-border)' }} />
-            <div style={{ padding: '18px 0' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
-                    <div>
-                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>Senha</p>
-                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>
-                            {pwState === 'saved' ? 'Senha alterada com sucesso.' : 'Altere a senha da sua conta Northie.'}
-                        </p>
-                    </div>
-                    {!pwEditing && (
-                        <button
-                            className="notion-btn"
-                            onClick={() => { setPwEditing(true); setPwState('idle'); setPwError(null) }}
-                            style={{ border: '1px solid var(--color-border)', flexShrink: 0 }}
-                        >Alterar senha</button>
-                    )}
-                </div>
-
-                <AnimatePresence>
-                    {pwEditing && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2 }}
-                            style={{ overflow: 'hidden' }}
-                        >
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                                {/* Nova senha com show/hide */}
-                                <div style={{ position: 'relative', width: 260 }}>
-                                    <input
-                                        type={showNewPw ? 'text' : 'password'}
-                                        value={newPw}
-                                        onChange={e => { setNewPw(e.target.value); setPwError(null) }}
-                                        onFocus={() => setPwFocused('new')}
-                                        onBlur={() => setPwFocused(null)}
-                                        placeholder="Nova senha (mín. 8 caracteres)"
-                                        style={{ ...inputStyle(pwFocused === 'new'), width: '100%', paddingRight: 36 }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowNewPw(v => !v)}
-                                        style={{
-                                            position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                                            background: 'none', border: 'none', cursor: 'pointer',
-                                            color: 'var(--color-text-tertiary)', padding: 0, display: 'flex',
-                                        }}
-                                        tabIndex={-1}
-                                    >
-                                        {showNewPw
-                                            ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                                            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        }
-                                    </button>
-                                </div>
-                                {/* Confirmar senha com show/hide */}
-                                <div style={{ position: 'relative', width: 260 }}>
-                                    <input
-                                        type={showConfirmPw ? 'text' : 'password'}
-                                        value={confirmPw}
-                                        onChange={e => { setConfirmPw(e.target.value); setPwError(null) }}
-                                        onFocus={() => setPwFocused('confirm')}
-                                        onBlur={() => setPwFocused(null)}
-                                        placeholder="Confirmar nova senha"
-                                        style={{ ...inputStyle(pwFocused === 'confirm'), width: '100%', paddingRight: 36 }}
-                                        onKeyDown={e => e.key === 'Enter' && handlePasswordChange()}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPw(v => !v)}
-                                        style={{
-                                            position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                                            background: 'none', border: 'none', cursor: 'pointer',
-                                            color: 'var(--color-text-tertiary)', padding: 0, display: 'flex',
-                                        }}
-                                        tabIndex={-1}
-                                    >
-                                        {showConfirmPw
-                                            ? <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                                            : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        }
-                                    </button>
-                                </div>
-                                {pwError && (
-                                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--status-critical)', margin: 0 }}>{pwError}</p>
-                                )}
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                    <button
-                                        onClick={handlePasswordChange}
-                                        disabled={pwState === 'saving' || pwState === 'saved'}
-                                        style={{
-                                            padding: '7px 14px',
-                                            borderRadius: 'var(--radius-md)',
-                                            border: 'none',
-                                            background: pwState === 'saved' ? 'var(--accent-green)' : 'var(--color-primary)',
-                                            color: 'white',
-                                            fontFamily: 'var(--font-sans)',
-                                            fontSize: 'var(--text-sm)',
-                                            fontWeight: 500,
-                                            cursor: pwState === 'saving' ? 'default' : 'pointer',
-                                            opacity: pwState === 'saving' ? 0.7 : 1,
-                                            transition: 'background 0.2s',
-                                        }}
-                                    >
-                                        {pwState === 'saved' ? 'Salvo ✓' : pwState === 'saving' ? 'Salvando...' : 'Salvar nova senha'}
-                                    </button>
-                                    <button
-                                        onClick={() => { setPwEditing(false); setPwError(null); setPwState('idle'); setNewPw(''); setConfirmPw('') }}
-                                        style={{
-                                            padding: '7px 10px',
-                                            borderRadius: 'var(--radius-md)',
-                                            border: '1px solid var(--color-border)',
-                                            background: 'var(--color-bg-secondary)',
-                                            color: 'var(--color-text-secondary)',
-                                            fontFamily: 'var(--font-sans)',
-                                            fontSize: 'var(--text-sm)',
-                                            cursor: 'pointer',
-                                        }}
-                                    >Cancelar</button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* Sair da conta */}
-            <div style={{ height: 1, background: 'var(--color-border)' }} />
-            <SettingRow title="Sair da conta" description="Encerra sua sessão neste dispositivo." divider={false}>
-                <button
-                    onClick={handleSignOut}
-                    disabled={signingOut}
-                    style={{
-                        padding: '7px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-border)',
-                        background: 'var(--color-bg-secondary)',
-                        color: 'var(--color-text-secondary)',
-                        fontFamily: 'var(--font-sans)',
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: 500,
-                        cursor: signingOut ? 'default' : 'pointer',
-                        opacity: signingOut ? 0.6 : 1,
-                    }}
-                >
-                    {signingOut ? 'Saindo...' : 'Sair da conta'}
-                </button>
-            </SettingRow>
-
-            {/* Zona de perigo */}
             <div style={{ marginTop: 40 }}>
                 <SectionHeading>Zona de perigo</SectionHeading>
                 <div style={{
-                    border: '1px solid rgba(239,68,68,0.25)',
+                    border: '1px solid var(--priority-high-bg)',
                     borderRadius: 'var(--radius-lg)',
                     padding: '20px 24px',
                     display: 'flex',
@@ -747,170 +444,37 @@ function PerfilPanel({ user }: { user?: any }) {
                 }}>
                     <div>
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>Excluir conta</p>
-                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>Todos os seus dados serão permanentemente removidos. Esta ação não pode ser desfeita.</p>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>Todos os seus dados serão permanentemente removidos.</p>
                     </div>
-                    <button
-                        onClick={() => { setDeleteOpen(true); setDeleteInput(''); setDeleteError(null) }}
-                        style={{
-                            padding: '7px 14px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid rgba(239,68,68,0.5)',
-                            background: 'transparent',
-                            color: '#EF4444',
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: 'var(--text-sm)',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                        }}
-                    >
+                    <button style={{
+                        padding: '7px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--priority-high)',
+                        background: 'transparent',
+                        color: 'var(--priority-high)',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                    }}>
                         Excluir conta
                     </button>
                 </div>
             </div>
-
-            {/* Modal de exclusão de conta */}
-            <AnimatePresence>
-                {deleteOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.18 }}
-                        style={{
-                            position: 'fixed', inset: 0,
-                            background: 'rgba(0,0,0,0.6)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            zIndex: 1000,
-                        }}
-                        onClick={e => { if (e.target === e.currentTarget && !deleting) setDeleteOpen(false) }}
-                    >
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.96, y: 8 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.96, y: 8 }}
-                            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                            style={{
-                                background: 'var(--color-bg-primary)',
-                                border: '1px solid var(--color-border)',
-                                borderRadius: 'var(--radius-xl)',
-                                padding: 32,
-                                width: 440,
-                                boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-                            }}
-                        >
-                            {/* Header */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                                <div style={{
-                                    width: 36, height: 36, borderRadius: '50%',
-                                    background: 'rgba(239,68,68,0.1)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                                }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--text-base)', color: 'var(--color-text-primary)', margin: 0 }}>Excluir conta permanentemente</p>
-                                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '2px 0 0' }}>Esta ação não pode ser desfeita.</p>
-                                </div>
-                            </div>
-
-                            {/* Warning */}
-                            <div style={{
-                                background: 'rgba(239,68,68,0.06)',
-                                border: '1px solid rgba(239,68,68,0.2)',
-                                borderRadius: 'var(--radius-md)',
-                                padding: '12px 16px',
-                                marginBottom: 20,
-                            }}>
-                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.55 }}>
-                                    Isso irá excluir permanentemente sua conta, todas as integrações, transações, clientes e histórico. <strong style={{ color: 'var(--color-text-primary)' }}>Não há como recuperar.</strong>
-                                </p>
-                            </div>
-
-                            {/* Confirmation input */}
-                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '0 0 8px' }}>
-                                Digite <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-primary)' }}>EXCLUIR</strong> para confirmar:
-                            </p>
-                            <input
-                                type="text"
-                                value={deleteInput}
-                                onChange={e => { setDeleteInput(e.target.value); setDeleteError(null) }}
-                                placeholder="EXCLUIR"
-                                disabled={deleting}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px 12px',
-                                    background: 'var(--color-bg-secondary)',
-                                    border: `1px solid ${deleteInput === 'EXCLUIR' ? 'rgba(239,68,68,0.5)' : 'var(--color-border)'}`,
-                                    borderRadius: 'var(--radius-md)',
-                                    color: 'var(--color-text-primary)',
-                                    fontFamily: 'var(--font-mono)',
-                                    fontSize: 'var(--text-base)',
-                                    outline: 'none',
-                                    letterSpacing: '0.05em',
-                                    boxSizing: 'border-box',
-                                }}
-                            />
-                            {deleteError && (
-                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: '#EF4444', margin: '6px 0 0' }}>{deleteError}</p>
-                            )}
-
-                            {/* Buttons */}
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
-                                <button
-                                    onClick={() => setDeleteOpen(false)}
-                                    disabled={deleting}
-                                    style={{
-                                        padding: '8px 16px',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: '1px solid var(--color-border)',
-                                        background: 'var(--color-bg-secondary)',
-                                        color: 'var(--color-text-secondary)',
-                                        fontFamily: 'var(--font-sans)',
-                                        fontSize: 'var(--text-sm)',
-                                        fontWeight: 500,
-                                        cursor: deleting ? 'default' : 'pointer',
-                                    }}
-                                >Cancelar</button>
-                                <button
-                                    onClick={handleDeleteAccount}
-                                    disabled={deleteInput !== 'EXCLUIR' || deleting}
-                                    style={{
-                                        padding: '8px 16px',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: 'none',
-                                        background: deleteInput === 'EXCLUIR' && !deleting ? '#EF4444' : 'rgba(239,68,68,0.3)',
-                                        color: 'white',
-                                        fontFamily: 'var(--font-sans)',
-                                        fontSize: 'var(--text-sm)',
-                                        fontWeight: 500,
-                                        cursor: deleteInput !== 'EXCLUIR' || deleting ? 'default' : 'pointer',
-                                        transition: 'background 0.2s',
-                                    }}
-                                >
-                                    {deleting ? 'Excluindo...' : 'Excluir minha conta'}
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     )
 }
 
 function PreferenciasPanel({ user }: { user?: any }) {
-    const { isDark, setTheme, isCompact, setCompact, language, setLanguage, dateFormat, setDateFormat, startWeekMonday, setStartWeekMonday } = useTheme()
+    const { isDark, toggleTheme } = useTheme()
+    const [language, setLanguage] = useState('Português (Brasil)')
+    const [dateFormat, setDateFormat] = useState('DD/MM/AAAA')
+    const [startWeekMonday, setStartWeekMonday] = useState(true)
     const [autoTimezone, setAutoTimezone] = useState(true)
-    const [detectedTz, setDetectedTz] = useState('')
+    const [compactMode, setCompactMode] = useState(false)
     const [saving, setSaving] = useState(false)
-
-    useEffect(() => {
-        setDetectedTz(Intl.DateTimeFormat().resolvedOptions().timeZone)
-    }, [])
+    const [saved, setSaved] = useState(false)
 
     useEffect(() => {
         if (!user?.id) return
@@ -918,72 +482,33 @@ function PreferenciasPanel({ user }: { user?: any }) {
             .then(({ data }) => {
                 const prefs = data?.workspace_config?.preferences
                 if (!prefs) return
+                if (prefs.language) setLanguage(prefs.language)
+                if (prefs.dateFormat) setDateFormat(prefs.dateFormat)
+                if (prefs.startWeekMonday !== undefined) setStartWeekMonday(prefs.startWeekMonday)
                 if (prefs.autoTimezone !== undefined) setAutoTimezone(prefs.autoTimezone)
+                if (prefs.compactMode !== undefined) setCompactMode(prefs.compactMode)
             })
     }, [user?.id])
 
-    const savePrefs = async (patch: Record<string, unknown>) => {
+    const handleSave = async () => {
         if (!user?.id) return
         setSaving(true)
         try {
             const { data } = await supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
             const current = data?.workspace_config || {}
             await supabase.from('profiles').update({
-                workspace_config: { ...current, preferences: { ...(current.preferences || {}), ...patch } }
+                workspace_config: { ...current, preferences: { language, dateFormat, startWeekMonday, autoTimezone, compactMode } }
             }).eq('id', user.id)
+            setSaved(true)
+            setTimeout(() => setSaved(false), 2000)
         } finally {
             setSaving(false)
         }
     }
 
-    const handleTheme = (label: string) => {
-        const t = label === 'Escuro' ? 'dark' : 'light'
-        setTheme(t)
-        savePrefs({ theme: t })
-    }
-
-    const handleCompact = (v: boolean) => {
-        setCompact(v)
-        savePrefs({ compactMode: v })
-    }
-
-    const handleLanguage = (v: string) => {
-        setLanguage(v)
-        savePrefs({ language: v })
-    }
-
-    const handleDateFormat = (v: string) => {
-        setDateFormat(v)
-        savePrefs({ dateFormat: v })
-    }
-
-    const handleStartWeek = (v: boolean) => {
-        setStartWeekMonday(v)
-        savePrefs({ startWeekMonday: v })
-    }
-
-    const handleAutoTimezone = (v: boolean) => {
-        setAutoTimezone(v)
-        const tz = v ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined
-        const patch: Record<string, unknown> = { autoTimezone: v }
-        if (tz) {
-            patch.timezone = tz
-            supabase.from('profiles').update({ timezone: tz }).eq('id', user?.id).then()
-        }
-        savePrefs(patch)
-    }
-
     return (
         <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <SectionHeading>Aparência</SectionHeading>
-                {saving && (
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                        Salvando...
-                    </span>
-                )}
-            </div>
-
+            <SectionHeading>Aparência</SectionHeading>
             <SettingRow
                 title="Tema"
                 description="Escolha entre modo claro e escuro para a plataforma."
@@ -992,7 +517,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
                     {['Claro', 'Escuro'].map(t => (
                         <button
                             key={t}
-                            onClick={() => handleTheme(t)}
+                            onClick={() => { if ((t === 'Escuro') !== isDark) toggleTheme() }}
                             style={{
                                 padding: '6px 14px',
                                 borderRadius: 'var(--radius-md)',
@@ -1016,7 +541,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
                 title="Modo compacto"
                 description="Reduz o espaçamento entre elementos para exibir mais informações."
             >
-                <Toggle value={isCompact} onChange={handleCompact} />
+                <Toggle value={compactMode} onChange={setCompactMode} />
             </SettingRow>
 
             <div style={{ marginTop: 32, marginBottom: 8 }}>
@@ -1027,29 +552,47 @@ function PreferenciasPanel({ user }: { user?: any }) {
                 <Select
                     value={language}
                     options={['Português (Brasil)', 'English (US)', 'Español']}
-                    onChange={handleLanguage}
+                    onChange={setLanguage}
                 />
             </SettingRow>
 
             <SettingRow title="Iniciar semana na segunda-feira" description="Afeta calendários e visões de data.">
-                <Toggle value={startWeekMonday} onChange={handleStartWeek} />
+                <Toggle value={startWeekMonday} onChange={setStartWeekMonday} />
             </SettingRow>
 
             <SettingRow title="Formato de data">
                 <Select
                     value={dateFormat}
                     options={['DD/MM/AAAA', 'MM/DD/AAAA', 'AAAA-MM-DD', 'Relativo']}
-                    onChange={handleDateFormat}
+                    onChange={setDateFormat}
                 />
             </SettingRow>
 
-            <SettingRow
-                title="Detectar fuso horário automaticamente"
-                description={autoTimezone && detectedTz ? `Detectado: ${detectedTz}` : 'Lembretes e notificações serão enviados no seu horário local.'}
-                divider={false}
-            >
-                <Toggle value={autoTimezone} onChange={handleAutoTimezone} />
+            <SettingRow title="Detectar fuso horário automaticamente" description="Lembretes e notificações serão enviados no seu horário local." divider={false}>
+                <Toggle value={autoTimezone} onChange={setAutoTimezone} />
             </SettingRow>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
+                <button
+                    onClick={handleSave}
+                    disabled={saving || !user?.id}
+                    style={{
+                        padding: '7px 20px',
+                        borderRadius: 'var(--radius-md)',
+                        border: 'none',
+                        background: saved ? 'var(--accent-green)' : 'var(--color-primary)',
+                        color: 'white',
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: 500,
+                        cursor: saving ? 'default' : 'pointer',
+                        opacity: saving ? 0.7 : 1,
+                        transition: 'background 0.2s',
+                    }}
+                >
+                    {saved ? 'Salvo ✓' : saving ? 'Salvando...' : 'Salvar preferências'}
+                </button>
+            </div>
         </div>
     )
 }
@@ -1160,6 +703,7 @@ function NotificacoesPanel({ user }: { user?: any }) {
 }
 
 function SegurancaPanel() {
+    const [twoFactor, setTwoFactor] = useState(false)
     const [signingOut, setSigningOut] = useState(false)
 
     const handleSignOut = async () => {
@@ -1173,41 +717,23 @@ function SegurancaPanel() {
 
             <SettingRow
                 title="Autenticação em dois fatores"
-                description="Disponível em breve. Adicione uma camada extra de segurança à sua conta."
+                description="Adicione uma camada extra de segurança à sua conta."
             >
-                <span style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--text-xs)',
-                    fontWeight: 500,
-                    color: 'var(--color-text-tertiary)',
-                    background: 'var(--color-bg-tertiary)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '3px 8px',
-                    letterSpacing: '0.03em',
-                }}>Em breve</span>
+                <Toggle value={twoFactor} onChange={setTwoFactor} />
             </SettingRow>
 
             <SettingRow
                 title="Sessões ativas"
                 description="Gerencie onde sua conta está conectada."
             >
-                <button
-                    disabled
-                    className="notion-btn"
-                    style={{ border: '1px solid var(--color-border)', opacity: 0.45, cursor: 'default' }}
-                >
-                    Em breve
+                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
+                    Ver sessões
                 </button>
             </SettingRow>
 
             <SettingRow title="Log de atividade" description="Histórico de acessos e ações da conta.">
-                <button
-                    disabled
-                    className="notion-btn"
-                    style={{ border: '1px solid var(--color-border)', opacity: 0.45, cursor: 'default' }}
-                >
-                    Em breve
+                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
+                    Exportar log
                 </button>
             </SettingRow>
 
@@ -1804,7 +1330,7 @@ export default function Configuracoes({ user, onGoToAppStore }: { user?: any; on
     }
 
     return (
-        <div style={{ paddingBottom: 40, display: 'flex', gap: 0, minHeight: '80vh' }}>
+        <div style={{ paddingTop: 28, paddingBottom: 80, display: 'flex', gap: 0, minHeight: '80vh' }}>
 
             {/* Left nav */}
             <div style={{
