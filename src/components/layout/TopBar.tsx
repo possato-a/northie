@@ -1,12 +1,39 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
+import { alertsApi } from '../../lib/api'
 
 interface TopBarProps {
   onToggleChat?: () => void
 }
 
+interface Alert {
+  id: string
+  type: string
+  severity: 'info' | 'warning' | 'critical'
+  title: string
+  body: string
+  read: boolean
+  created_at: string
+}
+
 const DROPDOWN_EASING = { duration: 0.14, ease: [0.25, 0.1, 0.25, 1] as const }
+
+const SEVERITY_DOT: Record<string, string> = {
+  critical: '#dc2626',
+  warning: '#d97706',
+  info: '#2563eb',
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'agora'
+  if (m < 60) return `${m}m atrás`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h atrás`
+  return `${Math.floor(h / 24)}d atrás`
+}
 
 export default function TopBar(_props: TopBarProps) {
   const [query, setQuery] = useState('')
@@ -15,8 +42,10 @@ export default function TopBar(_props: TopBarProps) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [userName, setUserName] = useState('')
+  const [alerts, setAlerts] = useState<Alert[]>([])
   const notifRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
+  const prevUnreadRef = useRef(0)
 
   // Load current user
   useEffect(() => {
@@ -32,6 +61,33 @@ export default function TopBar(_props: TopBarProps) {
     })
   }, [])
 
+  const loadAlerts = useCallback(async () => {
+    try {
+      const res = await alertsApi.list()
+      const data: Alert[] = res.data?.data || []
+      const unread = data.filter(a => !a.read).length
+
+      // Browser notification when new unread alerts arrive
+      if (unread > prevUnreadRef.current && Notification.permission === 'granted' && prevUnreadRef.current > 0) {
+        const newest = data.find(a => !a.read)
+        if (newest) {
+          new Notification(`Northie — ${newest.title}`, { body: newest.body, icon: '/favicon.ico' })
+        }
+      }
+      prevUnreadRef.current = unread
+      setAlerts(data)
+    } catch {
+      // silently fail if not authenticated yet
+    }
+  }, [])
+
+  // Load alerts on mount + poll every 5 minutes
+  useEffect(() => {
+    loadAlerts()
+    const interval = setInterval(loadAlerts, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [loadAlerts])
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -42,6 +98,7 @@ export default function TopBar(_props: TopBarProps) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  const unreadCount = alerts.filter(a => !a.read).length
   const initial = userName?.[0]?.toUpperCase() || 'F'
 
   function navigateTo(page: string) {
@@ -52,6 +109,22 @@ export default function TopBar(_props: TopBarProps) {
   async function handleLogout() {
     setProfileOpen(false)
     await supabase.auth.signOut()
+  }
+
+  async function handleMarkAllRead() {
+    await alertsApi.markAllRead()
+    setAlerts(prev => prev.map(a => ({ ...a, read: true })))
+    prevUnreadRef.current = 0
+  }
+
+  async function handleMarkRead(id: string) {
+    await alertsApi.markRead(id)
+    setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a))
+  }
+
+  function handleOpenNotif() {
+    setNotifOpen(o => !o)
+    setProfileOpen(false)
   }
 
   return (
@@ -118,7 +191,7 @@ export default function TopBar(_props: TopBarProps) {
       {/* Notification bell */}
       <div ref={notifRef} style={{ position: 'relative', flexShrink: 0 }}>
         <motion.button
-          onClick={() => { setNotifOpen(o => !o); setProfileOpen(false) }}
+          onClick={handleOpenNotif}
           whileHover={{ background: 'var(--color-bg-tertiary)' } as any}
           whileTap={{ scale: 0.93 }}
           style={{
@@ -130,6 +203,7 @@ export default function TopBar(_props: TopBarProps) {
             color: 'var(--color-text-secondary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'border-color var(--transition-base), background var(--transition-base)',
+            position: 'relative',
           }}
         >
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -138,6 +212,20 @@ export default function TopBar(_props: TopBarProps) {
             <path d="M6.5 13.5a1.5 1.5 0 0 0 3 0"
               stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
+          {unreadCount > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              style={{
+                position: 'absolute',
+                top: 6, right: 6,
+                width: 7, height: 7,
+                borderRadius: '50%',
+                background: '#dc2626',
+                border: '1.5px solid var(--color-bg-primary)',
+              }}
+            />
+          )}
         </motion.button>
 
         <AnimatePresence>
@@ -149,7 +237,7 @@ export default function TopBar(_props: TopBarProps) {
               transition={DROPDOWN_EASING}
               style={{
                 position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-                width: 300,
+                width: 340,
                 background: 'var(--color-bg-primary)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-lg)',
@@ -170,25 +258,103 @@ export default function TopBar(_props: TopBarProps) {
                   color: 'var(--color-text-primary)',
                   letterSpacing: '-0.1px',
                 }}>
-                  Notificações
+                  Notificações {unreadCount > 0 && (
+                    <span style={{
+                      marginLeft: 6,
+                      background: '#dc262618',
+                      color: '#dc2626',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                    }}>{unreadCount}</span>
+                  )}
                 </span>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)', fontSize: 11,
+                      color: 'var(--color-text-tertiary)',
+                      padding: 0,
+                    }}
+                  >
+                    Marcar todas como lidas
+                  </button>
+                )}
               </div>
-              <div style={{
-                padding: '36px 16px',
-                textAlign: 'center',
-              }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 10px', display: 'block' }}>
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-                <p style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)',
-                  color: 'var(--color-text-tertiary)',
-                  margin: 0,
-                }}>
-                  Nenhuma notificação
-                </p>
+
+              <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                {alerts.length === 0 ? (
+                  <div style={{ padding: '36px 16px', textAlign: 'center' }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 10px', display: 'block' }}>
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    <p style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: 'var(--text-sm)',
+                      color: 'var(--color-text-tertiary)',
+                      margin: 0,
+                    }}>
+                      Nenhuma notificação
+                    </p>
+                  </div>
+                ) : alerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    onClick={() => !alert.read && handleMarkRead(alert.id)}
+                    style={{
+                      padding: '12px 16px',
+                      borderBottom: '1px solid var(--color-border)',
+                      background: alert.read ? 'transparent' : 'var(--color-bg-secondary)',
+                      cursor: alert.read ? 'default' : 'pointer',
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
+                      transition: 'background var(--transition-base)',
+                    }}
+                  >
+                    <div style={{
+                      width: 6, height: 6,
+                      borderRadius: '50%',
+                      background: alert.read ? 'var(--color-border)' : SEVERITY_DOT[alert.severity] ?? '#6b7280',
+                      flexShrink: 0,
+                      marginTop: 5,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: alert.read ? 400 : 600,
+                        color: 'var(--color-text-primary)',
+                        margin: '0 0 2px',
+                        letterSpacing: '-0.1px',
+                      }}>
+                        {alert.title}
+                      </p>
+                      <p style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 11,
+                        color: 'var(--color-text-tertiary)',
+                        margin: '0 0 4px',
+                        lineHeight: 1.5,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {alert.body}
+                      </p>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        color: 'var(--color-text-tertiary)',
+                      }}>
+                        {timeAgo(alert.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           )}

@@ -30,6 +30,7 @@ import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import profileRoutes from './routes/profile.routes.js';
+import alertsRoutes from './routes/alerts.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
@@ -91,6 +92,7 @@ app.use('/api/card', authMiddleware, cardRoutes);
 app.use('/api/valuation', authMiddleware, valuationRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/profile', authMiddleware, profileRoutes);
+app.use('/api/alerts', authMiddleware, alertsRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {

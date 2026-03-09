@@ -102,4 +102,10 @@ export const reportsApi = {
         api.get(`/reports/logs/${logId}/download`, { params: { format }, responseType: 'blob', timeout: 60000 }),
 };
 
+export const alertsApi = {
+    list: () => api.get('/alerts'),
+    markRead: (id: string) => api.patch(`/alerts/${id}/read`),
+    markAllRead: () => api.patch('/alerts/read-all'),
+};
+
 export default api;

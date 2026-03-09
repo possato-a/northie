@@ -628,13 +628,20 @@ function PreferenciasPanel({ user }: { user?: any }) {
 function NotificacoesPanel({ user }: { user?: any }) {
     const [emailNotif, setEmailNotif] = useState(true)
     const [browser, setBrowser] = useState(false)
+    const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default')
     const [weeklySummary, setWeeklySummary] = useState(true)
     const [alertCac, setAlertCac] = useState(true)
     const [alertRoas, setAlertRoas] = useState(true)
     const [alertBudget, setAlertBudget] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [recentAlerts, setRecentAlerts] = useState<any[]>([])
 
     useEffect(() => {
+        // Check current browser notification permission
+        if ('Notification' in window) {
+            setBrowserPermission(Notification.permission)
+        }
+
         if (!user?.id) return
         supabase.from('profiles').select('workspace_config').eq('id', user.id).single()
             .then(({ data }) => {
@@ -647,6 +654,13 @@ function NotificacoesPanel({ user }: { user?: any }) {
                 if (notif.alertRoas !== undefined) setAlertRoas(notif.alertRoas)
                 if (notif.alertBudget !== undefined) setAlertBudget(notif.alertBudget)
             })
+
+        // Load recent alerts for preview
+        supabase.from('alerts').select('id, type, severity, title, body, read, created_at')
+            .eq('profile_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5)
+            .then(({ data }) => { if (data) setRecentAlerts(data) })
     }, [user?.id])
 
     const saveNotifications = async (patch: Record<string, boolean>) => {
@@ -669,6 +683,22 @@ function NotificacoesPanel({ user }: { user?: any }) {
         saveNotifications({ [key]: v })
     }
 
+    const handleBrowserToggle = async (v: boolean) => {
+        if (v && 'Notification' in window && Notification.permission !== 'granted') {
+            const permission = await Notification.requestPermission()
+            setBrowserPermission(permission)
+            if (permission !== 'granted') return // don't save if denied
+        }
+        setBrowser(v)
+        saveNotifications({ browser: v })
+    }
+
+    const SEVERITY_COLOR: Record<string, string> = {
+        critical: '#dc2626', warning: '#d97706', info: '#2563eb',
+    }
+
+    const unreadCount = recentAlerts.filter(a => !a.read).length
+
     return (
         <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
@@ -682,16 +712,22 @@ function NotificacoesPanel({ user }: { user?: any }) {
 
             <SettingRow
                 title="Email"
-                description="Receba resumos e alertas por email."
+                description="Receba alertas automáticos por email quando anomalias forem detectadas."
             >
                 <Toggle value={emailNotif} onChange={handleToggle('email', setEmailNotif)} />
             </SettingRow>
 
             <SettingRow
                 title="Navegador"
-                description="Notificações push no navegador (quando a aba estiver aberta)."
+                description={
+                    browserPermission === 'denied'
+                        ? 'Permissão negada. Habilite notificações nas configurações do navegador.'
+                        : browserPermission === 'granted'
+                        ? 'Permissão concedida — notificações push ativas.'
+                        : 'Notificações push no navegador (quando a aba estiver aberta).'
+                }
             >
-                <Toggle value={browser} onChange={handleToggle('browser', setBrowser)} />
+                <Toggle value={browser} onChange={handleBrowserToggle} />
             </SettingRow>
 
             <SettingRow
@@ -707,25 +743,101 @@ function NotificacoesPanel({ user }: { user?: any }) {
 
             <SettingRow
                 title="Alerta de CAC elevado"
-                description="Notificar quando o custo de aquisição ultrapassar o limite definido."
+                description="Notificar quando o CAC superar o LTV médio da base (aquisição no prejuízo)."
             >
                 <Toggle value={alertCac} onChange={handleToggle('alertCac', setAlertCac)} />
             </SettingRow>
 
             <SettingRow
                 title="Alerta de ROAS baixo"
-                description="Notificar quando o ROAS de uma campanha cair abaixo de 2x."
+                description="Notificar quando o ROAS cair mais de 30% em relação à média dos 7 dias anteriores."
             >
                 <Toggle value={alertRoas} onChange={handleToggle('alertRoas', setAlertRoas)} />
             </SettingRow>
 
             <SettingRow
-                title="Alerta de orçamento"
-                description="Notificar quando o gasto diário atingir 90% do orçamento."
+                title="Alerta de gasto atípico"
+                description="Notificar quando o gasto diário em ads for mais de 2x a média dos últimos 30 dias."
                 divider={false}
             >
                 <Toggle value={alertBudget} onChange={handleToggle('alertBudget', setAlertBudget)} />
             </SettingRow>
+
+            {/* Recent alerts preview */}
+            {recentAlerts.length > 0 && (
+                <div style={{ marginTop: 40 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                        <SectionHeading>Alertas recentes</SectionHeading>
+                        {unreadCount > 0 && (
+                            <span style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 11,
+                                background: '#dc262618',
+                                color: '#dc2626',
+                                padding: '2px 8px',
+                                borderRadius: 4,
+                                fontWeight: 600,
+                            }}>
+                                {unreadCount} não lido{unreadCount > 1 ? 's' : ''}
+                            </span>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {recentAlerts.map(alert => (
+                            <div
+                                key={alert.id}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: 12,
+                                    padding: '12px 14px',
+                                    background: alert.read ? 'var(--color-bg-secondary)' : 'var(--color-bg-tertiary)',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: `1px solid ${alert.read ? 'var(--color-border)' : SEVERITY_COLOR[alert.severity] + '33'}`,
+                                }}
+                            >
+                                <div style={{
+                                    width: 6, height: 6,
+                                    borderRadius: '50%',
+                                    background: alert.read ? 'var(--color-border)' : (SEVERITY_COLOR[alert.severity] ?? '#6b7280'),
+                                    flexShrink: 0,
+                                    marginTop: 4,
+                                }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{
+                                        fontFamily: 'var(--font-sans)',
+                                        fontSize: 'var(--text-sm)',
+                                        fontWeight: alert.read ? 400 : 600,
+                                        color: 'var(--color-text-primary)',
+                                        margin: '0 0 2px',
+                                        letterSpacing: '-0.1px',
+                                    }}>
+                                        {alert.title}
+                                    </p>
+                                    <p style={{
+                                        fontFamily: 'var(--font-sans)',
+                                        fontSize: 11,
+                                        color: 'var(--color-text-secondary)',
+                                        margin: 0,
+                                        lineHeight: 1.5,
+                                    }}>
+                                        {alert.body}
+                                    </p>
+                                </div>
+                                <span style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 10,
+                                    color: 'var(--color-text-tertiary)',
+                                    flexShrink: 0,
+                                    marginTop: 2,
+                                }}>
+                                    {new Date(alert.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
