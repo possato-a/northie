@@ -5,6 +5,7 @@ import TopBar from '../components/layout/TopBar'
 import DatePicker from '../components/ui/DatePicker'
 import { dashboardApi, dataApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
+import { useTheme } from '../ThemeContext'
 import type { Transaction, TransactionStatus } from '../types'
 import {
   PageHeader, SectionLabel, TH, Divider,
@@ -21,6 +22,8 @@ function StatusTag({ status }: { status: TransactionStatus }) {
 const STATUS_FILTERS: Array<TransactionStatus | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'Reembolsado']
 
 function TransactionList({ transactions, loading }: { transactions: Transaction[], loading: boolean }) {
+  const { language } = useTheme()
+  void language // re-renderiza quando idioma muda → fmtBR() usa novo locale
   const [statusFilter, setStatusFilter] = useState<TransactionStatus | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
 
@@ -108,6 +111,8 @@ function TransactionList({ transactions, loading }: { transactions: Transaction[
 
 // ── Product Revenue ───────────────────────────────────────────────────────────
 function ProductRevenue({ transactions }: { transactions: Transaction[] }) {
+  const { language } = useTheme()
+  void language
   const products = useMemo(() => {
     const map = new Map<string, { qty: number; revenue: number }>()
     transactions.filter(t => t.status === 'Pago').forEach(t => {

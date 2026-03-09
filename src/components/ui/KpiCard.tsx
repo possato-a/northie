@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, animate as fmAnimate } from 'framer-motion'
+import { useTheme } from '../../ThemeContext'
+import { getLocale } from '../../lib/dateFormatter'
 
 // ── AnimatedNumber ─────────────────────────────────────────────────────────────
 interface AnimatedNumberProps {
@@ -15,10 +17,12 @@ export function AnimatedNumber({
   target,
   prefix = '',
   suffix = '',
-  locale = 'pt-BR',
+  locale,
   decimals = 0,
   delay = 0,
 }: AnimatedNumberProps) {
+  const { language } = useTheme()
+  const resolvedLocale = locale || getLocale()
   const [value, setValue] = useState(0)
   const ref = useRef<ReturnType<typeof fmAnimate> | null>(null)
 
@@ -37,10 +41,14 @@ export function AnimatedNumber({
     }
   }, [target, delay])
 
-  const formatted = new Intl.NumberFormat(locale, {
+  // Re-formata quando language muda (sem reiniciar a animação)
+  const formatted = new Intl.NumberFormat(resolvedLocale, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(value)
+
+  // Usa language para garantir re-render quando o idioma muda
+  void language
 
   return <span>{prefix}{formatted}{suffix}</span>
 }
@@ -63,7 +71,7 @@ export function KpiCard({
   value,
   prefix = '',
   suffix = '',
-  locale = 'pt-BR',
+  locale,
   decimals = 0,
   delay = 0,
   trend,
