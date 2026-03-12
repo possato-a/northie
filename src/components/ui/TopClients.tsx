@@ -26,55 +26,36 @@ export default function TopClients({ initialData }: { initialData?: TopCustomer[
   }, [])
 
   if (loading) return (
-    <div style={{
-      height: 280,
-      background: 'var(--color-bg-secondary)',
-      borderRadius: 'var(--radius-lg)',
-      border: '1px solid var(--color-border)',
-    }} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} style={{
+          height: 40,
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 'var(--radius-sm)',
+          opacity: 1 - i * 0.15,
+        }} />
+      ))}
+    </div>
   )
 
   return (
     <section>
-      {/* Section header — Notion style */}
+      {/* Table header */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 'var(--space-4)',
+        display: 'grid',
+        gridTemplateColumns: '28px 1fr 100px',
+        padding: '0 0 8px',
+        borderBottom: '1px solid var(--color-border)',
       }}>
-        <p style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 'var(--text-sm)',
-          fontWeight: 500,
-          color: 'var(--color-text-secondary)',
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-        }}>
-          Top Clientes do Período
-        </p>
-        <span className="tag tag-neutral">{clients.length} clientes</span>
-      </div>
-
-      {/* Table header — Notion style */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 110px 90px 110px',
-          padding: '0 var(--space-3) var(--space-2)',
-          borderBottom: '1px solid var(--color-border)',
-          marginBottom: 'var(--space-1)',
-        }}
-      >
-        {['Nome', 'Margem', 'CAC', 'LTV'].map(h => (
+        {['#', 'Cliente', 'LTV'].map((h, idx) => (
           <span key={h} style={{
             fontFamily: 'var(--font-sans)',
             fontSize: 'var(--text-xs)',
             fontWeight: 500,
             color: 'var(--color-text-tertiary)',
-            letterSpacing: '0.04em',
+            letterSpacing: '0.03em',
             textTransform: 'uppercase',
-            textAlign: h === 'Nome' ? 'left' : 'right',
+            textAlign: idx === 2 ? 'right' : 'left',
           }}>
             {h}
           </span>
@@ -87,18 +68,25 @@ export default function TopClients({ initialData }: { initialData?: TopCustomer[
           key={c.email}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: i * 0.05 + 0.1, ease: [0.25, 0.1, 0.25, 1] }}
-          className="notion-row"
+          transition={{ duration: 0.3, delay: i * 0.05 + 0.05, ease: [0.25, 0.1, 0.25, 1] }}
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 110px 90px 110px',
+            gridTemplateColumns: '28px 1fr 100px',
             alignItems: 'center',
-            padding: '0 var(--space-3)',
-            cursor: 'default',
+            padding: '11px 0',
+            borderBottom: i === clients.length - 1 ? 'none' : '1px solid var(--color-border)',
           }}
-          onHoverStart={e => (e.target as HTMLElement).style.background = 'var(--color-bg-secondary)'}
-          onHoverEnd={e => (e.target as HTMLElement).style.background = 'transparent'}
         >
+          {/* Rank */}
+          <span style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--text-xs)',
+            fontWeight: 400,
+            color: 'var(--color-text-tertiary)',
+          }}>
+            {i + 1}
+          </span>
+
           {/* Name */}
           <span style={{
             fontFamily: 'var(--font-sans)',
@@ -108,34 +96,15 @@ export default function TopClients({ initialData }: { initialData?: TopCustomer[
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            letterSpacing: '-0.1px',
           }}>
             {c.name || c.email}
           </span>
 
-          {/* Valor (última compra) */}
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-secondary)',
-            textAlign: 'right',
-          }}>
-            R$ {fmtBR(c.total_ltv - (c.cac || 0))}
-          </span>
-
-          {/* CAC */}
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-secondary)',
-            textAlign: 'right',
-          }}>
-            R$ {fmtBR(c.cac || 0)}
-          </span>
-
           {/* LTV */}
           <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--text-sm)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--text-base)',
             fontWeight: 500,
             color: 'var(--status-complete)',
             textAlign: 'right',

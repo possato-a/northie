@@ -29,7 +29,7 @@ export function AnimatedNumber({
   useEffect(() => {
     const timeout = setTimeout(() => {
       ref.current = fmAnimate(0, target, {
-        duration: 1.6,
+        duration: 1.4,
         ease: [0.16, 1, 0.3, 1],
         onUpdate(v) { setValue(v) },
       })
@@ -53,7 +53,7 @@ export function AnimatedNumber({
   return <span>{prefix}{formatted}{suffix}</span>
 }
 
-// ── KpiCard — estilo original com barra "|" à esquerda do número ──────────────
+// ── KpiCard — Notion-style card ─────────────────────────────────────────────
 interface KpiCardProps {
   label: string
   value: number
@@ -79,75 +79,69 @@ export function KpiCard({
 }: KpiCardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: [0.25, 0.1, 0.25, 1] }}
-      style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 120 }}
+      transition={{ duration: 0.35, delay, ease: [0.25, 0.1, 0.25, 1] }}
+      style={{
+        background: 'var(--color-bg-primary)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-md)',
+        padding: '18px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 5,
+      }}
     >
-      {/* Label — Geist Mono uppercase */}
+      {/* Label */}
       <span style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--text-xs)',
-        fontWeight: 500,
+        fontFamily: 'var(--font-sans)',
+        fontSize: 11,
+        fontWeight: 400,
         color: 'var(--color-text-secondary)',
-        letterSpacing: '0.07em',
+        letterSpacing: '0.02em',
         textTransform: 'uppercase',
+        lineHeight: 1,
       }}>
         {label}
       </span>
 
-      {/* Valor com barra "|" à esquerda */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Barra vertical — high-tech marker */}
-        <motion.div
-          initial={{ scaleY: 0, opacity: 0 }}
-          animate={{ scaleY: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: delay + 0.1, ease: [0.4, 0, 0.2, 1] }}
-          style={{
-            width: 2,
-            height: 36,
-            borderRadius: 2,
-            background: 'rgba(var(--fg-rgb), 0.15)',
-            flexShrink: 0,
-            transformOrigin: 'top',
-          }}
+      {/* Value */}
+      <span style={{
+        fontFamily: 'var(--font-sans)',
+        fontWeight: 500,
+        fontSize: 22,
+        letterSpacing: '-0.4px',
+        color: 'var(--color-text-primary)',
+        lineHeight: 1.15,
+        whiteSpace: 'nowrap',
+      }}>
+        <AnimatedNumber
+          target={value}
+          prefix={prefix}
+          suffix={suffix}
+          locale={locale}
+          decimals={decimals}
+          delay={delay + 0.1}
         />
-
-        <span style={{
-          fontFamily: 'var(--font-display)',
-          fontWeight: 400,
-          fontSize: 36,
-          letterSpacing: '-1.4px',
-          color: 'var(--fg)',
-          lineHeight: 1,
-          whiteSpace: 'nowrap',
-        }}>
-          <AnimatedNumber
-            target={value}
-            prefix={prefix}
-            suffix={suffix}
-            locale={locale}
-            decimals={decimals}
-            delay={delay + 0.15}
-          />
-        </span>
-      </div>
+      </span>
 
       {/* Trend badge */}
       {trend && (
         <motion.span
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: delay + 0.4 }}
+          transition={{ duration: 0.3, delay: delay + 0.35 }}
           style={{
-            fontFamily: 'var(--font-mono)',
+            fontFamily: 'var(--font-sans)',
             fontSize: 11,
             fontWeight: 500,
-            letterSpacing: '0.04em',
-            color: positive ? 'var(--accent-green)' : 'var(--accent-red)',
+            color: positive ? 'var(--status-complete)' : 'var(--accent-red)',
+            letterSpacing: '-0.1px',
+            marginTop: 2,
           }}
         >
-          {positive ? '▲' : '▼'} {trend} vs mês anterior
+          {positive ? '↑' : '↓'} {trend} vs mês anterior
         </motion.span>
       )}
     </motion.div>

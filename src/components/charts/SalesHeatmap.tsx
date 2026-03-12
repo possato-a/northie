@@ -65,31 +65,33 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
 
     const getColor = (count: number) => {
         if (count === -1) return 'transparent'
-        if (count === 0) return 'rgba(var(--fg-rgb), 0.03)'
-        if (count <= 2) return 'rgba(var(--fg-rgb), 0.1)'
-        if (count <= 5) return 'rgba(var(--fg-rgb), 0.25)'
-        if (count <= 10) return 'rgba(var(--fg-rgb), 0.5)'
-        return 'var(--inv)'
+        if (count === 0) return 'var(--color-bg-tertiary)'
+        if (count <= 2) return 'rgba(255, 89, 0, 0.15)'
+        if (count <= 5) return 'rgba(255, 89, 0, 0.35)'
+        if (count <= 10) return 'rgba(255, 89, 0, 0.6)'
+        return 'var(--color-primary)'
     }
 
-    if (loading) return <div style={{ height: 160, marginTop: 40, background: 'rgba(var(--fg-rgb), 0.02)', borderRadius: 8 }} />
+    if (loading) return <div style={{ height: 160, background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }} />
 
     return (
-        <div style={{ marginTop: 40, overflow: 'hidden' }}>
+        <div style={{ overflow: 'hidden' }}>
             <p style={{
-                fontFamily: "'Geist Mono', monospace",
-                fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)',
-                letterSpacing: '0.06em', marginBottom: 24,
-                textTransform: 'uppercase'
+                fontFamily: 'var(--font-sans)',
+                fontSize: 'var(--text-sm)',
+                fontWeight: 500,
+                color: 'var(--color-text-secondary)',
+                letterSpacing: '-0.1px',
+                marginBottom: 24,
             }}>
-                Intensidade de Vendas Diárias
+                Atividade de Vendas
             </p>
 
             <div style={{ display: 'flex', gap: 12 }}>
                 {/* Day Labels */}
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 0 6px', height: 130 }}>
                     {DAYS.map((d, i) => i % 2 === 1 && (
-                        <span key={d} style={{ fontFamily: "'Poppins', sans-serif", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.3)', lineHeight: 1 }}>{d}</span>
+                        <span key={d} style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>{d}</span>
                     ))}
                 </div>
 
@@ -100,9 +102,9 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
                                 {/* Month label logic */}
                                 {wi % 4 === 0 && (
                                     <span style={{
-                                        fontFamily: "'Poppins', sans-serif",
+                                        fontFamily: 'var(--font-sans)',
                                         fontSize: 11,
-                                        color: 'rgba(var(--fg-rgb), 0.4)',
+                                        color: 'var(--color-text-tertiary)',
                                         marginBottom: 6,
                                         height: 14,
                                         whiteSpace: 'nowrap'
@@ -134,11 +136,11 @@ export default function SalesHeatmap({ initialData }: { initialData?: Record<str
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Menos</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>Menos</span>
                 {[0, 2, 5, 10, 15].map(c => (
                     <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: getColor(c) }} />
                 ))}
-                <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)' }}>Mais</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>Mais</span>
             </div>
         </div>
     )

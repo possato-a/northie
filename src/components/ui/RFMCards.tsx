@@ -1,262 +1,218 @@
-/**
- * @file components/ui/RFMCards.tsx
- * Segmentação RFM detalhada — visualização por segmento com métricas reais.
- */
-
-import { useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo } from 'react'
+import { motion } from 'framer-motion'
+import { fmtBR } from '../../lib/utils'
 import type { ClientUI, RFMSegment } from '../../types'
 
-interface RFMConfig {
-    label: string
-    sub: string
-    criteria: string
-    suggestion: string
-    accentColor: string
+// ── Config ────────────────────────────────────────────────────────────────────
+
+export interface RFMConfig {
+  label: string
+  criteria: string
+  action: string
+  color: string
+  bgColor: string
+  description: string
 }
 
-const RFM_CONFIG: Record<RFMSegment, RFMConfig> = {
-    'Champions': {
-        label: 'Champions',
-        sub: 'Recência alta · Frequência alta · Valor alto',
-        criteria: 'R ≥ 4 · F ≥ 3 · M ≥ 3',
-        suggestion: 'Criar Lookalike no Meta com base nesse segmento',
-        accentColor: 'rgba(var(--fg-rgb), 0.85)',
-    },
-    'Em Risco': {
-        label: 'Em Risco',
-        sub: 'Compravam bem, pararam de comprar',
-        criteria: 'R ≤ 2 com F ≥ 3 ou M ≥ 3',
-        suggestion: 'Disparar campanha de reativação urgente',
-        accentColor: 'rgba(var(--fg-rgb), 0.5)',
-    },
-    'Novos Promissores': {
-        label: 'Novos Promissores',
-        sub: 'Compra recente, potencial de crescimento',
-        criteria: 'Score médio — fora dos extremos',
-        suggestion: 'Nurturing pós-compra e upsell imediato',
-        accentColor: 'rgba(var(--fg-rgb), 0.65)',
-    },
-    'Inativos': {
-        label: 'Inativos',
-        sub: 'Sem atividade — score geral baixo',
-        criteria: 'Média RFM ≤ 2',
-        suggestion: 'Campanha de winback ou exclusão de lista',
-        accentColor: 'rgba(var(--fg-rgb), 0.3)',
-    },
+export const RFM_CONFIG: Record<RFMSegment, RFMConfig> = {
+  'Champions': {
+    label: 'Champions',
+    criteria: 'R ≥ 4 · F ≥ 3 · M ≥ 3',
+    description: 'Compraram recentemente, compram com frequência e gastam muito. São o núcleo do negócio.',
+    action: 'Criar Lookalike no Meta com base nesse segmento. Oferecer upsell imediato — esses clientes têm a maior probabilidade de conversão.',
+    color: 'var(--status-complete)',
+    bgColor: 'var(--status-complete-bg)',
+  },
+  'Novos Promissores': {
+    label: 'Novos Promissores',
+    criteria: 'Compra recente · Score médio',
+    description: 'Compraram recentemente mas ainda têm frequência e ticket baixos. Janela de nurturing aberta.',
+    action: 'Nurturing pós-compra nos primeiros 30 dias. Apresentar produto complementar antes da janela de inatividade fechar.',
+    color: 'var(--color-primary)',
+    bgColor: 'var(--color-primary-light)',
+  },
+  'Em Risco': {
+    label: 'Em Risco',
+    criteria: 'R ≤ 2 com F ≥ 3 ou M ≥ 3',
+    description: 'Foram bons clientes mas estão sumindo. Já compraram bastante — o risco de perda é alto.',
+    action: 'Campanha de reativação urgente via WhatsApp. Janela de recuperação curta — agir em até 7 dias.',
+    color: 'var(--status-planning)',
+    bgColor: 'var(--status-planning-bg)',
+  },
+  'Inativos': {
+    label: 'Inativos',
+    criteria: 'Média RFM ≤ 2',
+    description: 'Pouca recência, frequência e valor. Custo de reativação pode superar o retorno esperado.',
+    action: 'Winback com oferta agressiva ou exclusão da lista de remarketing para reduzir CAC.',
+    color: 'var(--color-text-tertiary)',
+    bgColor: 'var(--color-bg-tertiary)',
+  },
 }
 
-const SEGMENTS: RFMSegment[] = ['Champions', 'Novos Promissores', 'Em Risco', 'Inativos']
+export const SEGMENTS: RFMSegment[] = ['Champions', 'Novos Promissores', 'Em Risco', 'Inativos']
 
-function fmtBR(v: number) {
-    return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
-}
+// ── Component ─────────────────────────────────────────────────────────────────
 
 interface RFMCardsProps {
-    clients: ClientUI[]
+  clients: ClientUI[]
+  onSelect: (seg: RFMSegment) => void
 }
 
-export default function RFMCards({ clients }: RFMCardsProps) {
-    const [activeIndex, setActiveIndex] = useState(0)
+export default function RFMCards({ clients, onSelect }: RFMCardsProps) {
+  const stats = useMemo(() => {
+    const result: Record<RFMSegment, { count: number; ltvSum: number; churnSum: number; revenue: number }> = {
+      'Champions':         { count: 0, ltvSum: 0, churnSum: 0, revenue: 0 },
+      'Em Risco':          { count: 0, ltvSum: 0, churnSum: 0, revenue: 0 },
+      'Novos Promissores': { count: 0, ltvSum: 0, churnSum: 0, revenue: 0 },
+      'Inativos':          { count: 0, ltvSum: 0, churnSum: 0, revenue: 0 },
+    }
+    clients.forEach(c => {
+      result[c.segment].count++
+      result[c.segment].ltvSum += c.ltv
+      result[c.segment].churnSum += c.churnProb
+      result[c.segment].revenue += c.totalSpent
+    })
+    return result
+  }, [clients])
 
-    const stats = useMemo(() => {
-        const result: Record<RFMSegment, { count: number; revenue: number; ltvSum: number; churnSum: number }> = {
-            'Champions': { count: 0, revenue: 0, ltvSum: 0, churnSum: 0 },
-            'Em Risco': { count: 0, revenue: 0, ltvSum: 0, churnSum: 0 },
-            'Novos Promissores': { count: 0, revenue: 0, ltvSum: 0, churnSum: 0 },
-            'Inativos': { count: 0, revenue: 0, ltvSum: 0, churnSum: 0 },
-        }
-        clients.forEach(c => {
-            result[c.segment].count++
-            result[c.segment].revenue += c.totalSpent
-            result[c.segment].ltvSum += c.ltv
-            result[c.segment].churnSum += c.churnProb
-        })
-        return result
-    }, [clients])
+  const totalClients = clients.length || 1
 
-    const totalClients = clients.length || 1
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Distribution bar */}
+      <div style={{ display: 'flex', height: 4, borderRadius: 4, overflow: 'hidden', gap: 2, marginBottom: 4 }}>
+        {SEGMENTS.map(seg => {
+          const pct = (stats[seg].count / totalClients) * 100
+          return (
+            <motion.div
+              key={seg}
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+              style={{ height: '100%', background: RFM_CONFIG[seg].color, borderRadius: 2, flexShrink: 0 }}
+            />
+          )
+        })}
+      </div>
 
-    // Distribuição por segmento para a barra de progressos
-    const distribution = SEGMENTS.map(seg => ({
-        seg,
-        count: stats[seg].count,
-        pct: Math.round((stats[seg].count / totalClients) * 100),
-    }))
+      {/* Segment blocks */}
+      {SEGMENTS.map((seg, ri) => {
+        const cfg = RFM_CONFIG[seg]
+        const d = stats[seg]
+        const pct = Math.round((d.count / totalClients) * 100)
+        const avgLtv = d.count > 0 ? d.ltvSum / d.count : 0
+        const avgChurn = d.count > 0 ? (d.churnSum / d.count) * 100 : 0
 
-    return (
-        <div>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        return (
+          <motion.button
+            key={seg}
+            onClick={() => onSelect(seg)}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, delay: ri * 0.07 }}
+            whileHover={{ scale: 1.005 }}
+            whileTap={{ scale: 0.995 }}
+            style={{
+              display: 'block', width: '100%', textAlign: 'left',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-bg-secondary)',
+              cursor: 'pointer', padding: 0,
+              transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Colored top accent */}
+            <div style={{ height: 3, background: cfg.color, opacity: d.count > 0 ? 1 : 0.25 }} />
+
+            <div style={{ padding: '12px 14px' }}>
+              {/* Top row: name + count */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div>
-                    <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 12, color: 'rgba(var(--fg-rgb), 0.5)', letterSpacing: '0.06em', margin: 0 }}>
-                        SEGMENTAÇÃO RFM
-                    </p>
-                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, color: 'rgba(var(--fg-rgb), 0.4)', margin: '4px 0 0', letterSpacing: '-0.2px' }}>
-                        Recência · Frequência · Valor
-                    </p>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)',
+                    fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 2px',
+                  }}>
+                    {cfg.label}
+                  </p>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 10,
+                    color: 'var(--color-text-tertiary)', margin: 0,
+                  }}>
+                    {cfg.criteria}
+                  </p>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                    <motion.button
-                        onClick={() => setActiveIndex(p => Math.max(0, p - 1))}
-                        whileTap={{ scale: 0.95 }}
-                        style={{
-                            background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
-                            cursor: activeIndex === 0 ? 'default' : 'pointer',
-                            color: 'var(--fg)', opacity: activeIndex === 0 ? 0.2 : 0.6, padding: '4px 10px',
-                            fontFamily: "'Poppins',sans-serif", fontSize: 12,
-                        }}
-                    >
-                        ←
-                    </motion.button>
-                    <span style={{ fontFamily: "'Geist Mono',monospace", fontSize: 11, color: 'rgba(var(--fg-rgb), 0.4)', alignSelf: 'center' }}>
-                        {activeIndex + 1} / {SEGMENTS.length}
-                    </span>
-                    <motion.button
-                        onClick={() => setActiveIndex(p => Math.min(SEGMENTS.length - 1, p + 1))}
-                        whileTap={{ scale: 0.95 }}
-                        style={{
-                            background: 'none', border: '1px solid rgba(var(--fg-rgb), 0.1)', borderRadius: 4,
-                            cursor: activeIndex === SEGMENTS.length - 1 ? 'default' : 'pointer',
-                            color: 'var(--fg)', opacity: activeIndex === SEGMENTS.length - 1 ? 0.2 : 0.6, padding: '4px 10px',
-                            fontFamily: "'Poppins',sans-serif", fontSize: 12,
-                        }}
-                    >
-                        →
-                    </motion.button>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 600,
+                    color: d.count > 0 ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                    margin: '0 0 1px', lineHeight: 1,
+                  }}>
+                    {d.count}
+                  </p>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 10,
+                    color: 'var(--color-text-tertiary)', margin: 0,
+                  }}>
+                    {pct}% da base
+                  </p>
                 </div>
+              </div>
+
+              {/* Fill bar */}
+              <div style={{
+                width: '100%', height: 3, borderRadius: 2,
+                background: 'var(--color-bg-tertiary)', overflow: 'hidden', marginBottom: 10,
+              }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.65, delay: ri * 0.07 + 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+                  style={{ height: '100%', background: cfg.color, borderRadius: 2 }}
+                />
+              </div>
+
+              {/* Bottom row: LTV + Churn */}
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 500,
+                    color: 'var(--color-text-tertiary)', margin: '0 0 2px',
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                  }}>LTV Médio</p>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
+                    color: 'var(--color-text-secondary)', margin: 0,
+                  }}>
+                    {d.count > 0 ? `R$ ${fmtBR(avgLtv)}` : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 500,
+                    color: 'var(--color-text-tertiary)', margin: '0 0 2px',
+                    textTransform: 'uppercase', letterSpacing: '0.04em',
+                  }}>Churn</p>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
+                    margin: 0,
+                    color: avgChurn > 60 ? 'var(--priority-high)' : avgChurn > 30 ? 'var(--status-planning)' : 'var(--color-text-secondary)',
+                  }}>
+                    {d.count > 0 ? `${avgChurn.toFixed(0)}%` : '—'}
+                  </p>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--color-text-tertiary)" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
+              </div>
             </div>
-
-            {/* Distribuição — barra horizontal */}
-            <div style={{ display: 'flex', gap: 3, marginBottom: 28, height: 4, borderRadius: 4, overflow: 'hidden' }}>
-                {distribution.map(d => (
-                    <motion.div
-                        key={d.seg}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${d.pct}%` }}
-                        transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-                        title={`${d.seg}: ${d.count} clientes (${d.pct}%)`}
-                        style={{
-                            height: '100%',
-                            background: RFM_CONFIG[d.seg].accentColor,
-                            borderRadius: 2,
-                        }}
-                    />
-                ))}
-            </div>
-
-            {/* Deck de cards */}
-            <div style={{ position: 'relative', height: 340, width: '100%', perspective: 1000 }}>
-                <AnimatePresence>
-                    {SEGMENTS.map((seg, i) => {
-                        const cfg = RFM_CONFIG[seg]
-                        const data = stats[seg]
-                        const offset = i - activeIndex
-                        const isBehind = i > activeIndex
-                        const isFront = i === activeIndex
-                        const isPast = i < activeIndex
-                        const avgLtv = data.count > 0 ? data.ltvSum / data.count : 0
-                        const avgChurn = data.count > 0 ? data.churnSum / data.count : 0
-                        const pctBase = Math.round((data.count / totalClients) * 100)
-
-                        if (isPast) return null
-
-                        return (
-                            <motion.div
-                                key={seg}
-                                initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                                animate={{
-                                    opacity: 1,
-                                    scale: isFront ? 1 : 1 - (offset * 0.05),
-                                    x: offset * 32,
-                                    y: offset * -12,
-                                    zIndex: SEGMENTS.length - i,
-                                    boxShadow: isFront ? '0 12px 40px rgba(var(--fg-rgb), 0.1)' : '0 4px 12px rgba(var(--fg-rgb), 0.04)',
-                                    filter: isFront ? 'blur(0px)' : 'blur(1px)',
-                                }}
-                                exit={{ opacity: 0, x: -100, rotate: -10 }}
-                                transition={{ duration: 0.45, ease: [0.25, 0.1, 0.25, 1] }}
-                                style={{
-                                    position: 'absolute', top: 0, left: 0,
-                                    width: 'calc(100% - 110px)',
-                                    background: 'var(--bg)',
-                                    border: '1px solid rgba(var(--fg-rgb), 0.1)',
-                                    borderRadius: 12,
-                                    padding: '28px 32px',
-                                    cursor: isFront ? 'default' : 'pointer',
-                                }}
-                                onClick={() => isBehind && setActiveIndex(i)}
-                            >
-                                {/* Card header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-                                    <div>
-                                        <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 18, letterSpacing: '-0.5px', color: 'var(--fg)', margin: 0 }}>
-                                            {cfg.label}
-                                        </p>
-                                        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 10, color: 'rgba(var(--fg-rgb), 0.4)', margin: '5px 0 0', letterSpacing: '0.03em' }}>
-                                            {cfg.criteria}
-                                        </p>
-                                    </div>
-                                    <div style={{
-                                        padding: '3px 10px', borderRadius: 20,
-                                        border: '1px solid rgba(var(--fg-rgb), 0.1)',
-                                        fontFamily: "'Geist Mono',monospace", fontSize: 11,
-                                        color: 'rgba(var(--fg-rgb), 0.5)',
-                                    }}>
-                                        {pctBase}% da base
-                                    </div>
-                                </div>
-
-                                {/* Métricas principais */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0, marginBottom: 20 }}>
-                                    {[
-                                        { label: 'CLIENTES', value: String(data.count) },
-                                        { label: 'RECEITA TOTAL', value: `R$ ${fmtBR(data.revenue)}` },
-                                        { label: 'LTV MÉDIO', value: `R$ ${fmtBR(avgLtv)}` },
-                                        { label: 'CHURN MÉDIO', value: `${avgChurn.toFixed(1)}%` },
-                                    ].map((m, mi) => (
-                                        <div key={m.label} style={{ paddingRight: 16, borderRight: mi < 3 ? '1px solid rgba(var(--fg-rgb), 0.07)' : 'none', paddingLeft: mi > 0 ? 16 : 0 }}>
-                                            <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 9, color: 'rgba(var(--fg-rgb), 0.38)', letterSpacing: '0.06em', margin: '0 0 6px', textTransform: 'uppercase' as const }}>
-                                                {m.label}
-                                            </p>
-                                            <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: mi === 0 ? 28 : 16, fontWeight: 400, letterSpacing: mi === 0 ? '-1px' : '-0.4px', color: 'var(--fg)', margin: 0, lineHeight: 1.1 }}>
-                                                {m.value}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Barra de churn visual */}
-                                {data.count > 0 && (
-                                    <div style={{ marginBottom: 18 }}>
-                                        <div style={{ height: 2, background: 'rgba(var(--fg-rgb), 0.06)', borderRadius: 2, overflow: 'hidden' }}>
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${Math.min(avgChurn, 100)}%` }}
-                                                transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
-                                                style={{ height: '100%', background: cfg.accentColor, borderRadius: 2 }}
-                                            />
-                                        </div>
-                                        <p style={{ fontFamily: "'Geist Mono',monospace", fontSize: 9, color: 'rgba(var(--fg-rgb), 0.3)', margin: '4px 0 0', letterSpacing: '0.04em' }}>
-                                            RISCO DE CHURN
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* Estratégia */}
-                                <div style={{ borderTop: '1px solid rgba(var(--fg-rgb), 0.07)', paddingTop: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
-                                        <path d="M5 1L6.2 4.2H9.5L6.9 6.3L7.9 9.5L5 7.4L2.1 9.5L3.1 6.3L0.5 4.2H3.8L5 1Z" fill="currentColor"/>
-                                    </svg>
-                                    <p style={{ fontFamily: "'Poppins',sans-serif", fontSize: 13, letterSpacing: '-0.3px', color: 'rgba(var(--fg-rgb), 0.6)', margin: 0, lineHeight: 1.4 }}>
-                                        {cfg.suggestion}
-                                    </p>
-                                </div>
-                            </motion.div>
-                        )
-                    })}
-                </AnimatePresence>
-            </div>
-        </div>
-    )
+          </motion.button>
+        )
+      })}
+    </div>
+  )
 }

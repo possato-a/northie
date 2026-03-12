@@ -1,42 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { growthApi, aiApi } from '../lib/api'
-import { AskNorthieIcon } from '../icons'
+import { KpiCard } from '../components/ui/KpiCard'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-// Diagnostic types (output do Agente 4 — StrategicAdvisorAgent)
-interface DiagnosticItem {
-  canal: string
-  severidade: 'critica' | 'alta' | 'media' | 'ok'
-  sintoma: string
-  causa_raiz: string
-  consequencia: string
-  acao_recomendada: string
-  consequencia_financeira_brl: number
-  prazo: 'Imediato' | 'Esta semana' | 'Este mês'
-}
-
-interface NextStep {
-  ordem: number
-  acao: string
-  impacto_estimado_brl: number
-  prazo: string
-}
-
-interface PositivePoint {
-  titulo: string
-  descricao: string
-  impacto_brl: number
-}
-
-interface GrowthDiagnostic {
-  status_geral: 'otimo' | 'bom' | 'atencao' | 'critico'
-  pontos_positivos: PositivePoint[]
-  diagnosticos: DiagnosticItem[]
-  proximos_passos: NextStep[]
-  resumo_executivo: string
-}
 
 type RecStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed'
 type RecType =
@@ -93,19 +60,6 @@ const TYPE_LABELS: Record<RecType, string> = {
   em_risco_alto_valor: 'Em Risco',
 }
 
-const TYPE_COLORS: Record<RecType, string> = {
-  reativacao_alto_ltv: 'var(--accent-purple)',
-  pausa_campanha_ltv_baixo: 'var(--accent-orange)',
-  audience_sync_champions: 'var(--accent-green)',
-  realocacao_budget: 'var(--accent-blue)',
-  upsell_cohort: 'var(--accent-purple)',
-  divergencia_roi_canal: 'var(--accent-orange)',
-  queda_retencao_cohort: 'var(--accent-red)',
-  canal_alto_ltv_underinvested: 'var(--accent-green)',
-  cac_vs_ltv_deficit: 'var(--accent-orange)',
-  em_risco_alto_valor: 'var(--accent-red)',
-}
-
 const CHANNEL_LABELS: Record<string, string> = {
   meta_ads: 'Meta Ads',
   google_ads: 'Google Ads',
@@ -115,16 +69,78 @@ const CHANNEL_LABELS: Record<string, string> = {
   afiliado: 'Afiliado',
 }
 
-const CHAT_CHIPS = [
-  'Explica essa recomendação',
-  'Qual o impacto de pausar?',
-  'Mostra os Champions',
+const GROWTH_CHIPS = [
+  'Analisar canais de aquisição',
+  'Quais clientes estão em risco?',
+  'Qual campanha tem melhor LTV?',
   'Por que meu LTV caiu?',
+]
+
+const MOCK_CONVS: { id: string; title: string; time: string }[] = [
+  { id: 'c1', title: 'Análise de LTV por canal', time: 'Agora' },
+  { id: 'c2', title: 'Champions em risco de churn', time: '2h' },
+  { id: 'c3', title: 'ROI campanha Meta Jan/26', time: 'Ontem' },
+  { id: 'c4', title: 'Forecast próximo trimestre', time: '7 mar' },
+  { id: 'c5', title: 'Payback CAC por cohort', time: '5 mar' },
 ]
 
 type AIModel = 'sonnet' | 'opus' | 'haiku'
 const MODELS: AIModel[] = ['sonnet', 'opus', 'haiku']
 const MODEL_LABELS: Record<AIModel, string> = { sonnet: 'Sonnet', opus: 'Opus', haiku: 'Haiku' }
+
+const SOURCE_CONFIG: Record<string, { label: string; color: string }> = {
+  stripe:     { label: 'Stripe',     color: '#635BFF' },
+  hotmart:    { label: 'Hotmart',    color: '#FF3228' },
+  meta_ads:   { label: 'Meta Ads',   color: '#FF5900' },
+  google_ads: { label: 'Google Ads', color: '#4285F4' },
+  shopify:    { label: 'Shopify',    color: '#96BF48' },
+}
+
+const EXEC_CHANNEL: Record<RecType, { label: string; color: string }> = {
+  reativacao_alto_ltv:           { label: 'WhatsApp', color: '#25D366' },
+  pausa_campanha_ltv_baixo:      { label: 'Meta Ads',  color: '#FF5900' },
+  audience_sync_champions:       { label: 'Meta Ads',  color: '#FF5900' },
+  realocacao_budget:             { label: 'Meta Ads',  color: '#FF5900' },
+  upsell_cohort:                 { label: 'E-mail',    color: '#3B82F6' },
+  divergencia_roi_canal:         { label: 'Meta Ads',  color: '#FF5900' },
+  queda_retencao_cohort:         { label: 'E-mail',    color: '#3B82F6' },
+  canal_alto_ltv_underinvested:  { label: 'Meta Ads',  color: '#FF5900' },
+  cac_vs_ltv_deficit:            { label: 'Meta Ads',  color: '#FF5900' },
+  em_risco_alto_valor:           { label: 'WhatsApp', color: '#25D366' },
+}
+
+const MOCK_RECOMMENDATIONS: Recommendation[] = [
+  {
+    id: 'mock_1', type: 'reativacao_alto_ltv', status: 'pending',
+    title: '14 clientes Champions sem compra há 73 dias',
+    narrative: 'Seus 14 melhores clientes (LTV médio R$ 2.340) estão aproximando o limiar de churn — eles compraram em média 2,8x com intervalo de 42 dias, mas o último contato foi há 73 dias. Uma reativação agora preserva R$ 32.760 em receita futura projetada e custa zero em aquisição.',
+    impact_estimate: 'Até R$ 12.000 em receita reativada nos próximos 30 dias',
+    sources: ['stripe', 'meta_ads'],
+    execution_log: [],
+    meta: { segment_count: 14, avg_ltv: 2340, global_avg_ltv: 890 },
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock_2', type: 'pausa_campanha_ltv_baixo', status: 'pending',
+    title: 'Campanha "Interesses Frios Jan" traz clientes com LTV 3x abaixo da média',
+    narrative: 'Nos últimos 14 dias, essa campanha gastou R$ 1.640 e gerou 7 clientes com LTV médio de R$ 221 — contra R$ 890 do restante da base. CAC de R$ 234 não se paga com esse LTV. Pausar e realocar o budget para o Retargeting (ROAS 4.0x) melhora a margem imediatamente.',
+    impact_estimate: 'Economia de R$ 1.640/mês + ganho de margem no Retargeting',
+    sources: ['meta_ads', 'stripe'],
+    execution_log: [],
+    meta: { total_spend_14d: 1640, global_avg_ltv: 890, campaigns: [{ name: 'LANÇAMENTO JAN | Conversão | Interesses frios' }] },
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  },
+  {
+    id: 'mock_3', type: 'audience_sync_champions', status: 'pending',
+    title: 'Sincronizar 38 Champions como Lookalike 1% no Meta Ads',
+    narrative: 'Você tem 38 clientes champions (5+ compras, LTV > R$ 1.800) que nunca foram usados como semente de audiência. Criar um Lookalike 1% com esse segmento qualificado por LTV real tende a reduzir CAC em 18–25% nas próximas campanhas, com base em dados históricos de atribuição.',
+    impact_estimate: 'Redução potencial de CAC de R$ 120 → R$ 90 nas próximas campanhas',
+    sources: ['stripe', 'meta_ads'],
+    execution_log: [],
+    meta: { champion_count: 38, avg_ltv: 2840 },
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  },
+]
 
 function TypewriterText({ text, onDone }: { text: string; onDone: () => void }) {
   const [count, setCount] = useState(0)
@@ -144,24 +160,21 @@ const fmtInt = (n: number) => n.toLocaleString('pt-BR')
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
+const TYPE_TAG_CLASS: Record<RecType, string> = {
+  reativacao_alto_ltv:          'tag tag-complete',
+  pausa_campanha_ltv_baixo:     'tag tag-warning',
+  audience_sync_champions:      'tag tag-complete',
+  realocacao_budget:            'tag tag-planning',
+  upsell_cohort:                'tag tag-complete',
+  divergencia_roi_canal:        'tag tag-warning',
+  queda_retencao_cohort:        'tag tag-critical',
+  canal_alto_ltv_underinvested: 'tag tag-complete',
+  cac_vs_ltv_deficit:           'tag tag-warning',
+  em_risco_alto_valor:          'tag tag-critical',
+}
+
 function TypeTag({ type }: { type: RecType }) {
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '2px 8px',
-      borderRadius: 'var(--radius-full)',
-      fontFamily: 'var(--font-mono)',
-      fontSize: 10,
-      letterSpacing: '0.06em',
-      textTransform: 'uppercase' as const,
-      color: TYPE_COLORS[type],
-      background: `${TYPE_COLORS[type]}18`,
-      border: `1px solid ${TYPE_COLORS[type]}30`,
-    }}>
-      {TYPE_LABELS[type]}
-    </span>
-  )
+  return <span className={TYPE_TAG_CLASS[type]}>{TYPE_LABELS[type]}</span>
 }
 
 function StepIcon({ status }: { status: 'done' | 'running' | 'failed' }) {
@@ -254,16 +267,16 @@ function RecMetaInline({ type, meta }: { type: RecType; meta: any }) {
       gap: 8,
       flexWrap: 'wrap' as const,
       padding: '8px 12px',
-      background: `${TYPE_COLORS[type]}08`,
-      border: `1px solid ${TYPE_COLORS[type]}20`,
+      background: 'var(--color-bg-secondary)',
+      border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)',
     }}>
       {rows.map(row => (
         <div key={row.label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const, letterSpacing: '0.04em' }}>
             {row.label}
           </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: TYPE_COLORS[type], fontWeight: 500 }}>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 500 }}>
             {row.value}
           </span>
         </div>
@@ -272,195 +285,729 @@ function RecMetaInline({ type, meta }: { type: RecType; meta: any }) {
   )
 }
 
-function RecommendationCard({ rec, onApprove, onDismiss }: {
+function RecommendationCard({ rec, onClick }: {
   rec: Recommendation
-  onApprove: (id: string) => void
-  onDismiss: (id: string) => void
+  onClick: () => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const ch = EXEC_CHANNEL[rec.type]
   const isActive = ['approved', 'executing', 'completed', 'failed'].includes(rec.status)
+  const [hovered, setHovered] = useState(false)
 
   return (
     <motion.div
+      onClick={onClick}
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+      whileHover={{ y: -1 }}
       style={{
         background: 'var(--color-bg-primary)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-4)',
+        padding: '16px 18px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 'var(--space-3)',
+        gap: 12,
+        cursor: 'pointer',
+        minHeight: 148,
+        boxShadow: hovered ? 'var(--shadow-md)' : 'none',
+        transition: 'box-shadow 0.18s ease',
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-3)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', flex: 1 }}>
-          <TypeTag type={rec.type} />
+      {/* Top: categoria + status */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{
+          fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 400,
+          color: 'var(--color-text-tertiary)', letterSpacing: '0.06em',
+          textTransform: 'uppercase' as const,
+        }}>
+          {TYPE_LABELS[rec.type]}
+        </span>
+        {isActive ? (
           <span style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 'var(--text-base)',
-            fontWeight: 500,
-            color: 'var(--color-text-primary)',
-            letterSpacing: '-0.2px',
-            lineHeight: 1.4,
+            fontFamily: 'var(--font-sans)', fontSize: 10,
+            color: 'var(--accent-green)', background: 'var(--status-complete-bg)',
+            border: '1px solid var(--accent-green)',
+            borderRadius: 99, padding: '1px 7px',
           }}>
-            {rec.title}
+            {rec.status === 'completed' ? 'Concluído' : rec.status === 'failed' ? 'Falhou' : 'Em execução'}
           </span>
-        </div>
-        {rec.status === 'completed' && (
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-green)',
-            background: 'var(--status-complete-bg)', border: '1px solid var(--accent-green)',
-            borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
-          }}>Concluído</span>
-        )}
-        {rec.status === 'failed' && (
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-red)',
-            background: 'var(--priority-high-bg)', border: '1px solid var(--accent-red)',
-            borderRadius: 'var(--radius-full)', padding: '2px 8px', whiteSpace: 'nowrap',
-          }}>Falhou</span>
+        ) : rec.sources?.length > 0 && (
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+            {rec.sources.map(s => {
+              const cfg = SOURCE_CONFIG[s] || { color: 'var(--color-text-tertiary)' }
+              return <span key={s} style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.color, opacity: 0.7 }} />
+            })}
+          </div>
         )}
       </div>
 
-      {/* Dados inline da correlação */}
-      {!isActive && <RecMetaInline type={rec.type} meta={rec.meta} />}
+      {/* Title */}
+      <span style={{
+        fontFamily: 'var(--font-sans)',
+        fontSize: 13,
+        fontWeight: 500,
+        letterSpacing: '-0.15px',
+        color: 'var(--color-text-primary)',
+        lineHeight: 1.45,
+        flex: 1,
+        display: '-webkit-box',
+        WebkitLineClamp: 3,
+        WebkitBoxOrient: 'vertical' as any,
+        overflow: 'hidden',
+      }}>
+        {rec.title}
+      </span>
 
-      {/* Pending: narrative + actions */}
-      {!isActive && (
-        <>
-          <div>
-            <p style={{
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0,
-              display: expanded ? 'block' : '-webkit-box',
-              WebkitLineClamp: expanded ? 'unset' : 3,
-              WebkitBoxOrient: 'vertical' as any,
-              overflow: expanded ? 'visible' : 'hidden',
-            }}>
+      {/* Bottom: canal + seta */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: ch.color, flexShrink: 0 }} />
+          via {ch.label}
+        </span>
+        <motion.span
+          animate={{ x: hovered ? 2 : 0, opacity: hovered ? 1 : 0.4 }}
+          transition={{ duration: 0.15 }}
+          style={{ display: 'flex', alignItems: 'center', color: 'var(--color-text-primary)' }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M3 7H11M11 7L7.5 3.5M11 7L7.5 10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </motion.span>
+      </div>
+    </motion.div>
+  )
+}
+
+function RecDetailDrawer({ rec, onClose, onApprove, onDismiss }: {
+  rec: Recommendation
+  onClose: () => void
+  onApprove: (id: string) => void
+  onDismiss: (id: string) => void
+}) {
+  const isActive = ['approved', 'executing', 'completed', 'failed'].includes(rec.status)
+  const ch = EXEC_CHANNEL[rec.type]
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 99,
+          background: 'rgba(0,0,0,0.3)',
+        }}
+      />
+
+      {/* Drawer */}
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+        style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0,
+          width: 420, zIndex: 100,
+          background: 'var(--color-bg-primary)',
+          borderLeft: '1px solid var(--color-border)',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+        }}
+      >
+        {/* Drawer header */}
+        <div style={{
+          padding: '20px 24px 16px',
+          borderBottom: '1px solid var(--color-border)',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+              <TypeTag type={rec.type} />
+              {isActive && (
+                <span style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 10,
+                  color: 'var(--accent-green)',
+                  background: 'var(--status-complete-bg)',
+                  border: '1px solid var(--accent-green)',
+                  borderRadius: 99, padding: '1px 7px',
+                }}>
+                  {rec.status === 'completed' ? 'Concluído' : rec.status === 'failed' ? 'Falhou' : 'Em execução'}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--color-text-tertiary)', padding: 4, flexShrink: 0,
+                borderRadius: 'var(--radius-sm)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Sources */}
+          {rec.sources?.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {rec.sources.map((s, i) => {
+                const cfg = SOURCE_CONFIG[s] || { label: s, color: 'var(--color-text-tertiary)' }
+                return (
+                  <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {i > 0 && <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--color-border)' }} />}
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.color }} />
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>{cfg.label}</span>
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Drawer body — scrollable */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Title */}
+          <span style={{
+            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)',
+            fontWeight: 600, letterSpacing: '-0.3px',
+            color: 'var(--color-text-primary)', lineHeight: 1.4,
+          }}>
+            {rec.title}
+          </span>
+
+          {/* Narrative */}
+          {rec.narrative && (
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.65, margin: 0 }}>
               {rec.narrative}
             </p>
-            {rec.narrative.length > 180 && (
-              <button
-                onClick={() => setExpanded(!expanded)}
+          )}
+
+          {/* Meta data */}
+          <RecMetaInline type={rec.type} meta={rec.meta} />
+
+          {/* Impact estimate */}
+          {!isActive && rec.impact_estimate && (
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              padding: '10px 12px',
+              background: 'rgba(249,115,22,0.06)',
+              border: '1px solid rgba(249,115,22,0.18)',
+              borderRadius: 'var(--radius-md)',
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(249,115,22,0.7)', flexShrink: 0, marginTop: 3 }} />
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.5 }}>
+                {rec.impact_estimate}
+              </p>
+            </div>
+          )}
+
+          {/* Execution log */}
+          {isActive && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)', margin: '0 0 4px' }}>
+                Log de Execução
+              </p>
+              {(rec.execution_log || []).map((step, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}
+                >
+                  <div style={{ flexShrink: 0, marginTop: 1 }}><StepIcon status={step.status} /></div>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: step.status === 'failed' ? 'var(--accent-red)' : 'var(--color-text-primary)' }}>
+                      {step.step}
+                    </span>
+                    {step.detail && (
+                      <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>{step.detail}</p>
+                    )}
+                  </div>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' as const, flexShrink: 0 }}>
+                    {new Date(step.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </motion.div>
+              ))}
+              {rec.status === 'executing' && rec.execution_log?.length === 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <StepIcon status="running" />
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Iniciando execução...</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Drawer footer — sticky action buttons */}
+        {!isActive && (
+          <div style={{
+            padding: '16px 24px',
+            borderTop: '1px solid var(--color-border)',
+            background: 'var(--color-bg-primary)',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: ch.color, flexShrink: 0 }} />
+                via {ch.label}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <motion.button
+                  onClick={() => { onApprove(rec.id); onClose() }}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  style={{
+                    padding: '8px 22px',
+                    background: 'rgba(249,115,22,1)',
+                    color: 'white',
+                    border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer',
+                  }}
+                >
+                  Aprovar
+                </motion.button>
+                <motion.button
+                  onClick={() => { onDismiss(rec.id); onClose() }}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  style={{
+                    padding: '8px 14px', background: 'transparent',
+                    color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-sm)', cursor: 'pointer',
+                  }}
+                >
+                  Rejeitar
+                </motion.button>
+              </div>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </>
+  )
+}
+
+// ── Metrics ──────────────────────────────────────────────────────────────────
+
+// SectionCard idêntico ao do Dashboard
+function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: 'var(--color-bg-primary)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-lg)',
+      boxShadow: 'var(--shadow-md)',
+      ...style,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function fmtBR(v: number) {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
+}
+
+const MOCK_IMPACT_DATA = [
+  { label: 'Reativação de clientes', value: 12000 },
+  { label: 'Pausa de campanha',       value: 1640  },
+  { label: 'Audiência Lookalike',     value: 8400  },
+  { label: 'Realocação de budget',    value: 3200  },
+  { label: 'Upsell por cohort',       value: 5600  },
+]
+
+// Dados mock para heatmap — aprovações por dia (últimos ~16 semanas)
+const MOCK_APPROVAL_HEATMAP: Record<string, number> = (() => {
+  const result: Record<string, number> = {}
+  const today = new Date()
+  const seed = [0, 0, 1, 0, 2, 0, 0, 3, 0, 1, 0, 2, 0, 0, 1, 0, 4, 0, 0, 2, 1, 0, 0, 3, 0, 1, 0, 0, 2, 0]
+  for (let i = 111; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
+    const dateStr = d.toISOString().split('T')[0]!
+    const val = seed[i % seed.length]!
+    if (val > 0) result[dateStr] = val
+  }
+  return result
+})()
+
+// Heatmap de aprovações — idêntico ao SalesHeatmap
+function GrowthApprovalHeatmap({ counts }: { counts: Record<string, number> }) {
+  const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+  const data = (() => {
+    const items: { date: Date; count: number }[] = []
+    const today = new Date()
+    for (let i = 111; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(today.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]!
+      items.push({ date: d, count: counts[dateStr] || 0 })
+    }
+    return items
+  })()
+
+  const weeks = (() => {
+    const result: { date: Date; count: number }[][] = []
+    let current: { date: Date; count: number }[] = []
+    const padding = data.length > 0 ? data[0].date.getDay() : 0
+    for (let i = 0; i < padding; i++) current.push({ date: new Date(0), count: -1 })
+    data.forEach(day => {
+      current.push(day)
+      if (current.length === 7) { result.push(current); current = [] }
+    })
+    if (current.length > 0) {
+      while (current.length < 7) current.push({ date: new Date(0), count: -1 })
+      result.push(current)
+    }
+    return result
+  })()
+
+  const getColor = (count: number) => {
+    if (count === -1) return 'transparent'
+    if (count === 0)  return 'var(--color-bg-tertiary)'
+    if (count <= 1)   return 'rgba(255, 89, 0, 0.15)'
+    if (count <= 2)   return 'rgba(255, 89, 0, 0.35)'
+    if (count <= 3)   return 'rgba(255, 89, 0, 0.6)'
+    return 'var(--color-primary)'
+  }
+
+  return (
+    <div style={{ overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 12 }}>
+        {/* Day labels */}
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px 0 6px', height: 165 }}>
+          {DAYS.map((d, i) => i % 2 === 1 && (
+            <span key={d} style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1 }}>{d}</span>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflowX: 'auto', scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {weeks.map((week, wi) => (
+              <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {wi % 4 === 0 ? (
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', marginBottom: 6, height: 14, whiteSpace: 'nowrap' }}>
+                    {MONTHS[week.find(d => d.count !== -1)?.date.getMonth() ?? 0]}
+                  </span>
+                ) : (
+                  <div style={{ height: 20 }} />
+                )}
+                {week.map((day, di) => (
+                  <motion.div
+                    key={di}
+                    whileHover={{ scale: 1.15, zIndex: 10 }}
+                    title={day.count > 0 ? `${day.date.toLocaleDateString('pt-BR')}: ${day.count} ${day.count > 1 ? 'ações' : 'ação'}` : ''}
+                    style={{
+                      width: 20, height: 20, borderRadius: 3,
+                      background: getColor(day.count),
+                      cursor: day.count > 0 ? 'pointer' : 'default',
+                      transition: 'background 0.3s',
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>Menos</span>
+        {[0, 1, 2, 3, 4].map(c => (
+          <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: getColor(c) }} />
+        ))}
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>Mais</span>
+      </div>
+    </div>
+  )
+}
+
+// Dados mock para gráfico de linhas — aprovadas e rejeitadas (15 pontos = últimos 15 dias)
+const MOCK_LINE_APPROVED  = [0, 1, 0, 2, 1, 3, 0, 2, 4, 1, 3, 2, 4, 2, 3]
+const MOCK_LINE_DISMISSED = [0, 0, 1, 0, 2, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1]
+
+// Gráfico de linhas — idêntico ao DailyTrendChart do Canais
+function GrowthLineChart() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerW, setContainerW] = useState(600)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => setContainerW(entry!.contentRect.width))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  const POINTS = MOCK_LINE_APPROVED.length
+  const H = 160, PAD_T = 10, PAD_B = 0
+  const allVals = [...MOCK_LINE_APPROVED, ...MOCK_LINE_DISMISSED].filter(v => v > 0)
+  const rawMax = Math.max(...allVals, 1)
+  const maxVal = rawMax * 1.18
+
+  const dateLabels = Array.from({ length: POINTS }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (POINTS - 1 - i))
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+
+  function xOf(i: number) {
+    return POINTS <= 1 ? containerW / 2 : (i / (POINTS - 1)) * containerW
+  }
+  function yOf(v: number) {
+    return PAD_T + (1 - v / maxVal) * (H - PAD_T - PAD_B)
+  }
+
+  // Catmull-Rom → Cubic Bezier, idêntico ao Canais
+  function smoothLine(values: number[]): string {
+    if (values.length < 2) return ''
+    const pts = values.map((v, i) => ({ x: xOf(i), y: yOf(v) }))
+    let d = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`
+    const t = 0.38
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)]!
+      const p1 = pts[i]!
+      const p2 = pts[i + 1]!
+      const p3 = pts[Math.min(pts.length - 1, i + 2)]!
+      const cp1x = p1.x + (p2.x - p0.x) * t / 2
+      const cp1y = p1.y + (p2.y - p0.y) * t / 2
+      const cp2x = p2.x - (p3.x - p1.x) * t / 2
+      const cp2y = p2.y - (p3.y - p1.y) * t / 2
+      d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`
+    }
+    return d
+  }
+  function smoothArea(values: number[]): string {
+    if (values.length < 2) return ''
+    return `${smoothLine(values)} L ${xOf(values.length - 1).toFixed(1)},${H} L 0,${H} Z`
+  }
+
+  const series = [
+    { key: 'approved',  values: MOCK_LINE_APPROVED,  color: '#FF5900',                    gradId: 'grad-growth-approved'  },
+    { key: 'dismissed', values: MOCK_LINE_DISMISSED, color: 'var(--color-text-tertiary)', gradId: 'grad-growth-dismissed' },
+  ]
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {containerW > 0 && (
+        <svg width={containerW} height={H} style={{ display: 'block', overflow: 'visible' }}>
+          <defs>
+            {series.map(s => (
+              <linearGradient key={s.gradId} id={s.gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={s.color} stopOpacity="0.18" />
+                <stop offset="85%"  stopColor={s.color} stopOpacity="0.04" />
+                <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+              </linearGradient>
+            ))}
+          </defs>
+
+          {/* Grid lines */}
+          {[0.25, 0.5, 0.75, 1].map(pct => (
+            <line key={pct}
+              x1={0} y1={(PAD_T + (1 - pct) * (H - PAD_T)).toFixed(1)}
+              x2={containerW} y2={(PAD_T + (1 - pct) * (H - PAD_T)).toFixed(1)}
+              stroke="var(--color-border)" strokeWidth={1}
+            />
+          ))}
+
+          {/* Y-axis max label */}
+          <text x={4} y={(PAD_T + 3).toFixed(1)}
+            fontFamily="var(--font-mono)" fontSize={8} fill="var(--color-text-tertiary)">
+            {rawMax}
+          </text>
+
+          {/* Lines per series */}
+          {series.map(s => (
+            <g key={s.key}>
+              <motion.path
+                d={smoothArea(s.values)}
+                fill={`url(#${s.gradId})`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              />
+              <motion.path
+                d={smoothLine(s.values)}
+                fill="none"
+                stroke={s.color}
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{ duration: 1.1, ease: [0.25, 0.1, 0.25, 1] }}
+              />
+              {/* End-point dot */}
+              <motion.circle
+                cx={xOf(s.values.length - 1).toFixed(1)}
+                cy={yOf(s.values[s.values.length - 1] ?? 0).toFixed(1)}
+                r={3} fill={s.color}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.9, duration: 0.3 }}
+              />
+            </g>
+          ))}
+        </svg>
+      )}
+
+      {/* Date axis — 3 labels igual ao Canais */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+        {[0, Math.floor((POINTS - 1) / 2), POINTS - 1].map(i => (
+          <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)' }}>
+            {dateLabels[i]}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function GrowthMetrics({ recommendations }: { recommendations: Recommendation[] }) {
+  const approvedCount = recommendations.filter(r => ['approved', 'executing', 'completed'].includes(r.status)).length || 6
+  const dismissedCount = recommendations.filter(r => r.status === 'dismissed').length || 4
+  const pendingCount = recommendations.filter(r => r.status === 'pending').length || 3
+  const totalImpact = MOCK_IMPACT_DATA.reduce((s, d) => s + d.value, 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* KPIs — mesmo padrão do Dashboard: repeat(4, 1fr) */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}
+      >
+        <KpiCard label="Ações identificadas" value={approvedCount + dismissedCount + pendingCount} decimals={0} delay={0.05} />
+        <KpiCard label="Aprovadas"  value={approvedCount}  decimals={0} delay={0.1} />
+        <KpiCard label="Rejeitadas" value={dismissedCount} decimals={0} delay={0.15} />
+        <KpiCard label="Taxa de aprovação" value={approvedCount + dismissedCount > 0 ? Math.round(approvedCount / (approvedCount + dismissedCount) * 100) : 0} suffix="%" decimals={0} delay={0.2} />
+      </motion.div>
+
+      {/* Linha 2: Aprovações x Rejeições  +  Impacto por tipo */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}
+      >
+        {/* Heatmap de aprovações — idêntico ao SalesHeatmap do Dashboard */}
+        <SectionCard style={{ padding: '20px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <p style={{
+              fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+              color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+              textTransform: 'uppercase', margin: 0,
+            }}>
+              Atividade de aprovações
+            </p>
+            <span style={{
+              fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
+              background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-full)', padding: '1px 7px', fontWeight: 400,
+            }}>
+              112 dias
+            </span>
+          </div>
+          <GrowthApprovalHeatmap counts={MOCK_APPROVAL_HEATMAP} />
+        </SectionCard>
+
+        {/* Chart: Impacto por tipo — lista estilo ChannelChart */}
+        <SectionCard style={{ padding: '20px 24px' }}>
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+            color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+            textTransform: 'uppercase', margin: '0 0 4px',
+          }}>
+            Impacto estimado por tipo
+          </p>
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500,
+            letterSpacing: '-0.4px', color: 'var(--color-text-primary)', margin: '0 0 16px',
+          }}>
+            R$ {fmtBR(totalImpact)}
+          </p>
+          {MOCK_IMPACT_DATA.map((row, i, arr) => {
+            const pct = Math.round((row.value / totalImpact) * 100)
+            return (
+              <motion.div
+                key={row.label}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.15 + i * 0.06, ease: [0.25, 0.1, 0.25, 1] }}
                 style={{
-                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
-                  color: 'var(--color-primary)', marginTop: 4,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '11px 0',
+                  borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
                 }}
               >
-                {expanded ? 'Menos' : 'Ler mais'}
-              </button>
-            )}
-          </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--color-primary)', flexShrink: 0 }} />
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 400, color: 'var(--color-text-primary)', letterSpacing: '-0.1px' }}>
+                    {row.label}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 400, color: 'var(--color-text-tertiary)', minWidth: 32, textAlign: 'right' as const }}>
+                    {pct}%
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', minWidth: 90, textAlign: 'right' as const }}>
+                    R$ {fmtBR(row.value)}
+                  </span>
+                </div>
+              </motion.div>
+            )
+          })}
+        </SectionCard>
+      </motion.div>
 
-          {rec.impact_estimate && (
-            <div style={{
-              padding: '8px 12px', background: 'var(--color-bg-secondary)',
-              borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-                <path d="M7 1L8.5 5.5H13.5L9.5 8.5L11 13L7 10L3 13L4.5 8.5L0.5 5.5H5.5L7 1Z" fill="var(--color-primary)" fillOpacity="0.6"/>
-              </svg>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-                {rec.impact_estimate}
+      {/* Linha 3: Histórico semanal — SVG bar chart estilo RevenueChart */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+      >
+        <SectionCard style={{ padding: '20px 24px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+                color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+                textTransform: 'uppercase', margin: '0 0 4px',
+              }}>
+                Decisões por semana
+              </p>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500, letterSpacing: '-0.4px', color: 'var(--color-text-primary)', display: 'block' }}>
+                Últimas 6 semanas
               </span>
             </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 4 }}>
-            <motion.button
-              onClick={() => onApprove(rec.id)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              style={{
-                flex: 1, padding: '8px 0',
-                background: 'var(--color-primary)', color: 'white',
-                border: 'none', borderRadius: 'var(--radius-md)',
-                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                fontWeight: 500, cursor: 'pointer',
-              }}
-            >
-              Aprovar e executar
-            </motion.button>
-            <motion.button
-              onClick={() => onDismiss(rec.id)}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              style={{
-                padding: '8px 14px', background: 'transparent',
-                color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-                fontSize: 'var(--text-sm)', cursor: 'pointer',
-              }}
-            >
-              Descartar
-            </motion.button>
-          </div>
-        </>
-      )}
-
-      {/* Active: execution log */}
-      {isActive && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-          {(rec.execution_log || []).map((step, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -4 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}
-            >
-              <div style={{ flexShrink: 0, marginTop: 1 }}>
-                <StepIcon status={step.status} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <span style={{
-                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                  color: step.status === 'failed' ? 'var(--accent-red)' : 'var(--color-text-primary)',
-                }}>
-                  {step.step}
-                </span>
-                {step.detail && (
-                  <p style={{ margin: '2px 0 0', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                    {step.detail}
-                  </p>
-                )}
-              </div>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {new Date(step.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-            </motion.div>
-          ))}
-          {rec.status === 'executing' && rec.execution_log?.length === 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <StepIcon status="running" />
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                Iniciando execução...
-              </span>
+            <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
+              {[
+                { label: 'Aprovadas', color: 'var(--color-primary)' },
+                { label: 'Rejeitadas', color: 'var(--color-text-tertiary)' },
+              ].map(l => (
+                <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>{l.label}</span>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+          <GrowthLineChart />
+        </SectionCard>
+      </motion.div>
 
-      {/* Sources */}
-      {rec.sources?.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' as const, marginTop: 2 }}>
-          {rec.sources.map(s => (
-            <span key={s} style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: 'var(--color-text-tertiary)', background: 'var(--color-bg-secondary)',
-              border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1px 6px',
-            }}>
-              {s}
-            </span>
-          ))}
-        </div>
-      )}
-    </motion.div>
+    </div>
   )
 }
 
@@ -481,310 +1028,12 @@ function GrowthEmptyState() {
       <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>
         Nenhuma ação crítica identificada
       </p>
-      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0 }}>
         Próxima análise em &lt;30min
       </p>
     </motion.div>
   )
 }
-
-// ── Diagnostic Components ──────────────────────────────────────────────────────
-
-const SEV_CONFIG = {
-  critica: { color: '#EF4444', label: 'Crítica', bg: '#EF444412' },
-  alta:    { color: '#F97316', label: 'Alta',    bg: '#F9731612' },
-  media:   { color: '#F59E0B', label: 'Média',   bg: '#F59E0B12' },
-  ok:      { color: '#10B981', label: 'OK',      bg: '#10B98112' },
-}
-
-const STATUS_CONFIG = {
-  critico:  { color: '#EF4444', label: 'Crítico',  bg: '#EF444415', dot: '#EF4444' },
-  atencao:  { color: '#F97316', label: 'Atenção',  bg: '#F9731615', dot: '#F97316' },
-  bom:      { color: '#F59E0B', label: 'Bom',      bg: '#F59E0B15', dot: '#F59E0B' },
-  otimo:    { color: '#10B981', label: 'Ótimo',    bg: '#10B98115', dot: '#10B981' },
-}
-
-function DiagnosticCard({ item }: { item: DiagnosticItem }) {
-  const [open, setOpen] = useState(false)
-  const sev = SEV_CONFIG[item.severidade]
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      style={{
-        background: 'var(--color-bg-primary)',
-        border: `1px solid ${sev.color}30`,
-        borderLeft: `3px solid ${sev.color}`,
-        borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-4)',
-        display: 'flex', flexDirection: 'column', gap: 'var(--space-3)',
-        cursor: 'pointer',
-      }}
-      onClick={() => setOpen(o => !o)}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em',
-              textTransform: 'uppercase' as const, color: sev.color,
-              background: sev.bg, border: `1px solid ${sev.color}30`,
-              borderRadius: 'var(--radius-full)', padding: '2px 7px',
-            }}>{sev.label}</span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-              {item.canal}
-            </span>
-          </div>
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500,
-            color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.4,
-          }}>{item.sintoma}</p>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: sev.color, fontWeight: 600 }}>
-            R$ {item.consequencia_financeira_brl.toLocaleString('pt-BR')}
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)' }}>
-            {item.prazo}
-          </span>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 10 }}
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {[
-                { label: 'Causa raiz', value: item.causa_raiz },
-                { label: 'Consequência', value: item.consequencia },
-              ].map(row => (
-                <div key={row.label} style={{ padding: '8px 10px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>{row.label}</p>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>{row.value}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ padding: '8px 10px', background: `${sev.color}08`, border: `1px solid ${sev.color}20`, borderRadius: 'var(--radius-md)' }}>
-              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: sev.color, textTransform: 'uppercase' as const, letterSpacing: '0.06em', margin: '0 0 4px' }}>Ação recomendada</p>
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.5 }}>{item.acao_recomendada}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  )
-}
-
-function DiagnosticPanel({ diagnostic, onRerun, running }: {
-  diagnostic: GrowthDiagnostic
-  onRerun: () => void
-  running: boolean
-}) {
-  const status = STATUS_CONFIG[diagnostic.status_geral]
-  const sorted = [...diagnostic.diagnosticos].sort((a, b) => {
-    const order = { critica: 0, alta: 1, media: 2, ok: 3 }
-    return order[a.severidade] - order[b.severidade]
-  })
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Status header */}
-      <div style={{
-        padding: '14px 16px',
-        background: status.bg,
-        border: `1px solid ${status.color}30`,
-        borderRadius: 'var(--radius-lg)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
-      }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: status.dot, boxShadow: `0 0 0 3px ${status.dot}30` }} />
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: status.color, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
-              Status geral: {status.label}
-            </span>
-          </div>
-          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.55 }}>
-            {diagnostic.resumo_executivo}
-          </p>
-        </div>
-        <motion.button
-          onClick={onRerun}
-          disabled={running}
-          whileHover={{ scale: running ? 1 : 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          style={{
-            flexShrink: 0, padding: '6px 12px',
-            background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-            fontSize: 'var(--text-xs)', color: running ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
-            cursor: running ? 'default' : 'pointer',
-          }}
-        >
-          {running ? 'Analisando...' : 'Reanalisar'}
-        </motion.button>
-      </div>
-
-      {/* Pontos positivos */}
-      {diagnostic.pontos_positivos?.length > 0 && (
-        <div>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: '#10B981', margin: '0 0 10px' }}>
-            O que está funcionando
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {diagnostic.pontos_positivos.map((p, i) => (
-              <div key={i} style={{
-                padding: '10px 12px', background: '#10B98108',
-                border: '1px solid #10B98120', borderRadius: 'var(--radius-md)',
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-              }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
-                  <circle cx="7" cy="7" r="6" fill="#10B981" fillOpacity="0.15" stroke="#10B981" strokeWidth="1"/>
-                  <path d="M4.5 7L6.5 9L9.5 5" stroke="#10B981" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <div>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 2px' }}>{p.titulo}</p>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>{p.descricao}</p>
-                </div>
-                {p.impacto_brl > 0 && (
-                  <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 11, color: '#10B981', fontWeight: 600, marginLeft: 'auto' }}>
-                    R$ {p.impacto_brl.toLocaleString('pt-BR')}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Diagnósticos */}
-      {sorted.length > 0 && (
-        <div>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)', margin: '0 0 10px' }}>
-            Diagnósticos — {sorted.length} item{sorted.length > 1 ? 'ns' : ''}
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {sorted.map((d, i) => <DiagnosticCard key={i} item={d} />)}
-          </div>
-        </div>
-      )}
-
-      {/* Próximos passos */}
-      {diagnostic.proximos_passos?.length > 0 && (
-        <div>
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)', margin: '0 0 10px' }}>
-            Plano de ação
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {diagnostic.proximos_passos.map((step, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-                <span style={{
-                  flexShrink: 0, width: 20, height: 20, borderRadius: '50%',
-                  background: 'var(--color-primary)', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-                }}>{step.ordem}</span>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', margin: '0 0 2px', lineHeight: 1.4 }}>{step.acao}</p>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)' }}>{step.prazo}</span>
-                </div>
-                {step.impacto_estimado_brl > 0 && (
-                  <span style={{ flexShrink: 0, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-primary)', fontWeight: 600 }}>
-                    R$ {step.impacto_estimado_brl.toLocaleString('pt-BR')}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DiagnosticSection({ onRun, running, diagnostic, error }: {
-  onRun: () => void
-  running: boolean
-  diagnostic: GrowthDiagnostic | null
-  error: string | null
-}) {
-  if (running) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        style={{ padding: '28px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
-      >
-        <div style={{ display: 'flex', gap: 5 }}>
-          {['Tráfego', 'Conversão', 'Atribuição', 'Estratégia'].map((label, i) => (
-            <motion.div
-              key={label}
-              animate={{ opacity: [0.3, 1, 0.3] }}
-              transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.4 }}
-              style={{
-                padding: '3px 8px', borderRadius: 'var(--radius-full)',
-                background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-                fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)',
-                letterSpacing: '0.05em',
-              }}
-            >{label}</motion.div>
-          ))}
-        </div>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
-          4 agentes analisando seus dados...
-        </p>
-      </motion.div>
-    )
-  }
-
-  if (diagnostic) {
-    return <DiagnosticPanel diagnostic={diagnostic} onRerun={onRun} running={running} />
-  }
-
-  return (
-    <div style={{
-      padding: '24px', border: '1px dashed var(--color-border)',
-      borderRadius: 'var(--radius-lg)', textAlign: 'center' as const,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-    }}>
-      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M8 1L9.5 6H14.5L10.5 9L12 14L8 11L4 14L5.5 9L1.5 6H6.5L8 1Z" fill="var(--color-primary)" fillOpacity="0.5"/>
-        </svg>
-      </div>
-      <div>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-          Diagnóstico com IA
-        </p>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
-          4 agentes analisam tráfego, conversão e atribuição em paralelo
-        </p>
-      </div>
-      {error && (
-        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#EF4444', margin: 0 }}>{error}</p>
-      )}
-      <motion.button
-        onClick={onRun}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.97 }}
-        style={{
-          padding: '8px 20px', background: 'var(--color-primary)', color: 'white',
-          border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-          fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer',
-        }}
-      >
-        Analisar agora
-      </motion.button>
-    </div>
-  )
-}
-
 function ThinkingIndicator() {
   return (
     <motion.div
@@ -810,40 +1059,56 @@ function ThinkingIndicator() {
 }
 
 function GrowthChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'assistant', content: 'Conectado. Contexto: Growth. O que quer analisar?' },
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isThinking, setIsThinking] = useState(false)
   const [model, setModel] = useState<AIModel>('sonnet')
   const [animatingId, setAnimatingId] = useState<string | null>(null)
+  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [hoveredMsg, setHoveredMsg] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+  const [atBottom, setAtBottom] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const emptyTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const activeTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const hasMessages = messages.length > 0
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (atBottom && scrollRef.current) {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     }
   }, [messages, isThinking])
 
+  const handleScroll = () => {
+    if (!scrollRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+    setAtBottom(scrollHeight - scrollTop - clientHeight < 40)
+  }
+
+  const resizeTextarea = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 180) + 'px'
+  }
+
   const handleSend = async (text?: string) => {
-    const messageText = text || input
-    if (!messageText.trim() || isThinking) return
-
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: messageText }
-    setMessages(prev => [...prev, userMsg])
+    const txt = text || input
+    if (!txt.trim() || isThinking) return
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: txt }])
     if (!text) setInput('')
+    if (emptyTextareaRef.current) emptyTextareaRef.current.style.height = 'auto'
+    if (activeTextareaRef.current) activeTextareaRef.current.style.height = 'auto'
     setIsThinking(true)
-
+    setAtBottom(true)
+    if (!activeConvId) setActiveConvId('new')
     try {
-      const response = await aiApi.growthChat(messageText, model)
+      const response = await aiApi.growthChat(txt, model)
       const newId = (Date.now() + 1).toString()
-      const aiMsg: ChatMessage = { id: newId, role: 'assistant', content: response.data.content }
-      setMessages(prev => [...prev, aiMsg])
+      setMessages(prev => [...prev, { id: newId, role: 'assistant', content: response.data.content }])
       setAnimatingId(newId)
     } catch {
       setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
+        id: (Date.now() + 1).toString(), role: 'assistant',
         content: 'Desculpe, tive um problema ao processar sua pergunta.',
       }])
     } finally {
@@ -851,156 +1116,400 @@ function GrowthChat() {
     }
   }
 
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', borderLeft: '1px solid var(--color-border)' }}>
-      {/* Chat Header */}
-      <div style={{
-        padding: '16px 20px', borderBottom: '1px solid var(--color-border)',
-        display: 'flex', alignItems: 'center', gap: 10,
-        background: 'var(--color-bg-primary)', flexShrink: 0,
-      }}>
-        <motion.div animate={{ rotate: isThinking ? [0, 8, -8, 0] : 0 }} transition={{ repeat: Infinity, duration: 2 }}>
-          <AskNorthieIcon />
-        </motion.div>
-        <div>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-0.2px', display: 'block' }}>
-            Northie AI
-          </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-            Contexto: Growth
-          </span>
-        </div>
-      </div>
+  const handleCopy = (id: string, content: string) => {
+    navigator.clipboard.writeText(content)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
+  }
 
-      {/* Messages */}
-      <div
-        ref={scrollRef}
+  // ── Shared input toolbar renderer
+  const renderInputBox = (ref: React.RefObject<HTMLTextAreaElement>, placeholder: string) => (
+    <div style={{
+      background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
+      borderRadius: 18, boxShadow: 'var(--shadow-md)', padding: '12px 14px 10px',
+    }}>
+      <textarea
+        ref={ref}
+        value={input}
+        onChange={e => { setInput(e.target.value); resizeTextarea(ref.current) }}
+        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+        placeholder={placeholder}
+        rows={1}
         style={{
-          flex: 1, overflowY: 'auto', padding: 'var(--space-4)',
-          display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', scrollbarWidth: 'thin',
+          width: '100%', border: 'none', background: 'transparent', outline: 'none',
+          fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.55,
+          color: 'var(--color-text-primary)', resize: 'none',
+          minHeight: 24, maxHeight: 180, overflowY: 'auto',
+          padding: 0, boxSizing: 'border-box' as const, scrollbarWidth: 'none' as any,
         }}
-      >
-        {messages.map(m => (
-          <motion.div
-            key={m.id}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            {m.role === 'assistant' ? (
-              <div>
-                <p style={{
-                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500,
-                  color: 'var(--color-text-tertiary)', textTransform: 'uppercase' as const,
-                  letterSpacing: '0.06em', marginBottom: 6, marginTop: 0,
-                }}>
-                  Northie AI
-                </p>
-                <div style={{
-                  padding: 'var(--space-3) var(--space-4)',
-                  background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-lg)', fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)', lineHeight: 1.65, color: 'var(--color-text-primary)',
-                  whiteSpace: 'pre-wrap',
-                }}>
-                  {animatingId === m.id
-                    ? <TypewriterText text={m.content} onDone={() => setAnimatingId(null)} />
-                    : m.content
-                  }
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'right' as const }}>
-                <div style={{
-                  display: 'inline-block', padding: 'var(--space-3) var(--space-4)',
-                  background: 'var(--inv)', color: 'var(--on-inv)',
-                  borderRadius: 'var(--radius-lg)', fontFamily: 'var(--font-sans)',
-                  fontSize: 'var(--text-sm)', lineHeight: 1.55, maxWidth: '85%', textAlign: 'left' as const,
-                }}>
-                  {m.content}
-                </div>
-              </div>
-            )}
-          </motion.div>
-        ))}
-        {isThinking && <ThinkingIndicator />}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setModel(m => MODELS[(MODELS.indexOf(m) + 1) % MODELS.length])}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+            background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+            borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+            fontSize: 11, color: 'var(--color-text-secondary)',
+          }}
+        >
+          {MODEL_LABELS[model]}
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+            <path d="M2 3L4 5L6 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+        </motion.button>
+        <motion.button
+          onClick={() => handleSend()}
+          disabled={!input.trim() || isThinking}
+          whileHover={input.trim() ? { scale: 1.05 } : {}}
+          whileTap={input.trim() ? { scale: 0.92 } : {}}
+          style={{
+            width: 30, height: 30, borderRadius: '50%', border: 'none', flexShrink: 0,
+            background: input.trim() ? 'var(--color-text-primary)' : 'var(--color-border)',
+            cursor: input.trim() ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.15s ease',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M1 7H13M13 7L7 1M13 7L7 13"
+              stroke={input.trim() ? 'white' : 'var(--color-text-tertiary)'}
+              strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </motion.button>
       </div>
+    </div>
+  )
 
-      {/* Footer */}
-      <div style={{ padding: 'var(--space-3) var(--space-4)', borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-primary)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 'var(--space-3)', scrollbarWidth: 'none', paddingBottom: 2 }}>
-          {CHAT_CHIPS.map(chip => (
-            <button
-              key={chip}
-              onClick={() => handleSend(chip)}
+  return (
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+
+      {/* ── Sidebar ── */}
+      <div style={{
+        width: 220, flexShrink: 0,
+        background: 'var(--color-bg-secondary)',
+        borderRight: '1px solid var(--color-border)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        {/* Nova conversa */}
+        <div style={{ padding: '16px 12px 10px' }}>
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { setMessages([]); setActiveConvId(null); setInput('') }}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 12px',
+              background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)', cursor: 'pointer',
+              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Nova conversa
+          </motion.button>
+        </div>
+
+        {/* Recentes */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px 12px', scrollbarWidth: 'none' as any }}>
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 400,
+            color: 'var(--color-text-tertiary)', letterSpacing: '0.06em',
+            textTransform: 'uppercase' as const, margin: '0 0 4px', padding: '0 4px',
+          }}>
+            Recentes
+          </p>
+          {MOCK_CONVS.map(conv => (
+            <motion.button
+              key={conv.id}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveConvId(conv.id)}
               style={{
-                whiteSpace: 'nowrap', border: '1px solid var(--color-border)',
-                background: 'var(--color-bg-secondary)', color: 'var(--color-text-secondary)',
-                borderRadius: 'var(--radius-md)', padding: '4px 10px',
-                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
-                cursor: 'pointer', transition: 'background var(--transition-base)',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: 'none',
+                background: activeConvId === conv.id ? 'var(--color-bg-primary)' : 'transparent',
+                cursor: 'pointer', textAlign: 'left' as const,
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
             >
-              {chip}
-            </button>
+              <span style={{
+                fontFamily: 'var(--font-sans)', fontSize: 12,
+                color: activeConvId === conv.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, lineHeight: 1.4,
+              }}>
+                {conv.title}
+              </span>
+              <span style={{
+                fontFamily: 'var(--font-sans)', fontSize: 10,
+                color: 'var(--color-text-tertiary)', flexShrink: 0,
+              }}>
+                {conv.time}
+              </span>
+            </motion.button>
           ))}
         </div>
+
+        {/* Footer */}
         <div style={{
-          display: 'flex', gap: 'var(--space-2)',
-          background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)', padding: 'var(--space-2) var(--space-3)', alignItems: 'flex-end',
+          padding: '10px 12px 14px', borderTop: '1px solid var(--color-border)',
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-            placeholder="Pergunte sobre suas métricas de crescimento..."
-            style={{
-              flex: 1, border: 'none', background: 'transparent', outline: 'none',
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-primary)', resize: 'none' as const,
-              minHeight: 20, maxHeight: 100, padding: 0, lineHeight: 1.55,
-            }}
-          />
-          <motion.button
-            onClick={() => setModel(m => MODELS[(MODELS.indexOf(m) + 1) % MODELS.length])}
-            whileTap={{ scale: 0.93 }}
-            title="Trocar modelo de IA"
-            style={{
-              background: 'none', border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm)', padding: '2px 6px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
-              color: 'var(--color-text-tertiary)',
-            }}
-          >
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.04em' }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--color-border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600,
+            color: 'var(--color-text-secondary)',
+          }}>N</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
+              color: 'var(--color-text-primary)', margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>Northie AI</p>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', margin: 0 }}>
               {MODEL_LABELS[model]}
-            </span>
-            <svg width="7" height="7" viewBox="0 0 8 8" fill="none">
-              <path d="M4 1L6.5 3.5M4 1L1.5 3.5M4 7L6.5 4.5M4 7L1.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </motion.button>
-          <motion.button
-            onClick={() => handleSend()}
-            disabled={!input.trim() || isThinking}
-            whileHover={{ scale: input.trim() ? 1.05 : 1 }}
-            whileTap={{ scale: 0.95 }}
-            style={{
-              background: input.trim() ? 'var(--color-primary)' : 'var(--color-border)',
-              color: input.trim() ? 'white' : 'var(--color-text-tertiary)',
-              border: 'none', borderRadius: 'var(--radius-md)',
-              width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: input.trim() ? 'pointer' : 'default', flexShrink: 0,
-              transition: 'background var(--transition-base)',
-            }}
-          >
-            <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
-              <path d="M1 7H13M13 7L7 1M13 7L7 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </motion.button>
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* ── Main area ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-bg-primary)' }}>
+        {!hasMessages ? (
+
+          /* ── EMPTY STATE ── */
+          <div style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', padding: '0 32px 60px', overflow: 'hidden',
+          }}>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 560 }}
+            >
+              <div style={{ width: 36, height: 36, marginBottom: 18, opacity: 0.35 }}>
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L14.09 8.26L20 9.27L16 13.14L17.18 19.02L12 16.02L6.82 19.02L8 13.14L4 9.27L9.91 8.26L12 2Z"
+                    stroke="var(--color-text-secondary)" strokeWidth="1.5" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <h2 style={{
+                fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500,
+                letterSpacing: '-0.4px', color: 'var(--color-text-primary)',
+                margin: '0 0 6px', textAlign: 'center',
+              }}>
+                Como posso ajudar você hoje?
+              </h2>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)',
+                margin: '0 0 24px', textAlign: 'center', lineHeight: 1.5,
+              }}>
+                Contexto: Growth — cruzamento de dados, correlações e execução
+              </p>
+
+              <div style={{ width: '100%', marginBottom: 14 }}>
+                {renderInputBox(emptyTextareaRef, 'Como posso ajudar você hoje?')}
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                {GROWTH_CHIPS.map(chip => (
+                  <motion.button
+                    key={chip}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleSend(chip)}
+                    style={{
+                      padding: '6px 14px',
+                      background: 'transparent', border: '1px solid var(--color-border)',
+                      borderRadius: 20, cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)', fontSize: 12,
+                      color: 'var(--color-text-secondary)',
+                    }}
+                  >
+                    {chip}
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+
+        ) : (
+
+          /* ── CONVERSA ATIVA ── */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+
+            {/* Header da conversa */}
+            <div style={{
+              height: 48, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0 24px', borderBottom: '1px solid var(--color-border)',
+              background: 'var(--color-bg-primary)',
+            }}>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+                color: 'var(--color-text-primary)', margin: 0,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+              }}>
+                {messages.find(m => m.role === 'user')?.content.slice(0, 52) || 'Nova conversa'}
+                {(messages.find(m => m.role === 'user')?.content.length ?? 0) > 52 ? '...' : ''}
+              </p>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={() => { setMessages([]); setActiveConvId(null); setInput('') }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 10px', background: 'transparent',
+                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11,
+                  color: 'var(--color-text-secondary)', flexShrink: 0, marginLeft: 12,
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+                Nova
+              </motion.button>
+            </div>
+
+            {/* Mensagens */}
+            <div
+              ref={scrollRef}
+              onScroll={handleScroll}
+              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' as any, padding: '28px 0 12px' }}
+            >
+              <div style={{ maxWidth: 640, margin: '0 auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {messages.map(m => (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                    onHoverStart={() => setHoveredMsg(m.id)}
+                    onHoverEnd={() => setHoveredMsg(null)}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start' }}
+                  >
+                    {m.role === 'user' ? (
+                      <div style={{
+                        maxWidth: '82%', padding: '10px 16px',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 16,
+                        fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.55,
+                        color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap',
+                      }}>
+                        {m.content}
+                      </div>
+                    ) : (
+                      <div style={{ width: '100%' }}>
+                        <p style={{
+                          fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 400,
+                          color: 'var(--color-text-tertiary)', letterSpacing: '0.06em',
+                          textTransform: 'uppercase' as const, margin: '0 0 8px',
+                        }}>
+                          Northie AI
+                        </p>
+                        <div style={{
+                          fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.7,
+                          color: 'var(--color-text-primary)', whiteSpace: 'pre-wrap',
+                        }}>
+                          {animatingId === m.id
+                            ? <TypewriterText text={m.content} onDone={() => setAnimatingId(null)} />
+                            : m.content
+                          }
+                        </div>
+                        <AnimatePresence>
+                          {hoveredMsg === m.id && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.12 }}
+                              style={{ display: 'flex', gap: 4, marginTop: 8 }}
+                            >
+                              <button
+                                onClick={() => handleCopy(m.id, m.content)}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 4,
+                                  padding: '3px 8px', border: '1px solid var(--color-border)',
+                                  borderRadius: 6, background: 'var(--color-bg-secondary)',
+                                  cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11,
+                                  color: 'var(--color-text-tertiary)',
+                                }}
+                              >
+                                {copied === m.id ? (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                      <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                                    </svg>
+                                    Copiado
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                      <rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.1"/>
+                                      <path d="M8 4V2.5A1.5 1.5 0 006.5 1H2.5A1.5 1.5 0 001 2.5v4A1.5 1.5 0 002.5 8H4" stroke="currentColor" strokeWidth="1.1"/>
+                                    </svg>
+                                    Copiar
+                                  </>
+                                )}
+                              </button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+                {isThinking && <ThinkingIndicator />}
+                <div style={{ height: 8 }} />
+              </div>
+            </div>
+
+            {/* Scroll to bottom */}
+            <AnimatePresence>
+              {!atBottom && (
+                <motion.button
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 6 }}
+                  onClick={() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); setAtBottom(true) }}
+                  style={{
+                    position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
+                    boxShadow: 'var(--shadow-md)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M7 2V12M7 12L3 8M7 12L11 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                  </svg>
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            {/* Input bottom */}
+            <div style={{
+              padding: '12px 24px 14px',
+              borderTop: '1px solid var(--color-border)',
+              background: 'var(--color-bg-primary)', flexShrink: 0,
+            }}>
+              <div style={{ maxWidth: 640, margin: '0 auto' }}>
+                {renderInputBox(activeTextareaRef, 'Responder...')}
+                <p style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)',
+                  textAlign: 'center' as const, margin: '7px 0 0',
+                }}>
+                  Northie AI pode cometer erros. Verifique as recomendações antes de executar.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1011,18 +1520,22 @@ function GrowthChat() {
 export default function Growth() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastAnalysis, setLastAnalysis] = useState<Date>(new Date())
-  const [diagnostic, setDiagnostic] = useState<GrowthDiagnostic | null>(null)
-  const [runningDiagnostic, setRunningDiagnostic] = useState(false)
-  const [diagnosticError, setDiagnosticError] = useState<string | null>(null)
+
+  const [growthTab, setGrowthTab] = useState<'metricas' | 'execucoes' | 'exploracao'>('metricas')
+  const [selectedRec, setSelectedRec] = useState<Recommendation | null>(null)
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const pollingErrorCounts = useRef<Record<string, number>>({})
+
+  const TABS = [
+    { key: 'metricas',   label: 'Métricas'   },
+    { key: 'execucoes',  label: 'Execuções'  },
+    { key: 'exploracao', label: 'Exploração' },
+  ] as const
 
   const fetchData = useCallback(async () => {
     try {
       const recRes = await growthApi.listRecommendations()
       setRecommendations(recRes.data ?? [])
-      setLastAnalysis(new Date())
     } catch {
       setRecommendations([])
     } finally {
@@ -1035,12 +1548,6 @@ export default function Growth() {
     const interval = setInterval(fetchData, 60 * 1000)
     return () => clearInterval(interval)
   }, [fetchData])
-
-  useEffect(() => {
-    growthApi.getLatestDiagnostic()
-      .then(res => setDiagnostic(res.data))
-      .catch(() => {/* no prior diagnostic — ok */})
-  }, [])
 
   useEffect(() => {
     const refs = pollingRefs.current
@@ -1094,19 +1601,6 @@ export default function Growth() {
     }
   }
 
-  const handleRunDiagnostic = async () => {
-    setRunningDiagnostic(true)
-    setDiagnosticError(null)
-    try {
-      const res = await growthApi.runDiagnostic(30)
-      setDiagnostic(res.data)
-    } catch (err: any) {
-      setDiagnosticError(err?.response?.data?.error ?? 'Erro ao gerar diagnóstico')
-    } finally {
-      setRunningDiagnostic(false)
-    }
-  }
-
   const handleDismiss = async (id: string) => {
     setRecommendations(prev => prev.filter(r => r.id !== id))
     try { await growthApi.dismiss(id) } catch { /* silently ok */ }
@@ -1114,154 +1608,255 @@ export default function Growth() {
 
   const pendingRecs = recommendations.filter(r => r.status === 'pending')
   const activeRecs = recommendations.filter(r => ['approved', 'executing', 'completed', 'failed'].includes(r.status))
-  const minutesSinceAnalysis = Math.round((new Date().getTime() - lastAnalysis.getTime()) / 60000)
-
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
       style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}
     >
-      {/* Header */}
-      <div style={{
-        padding: '28px 32px 20px', borderBottom: '1px solid var(--color-border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
-      }}>
-        <div>
-          <h1 style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-md)', fontWeight: 600,
-            color: 'var(--color-text-primary)', letterSpacing: '-0.4px', margin: 0,
-          }}>
-            Northie Growth
-          </h1>
-          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>
-            Execução automática de crescimento baseada em cruzamento de dados
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: 'var(--radius-full)', background: 'var(--accent-green)', boxShadow: '0 0 0 3px var(--status-complete-bg)' }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
-            Motor ativo · última análise há {minutesSinceAnalysis}min
-          </span>
-        </div>
-      </div>
-
-      {/* Split Layout */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Left panel: recommendations */}
-        <div style={{
-          flex: '0 0 55%', overflowY: 'auto', padding: '24px 32px',
-          display: 'flex', flexDirection: 'column', scrollbarWidth: 'thin',
+      {/* Header — apenas h1 + pill subnav */}
+      <div style={{ padding: '28px 32px 20px', flexShrink: 0 }}>
+        <h1 style={{
+          fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-3xl)',
+          letterSpacing: '-0.5px', color: 'var(--color-text-primary)',
+          lineHeight: 1.1, margin: '0 0 4px',
         }}>
-          <DiagnosticSection
-            onRun={handleRunDiagnostic}
-            running={runningDiagnostic}
-            diagnostic={diagnostic}
-            error={diagnosticError}
-          />
+          Growth
+        </h1>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '0 0 16px', lineHeight: 1.5 }}>
+          Ações identificadas pela IA, prontas para você aprovar.
+        </p>
 
-          {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              {[1, 2, 3].map(i => (
-                <div key={i} style={{
-                  height: i === 1 ? 100 : 120, borderRadius: 'var(--radius-lg)',
-                  background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', opacity: 0.6,
-                }} />
-              ))}
-            </div>
-          ) : (
-            <>
-              {/* Seção: Em execução */}
-              {activeRecs.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <p style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em',
-                    textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)',
-                    marginBottom: 12, marginTop: 0,
-                  }}>
-                    Em execução
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                    <AnimatePresence>
-                      {activeRecs.map(rec => (
-                        <RecommendationCard key={rec.id} rec={rec} onApprove={handleApprove} onDismiss={handleDismiss} />
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              )}
-
-              {/* Seção: Pendentes */}
-              {pendingRecs.length > 0 ? (
-                <div>
-                  <p style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em',
-                    textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)',
-                    marginBottom: 12, marginTop: 0,
-                  }}>
-                    Aguardando aprovação — {pendingRecs.length} ação{pendingRecs.length > 1 ? 'ões' : ''}
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                    <AnimatePresence>
-                      {pendingRecs.map(rec => (
-                        <RecommendationCard key={rec.id} rec={rec} onApprove={handleApprove} onDismiss={handleDismiss} />
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              ) : activeRecs.length === 0 && (
-                <GrowthEmptyState />
-              )}
-
-              {/* Histórico de Execução */}
-              <div style={{ height: 1, background: 'var(--color-border)', margin: '32px 0' }} />
-              <p style={{
-                fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em',
-                textTransform: 'uppercase' as const, color: 'var(--color-text-tertiary)',
-                marginBottom: 12, marginTop: 0,
-              }}>
-                Histórico de Execução
-              </p>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+        {/* Pill subnav — idêntico ao Canais */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px', background: 'var(--color-bg-secondary)', borderRadius: 10, width: 'fit-content', border: '1px solid var(--color-border)' }}>
+          {TABS.map(tab => {
+            const isActive = growthTab === tab.key
+            const badge = tab.key === 'execucoes' && pendingRecs.length > 0 ? pendingRecs.length : null
+            return (
+              <motion.button
+                key={tab.key}
+                onClick={() => setGrowthTab(tab.key)}
+                whileTap={{ scale: 0.97 }}
                 style={{
-                  textAlign: 'center' as const,
-                  padding: 'var(--space-8)', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', gap: 'var(--space-2)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontFamily: 'var(--font-sans)', fontSize: 13,
+                  fontWeight: isActive ? 500 : 400,
+                  color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                  background: isActive ? 'var(--color-bg-primary)' : 'transparent',
+                  border: isActive ? '1px solid var(--color-border)' : '1px solid transparent',
+                  borderRadius: 7, padding: '6px 16px', cursor: 'pointer',
+                  transition: 'all 0.15s ease', letterSpacing: '-0.1px',
                 }}
               >
-                <div style={{
-                  width: 40, height: 40,
-                  borderRadius: 'var(--radius-lg)',
-                  background: 'var(--color-bg-tertiary)',
-                  margin: '0 auto 16px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <line x1="9" y1="9" x2="15" y2="9" />
-                    <line x1="9" y1="12" x2="12" y2="12" />
-                  </svg>
-                </div>
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-secondary)', margin: '0 0 6px' }}>
-                  Nenhuma ação executada ainda
-                </p>
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
-                  Aprove recomendações acima para começar a executar. O impacto de cada ação será medido em reais.
-                </p>
-              </motion.div>
-            </>
-          )}
-        </div>
-
-        {/* Right panel: inline chat */}
-        <div style={{ flex: '0 0 45%', overflow: 'hidden' }}>
-          <GrowthChat />
+                {tab.label}
+                {badge && (
+                  <span style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600,
+                    color: 'white', background: 'var(--color-primary)',
+                    borderRadius: 99, padding: '1px 6px', lineHeight: 1.4,
+                  }}>{badge}</span>
+                )}
+              </motion.button>
+            )
+          })}
         </div>
       </div>
+
+      {/* Content */}
+      <AnimatePresence mode="wait">
+        {growthTab === 'exploracao' ? (
+          <motion.div
+            key="exploracao"
+            style={{ flex: 1, overflow: 'hidden' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <GrowthChat />
+          </motion.div>
+        ) : growthTab === 'metricas' ? (
+          <motion.div
+            key="metricas"
+            style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', scrollbarWidth: 'thin' as any }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <GrowthMetrics recommendations={recommendations} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="execucoes"
+            style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', scrollbarWidth: 'thin' as any }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} style={{ height: 82, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', opacity: 0.6 }} />
+                  ))}
+                </div>
+                <div style={{ height: 220, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', opacity: 0.6 }} />
+              </div>
+            ) : (() => {
+              const display = pendingRecs.length > 0 ? pendingRecs : MOCK_RECOMMENDATIONS
+              const isMock = pendingRecs.length === 0
+              const completedCount = recommendations.filter(r => r.status === 'completed').length
+              const totalImpact = MOCK_IMPACT_DATA.reduce((s, d) => s + d.value, 0)
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                  {/* KPIs — repeat(4, 1fr) igual ao Métricas */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+                    style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}
+                  >
+                    <KpiCard label="Aguardando aprovação" value={display.length} decimals={0} delay={0.05} />
+                    <KpiCard label="Em execução" value={activeRecs.length} decimals={0} delay={0.1} />
+                    <KpiCard label="Concluídas" value={completedCount} decimals={0} delay={0.15} />
+                    <KpiCard label="Impacto estimado" value={totalImpact} prefix="R$" decimals={0} delay={0.2} />
+                  </motion.div>
+
+                  {/* Aguardando aprovação */}
+                  {display.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+                    >
+                      <SectionCard style={{ padding: '20px 24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                          <p style={{
+                            fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+                            color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+                            textTransform: 'uppercase' as const, margin: 0,
+                          }}>
+                            Aguardando aprovação
+                          </p>
+                          <span style={{
+                            fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
+                            background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-full)', padding: '1px 7px', fontWeight: 400,
+                          }}>
+                            {display.length} {display.length > 1 ? 'ações' : 'ação'}
+                          </span>
+                          {isMock && (
+                            <span style={{
+                              fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)',
+                              background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                              borderRadius: 6, padding: '2px 8px', marginLeft: 'auto',
+                            }}>
+                              demonstração
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <AnimatePresence>
+                            {display.map(rec => (
+                              <RecommendationCard key={rec.id} rec={rec} onClick={() => setSelectedRec(rec)} />
+                            ))}
+                          </AnimatePresence>
+                        </div>
+                      </SectionCard>
+                    </motion.div>
+                  )}
+
+                  {/* Em execução */}
+                  {activeRecs.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+                    >
+                      <SectionCard style={{ padding: '20px 24px' }}>
+                        <p style={{
+                          fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+                          color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+                          textTransform: 'uppercase' as const, margin: '0 0 16px',
+                        }}>
+                          Em execução
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <AnimatePresence>
+                            {activeRecs.map(rec => (
+                              <RecommendationCard key={rec.id} rec={rec} onClick={() => setSelectedRec(rec)} />
+                            ))}
+                          </AnimatePresence>
+                        </div>
+                      </SectionCard>
+                    </motion.div>
+                  )}
+
+                  {/* Histórico de execução */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                  >
+                    <SectionCard style={{ padding: '20px 24px' }}>
+                      <p style={{
+                        fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+                        color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+                        textTransform: 'uppercase' as const, margin: '0 0 4px',
+                      }}>
+                        Histórico de execução
+                      </p>
+                      <p style={{
+                        fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500,
+                        letterSpacing: '-0.4px', color: 'var(--color-text-primary)', margin: '0 0 20px',
+                      }}>
+                        {completedCount > 0 ? `${completedCount} ${completedCount > 1 ? 'ações concluídas' : 'ação concluída'}` : 'Nenhuma execução ainda'}
+                      </p>
+                      {completedCount === 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '24px 0' }}>
+                          <div style={{
+                            width: 40, height: 40, borderRadius: 'var(--radius-lg)',
+                            background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+                          }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}>
+                              <rect x="3" y="3" width="18" height="18" rx="2" />
+                              <line x1="9" y1="9" x2="15" y2="9" />
+                              <line x1="9" y1="12" x2="12" y2="12" />
+                            </svg>
+                          </div>
+                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0 }}>
+                            Nenhuma ação executada ainda
+                          </p>
+                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0, maxWidth: 360, textAlign: 'center' as const }}>
+                            Aprove recomendações acima para começar. O impacto de cada ação será medido em reais.
+                          </p>
+                        </div>
+                      ) : null}
+                    </SectionCard>
+                  </motion.div>
+
+                  {display.length === 0 && activeRecs.length === 0 && <GrowthEmptyState />}
+                </div>
+              )
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail drawer */}
+      <AnimatePresence>
+        {selectedRec && (
+          <RecDetailDrawer
+            rec={selectedRec}
+            onClose={() => setSelectedRec(null)}
+            onApprove={(id) => { handleApprove(id); setSelectedRec(null) }}
+            onDismiss={(id) => { handleDismiss(id); setSelectedRec(null) }}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }

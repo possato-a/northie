@@ -207,22 +207,30 @@ export async function sendReport(opts) {
         return null;
     }
     const freqLabel = FREQ_LABEL[opts.frequency] ?? opts.frequency;
-    const html = buildEmailHtml({ frequency: opts.frequency, data: opts.data, ai: opts.ai, format: opts.format });
-    const contentBase64 = Buffer.isBuffer(opts.fileBuffer)
-        ? opts.fileBuffer.toString('base64')
-        : Buffer.from(opts.fileBuffer, 'utf-8').toString('base64');
+    const formatLabel = opts.attachments.length > 1
+        ? opts.attachments.map(a => a.filename.split('.').pop()?.toUpperCase() ?? '').join(' + ')
+        : (opts.attachments[0]?.filename.split('.').pop()?.toUpperCase() ?? opts.format.toUpperCase());
+    const html = buildEmailHtml({ frequency: opts.frequency, data: opts.data, ai: opts.ai, format: formatLabel });
+    const resendAttachments = opts.attachments.map(att => ({
+        filename: att.filename,
+        content: Buffer.isBuffer(att.buffer)
+            ? att.buffer.toString('base64')
+            : Buffer.from(att.buffer, 'utf-8').toString('base64'),
+    }));
+    const toList = Array.isArray(opts.to) ? opts.to : [opts.to];
+    const toDisplay = toList.join(', ');
     const MAX_RETRIES = 3;
     let lastError = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         const { data, error } = await resend.emails.send({
             from: process.env.RESEND_FROM_EMAIL ?? 'Northie <onboarding@resend.dev>',
-            to: opts.to,
+            to: toList,
             subject: `Relatório ${freqLabel} — Northie · ${new Date().toLocaleDateString('pt-BR')}`,
             html,
-            attachments: [{ filename: opts.filename, content: contentBase64 }],
+            attachments: resendAttachments,
         });
         if (!error) {
-            console.log(`[ReportEmail] Enviado para ${opts.to} — id ${data?.id} (tentativa ${attempt})`);
+            console.log(`[ReportEmail] Enviado para ${toDisplay} — id ${data?.id} (tentativa ${attempt})`);
             return data?.id ?? null;
         }
         lastError = new Error(error.message);

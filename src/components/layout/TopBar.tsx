@@ -143,7 +143,7 @@ export default function TopBar(_props: TopBarProps) {
           gap: 8,
           height: 36,
           border: `1px solid ${focused ? 'var(--color-primary)' : 'var(--color-border)'}`,
-          borderRadius: 'var(--radius-md)',
+          borderRadius: 'var(--radius-lg)',
           paddingLeft: 12,
           paddingRight: 12,
           background: focused ? 'var(--color-bg-primary)' : 'var(--color-bg-secondary)',
@@ -197,7 +197,7 @@ export default function TopBar(_props: TopBarProps) {
           style={{
             width: 36, height: 36,
             border: `1px solid ${notifOpen ? 'var(--color-primary)' : 'var(--color-border)'}`,
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--radius-lg)',
             background: notifOpen ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
             cursor: 'pointer',
             color: 'var(--color-text-secondary)',

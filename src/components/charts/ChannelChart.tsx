@@ -16,10 +16,10 @@ const CHANNEL_COLORS: Record<string, string> = {
   'instagram': 'var(--accent-purple)',
   'google': 'var(--color-primary)',
   'google ads': 'var(--color-primary)',
-  'facebook': 'var(--status-in-progress)',
-  'meta ads': 'var(--status-in-progress)',
-  'youtube': 'var(--accent-red)',
-  'email': 'var(--accent-green)',
+  'facebook': 'var(--color-primary)',
+  'meta ads': 'var(--color-primary)',
+  'youtube': 'var(--color-text-secondary)',
+  'email': 'var(--status-complete)',
   'desconhecido': 'var(--color-text-tertiary)',
   'direto / outros': 'var(--color-text-tertiary)',
 }
@@ -39,13 +39,13 @@ export default function ChannelChart({ initialData }: { initialData?: ChannelDat
   const totalRevenue = useMemo(() => channels.reduce((s, c) => s + c.revenue, 0), [channels])
 
   if (loading) return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {[1, 2, 3].map(i => (
         <div key={i} style={{
-          height: 48,
+          height: 40,
           background: 'var(--color-bg-secondary)',
-          borderRadius: 'var(--radius-md)',
-          opacity: 1 - i * 0.2,
+          borderRadius: 'var(--radius-sm)',
+          opacity: 1 - i * 0.25,
         }} />
       ))}
     </div>
@@ -53,104 +53,70 @@ export default function ChannelChart({ initialData }: { initialData?: ChannelDat
 
   return (
     <section>
-      {/* Section header */}
-      <p style={{
-        fontFamily: 'var(--font-sans)',
-        fontSize: 'var(--text-sm)',
-        fontWeight: 500,
-        color: 'var(--color-text-secondary)',
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
-        marginBottom: 'var(--space-5)',
-      }}>
-        Receita por Canal
-      </p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         {channels.map((ch, i) => {
           const pct = totalRevenue > 0 ? (ch.revenue / totalRevenue) * 100 : 0
-          // Normaliza o nome do canal para lookup consistente (ex: "Meta Ads" → "meta ads")
           const channelKey = ch.channel.toLowerCase().trim()
-          const color = CHANNEL_COLORS[channelKey]
-            || CHANNEL_COLORS[channelKey.replace(' ads', '')]
-            || CHANNEL_COLORS[channelKey.split(' ')[0]!]
-            || 'var(--color-text-tertiary)'
+          const color = CHANNEL_COLORS[channelKey] || CHANNEL_COLORS[channelKey.replace(' ads', '')] || CHANNEL_COLORS[channelKey.split(' ')[0]!] || 'var(--color-text-tertiary)'
+          const isLast = i === channels.length - 1
 
           return (
             <motion.div
               key={ch.channel}
-              initial={{ opacity: 0, x: -4 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.07, ease: [0.25, 0.1, 0.25, 1] }}
-            >
-              {/* Label row */}
-              <div style={{
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.06, ease: [0.25, 0.1, 0.25, 1] }}
+              style={{
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: 'var(--space-2)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  {/* Color dot */}
-                  <div style={{
-                    width: 8, height: 8,
-                    borderRadius: 'var(--radius-full)',
-                    background: color,
-                    flexShrink: 0,
-                  }} />
-                  <span style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--text-base)',
-                    fontWeight: 400,
-                    color: 'var(--color-text-primary)',
-                    textTransform: 'capitalize',
-                    letterSpacing: '-0.1px',
-                  }}>
-                    {ch.channel === 'desconhecido' ? 'Direto / Outros' : ch.channel}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-xs)',
-                    color: 'var(--color-text-tertiary)',
-                  }}>
-                    {pct.toFixed(1)}%
-                  </span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-sm)',
-                    fontWeight: 500,
-                    color: 'var(--color-text-secondary)',
-                  }}>
-                    R$ {fmtBR(ch.revenue)}
-                  </span>
-                </div>
+                justifyContent: 'space-between',
+                padding: '11px 0',
+                borderBottom: isLast ? 'none' : '1px solid var(--color-border)',
+              }}
+            >
+              {/* Left: dot + channel name */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: color,
+                  flexShrink: 0,
+                }} />
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 400,
+                  color: 'var(--color-text-primary)',
+                  letterSpacing: '-0.1px',
+                  textTransform: 'capitalize',
+                }}>
+                  {ch.channel === 'desconhecido' ? 'Direto / Outros' : ch.channel}
+                </span>
               </div>
 
-              {/* Progress bar — Notion style */}
-              <div style={{
-                height: 4,
-                background: 'var(--color-bg-tertiary)',
-                borderRadius: 'var(--radius-full)',
-                overflow: 'hidden',
-              }}>
-                <motion.div
-                  style={{
-                    height: '100%',
-                    background: color,
-                    borderRadius: 'var(--radius-full)',
-                    opacity: 0.75,
-                  }}
-                  initial={{ width: '0%' }}
-                  animate={{ width: `${pct}%` }}
-                  transition={{
-                    duration: 0.8,
-                    delay: i * 0.08 + 0.2,
-                    ease: [0.4, 0, 0.2, 1],
-                  }}
-                />
+              {/* Right: revenue + percentage */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 400,
+                  color: 'var(--color-text-tertiary)',
+                  minWidth: 36,
+                  textAlign: 'right',
+                }}>
+                  {pct.toFixed(0)}%
+                </span>
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--text-base)',
+                  fontWeight: 500,
+                  color: 'var(--color-text-primary)',
+                  minWidth: 90,
+                  textAlign: 'right',
+                }}>
+                  R$ {fmtBR(ch.revenue)}
+                </span>
               </div>
             </motion.div>
           )

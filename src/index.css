@@ -10,13 +10,14 @@ html,
 body,
 #root {
   height: 100%;
+  overflow-x: hidden;
 }
 
 /* ── Northie Brand Tokens ─────────────────────────────────────────────────── */
 
 :root {
   /* Northie surfaces */
-  --bg: #FCF8F8;
+  --bg: #F7F7FA;
   --surface: #FFFFFF;
   --surface-glass: rgba(255, 255, 255, 0.7);
 
@@ -37,22 +38,22 @@ body,
 
   /* Colors - Background */
   --color-bg-primary: #FFFFFF;
-  --color-bg-secondary: #F7F6F3;
-  --color-bg-tertiary: #EFEEEB;
-  --color-border: #E3E2E0;
+  --color-bg-secondary: #F7F7FA;
+  --color-bg-tertiary: #EAEAEE;
+  --color-border: rgba(66, 87, 138, 0.12);
 
-  /* Colors - Action (Notion blue) */
-  --color-primary: #2383E2;
-  --color-primary-hover: #0B6BCB;
-  --color-primary-light: #E7F3FF;
+  /* Colors - Action (Northie orange) */
+  --color-primary: #FF5900;
+  --color-primary-hover: #E64E00;
+  --color-primary-light: #FFF0EB;
 
   /* Colors - Status */
   --status-not-started: #787774;
   --status-not-started-bg: #F1F1EF;
   --status-planning: #D9730D;
   --status-planning-bg: #FBF3DB;
-  --status-in-progress: #2383E2;
-  --status-in-progress-bg: #E7F3FF;
+  --status-in-progress: #FF5900;
+  --status-in-progress-bg: #FFF0EB;
   --status-complete: #0F7B6C;
   --status-complete-bg: #DBEDDB;
 
@@ -122,10 +123,10 @@ body,
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(55, 53, 47, 0.08);
-  --shadow-md: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 1px 2px rgba(55, 53, 47, 0.08);
-  --shadow-lg: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 4px 12px rgba(55, 53, 47, 0.12);
-  --shadow-xl: 0 0 0 1px rgba(55, 53, 47, 0.09), 0 8px 24px rgba(55, 53, 47, 0.14);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.09), 0 2px 6px rgba(0, 0, 0, 0.05);
 
   /* Transitions */
   --transition-fast: 60ms ease;
@@ -168,8 +169,10 @@ body {
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.6;
+  letter-spacing: -0.1px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv01' 1, 'ss03' 1, 'liga' 0;
   transition: background var(--transition-slow), color var(--transition-slow);
 }
 
@@ -341,49 +344,6 @@ body {
   background: rgba(var(--fg-rgb), 0.22);
 }
 
-/* ── Grain texture — subtle sand/noise overlay ────────────────────────────── */
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.032;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-  background-size: 200px 200px;
-  background-repeat: repeat;
-}
-
-[data-theme="dark"] body::after {
-  opacity: 0.045;
-}
-
-/* ── Spotlight — concentrated light beam, top-center ─────────────────────── */
-
-body::before {
-  content: '';
-  position: fixed;
-  top: -280px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 600px;
-  height: 560px;
-  pointer-events: none;
-  z-index: 0;
-  background: radial-gradient(ellipse 55% 55% at 50% 0%,
-      rgba(255, 252, 245, 0.18) 0%,
-      rgba(255, 252, 245, 0.06) 35%,
-      transparent 70%);
-  border-radius: 50%;
-}
-
-[data-theme="dark"] body::before {
-  background: radial-gradient(ellipse 55% 55% at 50% 0%,
-      rgba(255, 250, 235, 0.09) 0%,
-      rgba(255, 250, 235, 0.03) 35%,
-      transparent 70%);
-}
 
 /* ── Global text selection ────────────────────────────────────────────────── */
 
@@ -393,7 +353,7 @@ body::before {
 }
 
 [data-theme="dark"] ::selection {
-  background: rgba(35, 131, 226, 0.25);
+  background: rgba(255, 89, 0, 0.25);
   color: rgba(255, 255, 255, 0.9);
 }
 

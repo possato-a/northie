@@ -79,21 +79,10 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
   const hp = hovered !== null ? pts[hovered] : null
   const hd = hovered !== null ? data[hovered] : null
 
-  if (loading) return <div style={{ height: H, background: 'rgba(var(--fg-rgb), 0.02)', borderRadius: 8 }} />
+  if (loading) return <div style={{ height: H, background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)' }} />
 
   return (
     <section>
-      <p
-        style={{
-          fontFamily: "'Geist Mono', 'Courier New', monospace",
-          fontSize: 12,
-          color: 'rgba(var(--fg-rgb), 0.5)',
-          letterSpacing: '0.06em',
-          marginBottom: 24,
-        }}
-      >
-        RECEITA AO LONGO DO TEMPO
-      </p>
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
@@ -104,8 +93,9 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
       >
         <defs>
           <linearGradient id="rev-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" style={{ stopColor: 'rgba(var(--fg-rgb), 0.07)' }} />
-            <stop offset="100%" style={{ stopColor: 'rgba(var(--fg-rgb), 0)' }} />
+            <stop offset="0%"  style={{ stopColor: 'rgba(255, 89, 0, 0.18)' }} />
+            <stop offset="60%" style={{ stopColor: 'rgba(255, 89, 0, 0.05)' }} />
+            <stop offset="100%" style={{ stopColor: 'rgba(255, 89, 0, 0)' }} />
           </linearGradient>
         </defs>
 
@@ -116,13 +106,13 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
             <g key={i}>
               <line
                 x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-                style={{ stroke: 'rgba(var(--fg-rgb), 0.07)' }} strokeWidth={1}
+                style={{ stroke: 'var(--color-border)' }} strokeWidth={1}
               />
               <text
                 x={PAD.left - 10} y={y}
                 textAnchor="end" dominantBaseline="middle"
-                fontFamily="'Geist Mono', monospace" fontSize={11}
-                style={{ fill: 'rgba(var(--fg-rgb), 0.38)' }}
+                fontFamily="Inter, -apple-system, sans-serif" fontSize={11}
+                style={{ fill: 'var(--color-text-tertiary)' }}
               >
                 {Math.round(v / 1000)}k
               </text>
@@ -136,8 +126,8 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
             key={i}
             x={pts[i].x} y={H - 4}
             textAnchor="middle"
-            fontFamily="'Geist Mono', monospace" fontSize={11}
-            style={{ fill: hovered === i ? 'rgba(var(--fg-rgb), 0.7)' : 'rgba(var(--fg-rgb), 0.38)', transition: 'fill 0.15s' }}
+            fontFamily="Inter, -apple-system, sans-serif" fontSize={11}
+            style={{ fill: hovered === i ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)', transition: 'fill 0.15s' }}
           >
             {new Date(d.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
           </text>
@@ -156,7 +146,7 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
         <motion.path
           d={lineD}
           fill="none"
-          style={{ stroke: 'var(--fg)' }}
+          style={{ stroke: 'var(--color-primary)' }}
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -173,28 +163,28 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
             <g style={{ pointerEvents: 'none' }}>
               <line
                 x1={hp.x} y1={PAD.top} x2={hp.x} y2={PAD.top + CH}
-                style={{ stroke: 'rgba(var(--fg-rgb), 0.18)' }} strokeWidth={1} strokeDasharray="3 3"
+                style={{ stroke: 'var(--color-border)' }} strokeWidth={1} strokeDasharray="3 3"
               />
-              <circle cx={hp.x} cy={hp.y} r={7} style={{ fill: 'rgba(var(--fg-rgb), 0.06)' }} />
-              <circle cx={hp.x} cy={hp.y} r={3.5} style={{ fill: 'var(--bg)', stroke: 'var(--fg)' }} strokeWidth={1.5} />
+              <circle cx={hp.x} cy={hp.y} r={7} style={{ fill: 'rgba(255, 89, 0, 0.1)' }} />
+              <circle cx={hp.x} cy={hp.y} r={3.5} style={{ fill: 'var(--color-bg-primary)', stroke: 'var(--color-primary)' }} strokeWidth={1.5} />
 
               <rect
                 x={tx} y={ty}
                 width={TOOLTIP_W} height={TOOLTIP_H}
                 rx={3} ry={3}
-                style={{ fill: 'var(--bg)', stroke: 'rgba(var(--fg-rgb), 0.14)' }} strokeWidth={1}
+                style={{ fill: 'var(--color-bg-primary)', stroke: 'var(--color-border)' }} strokeWidth={1}
               />
               <text
                 x={tx + 13} y={ty + 19}
-                fontFamily="'Geist Mono', monospace" fontSize={11}
-                style={{ fill: 'rgba(var(--fg-rgb), 0.5)' }}
+                fontFamily="Inter, -apple-system, sans-serif" fontSize={11}
+                style={{ fill: 'var(--color-text-tertiary)' }}
               >
                 {new Date(hd.date + 'T00:00:00').toLocaleDateString('pt-BR')}
               </text>
               <text
                 x={tx + 13} y={ty + 37}
-                fontFamily="'Poppins', sans-serif" fontSize={14} fontWeight={500}
-                style={{ fill: 'var(--fg)' }}
+                fontFamily="Inter, -apple-system, sans-serif" fontSize={14} fontWeight={600}
+                style={{ fill: 'var(--color-text-primary)' }}
               >
                 R$ {fmtBR(hd.amount)}
               </text>

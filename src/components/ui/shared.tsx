@@ -51,12 +51,12 @@ export function PageHeader({ title, subtitle, actions, breadcrumb, delay = 0 }: 
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.45, delay, ease: [0.25, 0.1, 0.25, 1] }}
                         style={{
-                            fontFamily: 'var(--font-display)',
-                            fontWeight: 400,
-                            fontSize: 40,
-                            letterSpacing: '-1.6px',
-                            color: 'var(--fg)',
-                            lineHeight: 1,
+                            fontFamily: 'var(--font-sans)',
+                            fontWeight: 500,
+                            fontSize: 'var(--text-3xl)',
+                            letterSpacing: '-0.5px',
+                            color: 'var(--color-text-primary)',
+                            lineHeight: 1.1,
                             margin: 0,
                         }}
                     >
@@ -573,9 +573,9 @@ export function StatMini({ label, value }: { label: string; value: string | numb
                 letterSpacing: '0.04em',
             }}>{label}</span>
             <span style={{
-                fontFamily: 'var(--font-mono)',
+                fontFamily: 'var(--font-sans)',
                 fontSize: 'var(--text-base)',
-                fontWeight: 500,
+                fontWeight: 600,
                 color: 'var(--color-text-primary)',
             }}>{value}</span>
         </div>

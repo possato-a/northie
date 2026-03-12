@@ -166,9 +166,9 @@ export interface CohortRow {
     month: string
     n: number
     retentions: {
-        '30d': number
-        '60d': number
-        '90d': number
-        '180d': number
+        '30d': number | null
+        '60d': number | null
+        '90d': number | null
+        '180d': number | null
     }
 }

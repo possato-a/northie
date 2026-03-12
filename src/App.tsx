@@ -87,6 +87,8 @@ export default function App() {
       case 'vendas': return 'Vendas'
       case 'clientes': return 'Clientes'
       case 'canais': return 'Canais'
+      case 'canais-meta': return 'Meta Ads'
+      case 'canais-google': return 'Google Ads'
       case 'growth': return 'Northie Growth'
       case 'card': return 'Northie Card'
       case 'conversas': return 'Conversas'
@@ -159,7 +161,12 @@ export default function App() {
               />
             )}
             {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {activePage === 'canais' && <Canais onToggleChat={() => setChatOpen(!chatOpen)} />}
+            {(activePage === 'canais' || activePage === 'canais-meta' || activePage === 'canais-google') && (
+              <Canais
+                onToggleChat={() => setChatOpen(!chatOpen)}
+                channelView={activePage === 'canais-meta' ? 'meta' : activePage === 'canais-google' ? 'google' : undefined}
+              />
+            )}
             {activePage === 'app-store' && (
               <AppStore
                 onToggleChat={() => setChatOpen(!chatOpen)}
@@ -173,7 +180,7 @@ export default function App() {
             {activePage === 'configuracoes' && (
               <Configuracoes user={session?.user} onGoToAppStore={() => setActivePage('app-store')} />
             )}
-            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'card' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'canais-meta' && activePage !== 'canais-google' && activePage !== 'card' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
               <motion.div
                 key={activePage}
                 initial={{ opacity: 0, y: 10 }}

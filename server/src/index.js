@@ -29,6 +29,7 @@ import { startCapitalScoreJob } from './jobs/capital-score.job.js';
 import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
+import profileRoutes from './routes/profile.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
@@ -82,6 +83,7 @@ app.use('/api/growth', authMiddleware, growthRoutes);
 app.use('/api/card', authMiddleware, cardRoutes);
 app.use('/api/valuation', authMiddleware, valuationRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
+app.use('/api/profile', authMiddleware, profileRoutes);
 // Basic Route
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
