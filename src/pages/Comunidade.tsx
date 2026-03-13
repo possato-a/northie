@@ -158,13 +158,14 @@ function FeedTab() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {['Feed Geral', 'Novidades', 'Votações Ativas', 'Bastidores'].map(item => (
               <button key={item} style={{
-                textAlign: 'left', background: 'none', border: 'none',
+                textAlign: 'left',
+                background: item === 'Feed Geral' ? 'var(--color-bg-tertiary)' : 'none',
+                border: 'none',
                 padding: '6px 8px', borderRadius: 'var(--radius-md)',
                 fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
                 color: item === 'Feed Geral' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                 fontWeight: item === 'Feed Geral' ? 500 : 400,
                 cursor: 'pointer',
-                background: item === 'Feed Geral' ? 'var(--color-bg-tertiary)' : 'none',
               } as React.CSSProperties}>
                 {item}
               </button>
