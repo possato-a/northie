@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
-import { PageHeader, Divider, SectionLabel } from '../components/ui/shared'
+import { PageHeader, Divider } from '../components/ui/shared'
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
 
