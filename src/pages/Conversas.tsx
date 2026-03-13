@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import {
-  PageHeader, Divider, TabBar, EmptyState,
+  PageHeader, Divider, EmptyState,
 } from '../components/ui/shared'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -187,7 +187,30 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
 
       <Divider margin="32px 0" />
 
-      <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
+      {/* Pill subnav — idêntico ao Growth */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px', background: 'var(--color-bg-secondary)', borderRadius: 10, width: 'fit-content', border: '1px solid var(--color-border)' }}>
+        {TABS.map(tab => {
+          const isActive = activeTab === tab
+          return (
+            <motion.button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              whileTap={{ scale: 0.97 }}
+              style={{
+                fontFamily: 'var(--font-sans)', fontSize: 13,
+                fontWeight: isActive ? 500 : 400,
+                color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                background: isActive ? 'var(--color-bg-primary)' : 'transparent',
+                border: isActive ? '1px solid var(--color-border)' : '1px solid transparent',
+                borderRadius: 7, padding: '6px 16px', cursor: 'pointer',
+                transition: 'all 0.15s ease', letterSpacing: '-0.1px',
+              }}
+            >
+              {tab}
+            </motion.button>
+          )
+        })}
+      </div>
 
       <motion.div
         key={activeTab}
