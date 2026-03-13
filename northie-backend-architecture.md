@@ -1,21 +1,19 @@
 # Northie: Backend Architecture & Development Guide
-> Documento de referência para desenvolvimento contínuo. Reflete o produto v10.
+> Documento de referência para desenvolvimento contínuo. Reflete o produto v13.
 > Última atualização: Março 2026
 
 ---
 
 ## 0. Contexto do Pivot
 
-O produto original era um analytics tool com IA conversacional em cima. O produto atual é **infraestrutura financeira para founders digitais**, composta por quatro produtos interdependentes:
+O produto original era um analytics tool com IA conversacional em cima. O produto atual é **infraestrutura financeira para founders digitais**, composta por dois produtos interdependentes:
 
 | Produto | O que faz | Dependências técnicas |
 |---|---|---|
 | **Northie Growth** | Detecta correlações entre fontes e executa ações com aprovação do founder | Todas as integrações + cohort de LTV |
 | **Northie Card** | Cartão com limite baseado nos dados reais do negócio | Histórico mínimo de dados + parceiro financeiro (Fase 2) |
-| **Northie Raise** | Data room auditado com métricas conectadas às fontes | Growth ativo + permissões por investidor |
-| **Northie Valuation** | Valuation mensal calculado automaticamente com benchmark | Dados acumulados de múltiplos profiles (Fase 3) |
 
-O backend existe para servir esses quatro produtos. Não é um fim em si mesmo.
+O backend existe para servir esses produtos. Não é um fim em si mesmo.
 
 ---
 
@@ -175,70 +173,7 @@ O Claude precisa de function calling real para o Growth funcionar. Hoje o system
 
 3. O resultado do function calling gera um `growth_action` com `pending` — não executa direto
 
-### 2.2 Northie Raise — Fase 1
-
-O Raise é um data room auditado. Tecnicamente: um conjunto de endpoints públicos com autenticação por token + log de acesso.
-
-**Tabelas novas necessárias:**
-
-```sql
--- Links de acesso para investidores
-CREATE TABLE raise_access_links (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    investor_name   TEXT NOT NULL,
-    investor_email  TEXT,
-    token           TEXT UNIQUE NOT NULL,  -- UUID gerado, usado na URL
-    permissions     JSONB NOT NULL DEFAULT '{"mrr": true, "ltv": true, "cac": true, "cohort": true, "churn": true}',
-    expires_at      TIMESTAMP WITH TIME ZONE,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
--- Log de cada acesso ao data room
-CREATE TABLE raise_access_log (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    link_id         UUID REFERENCES raise_access_links(id) ON DELETE CASCADE NOT NULL,
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    accessed_at     TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
-    duration_seconds INTEGER,
-    sections_viewed TEXT[],  -- quais seções o investidor visualizou
-    ip              TEXT,
-    user_agent      TEXT
-);
-
-CREATE INDEX idx_raise_access_log_link ON raise_access_log(link_id, accessed_at DESC);
-CREATE INDEX idx_raise_access_links_token ON raise_access_links(token);
-```
-
-**Rotas novas:**
-```
-POST /api/raise/links              — criar link para investidor com permissões configuráveis
-GET  /api/raise/links              — listar links ativos
-DELETE /api/raise/links/:id        — revogar link
-GET  /api/raise/links/:id/activity — quem acessou e por quanto tempo
-
-GET  /api/raise/view/:token        — endpoint público do data room (autenticado por token)
-POST /api/raise/view/:token/ping   — frontend envia pings de tempo de sessão
-```
-
-**O endpoint `/api/raise/view/:token`** retorna apenas as métricas permitidas pelas `permissions` do link:
-- MRR/ARR calculado das transações
-- LTV médio e por canal
-- CAC por canal
-- Cohort de retenção
-- Churn probability médio
-- Northie Score (já calculado)
-
-Tudo conectado às fontes reais — não é dado digitado pelo founder.
-
-**Exportação em PDF**
-
-O Raise precisa exportar um relatório em PDF. Implementar endpoint:
-```
-POST /api/raise/links/:id/export-pdf  — gera PDF com as métricas do data room
-```
-
-### 2.3 Capital Score — Fase 1 (preparação para Fase 2)
+### 2.2 Capital Score — Fase 1 (preparação para Fase 2)
 
 O Capital Score deve aparecer desde o primeiro dia para o usuário, mesmo sem o Card lançado. Serve como engajamento e lista de espera qualificada.
 
@@ -281,7 +216,7 @@ POST /api/card/waitlist    — founder entra na lista de espera
 GET  /api/card/waitlist    — status na lista (posição, score atual, critérios faltantes)
 ```
 
-### 2.4 Relatórios Automáticos — Feature transversal
+### 2.3 Relatórios Automáticos — Feature transversal
 
 Presente em todos os produtos. O founder configura e os relatórios chegam sem precisar abrir a plataforma.
 
@@ -293,7 +228,7 @@ CREATE TABLE report_configs (
     profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
     name            TEXT NOT NULL,
     frequency       TEXT NOT NULL,  -- 'weekly', 'monthly', 'quarterly'
-    sections        TEXT[] NOT NULL, -- ['growth', 'card', 'raise', 'valuation']
+    sections        TEXT[] NOT NULL, -- ['growth', 'card']
     format          TEXT NOT NULL DEFAULT 'pdf',  -- 'pdf', 'csv'
     delivery        TEXT NOT NULL DEFAULT 'email', -- 'email', 'whatsapp'
     active          BOOLEAN DEFAULT true,
@@ -315,25 +250,6 @@ CREATE TABLE report_history (
 **Job novo: `reports.job.ts`**
 
 Roda a cada hora, verifica configs com `next_run_at <= NOW()`, gera o relatório e atualiza `next_run_at`.
-
-### 2.5 Northie Valuation — Fase 3
-
-Estrutura simples, depende de dados acumulados de múltiplos profiles para o benchmark.
-
-```sql
-CREATE TABLE valuation_snapshots (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    valuation_brl   DECIMAL(16, 2) NOT NULL,
-    methodology     TEXT NOT NULL,  -- 'arr_multiple', 'ltv_cac', 'revenue_multiple'
-    multiple_used   DECIMAL(6, 2),
-    arr             DECIMAL(14, 2),
-    benchmark_data  JSONB,          -- dados anônimos de profiles similares usados no benchmark
-    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-CREATE INDEX idx_valuation_profile ON valuation_snapshots(profile_id, calculated_at DESC);
-```
 
 ---
 
@@ -422,9 +338,7 @@ O Claude pode chamar `create_growth_action` via function calling, mas nunca cham
 
 Cada produto alimenta o contexto do Claude de forma diferente:
 - **Growth**: dados de correlação entre fontes
-- **Raise**: métricas auditadas para apresentar ao investidor
 - **Card**: histórico financeiro para underwriting
-- **Valuation**: benchmark anônimo de profiles similares
 
 O `ai.service.ts` deve receber um `product_context` como parâmetro e montar o system prompt adequado.
 
@@ -432,14 +346,13 @@ O `ai.service.ts` deve receber um `product_context` como parâmetro e montar o s
 
 O moat do produto é o histórico acumulado. Cada mês de dados torna as correlações mais precisas. Implicações técnicas:
 - Nunca deletar dados normalizados, apenas marcar como `status: 'cancelled'` ou `'refunded'`
-- O Capital Score e o Valuation dependem de séries temporais — a precisão aumenta com o tempo
-- O benchmark do Valuation só funciona quando há múltiplos profiles com dados suficientes (Fase 3)
+- O Capital Score depende de séries temporais — a precisão aumenta com o tempo
 
 ---
 
 ## 5. Roadmap Técnico por Fase
 
-### Fase 1 — Growth + Raise (zero dependência de capital ou regulação)
+### Fase 1 — Growth (zero dependência de capital ou regulação)
 
 **Objetivo:** validar que founders pagam por inteligência contextual e execução baseada em dados.
 
@@ -451,9 +364,6 @@ O moat do produto é o histórico acumulado. Cada mês de dados torna as correla
 | `growth-executor.service.ts` (campaign_pause) | novo serviço | P0 |
 | Rotas `/api/growth/*` | novo router | P0 |
 | Atualizar `ai.service.ts` com Sonnet 4 + function calling | editar existente | P0 |
-| `raise_access_links` + `raise_access_log` tables | migration | P1 |
-| Rotas `/api/raise/*` | novo router | P1 |
-| Exportação PDF do data room | novo serviço | P1 |
 | `capital_scores` + `card_waitlist` tables | migration | P1 |
 | `capital-score.job.ts` | novo job | P1 |
 | Rotas `/api/card/score` e `/api/card/waitlist` | novo router | P1 |
@@ -469,13 +379,6 @@ Dependências técnicas que precisam estar prontas:
 - Lista de espera qualificada com score mínimo definido
 - Integração com QI Tech ou Celcoin para desembolso (novo domínio, fora do escopo atual)
 - Split de pagamento configurado nas integrações Hotmart/Stripe
-
-### Fase 3 — Northie Valuation
-
-Dependências:
-- Dados acumulados de N profiles suficientes para benchmark anônimo (volume mínimo a definir)
-- `valuation_snapshots` table
-- `valuation-calc.job.ts` com lógica de múltiplo por modelo de negócio
 
 ---
 
@@ -504,41 +407,6 @@ CREATE INDEX idx_growth_actions_profile_status ON growth_actions(profile_id, sta
 
 ALTER TABLE growth_actions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "growth_actions: owner only" ON growth_actions FOR ALL USING (profile_id = auth.uid());
-
--- ── FASE 1: RAISE ─────────────────────────────────────────────────────────────
-
-CREATE TABLE raise_access_links (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    investor_name   TEXT NOT NULL,
-    investor_email  TEXT,
-    token           TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
-    permissions     JSONB NOT NULL DEFAULT '{"mrr": true, "ltv": true, "cac": true, "cohort": true, "churn": true, "northie_score": true}',
-    expires_at      TIMESTAMP WITH TIME ZONE,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-CREATE INDEX idx_raise_access_links_token ON raise_access_links(token);
-CREATE INDEX idx_raise_access_links_profile ON raise_access_links(profile_id);
-
-ALTER TABLE raise_access_links ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "raise_access_links: owner only" ON raise_access_links FOR ALL USING (profile_id = auth.uid());
-
-CREATE TABLE raise_access_log (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    link_id          UUID REFERENCES raise_access_links(id) ON DELETE CASCADE NOT NULL,
-    profile_id       UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    accessed_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
-    duration_seconds INTEGER,
-    sections_viewed  TEXT[],
-    ip               TEXT,
-    user_agent       TEXT
-);
-
-CREATE INDEX idx_raise_access_log_link ON raise_access_log(link_id, accessed_at DESC);
-
-ALTER TABLE raise_access_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "raise_access_log: owner only" ON raise_access_log FOR ALL USING (profile_id = auth.uid());
 
 -- ── FASE 1: CAPITAL SCORE ─────────────────────────────────────────────────────
 
@@ -596,24 +464,6 @@ CREATE TABLE report_history (
 
 ALTER TABLE report_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "report_history: owner only" ON report_history FOR ALL USING (profile_id = auth.uid());
-
--- ── FASE 3: VALUATION ─────────────────────────────────────────────────────────
-
-CREATE TABLE valuation_snapshots (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    valuation_brl   DECIMAL(16, 2) NOT NULL,
-    methodology     TEXT NOT NULL CHECK (methodology IN ('arr_multiple', 'ltv_cac', 'revenue_multiple')),
-    multiple_used   DECIMAL(6, 2),
-    arr             DECIMAL(14, 2),
-    benchmark_data  JSONB,
-    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-CREATE INDEX idx_valuation_profile ON valuation_snapshots(profile_id, calculated_at DESC);
-
-ALTER TABLE valuation_snapshots ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "valuation_snapshots: owner only" ON valuation_snapshots FOR ALL USING (profile_id = auth.uid());
 ```
 
 ---
@@ -627,24 +477,33 @@ server/src/
 │   ├── campaign.controller.ts    ✅ existe — manter
 │   ├── customers.controller.ts   ✅ existe — manter
 │   ├── dashboard.controller.ts   ✅ existe — manter
+│   ├── alerts.controller.ts      ✅ existe — manter
 │   ├── growth.controller.ts      🔴 criar
-│   ├── raise.controller.ts       🔴 criar
 │   ├── card.controller.ts        🔴 criar
 │   ├── integration.controller.ts ✅ existe — manter
 │   ├── pixel.controller.ts       ✅ existe — manter
+│   ├── profile.controller.ts     ✅ existe — manter
+│   ├── reports.controller.ts     ✅ existe — manter
+│   ├── resend-webhook.controller.ts ✅ existe — manter
 │   ├── transactions.controller.ts ✅ existe — manter
 │   └── webhook.controller.ts     ✅ existe — manter
 ├── jobs/
 │   ├── ads-sync.job.ts           ✅ existe — manter
 │   ├── alerts.job.ts             ⚠️  existe — adicionar correlações de growth
 │   ├── capital-score.job.ts      🔴 criar
+│   ├── chat-cleanup.job.ts       ✅ existe — manter
+│   ├── correlation-refresh.job.ts ✅ existe — manter
 │   ├── growth-engine.job.ts      🔴 criar
 │   ├── hotmart-sync.job.ts       ⚠️  existe — fix acquisition_channel
+│   ├── meta-lead-attribution.job.ts ✅ existe — manter
 │   ├── reports.job.ts            🔴 criar
 │   ├── rfm-calc.job.ts           ⚠️  existe — adicionar audience sync
+│   ├── stripe-sync.job.ts        ✅ existe — manter
+│   ├── shopify-sync.job.ts       ✅ existe — manter
 │   └── token-refresh.job.ts      ✅ existe — manter
 ├── routes/
 │   ├── ai.routes.ts              ✅ existe — manter
+│   ├── alerts.routes.ts          ✅ existe — manter
 │   ├── campaign.routes.ts        ✅ existe — manter
 │   ├── card.routes.ts            🔴 criar
 │   ├── cron.routes.ts            ✅ existe — manter
@@ -653,16 +512,17 @@ server/src/
 │   ├── growth.routes.ts          🔴 criar
 │   ├── integration.routes.ts     ✅ existe — manter
 │   ├── pixel.routes.ts           ✅ existe — manter
-│   ├── raise.routes.ts           🔴 criar
+│   ├── profile.routes.ts         ✅ existe — manter
+│   ├── reports.routes.ts         ✅ existe — manter
 │   └── webhook.routes.ts         ✅ existe — manter
 ├── services/
 │   ├── ai.service.ts             ⚠️  existe — Sonnet 4 + function calling
 │   ├── capital-score.service.ts  🔴 criar
 │   ├── growth-engine.service.ts  🔴 criar
 │   ├── growth-executor.service.ts 🔴 criar
+│   ├── growth-intelligence.service.ts ✅ existe — manter
 │   ├── integration.service.ts    ✅ existe — manter
-│   ├── normalization.service.ts  ⚠️  existe — fix acquisition_channel
-│   └── raise.service.ts          🔴 criar
+│   └── normalization.service.ts  ⚠️  existe — fix acquisition_channel
 ├── lib/
 │   ├── supabase.ts               ✅ existe — manter
 │   ├── webhook-queue.ts          ✅ existe — manter

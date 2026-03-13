@@ -74,7 +74,7 @@ body,
   --accent-purple: #9065B0;
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: 'Poppins', sans-serif;
   --font-serif: 'Lora', serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;

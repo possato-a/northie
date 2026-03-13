@@ -32,10 +32,10 @@ Os agentes estão em `.claude/agents/`. Use-os automaticamente conforme o contex
 **Exemplo de uso correto:**
 ```
 // BAD: Claude faz tudo na conversa principal
-Lê Card.tsx → reescreve → lê Valuation.tsx → reescreve
+Lê Card.tsx → reescreve → lê Growth.tsx → reescreve
 
 // GOOD: Claude delega em paralelo
-Task(Card) + Task(Valuation) → todos rodam simultaneamente
+Task(Card) + Task(Growth) → todos rodam simultaneamente
 ```
 
 ---
@@ -124,9 +124,11 @@ git push          # Dispara build automático na Vercel (branch main)
 - **HTTP Client**: Axios
 - **Animações**: Framer Motion — uso obrigatório em micro-interações e transições
 - **Tipografia**:
-  - `Poppins`: Interface geral e títulos
-  - `Geist Mono`: Dados, números, tabelas e saídas de IA
-- **Cores**: Base `#FCF8F8`, Texto/Ícones `#1E1E1E`
+  - `Poppins` (`--font-sans` e `--font-display`): Fonte única para toda a interface — body, títulos, números, tudo
+  - `Geist Mono` (`--font-mono`): Apenas detalhes pequenos — badges, timestamps, metadados, código
+  - `Lora` (`--font-serif`): Exclusivo para landing page — nunca na interface do produto
+- **Cores**: Background `#F7F7FA`, Superfície `#FFFFFF`, Texto `#37352F`, Primário (brand) `#FF5900` (laranja Northie)
+  - Dark mode: Background `#131110`, Superfície `#1D1A17`, Texto `#EDE9E4`
 
 ---
 
@@ -171,7 +173,6 @@ O backend atua como orquestrador: filtra dados normalizados, entrega contexto li
 ### Produtos Financeiros
 - **`capital_score_history`**: Histórico mensal do Capital Score por founder
 - **`card_applications`**: Lista de espera e aplicações para o Northie Card
-- **`valuation_snapshots`**: Snapshots mensais de valuation calculado com metodologia e benchmark
 
 ### Atribuição e IA
 - **`visits`**: Log do Northie Pixel (UTMs, Click IDs)
@@ -233,7 +234,13 @@ src/
     Clientes/       # Base de clientes com unit economics (complemento)
     Canais/         # Performance de canais (complemento)
     Vendas/         # Transações consolidadas (complemento)
+    Conversas/      # Pipeline nativo + reuniões transcritas
+    Contexto/       # Contexto do Negócio — founder treina a IA
+    Criadores/      # Campanhas de criadores e gestão de comissões
+    Comunidade/     # Comunidade de founders (dados mock, em desenvolvimento)
+    Relatorios/     # Relatórios automáticos
     AppStore/       # Gerenciamento de integrações
+    Configuracoes/  # Configurações do workspace
     Login/          # Autenticação
   lib/
     api.ts          # Axios client
@@ -247,21 +254,32 @@ server/src/
   controllers/      # Handlers HTTP por domínio
   routes/           # Rotas Express por domínio
   services/
-    ai/             # Orquestrador Claude, function calling
-    integrations/   # Meta, Google, Hotmart, Stripe
-    normalization/  # Northie Schema
-    growth/         # Motor de correlações e execução
-    capital/        # Underwriting, Capital Score
-    valuation/      # Cálculo de valuation, benchmark
+    ai.service.ts              # Orquestrador Claude, function calling
+    integration.service.ts     # Meta, Google, Hotmart, Stripe
+    normalization.service.ts   # Northie Schema
+    growth.service.ts          # Motor de correlações e execução
+    growth-intelligence.service.ts  # Análise de inteligência de growth
+    capital.service.ts         # Underwriting, Capital Score
   lib/
     supabase.ts
   utils/
     encryption.ts   # PII e tokens OAuth
     pixel-snippet.ts
   jobs/
-    token-refresh.ts
-    daily-reconciliation.ts   # Safety Net
-    metrics-calculator.ts     # Cálculos diários
+    token-refresh.job.ts          # Renova OAuth tokens a cada 30min
+    ads-sync.job.ts               # Sync Meta/Google Ads a cada 6h
+    hotmart-sync.job.ts           # Backfill de vendas Hotmart
+    stripe-sync.job.ts            # Sync de transações Stripe
+    shopify-sync.job.ts           # Sync de pedidos Shopify
+    rfm-calc.job.ts               # RFM, CAC, churn_probability — diário
+    alerts.job.ts                 # Detecção de anomalias — a cada 1h
+    growth-correlations.job.ts    # Motor de correlações — a cada 24h
+    correlation-refresh.job.ts    # Refresh das materialized views
+    capital-score.job.ts          # Capital Score — mensal
+    reports.job.ts                # Geração de relatórios automáticos
+    safety-net.job.ts             # Reconciliação diária — Safety Net
+    chat-cleanup.job.ts           # Limpeza de histórico de chat
+    meta-lead-attribution.job.ts  # Atribuição de leads Meta
   types/
   index.ts
 
@@ -325,34 +343,15 @@ Este projeto é desenvolvido por dois founders em branches separadas. O merge pa
 
 ## Roadmap — Rodada 1
 
-### Fase A — Francisco solo (banco de dados)
-Banco estável antes de qualquer desenvolvimento paralelo. Victor em modo estudo.
+### Fase A — Banco de dados ✅ CONCLUÍDA
+Schema revisado, migrations estáveis, RLS policies completas, motor de correlações ativo com dados reais.
 
-| Branch | Tarefa |
-|--------|--------|
-| `feat/db-schema-review` | Revisar schema existente — consistência de tipos, naming e foreign keys |
-| `feat/db-card` | Migration: `capital_score_history` + `card_applications` |
-| `feat/db-rls` | RLS policies completas em todas as tabelas |
-| `feat/db-docs` | Documentar schema final |
+### Fase B — Desenvolvimento paralelo ✅ CONCLUÍDA
+Integrações (Stripe, Shopify, Meta, Hotmart), páginas Growth e Card, motor de correlações, Capital Score, Relatórios, Contexto do Negócio e Conversas todos implementados e mergeados na `main`.
 
-**Critério de saída:** banco estável, documentado, sem migrations pendentes.
-
-### Fase B — Paralelo (começa quando Fase A termina)
-
-**Francisco**
-
-| Branch | Tarefa |
-|--------|--------|
-| `feat/stripe-integration` | Stripe — OAuth + sync de transações |
-| `feat/shopify-integration` | Shopify — OAuth + sync de pedidos |
-| `feat/growth-page` | Tela Growth — recomendações + fluxo de confirmação |
-| `feat/card-page` | Tela Card — Capital Score visual + lista de espera |
-| `feat/business-context` | Tela de Contexto do Negócio — founder treina a IA com perfil, ciclo, instruções e arquivos |
-
-**Victor**
-
-| Branch | Tarefa |
-|--------|--------|
-| `feat/meta-integration` | Meta Ads — garantir funcionalidade completa + testes |
-| `feat/google-ads-integration` | Google Ads — OAuth + sync de métricas |
-| `feat/hotmart-integration` | Hotmart — revisar webhook + normalização completa |
+### Fase C — Em andamento
+- Comunidade (dados mock → backend real)
+- Google Calendar + Google Meet (transcrição IA)
+- WhatsApp Business API (execução de reativação)
+- Northie Pixel (atribuição determinística)
+- Testes e hardening das integrações existentes

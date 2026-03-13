@@ -72,7 +72,7 @@ function CampaignDetails({
                 ].map((s, i) => (
                     <div key={i} style={{ paddingLeft: i > 0 ? 24 : 0, borderLeft: i > 0 ? '1px solid var(--color-border)' : 'none' }}>
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{s.label}</p>
-                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.5px' }}>{s.value}</p>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.5px' }}>{s.value}</p>
                     </div>
                 ))}
             </div>
@@ -127,16 +127,16 @@ function CampaignDetails({
                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>
                             {creator.name}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
                             {creator.instagram || '—'}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
                             {creator.sales_count}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', textAlign: 'right' }}>
                             R$ {fmtBR(creator.revenue)}
                         </span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', textAlign: 'right' }}>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', textAlign: 'right' }}>
                             R$ {fmtBR(creator.pending_commission)}
                         </span>
                         <div>
@@ -264,9 +264,9 @@ function PaymentConfirmModal({ creator, onClose, onConfirm }: { creator: any; on
                 }}>
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>VALOR A LIQUIDAR</p>
                     <p style={{
-                        fontFamily: 'var(--font-display)',
+                        fontFamily: 'var(--font-sans)',
                         fontSize: 36,
-                        fontWeight: 400,
+                        fontWeight: 500,
                         letterSpacing: '-1.4px',
                         color: 'var(--color-text-primary)',
                         margin: 0,
@@ -327,7 +327,7 @@ function CampaignCard({ camp, onClick, index }: { camp: any; onClick: () => void
                 </div>
                 <div style={{ flexShrink: 0, textAlign: 'right' }}>
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Criadores</span>
-                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '2px 0 0' }}>{camp.creators_count}</p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-lg)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '2px 0 0' }}>{camp.creators_count}</p>
                 </div>
             </div>
 
@@ -347,7 +347,7 @@ function CampaignCard({ camp, onClick, index }: { camp: any; onClick: () => void
                 ].map((s, i) => (
                     <div key={i}>
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 3px' }}>{s.label}</p>
-                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', margin: 0 }}>{s.value}</p>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text-secondary)', margin: 0 }}>{s.value}</p>
                     </div>
                 ))}
             </div>
@@ -498,19 +498,19 @@ export default function Criadores({ onToggleChat }: { onToggleChat?: () => void 
                         />
 
                         {/* KPIs */}
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.1 }}
-                            style={{ display: 'flex', gap: 48, flexWrap: 'wrap', marginTop: 40 }}
-                        >
-                            <KpiCard label="COMISSÕES PAGAS" value={globalKPIs.paid} prefix="R$ " decimals={0} delay={0.1} />
-                            <KpiCard label="PENDENTES" value={globalKPIs.pending} prefix="R$ " decimals={0} delay={0.2} />
-                            <KpiCard label="VENDAS VIA CRIADOR" value={globalKPIs.sales} decimals={0} delay={0.3} />
-                            <KpiCard label="CRIADORES ATIVOS" value={globalKPIs.creators} decimals={0} delay={0.4} />
-                        </motion.div>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: 16,
+                            marginTop: 32,
+                        }}>
+                            <KpiCard label="COMISSÕES PAGAS" value={globalKPIs.paid} prefix="R$ " decimals={0} delay={0.05} />
+                            <KpiCard label="PENDENTES" value={globalKPIs.pending} prefix="R$ " decimals={0} delay={0.1} />
+                            <KpiCard label="VENDAS VIA CRIADOR" value={globalKPIs.sales} decimals={0} delay={0.15} />
+                            <KpiCard label="CRIADORES ATIVOS" value={globalKPIs.creators} decimals={0} delay={0.2} />
+                        </div>
 
-                        <Divider margin="44px 0 28px" />
+                        <Divider margin="32px 0 28px" />
 
                         {/* Filters + Section */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>

@@ -6,32 +6,74 @@ import {
   PageHeader, Divider, TabBar, EmptyState,
 } from '../components/ui/shared'
 
-// ── Pipeline Stage Card ──────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function PipelineStage({ label, count, delay }: { label: string; count: number; delay: number }) {
+function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: 'var(--color-bg-primary)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-lg)',
+      boxShadow: 'var(--shadow-md)',
+      ...style,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+// ── Pipeline Stage Card ───────────────────────────────────────────────────────
+
+function PipelineStage({
+  label,
+  count,
+  delay,
+  isLast = false,
+}: {
+  label: string
+  count: number
+  delay: number
+  isLast?: boolean
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: [0.25, 0.1, 0.25, 1] }}
-      whileHover={{ scale: 1.02 }}
       style={{
         flex: 1,
-        background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '24px 20px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         gap: 8,
-        minWidth: 140,
+        padding: '28px 20px',
+        position: 'relative',
       }}
     >
+      {/* Connector line to next stage */}
+      {!isLast && (
+        <motion.div
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ duration: 0.4, delay: delay + 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 1,
+            height: 40,
+            background: 'var(--color-border)',
+          }}
+        />
+      )}
+
       <span style={{
-        fontFamily: 'var(--font-mono)',
+        fontFamily: 'var(--font-sans)',
         fontSize: 'var(--text-3xl)',
         fontWeight: 500,
-        color: 'var(--color-text-primary)',
+        color: count > 0 ? 'var(--color-primary)' : 'var(--color-text-primary)',
+        letterSpacing: '-0.5px',
         lineHeight: 1,
       }}>
         {count}
@@ -41,7 +83,8 @@ function PipelineStage({ label, count, delay }: { label: string; count: number; 
         fontSize: 'var(--text-sm)',
         color: 'var(--color-text-secondary)',
         textAlign: 'center',
-        lineHeight: 1.3,
+        lineHeight: 1.4,
+        letterSpacing: '-0.1px',
       }}>
         {label}
       </span>
@@ -49,84 +92,74 @@ function PipelineStage({ label, count, delay }: { label: string; count: number; 
   )
 }
 
-// ── Pipeline Connector ───────────────────────────────────────────────────────
-
-function PipelineConnector({ delay }: { delay: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scaleX: 0 }}
-      animate={{ opacity: 1, scaleX: 1 }}
-      transition={{ duration: 0.3, delay, ease: [0.25, 0.1, 0.25, 1] }}
-      style={{
-        width: 32,
-        height: 1,
-        background: 'var(--color-border)',
-        flexShrink: 0,
-        alignSelf: 'center',
-      }}
-    />
-  )
-}
-
-// ── Pipeline Visualization ───────────────────────────────────────────────────
+// ── Pipeline Visualization ────────────────────────────────────────────────────
 
 function PipelineView() {
   const stages = [
     { label: 'Lead Capturado', count: 0 },
-    { label: 'Reuniao Agendada', count: 0 },
-    { label: 'Reuniao Realizada', count: 0 },
+    { label: 'Reunião Agendada', count: 0 },
+    { label: 'Reunião Realizada', count: 0 },
     { label: 'Fechado / Perdido', count: 0 },
   ]
 
   return (
-    <div>
-      <div style={{
-        display: 'flex',
-        alignItems: 'stretch',
-        gap: 0,
-        marginBottom: 40,
-      }}>
-        {stages.map((stage, i) => (
-          <div key={stage.label} style={{ display: 'contents' }}>
-            <PipelineStage label={stage.label} count={stage.count} delay={0.1 + i * 0.08} />
-            {i < stages.length - 1 && <PipelineConnector delay={0.15 + i * 0.08} />}
-          </div>
-        ))}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SectionCard>
+        <div style={{
+          display: 'flex',
+          alignItems: 'stretch',
+        }}>
+          {stages.map((stage, i) => (
+            <PipelineStage
+              key={stage.label}
+              label={stage.label}
+              count={stage.count}
+              delay={0.1 + i * 0.07}
+              isLast={i === stages.length - 1}
+            />
+          ))}
+        </div>
+      </SectionCard>
 
-      <EmptyState
-        title="Nenhum lead capturado"
-        description="Conecte o formulario Northie e o Google Calendar para comecar a rastrear seu pipeline."
-      />
+      <SectionCard style={{ padding: '0' }}>
+        <EmptyState
+          title="Nenhum lead capturado"
+          description="Conecte o formulário Northie e o Google Calendar para começar a rastrear seu pipeline."
+        />
+      </SectionCard>
     </div>
   )
 }
 
-// ── Tab Content: Reunioes ────────────────────────────────────────────────────
+// ── Tab Content: Reuniões ─────────────────────────────────────────────────────
 
 function ReunioesView() {
   return (
-    <EmptyState
-      title="Nenhuma reuniao transcrita"
-      description="Conecte o Google Meet para transcrever reunioes automaticamente e cruzar com seus dados financeiros."
-    />
+    <SectionCard>
+      <EmptyState
+        title="Nenhuma reunião transcrita"
+        description="Conecte o Google Meet para transcrever reuniões automaticamente e cruzar com seus dados financeiros."
+      />
+    </SectionCard>
   )
 }
 
-// ── Tab Content: Insights ────────────────────────────────────────────────────
+// ── Tab Content: Insights ─────────────────────────────────────────────────────
 
 function InsightsView() {
   return (
-    <EmptyState
-      title="Insights disponiveis apos primeiras reunioes"
-      description="A IA analisara objecoes, perfis de lead e padroes de fechamento assim que houver dados suficientes."
-    />
+    <SectionCard>
+      <EmptyState
+        title="Insights disponíveis após as primeiras reuniões"
+        description="A IA analisará objeções, perfis de lead e padrões de fechamento assim que houver dados suficientes."
+      />
+    </SectionCard>
   )
 }
 
-// ── Page Component ───────────────────────────────────────────────────────────
+// ── Page Component ────────────────────────────────────────────────────────────
 
-const TABS = ['Pipeline', 'Reunioes', 'Insights']
+const TABS = ['Pipeline', 'Reuniões', 'Insights']
 
 export default function Conversas({ onToggleChat }: { onToggleChat?: () => void }) {
   const [activeTab, setActiveTab] = useState('Pipeline')
@@ -137,17 +170,22 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
 
       <PageHeader
         title="Conversas"
-        subtitle="Pipeline de vendas e inteligencia de reunioes."
+        subtitle="Pipeline de vendas e inteligência de reuniões."
       />
 
-      <div style={{ display: 'flex', gap: 48, marginTop: 40, flexWrap: 'wrap' }}>
-        <KpiCard label="LEADS CAPTURADOS" value={0} decimals={0} delay={0.1} />
-        <KpiCard label="REUNIOES REALIZADAS" value={0} decimals={0} delay={0.2} />
-        <KpiCard label="TAXA DE CONVERSAO" value={0} suffix="%" decimals={1} delay={0.3} />
-        <KpiCard label="CICLO MEDIO" value={0} suffix=" dias" decimals={0} delay={0.4} />
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 16,
+        marginTop: 32,
+      }}>
+        <KpiCard label="LEADS CAPTURADOS"    value={0} decimals={0} delay={0.05} />
+        <KpiCard label="REUNIÕES REALIZADAS" value={0} decimals={0} delay={0.1} />
+        <KpiCard label="TAXA DE CONVERSÃO"   value={0} suffix="%" decimals={1} delay={0.15} />
+        <KpiCard label="CICLO MÉDIO"         value={0} suffix=" dias" decimals={0} delay={0.2} />
       </div>
 
-      <Divider margin="48px 0" />
+      <Divider margin="32px 0" />
 
       <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
@@ -156,11 +194,11 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{ marginTop: 32 }}
+        style={{ marginTop: 20 }}
       >
-        {activeTab === 'Pipeline' && <PipelineView />}
-        {activeTab === 'Reunioes' && <ReunioesView />}
-        {activeTab === 'Insights' && <InsightsView />}
+        {activeTab === 'Pipeline'  && <PipelineView />}
+        {activeTab === 'Reuniões'  && <ReunioesView />}
+        {activeTab === 'Insights'  && <InsightsView />}
       </motion.div>
     </div>
   )

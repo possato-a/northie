@@ -34,7 +34,7 @@ A Northie é a infraestrutura financeira para founders de negócios digitais que
 
 Não somos um dashboard. Não somos uma fintech de crédito. Não somos uma plataforma de growth marketing.
 
-Somos uma plataforma que conecta todos os dados do negócio digital, encontra correlações que nenhuma ferramenta isolada consegue ver e executa ações em cima delas. O resultado financeiro — mais receita, acesso a capital, valuation maior — é consequência direta dessa inteligência.
+Somos uma plataforma que conecta todos os dados do negócio digital, encontra correlações que nenhuma ferramenta isolada consegue ver e executa ações em cima delas. O resultado financeiro — mais receita, acesso a capital — é consequência direta dessa inteligência.
 
 **Nossa tese central: democratizamos a alavancagem de receita para founders digitais brasileiros.**
 
@@ -52,7 +52,7 @@ O founder certo é aquele que:
 - Quer crescer sem ceder equity desnecessário
 - Planeja levantar uma rodada ou construir um negócio para vender
 - Toma decisões baseadas em dados — ou quer começar a tomar
-- Enxerga o negócio como um ativo financeiro com valuation real
+- Enxerga o negócio como um ativo financeiro a ser construído
 
 ---
 
@@ -60,7 +60,7 @@ O founder certo é aquele que:
 
 O founder digital brasileiro opera com dados fragmentados. Faturamento no Hotmart. Custo de aquisição no Meta Ads. Comportamento de cliente no Stripe. Retenção em nenhum lugar.
 
-O resultado é decisões no escuro. Campanhas pausadas por medo sem saber o LTV real dos clientes que estão trazendo. Capital negado por bancos que não entendem negócio digital. Rodadas de investimento perdidas por falta de dados auditados confiáveis.
+O resultado é decisões no escuro. Campanhas pausadas por medo sem saber o LTV real dos clientes que estão trazendo. Capital negado por bancos que não entendem negócio digital. Crescimento travado por falta de clareza sobre onde o dinheiro está sendo destruído e onde está gerando valor.
 
 Nenhuma ferramenta resolve isso porque nenhuma ferramenta enxerga o negócio inteiro. O Meta Ads sabe o ROAS. O Hotmart sabe o faturamento. Ninguém sabe o LTV real dos clientes que cada canal traz — e o que fazer com essa informação.
 
@@ -215,17 +215,13 @@ O moat não está nas features — está nos dados acumulados e humanizados ao l
 
 # Roadmap de Lançamento
 
-## Fase 1 — Validação (Growth + Raise)
+## Fase 1 — Validação (Growth)
 
 Zero dependência de capital. Zero regulação. Valida que founders pagam por inteligência e execução baseadas em dados. Constrói o banco de dados unificado que os produtos financeiros precisam. Gera a lista de espera qualificada para o Northie Card.
 
 ## Fase 2 — Capital (Northie Card)
 
-Com histórico de dados e lista de espera qualificada, estrutura parceria com QI Tech ou Celcoin para desembolso do capital. Lança o Northie Card para os founders da lista de espera com melhor Capital Score.
-
-## Fase 3 — Valuation e expansão
-
-Com dados acumulados de múltiplos negócios, lança o Northie Valuation com benchmark real de mercado baseado nos negócios da plataforma. Expande integrações via App Store. Explora receitas secundárias via dados agregados e anonimizados para terceiros.
+Com histórico de dados e lista de espera qualificada, estrutura parceria com QI Tech ou Celcoin para desembolso do capital. Lança o Northie Card para os founders da lista de espera com melhor Capital Score. Expande integrações via App Store.
 
 ---
 
