@@ -13,7 +13,10 @@ const GROUP_ORDER = [
   'Produto & Operações',
   'Relacionamento & CX',
   'Valuation & Saúde',
+  'Inteligência Avançada',
 ]
+
+const PROACTIVE_AGENTS = new Set(['anomalies'])
 
 export default function AgentSelector({ onSelect }: AgentSelectorProps) {
   // Build a flat index for staggered entrance delays
@@ -114,15 +117,35 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
                           textAlign: 'left',
                         }}
                       >
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: 'var(--color-text-primary)',
-                          lineHeight: 1.3,
-                        }}>
-                          {agent.name}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                          <span style={{
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: 'var(--color-text-primary)',
+                            lineHeight: 1.3,
+                          }}>
+                            {agent.name}
+                          </span>
+                          {PROACTIVE_AGENTS.has(agent.id) && (
+                            <span style={{
+                              fontFamily: 'var(--font-sans)',
+                              fontSize: 8,
+                              fontWeight: 500,
+                              color: 'var(--color-primary)',
+                              background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)',
+                              border: '1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)',
+                              borderRadius: 3,
+                              padding: '1px 5px',
+                              letterSpacing: '0.06em',
+                              textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                            }}>
+                              Proativo
+                            </span>
+                          )}
+                        </div>
                         <span style={{
                           fontFamily: 'var(--font-sans)',
                           fontSize: 11,

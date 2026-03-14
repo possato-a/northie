@@ -31,6 +31,12 @@ export async function getAgentContext(userId: string, agentId: string): Promise<
             return getMarginContext(userId);
         case 'reactivation':
             return getReactivationContext(userId);
+        case 'correlations':
+            return getCorrelationsContext(userId);
+        case 'forecast':
+            return getForecastContext(userId);
+        case 'anomalies':
+            return getAnomaliesContext(userId);
         case 'creatives':
         case 'ecommerce':
         case 'email':
@@ -682,6 +688,285 @@ async function getReactivationContext(userId: string): Promise<string> {
             ? Math.floor((now - new Date(c.last_purchase_at).getTime()) / (24 * 60 * 60 * 1000))
             : null;
         lines.push(`— ${c.email} | LTV R$ ${Number(c.total_ltv).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${c.acquisition_channel || 'N/A'} | RFM ${c.rfm_score || 'N/A'} | última compra ${lastPurchase}${diasInativo !== null ? ` (${diasInativo} dias atrás)` : ''}`);
+    }
+
+    return lines.join('\n');
+}
+
+async function getCorrelationsContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    // LTV por canal de aquisição — cruzamento customers × canal
+    const { data: custData, error: custError } = await supabase
+        .from('customers')
+        .select('acquisition_channel, total_ltv, rfm_score')
+        .eq('user_id', userId);
+
+    if (custError) {
+        console.error('[AgentData] correlations customers error:', custError.message);
+        lines.push('LTV por canal: dados indisponíveis.');
+    } else if (!custData || custData.length === 0) {
+        lines.push('LTV por canal: nenhum cliente registrado ainda.');
+    } else {
+        lines.push('LTV médio por canal de aquisição (todos os clientes):');
+        const byChannel: Record<string, { sum: number; count: number; champions: number }> = {};
+        for (const c of custData) {
+            const ch = c.acquisition_channel || 'desconhecido';
+            if (!byChannel[ch]) byChannel[ch] = { sum: 0, count: 0, champions: 0 };
+            byChannel[ch].sum += Number(c.total_ltv) || 0;
+            byChannel[ch].count += 1;
+            if (c.rfm_score === 'Champions' || c.rfm_score === '555') byChannel[ch].champions += 1;
+        }
+        const sorted = Object.entries(byChannel).sort((a, b) => {
+            const avgA = a[1].count > 0 ? a[1].sum / a[1].count : 0;
+            const avgB = b[1].count > 0 ? b[1].sum / b[1].count : 0;
+            return avgB - avgA;
+        });
+        for (const [channel, val] of sorted) {
+            const avg = val.count > 0 ? val.sum / val.count : 0;
+            const championsPct = val.count > 0 ? ((val.champions / val.count) * 100).toFixed(0) : '0';
+            lines.push(`— ${channel}: LTV médio R$ ${avg.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${val.count} clientes | ${championsPct}% Champions`);
+        }
+    }
+
+    lines.push('');
+
+    // Receita por plataforma nos últimos 90 dias (transactions)
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('platform, amount_net, customer_id')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', ninetyDaysAgo);
+
+    if (txError) {
+        console.error('[AgentData] correlations transactions error:', txError.message);
+        lines.push('Receita por plataforma (últimos 90 dias): dados indisponíveis.');
+    } else if (!txData || txData.length === 0) {
+        lines.push('Receita por plataforma (últimos 90 dias): nenhuma transação registrada.');
+    } else {
+        const byPlatform: Record<string, { net: number; customers: Set<string> }> = {};
+        for (const t of txData) {
+            const p = t.platform || 'desconhecido';
+            if (!byPlatform[p]) byPlatform[p] = { net: 0, customers: new Set() };
+            byPlatform[p].net += Number(t.amount_net) || 0;
+            if (t.customer_id) byPlatform[p].customers.add(t.customer_id);
+        }
+        lines.push('Receita e clientes únicos por plataforma (últimos 90 dias):');
+        for (const [platform, val] of Object.entries(byPlatform)) {
+            const avgPerCustomer = val.customers.size > 0 ? val.net / val.customers.size : 0;
+            lines.push(`— ${platform}: R$ ${val.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${val.customers.size} clientes únicos | ticket médio R$ ${avgPerCustomer.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    lines.push('');
+
+    // Gasto em anúncios nos últimos 90 dias por plataforma
+    const ninetyDaysAgoDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { data: adData, error: adError } = await supabase
+        .from('ad_metrics')
+        .select('platform, spend_brl')
+        .gte('date', ninetyDaysAgoDate);
+
+    if (!adError && adData && adData.length > 0) {
+        const byPlatform: Record<string, number> = {};
+        for (const a of adData) {
+            const p = a.platform || 'desconhecido';
+            byPlatform[p] = (byPlatform[p] || 0) + (Number(a.spend_brl) || 0);
+        }
+        lines.push('Gasto em ads por plataforma (últimos 90 dias):');
+        for (const [platform, spend] of Object.entries(byPlatform)) {
+            lines.push(`— ${platform}: R$ ${spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function getForecastContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+
+    // Receita dos últimos 90 dias por mês para calcular tendência
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('amount_net, created_at, customer_id')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', ninetyDaysAgo)
+        .order('created_at', { ascending: true });
+
+    if (txError) {
+        console.error('[AgentData] forecast transactions error:', txError.message);
+        lines.push('Dados de receita para forecast: dados indisponíveis.');
+        return lines.join('\n');
+    }
+
+    if (!txData || txData.length === 0) {
+        lines.push('Dados de receita para forecast (últimos 90 dias): nenhuma transação registrada.');
+        return lines.join('\n');
+    }
+
+    // Agrupar por mês
+    const byMonth: Record<string, { net: number; customers: Set<string> }> = {};
+    for (const t of txData) {
+        const d = new Date(t.created_at);
+        const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!byMonth[month]) byMonth[month] = { net: 0, customers: new Set() };
+        byMonth[month].net += Number(t.amount_net) || 0;
+        if (t.customer_id) byMonth[month].customers.add(t.customer_id);
+    }
+
+    const months = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+    lines.push('Receita mensal (base para forecast):');
+    for (const [month, val] of months) {
+        lines.push(`— ${month}: R$ ${val.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${val.customers.size} clientes únicos`);
+    }
+
+    // Calcular crescimento MoM
+    if (months.length >= 2) {
+        const revenues = months.map(m => m[1].net);
+        const growthRates: number[] = [];
+        for (let i = 1; i < revenues.length; i++) {
+            const prev = revenues[i - 1] ?? 0;
+            const curr = revenues[i] ?? 0;
+            if (prev > 0) {
+                growthRates.push((curr - prev) / prev);
+            }
+        }
+        if (growthRates.length > 0) {
+            const avgGrowth = growthRates.reduce((a, b) => a + b, 0) / growthRates.length;
+            const lastRevenue = revenues[revenues.length - 1] ?? 0;
+            const forecast30 = lastRevenue * (1 + avgGrowth);
+            const forecast60 = forecast30 * (1 + avgGrowth);
+            const forecast90 = forecast60 * (1 + avgGrowth);
+            lines.push('');
+            lines.push(`Taxa de crescimento MoM média (últimos ${growthRates.length} meses): ${(avgGrowth * 100).toFixed(1)}%`);
+            lines.push(`Receita do mês mais recente: R$ ${lastRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+            lines.push('Forecast baseado na taxa histórica:');
+            lines.push(`— +30 dias: R$ ${forecast30.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+            lines.push(`— +60 dias: R$ ${forecast60.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+            lines.push(`— +90 dias: R$ ${forecast90.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    lines.push('');
+
+    // Churn probability distribuição para impacto de retenção
+    const { data: churnData, error: churnError } = await supabase
+        .from('customers')
+        .select('churn_probability, total_ltv')
+        .eq('user_id', userId)
+        .gt('churn_probability', 0);
+
+    if (!churnError && churnData && churnData.length > 0) {
+        const highRisk = churnData.filter(c => Number(c.churn_probability) > 0.7);
+        const medRisk = churnData.filter(c => Number(c.churn_probability) > 0.4 && Number(c.churn_probability) <= 0.7);
+        const highRiskLtv = highRisk.reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+        const medRiskLtv = medRisk.reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+        lines.push(`Clientes com churn > 70% (risco alto): ${highRisk.length} | LTV exposto R$ ${highRiskLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`Clientes com churn 40–70% (risco médio): ${medRisk.length} | LTV exposto R$ ${medRiskLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    }
+
+    return lines.join('\n');
+}
+
+async function getAnomaliesContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const now = Date.now();
+
+    // Receita: últimos 7 dias vs 7 dias anteriores (8–14 dias atrás)
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: recentTx, error: recentTxError } = await supabase
+        .from('transactions')
+        .select('amount_net, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', sevenDaysAgo);
+
+    const { data: previousTx, error: previousTxError } = await supabase
+        .from('transactions')
+        .select('amount_net, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', fourteenDaysAgo)
+        .lt('created_at', sevenDaysAgo);
+
+    if (recentTxError || previousTxError) {
+        lines.push('Dados de receita para detecção de anomalias: indisponíveis.');
+    } else {
+        const recentNet = (recentTx ?? []).reduce((s, t) => s + (Number(t.amount_net) || 0), 0);
+        const previousNet = (previousTx ?? []).reduce((s, t) => s + (Number(t.amount_net) || 0), 0);
+        const recentCount = (recentTx ?? []).length;
+        const previousCount = (previousTx ?? []).length;
+
+        lines.push('Receita — últimos 7 dias vs 7 dias anteriores:');
+        lines.push(`— Últimos 7 dias: R$ ${recentNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${recentCount} transações`);
+        lines.push(`— 7 dias anteriores: R$ ${previousNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${previousCount} transações`);
+        if (previousNet > 0) {
+            const delta = ((recentNet - previousNet) / previousNet * 100).toFixed(1);
+            const sign = Number(delta) >= 0 ? '+' : '';
+            lines.push(`— Variação: ${sign}${delta}%`);
+        }
+    }
+
+    lines.push('');
+
+    // Gasto em anúncios: últimos 7 dias vs semana anterior
+    const sevenDaysAgoDate = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const fourteenDaysAgoDate = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const todayDate = new Date(now).toISOString().split('T')[0];
+
+    const { data: recentAds, error: recentAdsError } = await supabase
+        .from('ad_metrics')
+        .select('platform, spend_brl')
+        .gte('date', sevenDaysAgoDate)
+        .lte('date', todayDate);
+
+    const { data: previousAds, error: previousAdsError } = await supabase
+        .from('ad_metrics')
+        .select('platform, spend_brl')
+        .gte('date', fourteenDaysAgoDate)
+        .lt('date', sevenDaysAgoDate);
+
+    if (!recentAdsError && !previousAdsError) {
+        const recentSpend = (recentAds ?? []).reduce((s, a) => s + (Number(a.spend_brl) || 0), 0);
+        const previousSpend = (previousAds ?? []).reduce((s, a) => s + (Number(a.spend_brl) || 0), 0);
+        lines.push('Gasto em ads — últimos 7 dias vs 7 dias anteriores:');
+        lines.push(`— Últimos 7 dias: R$ ${recentSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`— 7 dias anteriores: R$ ${previousSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        if (previousSpend > 0) {
+            const delta = ((recentSpend - previousSpend) / previousSpend * 100).toFixed(1);
+            const sign = Number(delta) >= 0 ? '+' : '';
+            lines.push(`— Variação de gasto: ${sign}${delta}%`);
+        }
+    }
+
+    lines.push('');
+
+    // Clientes com churn alto recentemente
+    const { data: churnRisk, error: churnRiskError } = await supabase
+        .from('customers')
+        .select('email, total_ltv, churn_probability, last_purchase_at')
+        .eq('user_id', userId)
+        .gt('churn_probability', 0.7)
+        .order('total_ltv', { ascending: false })
+        .limit(10);
+
+    if (!churnRiskError && churnRisk && churnRisk.length > 0) {
+        const totalExposedLtv = churnRisk.reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+        lines.push(`Clientes com churn > 70% (top ${churnRisk.length} por LTV) — LTV total exposto R$ ${totalExposedLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}:`);
+        for (const c of churnRisk) {
+            const churnPct = ((Number(c.churn_probability) || 0) * 100).toFixed(0);
+            const lastPurchase = c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR') : 'N/A';
+            lines.push(`— ${c.email} | LTV R$ ${Number(c.total_ltv).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | churn ${churnPct}% | última compra ${lastPurchase}`);
+        }
+    } else if (!churnRiskError) {
+        lines.push('Clientes com churn > 70%: nenhum identificado no momento.');
     }
 
     return lines.join('\n');

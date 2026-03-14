@@ -5,7 +5,8 @@ export type AgentId =
     | 'churn' | 'rfm' | 'cohort' | 'reactivation'
     | 'ecommerce' | 'email' | 'pipeline'
     | 'whatsapp' | 'nps' | 'engagement'
-    | 'valuation' | 'health';
+    | 'valuation' | 'health'
+    | 'correlations' | 'forecast' | 'anomalies';
 
 export interface AgentDefinition {
     id: AgentId;
@@ -330,6 +331,51 @@ export const AGENT_DEFINITIONS: Record<AgentId, AgentDefinition> = {
             'Quais são os 3 maiores riscos agora?',
             'Qual é o forecast dos próximos 3 meses?',
             'O que devo priorizar essa semana?',
+        ],
+    },
+
+    correlations: {
+        id: 'correlations',
+        name: 'Correlações Cruzadas',
+        group: 'Inteligência Avançada',
+        icon: 'X',
+        sources: ['Stripe', 'Hotmart', 'Shopify', 'Meta Ads', 'Google Ads'],
+        systemPrompt: `Você é o Agente de Correlações Cruzadas da Northie. Especialidade: identificar padrões que só aparecem quando dados de múltiplas fontes são cruzados. DADOS REAIS DA CONTA:\n\n{DATA_CONTEXT}\n\nDesvende correlações que nenhuma plataforma isolada mostra: qual canal de aquisição produz clientes com maior LTV por produto, padrões de sequência de compra que precedem clientes de alto valor, correlação entre gasto em ads e qualidade do cliente 90 dias depois, canais com alto volume mas baixo LTV vs canais com baixo volume e alto LTV. Apresente no máximo 4 correlações com o impacto financeiro estimado de cada uma. REGRAS INVIOLÁVEIS: NUNCA use markdown: sem asteriscos, hashtags, backticks, negrito ou itálico. Texto puro. NUNCA use emojis. Português brasileiro.`,
+        quickSuggestions: [
+            'Qual canal gera os melhores clientes no longo prazo?',
+            'Existe padrão de compra que prevê alto LTV?',
+            'Qual produto leva ao segundo produto mais rápido?',
+            'Correlacione gasto em ads com qualidade de cliente',
+        ],
+    },
+
+    forecast: {
+        id: 'forecast',
+        name: 'Forecast & Simulação',
+        group: 'Inteligência Avançada',
+        icon: 'F',
+        sources: ['Stripe', 'Hotmart', 'Shopify'],
+        systemPrompt: `Você é o Agente de Forecast da Northie. Especialidade: projeções de receita baseadas em dados históricos reais e simulação de cenários. DADOS REAIS DA CONTA:\n\n{DATA_CONTEXT}\n\nProduza projeções para os próximos 30, 60 e 90 dias usando a taxa de crescimento histórica. Simule cenários: o que acontece com a receita se o churn aumentar 10%, se o CAC subir 20%, ou se a frequência de compra cair. Calcule o impacto de melhorar a retenção em 1 ponto percentual. Apresente o forecast base e os cenários pessimista e otimista com os drivers de cada um. REGRAS INVIOLÁVEIS: NUNCA use markdown: sem asteriscos, hashtags, backticks, negrito ou itálico. Texto puro. NUNCA use emojis. Português brasileiro.`,
+        quickSuggestions: [
+            'Qual é meu forecast para os próximos 90 dias?',
+            'O que acontece se meu churn dobrar?',
+            'Simule o impacto de aumentar retenção em 5%',
+            'Qual cenário pessimista para o próximo trimestre?',
+        ],
+    },
+
+    anomalies: {
+        id: 'anomalies',
+        name: 'Detector de Anomalias',
+        group: 'Inteligência Avançada',
+        icon: '!',
+        sources: ['Stripe', 'Hotmart', 'Shopify', 'Meta Ads', 'Google Ads'],
+        systemPrompt: `Você é o Agente Detector de Anomalias da Northie. Especialidade: identificar desvios significativos em tempo real antes que virem problemas. DADOS REAIS DA CONTA:\n\n{DATA_CONTEXT}\n\nCompare métricas da última semana com a baseline dos 30 dias anteriores. Detecte anomalias em: receita diária (queda ou pico fora do padrão), ROAS por campanha (degradação acelerada), taxa de churn (aumento súbito), volume de transações (drop inesperado). Para cada anomalia encontrada: nome do desvio, magnitude do desvio em %, causa provável, ação recomendada. Priorize por impacto financeiro. REGRAS INVIOLÁVEIS: NUNCA use markdown: sem asteriscos, hashtags, backticks, negrito ou itálico. Texto puro. NUNCA use emojis. Português brasileiro.`,
+        quickSuggestions: [
+            'Há algo fora do normal esta semana?',
+            'Minha receita está dentro do padrão?',
+            'Alguma campanha com degradação acelerada?',
+            'O churn acelerou nos últimos 7 dias?',
         ],
     },
 };

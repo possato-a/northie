@@ -6,6 +6,7 @@ export type AgentId =
   | 'ecommerce' | 'email' | 'pipeline'
   | 'whatsapp' | 'nps' | 'engagement'
   | 'valuation' | 'health'
+  | 'correlations' | 'forecast' | 'anomalies'
 
 export interface AgentInfo {
   id: AgentId
@@ -295,6 +296,46 @@ export const AGENT_LIST: AgentInfo[] = [
       'Quais são os 3 maiores riscos agora?',
       'Qual é o forecast dos próximos 3 meses?',
       'O que devo priorizar essa semana?',
+    ],
+  },
+  // Inteligência Avançada
+  {
+    id: 'correlations',
+    name: 'Correlações Cruzadas',
+    group: 'Inteligência Avançada',
+    description: 'Padrões que só aparecem cruzando múltiplas fontes',
+    sources: ['Stripe', 'Hotmart', 'Meta Ads', 'Google Ads'],
+    quickSuggestions: [
+      'Qual canal gera os melhores clientes no longo prazo?',
+      'Existe padrão de compra que prevê alto LTV?',
+      'Qual produto leva ao segundo produto mais rápido?',
+      'Correlacione gasto em ads com qualidade de cliente',
+    ],
+  },
+  {
+    id: 'forecast',
+    name: 'Forecast & Simulação',
+    group: 'Inteligência Avançada',
+    description: 'Projeções e simulação de cenários com dados reais',
+    sources: ['Stripe', 'Hotmart', 'Shopify'],
+    quickSuggestions: [
+      'Qual é meu forecast para os próximos 90 dias?',
+      'O que acontece se meu churn dobrar?',
+      'Simule o impacto de aumentar retenção em 5%',
+      'Qual cenário pessimista para o próximo trimestre?',
+    ],
+  },
+  {
+    id: 'anomalies',
+    name: 'Detector de Anomalias',
+    group: 'Inteligência Avançada',
+    description: 'Desvios em tempo real antes que virem problemas',
+    sources: ['Stripe', 'Hotmart', 'Meta Ads', 'Google Ads'],
+    quickSuggestions: [
+      'Há algo fora do normal esta semana?',
+      'Minha receita está dentro do padrão?',
+      'Alguma campanha com degradação acelerada?',
+      'O churn acelerou nos últimos 7 dias?',
     ],
   },
 ]
