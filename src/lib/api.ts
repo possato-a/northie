@@ -108,4 +108,9 @@ export const alertsApi = {
     markAllRead: () => api.patch('/alerts/read-all'),
 };
 
+export const agentsApi = {
+    chat: (agentId: string, message: string, conversationHistory: Array<{role: string, content: string}>) =>
+        api.post('/agents/chat', { agentId, message, conversationHistory }),
+};
+
 export default api;

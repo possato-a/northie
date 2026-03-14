@@ -13,7 +13,6 @@ import dataRoutes from './routes/data.routes.js';
 import campaignRoutes from './routes/campaign.routes.js';
 import growthRoutes from './routes/growth.routes.js';
 import cardRoutes from './routes/card.routes.js';
-import valuationRoutes from './routes/valuation.routes.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
 import { generalRateLimiter, aiRateLimiter } from './middleware/rate-limit.middleware.js';
 import { startTokenRefreshJob } from './jobs/token-refresh.job.js';
@@ -26,10 +25,10 @@ import { startGrowthCorrelationsJob } from './jobs/growth-correlations.job.js';
 import { startCorrelationRefreshJob } from './jobs/correlation-refresh.job.js';
 import { startSafetyNetJob } from './jobs/safety-net.job.js';
 import { startCapitalScoreJob } from './jobs/capital-score.job.js';
-import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import profileRoutes from './routes/profile.routes.js';
+import alertsRoutes from './routes/alerts.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
@@ -81,9 +80,9 @@ app.use('/api/data', authMiddleware, dataRoutes);
 app.use('/api/campaigns', authMiddleware, campaignRoutes);
 app.use('/api/growth', authMiddleware, growthRoutes);
 app.use('/api/card', authMiddleware, cardRoutes);
-app.use('/api/valuation', authMiddleware, valuationRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/profile', authMiddleware, profileRoutes);
+app.use('/api/alerts', authMiddleware, alertsRoutes);
 // Basic Route
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
@@ -129,9 +128,8 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         delay(20 * 60_000, () => startReportsJob());
         // SafetyNet já tem delay interno de 3h
         startSafetyNetJob();
-        // Capital + Valuation: mensais, não precisam rodar no boot
+        // Capital Score: mensal, não precisa rodar no boot
         delay(30 * 60_000, () => startCapitalScoreJob());
-        delay(35 * 60_000, () => startValuationCalcJob());
     });
 }
 export default app;
