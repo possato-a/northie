@@ -1,13 +1,14 @@
 import { getAgentContext } from '../services/agentDataService.js';
 import { buildSystemPrompt, callClaudeAgent } from '../services/agentService.js';
-const VALID_AGENT_IDS = ['roas', 'churn', 'ltv', 'audience', 'upsell'];
+import { AGENT_DEFINITIONS } from '../agents/agentDefinitions.js';
 function isValidAgentId(value) {
-    return typeof value === 'string' && VALID_AGENT_IDS.includes(value);
+    return typeof value === 'string' && Object.prototype.hasOwnProperty.call(AGENT_DEFINITIONS, value);
 }
 export async function chatWithAgent(req, res) {
     const { agentId, message, conversationHistory } = req.body;
     if (!isValidAgentId(agentId)) {
-        res.status(400).json({ error: `agentId inválido. Valores aceitos: ${VALID_AGENT_IDS.join(', ')}` });
+        const validIds = Object.keys(AGENT_DEFINITIONS).join(', ');
+        res.status(400).json({ error: `agentId inválido. Valores aceitos: ${validIds}` });
         return;
     }
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -36,5 +37,16 @@ export async function chatWithAgent(req, res) {
         console.error('[Agents] chatWithAgent error:', err.message || err);
         res.status(500).json({ error: 'Falha ao processar mensagem do agente. Tente novamente.' });
     }
+}
+export function listAgents(req, res) {
+    const agents = Object.values(AGENT_DEFINITIONS).map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        group: agent.group,
+        icon: agent.icon,
+        sources: agent.sources,
+        quickSuggestions: agent.quickSuggestions,
+    }));
+    res.json({ agents });
 }
 //# sourceMappingURL=agents.controller.js.map
