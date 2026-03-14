@@ -1,19 +1,19 @@
 import type { Request, Response } from 'express';
 import { getAgentContext } from '../services/agentDataService.js';
 import { buildSystemPrompt, callClaudeAgent } from '../services/agentService.js';
-
-const VALID_AGENT_IDS = ['roas', 'churn', 'ltv', 'audience', 'upsell'] as const;
-type AgentId = typeof VALID_AGENT_IDS[number];
+import { AGENT_DEFINITIONS } from '../agents/agentDefinitions.js';
+import type { AgentId } from '../agents/agentDefinitions.js';
 
 function isValidAgentId(value: unknown): value is AgentId {
-    return typeof value === 'string' && (VALID_AGENT_IDS as readonly string[]).includes(value);
+    return typeof value === 'string' && Object.prototype.hasOwnProperty.call(AGENT_DEFINITIONS, value);
 }
 
 export async function chatWithAgent(req: Request, res: Response): Promise<void> {
     const { agentId, message, conversationHistory } = req.body;
 
     if (!isValidAgentId(agentId)) {
-        res.status(400).json({ error: `agentId inválido. Valores aceitos: ${VALID_AGENT_IDS.join(', ')}` });
+        const validIds = Object.keys(AGENT_DEFINITIONS).join(', ');
+        res.status(400).json({ error: `agentId inválido. Valores aceitos: ${validIds}` });
         return;
     }
 
@@ -49,4 +49,17 @@ export async function chatWithAgent(req: Request, res: Response): Promise<void> 
         console.error('[Agents] chatWithAgent error:', err.message || err);
         res.status(500).json({ error: 'Falha ao processar mensagem do agente. Tente novamente.' });
     }
+}
+
+export function listAgents(req: Request, res: Response): void {
+    const agents = Object.values(AGENT_DEFINITIONS).map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        group: agent.group,
+        icon: agent.icon,
+        sources: agent.sources,
+        quickSuggestions: agent.quickSuggestions,
+    }));
+
+    res.json({ agents });
 }

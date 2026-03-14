@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import AgentSelector from './AgentSelector'
 import { useAgentChat } from '../../hooks/useAgentChat'
 import { supabase } from '../../lib/supabase'
+import { AGENT_BY_ID } from '../../constants/agentDefinitions'
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -19,23 +20,10 @@ interface ConvItem {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const AGENT_LABELS: Record<string, string> = {
-  roas: 'Agente ROAS Real',
-  churn: 'Agente Churn Detector',
-  ltv: 'Agente LTV por Canal',
-  audience: 'Agente Audience Quality',
-  upsell: 'Agente Upsell Timing',
-}
-
-const AGENT_CHIPS: Record<string, string[]> = {
-  roas:     ['Por que meu ROAS caiu?', 'Qual campanha tem melhor ROAS real?', 'Onde estou desperdiçando budget?'],
-  churn:    ['Quem está prestes a churnar?', 'Qual cohort tem pior retenção?', 'Meus top clientes estão ativos?'],
-  ltv:      ['Qual canal traz clientes com maior LTV?', 'Meu LTV:CAC está saudável?', 'Compare Meta vs Google em LTV real'],
-  audience: ['Crie Lookalike só com Champions', 'Como segmentar reativação?', 'Quais clientes excluir das campanhas?'],
-  upsell:   ['Quem devo abordar hoje?', 'Qual produto fazer upsell agora?', 'Monte sequência de reativação'],
-}
-
 const GROWTH_CHIPS = ['Analisar canais de aquisição', 'Quais clientes estão em risco?', 'Qual campanha tem melhor LTV?']
+
+const getAgentLabel = (id: string) => AGENT_BY_ID[id]?.name ?? 'Northie AI'
+const getAgentChips = (id: string) => AGENT_BY_ID[id]?.quickSuggestions ?? GROWTH_CHIPS
 
 // ── Local components ──────────────────────────────────────────────────────────
 
@@ -159,8 +147,8 @@ export default function GrowthChat() {
     setAnimatingId(null)
   }
 
-  const activeChips = agentId ? (AGENT_CHIPS[agentId] ?? GROWTH_CHIPS) : GROWTH_CHIPS
-  const activeLabel = agentId ? (AGENT_LABELS[agentId] ?? 'Northie AI') : 'Northie AI'
+  const activeChips = agentId ? getAgentChips(agentId) : GROWTH_CHIPS
+  const activeLabel = agentId ? getAgentLabel(agentId) : 'Northie AI'
 
   // ── Shared input toolbar renderer
   const renderInputBox = (ref: React.RefObject<HTMLTextAreaElement>, placeholder: string) => (
@@ -288,7 +276,7 @@ export default function GrowthChat() {
                   color: conversationId === conv.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, lineHeight: 1.4,
                 }}>
-                  {conv.title ?? (AGENT_LABELS[conv.agent_id] ?? conv.agent_id)}
+                  {conv.title ?? getAgentLabel(conv.agent_id)}
                 </span>
               </motion.button>
             ))
@@ -313,7 +301,7 @@ export default function GrowthChat() {
               color: 'var(--color-text-primary)', margin: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {agentId ? (AGENT_LABELS[agentId] ?? 'Northie AI') : 'Northie AI'}
+              {agentId ? getAgentLabel(agentId) : 'Northie AI'}
             </p>
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', margin: 0 }}>
               {MODEL_LABELS[model]}

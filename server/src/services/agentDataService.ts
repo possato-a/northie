@@ -16,6 +16,30 @@ export async function getAgentContext(userId: string, agentId: string): Promise<
             return getAudienceContext(userId);
         case 'upsell':
             return getUpsellContext(userId);
+        case 'orchestrator':
+        case 'health':
+            return getHealthSnapshotContext(userId);
+        case 'cac':
+            return getCacContext(userId);
+        case 'rfm':
+            return getAudienceContext(userId);
+        case 'cohort':
+            return getCohortContext(userId);
+        case 'mrr':
+            return getMrrContext(userId);
+        case 'margin':
+            return getMarginContext(userId);
+        case 'reactivation':
+            return getReactivationContext(userId);
+        case 'creatives':
+        case 'ecommerce':
+        case 'email':
+        case 'pipeline':
+        case 'whatsapp':
+        case 'nps':
+        case 'engagement':
+        case 'valuation':
+            return `// TODO: dados de ${agentId} não disponíveis ainda — as tabelas necessárias serão implementadas em fase futura.\nResponda com base nas informações que o founder fornecer na conversa e use benchmarks do mercado digital brasileiro.`;
         default:
             return 'Nenhum dado disponível para este agente.';
     }
@@ -286,6 +310,378 @@ async function getUpsellContext(userId: string): Promise<string> {
                 : null;
             lines.push(`— ${c.email} | LTV R$ ${Number(c.total_ltv).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${c.acquisition_channel || 'N/A'} | última compra ${lastPurchase}${diasAtras !== null ? ` (${diasAtras} dias atrás)` : ''}`);
         }
+    }
+
+    return lines.join('\n');
+}
+
+async function getHealthSnapshotContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Receita dos últimos 30 dias de transactions
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('amount_net, amount_gross, platform, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', thirtyDaysAgo);
+
+    if (txError) {
+        console.error('[AgentData] health transactions error:', txError.message);
+        lines.push('Receita (últimos 30 dias): dados indisponíveis.');
+    } else if (!txData || txData.length === 0) {
+        lines.push('Receita (últimos 30 dias): nenhuma transação registrada ainda.');
+    } else {
+        const totalNet = txData.reduce((sum, t) => sum + (Number(t.amount_net) || 0), 0);
+        const totalGross = txData.reduce((sum, t) => sum + (Number(t.amount_gross) || 0), 0);
+        lines.push(`Receita líquida (últimos 30 dias): R$ ${totalNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`Receita bruta (últimos 30 dias): R$ ${totalGross.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`Total de transações aprovadas: ${txData.length}`);
+        // Por plataforma
+        const byPlatform: Record<string, number> = {};
+        for (const t of txData) {
+            const p = t.platform || 'desconhecido';
+            byPlatform[p] = (byPlatform[p] || 0) + (Number(t.amount_net) || 0);
+        }
+        lines.push('Receita por plataforma (últimos 30 dias):');
+        for (const [platform, net] of Object.entries(byPlatform)) {
+            lines.push(`— ${platform}: R$ ${net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    lines.push('');
+
+    // Total de clientes
+    const { count: totalCustomers, error: custCountError } = await supabase
+        .from('customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+    if (custCountError) {
+        lines.push('Total de clientes: dados indisponíveis.');
+    } else {
+        lines.push(`Total de clientes na base: ${totalCustomers ?? 0}`);
+    }
+
+    // LTV médio geral
+    const { data: ltvData, error: ltvError } = await supabase
+        .from('customers')
+        .select('total_ltv')
+        .eq('user_id', userId);
+
+    if (!ltvError && ltvData && ltvData.length > 0) {
+        const totalLtv = ltvData.reduce((sum, c) => sum + (Number(c.total_ltv) || 0), 0);
+        const avgLtv = totalLtv / ltvData.length;
+        lines.push(`LTV médio da base: R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`LTV total acumulado: R$ ${totalLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    }
+
+    lines.push('');
+
+    // Gasto total em anúncios nos últimos 30 dias
+    const thirtyDaysAgoDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const { data: adData, error: adError } = await supabase
+        .from('ad_metrics')
+        .select('spend_brl, platform')
+        .gte('date', thirtyDaysAgoDate);
+
+    if (adError) {
+        console.error('[AgentData] health ad_metrics error:', adError.message);
+        lines.push('Gasto em anúncios (últimos 30 dias): dados indisponíveis.');
+    } else if (!adData || adData.length === 0) {
+        lines.push('Gasto em anúncios (últimos 30 dias): nenhum dado registrado ainda.');
+    } else {
+        const totalSpend = adData.reduce((sum, a) => sum + (Number(a.spend_brl) || 0), 0);
+        lines.push(`Gasto total em anúncios (últimos 30 dias): R$ ${totalSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        const byPlatform: Record<string, number> = {};
+        for (const a of adData) {
+            const p = a.platform || 'desconhecido';
+            byPlatform[p] = (byPlatform[p] || 0) + (Number(a.spend_brl) || 0);
+        }
+        for (const [platform, spend] of Object.entries(byPlatform)) {
+            lines.push(`— ${platform}: R$ ${spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function getCacContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Gasto por canal de ad_metrics nos últimos 30 dias
+    const { data: adData, error: adError } = await supabase
+        .from('ad_metrics')
+        .select('platform, spend_brl')
+        .gte('date', thirtyDaysAgo);
+
+    if (adError) {
+        console.error('[AgentData] cac ad_metrics error:', adError.message);
+        lines.push('Gasto por canal (últimos 30 dias): dados indisponíveis.');
+    } else if (!adData || adData.length === 0) {
+        lines.push('Gasto por canal (últimos 30 dias): nenhum dado de anúncios registrado ainda.');
+    } else {
+        lines.push('Gasto total por canal (últimos 30 dias):');
+        const byPlatform: Record<string, number> = {};
+        for (const a of adData) {
+            const p = a.platform || 'desconhecido';
+            byPlatform[p] = (byPlatform[p] || 0) + (Number(a.spend_brl) || 0);
+        }
+        for (const [platform, spend] of Object.entries(byPlatform)) {
+            lines.push(`— ${platform}: R$ ${spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    lines.push('');
+
+    // LTV por canal de aquisição de customers
+    const { data: custData, error: custError } = await supabase
+        .from('customers')
+        .select('acquisition_channel, total_ltv')
+        .eq('user_id', userId);
+
+    if (custError) {
+        console.error('[AgentData] cac customers error:', custError.message);
+        lines.push('LTV por canal: dados indisponíveis.');
+    } else if (!custData || custData.length === 0) {
+        lines.push('LTV por canal: nenhum cliente registrado ainda.');
+    } else {
+        lines.push('LTV médio e volume por canal de aquisição:');
+        const byChannel: Record<string, { sum: number; count: number }> = {};
+        for (const c of custData) {
+            const ch = c.acquisition_channel || 'desconhecido';
+            if (!byChannel[ch]) byChannel[ch] = { sum: 0, count: 0 };
+            byChannel[ch].sum += Number(c.total_ltv) || 0;
+            byChannel[ch].count += 1;
+        }
+        const sorted = Object.entries(byChannel).sort((a, b) => b[1].count - a[1].count);
+        for (const [channel, val] of sorted) {
+            const avg = val.count > 0 ? val.sum / val.count : 0;
+            lines.push(`— ${channel}: ${val.count} clientes | LTV médio R$ ${avg.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | LTV total R$ ${val.sum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function getCohortContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+
+    // Primeira transação por customer_id para determinar mês de aquisição
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('customer_id, created_at, amount_net')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .order('created_at', { ascending: true });
+
+    if (txError) {
+        console.error('[AgentData] cohort transactions error:', txError.message);
+        lines.push('Dados de cohort: dados indisponíveis.');
+        return lines.join('\n');
+    }
+
+    if (!txData || txData.length === 0) {
+        lines.push('Dados de cohort: nenhuma transação registrada ainda.');
+        return lines.join('\n');
+    }
+
+    // Determinar mês de primeira compra por customer_id
+    const firstPurchase: Record<string, string> = {};
+    for (const t of txData) {
+        if (t.customer_id && !firstPurchase[t.customer_id]) {
+            const d = new Date(t.created_at);
+            firstPurchase[t.customer_id] = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }
+    }
+
+    // Agrupar clientes por cohort (mês de primeira compra)
+    const cohortCount: Record<string, number> = {};
+    for (const month of Object.values(firstPurchase)) {
+        cohortCount[month] = (cohortCount[month] || 0) + 1;
+    }
+
+    const sortedCohorts = Object.entries(cohortCount).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 12);
+    lines.push('Clientes por cohort (mês de primeira compra) — últimos 12 meses:');
+    for (const [month, count] of sortedCohorts) {
+        lines.push(`— ${month}: ${count} clientes adquiridos`);
+    }
+
+    lines.push('');
+    lines.push(`Total de clientes únicos com transações: ${Object.keys(firstPurchase).length}`);
+
+    return lines.join('\n');
+}
+
+async function getMrrContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+
+    // Transações dos últimos 90 dias agrupadas por mês
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('amount_net, amount_gross, platform, created_at, customer_id')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', ninetyDaysAgo)
+        .order('created_at', { ascending: true });
+
+    if (txError) {
+        console.error('[AgentData] mrr transactions error:', txError.message);
+        lines.push('Dados de receita: dados indisponíveis.');
+        return lines.join('\n');
+    }
+
+    if (!txData || txData.length === 0) {
+        lines.push('Dados de receita (últimos 90 dias): nenhuma transação registrada ainda.');
+        return lines.join('\n');
+    }
+
+    // Agrupar por mês
+    const byMonth: Record<string, { net: number; gross: number; count: number; customers: Set<string> }> = {};
+    for (const t of txData) {
+        const d = new Date(t.created_at);
+        const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!byMonth[month]) byMonth[month] = { net: 0, gross: 0, count: 0, customers: new Set() };
+        byMonth[month].net += Number(t.amount_net) || 0;
+        byMonth[month].gross += Number(t.amount_gross) || 0;
+        byMonth[month].count += 1;
+        if (t.customer_id) byMonth[month].customers.add(t.customer_id);
+    }
+
+    const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+    lines.push('Receita mensal (últimos 90 dias):');
+    for (const [month, val] of sortedMonths) {
+        lines.push(`— ${month}: Receita líquida R$ ${val.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Bruta R$ ${val.gross.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${val.count} transações | ${val.customers.size} clientes únicos`);
+    }
+
+    lines.push('');
+
+    // Por plataforma nos últimos 30 dias
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const recentTx = txData.filter(t => t.created_at >= thirtyDaysAgo);
+    if (recentTx.length > 0) {
+        const byPlatform: Record<string, number> = {};
+        for (const t of recentTx) {
+            const p = t.platform || 'desconhecido';
+            byPlatform[p] = (byPlatform[p] || 0) + (Number(t.amount_net) || 0);
+        }
+        lines.push('Receita líquida por plataforma (últimos 30 dias):');
+        for (const [platform, net] of Object.entries(byPlatform)) {
+            lines.push(`— ${platform}: R$ ${net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function getMarginContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgoDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Receita bruta, líquida e taxas de transactions
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('amount_gross, amount_net, fee_platform, platform')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', thirtyDaysAgo);
+
+    if (txError) {
+        console.error('[AgentData] margin transactions error:', txError.message);
+        lines.push('Dados de margem: dados indisponíveis.');
+    } else if (!txData || txData.length === 0) {
+        lines.push('Dados de margem (últimos 30 dias): nenhuma transação registrada ainda.');
+    } else {
+        const totalGross = txData.reduce((sum, t) => sum + (Number(t.amount_gross) || 0), 0);
+        const totalNet = txData.reduce((sum, t) => sum + (Number(t.amount_net) || 0), 0);
+        const totalFees = txData.reduce((sum, t) => sum + (Number(t.fee_platform) || 0), 0);
+        const grossMarginPct = totalGross > 0 ? ((totalNet / totalGross) * 100).toFixed(1) : '0.0';
+
+        lines.push(`Receita bruta (últimos 30 dias): R$ ${totalGross.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`Receita líquida após taxas: R$ ${totalNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`Total de taxas de plataforma: R$ ${totalFees.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`Margem bruta (receita líq / bruta): ${grossMarginPct}%`);
+
+        // Por plataforma
+        const byPlatform: Record<string, { gross: number; net: number; fees: number }> = {};
+        for (const t of txData) {
+            const p = t.platform || 'desconhecido';
+            if (!byPlatform[p]) byPlatform[p] = { gross: 0, net: 0, fees: 0 };
+            byPlatform[p].gross += Number(t.amount_gross) || 0;
+            byPlatform[p].net += Number(t.amount_net) || 0;
+            byPlatform[p].fees += Number(t.fee_platform) || 0;
+        }
+        lines.push('Margem por plataforma (últimos 30 dias):');
+        for (const [platform, val] of Object.entries(byPlatform)) {
+            const margin = val.gross > 0 ? ((val.net / val.gross) * 100).toFixed(1) : '0.0';
+            lines.push(`— ${platform}: Bruta R$ ${val.gross.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Líquida R$ ${val.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Taxas R$ ${val.fees.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Margem ${margin}%`);
+        }
+    }
+
+    lines.push('');
+
+    // Gasto em anúncios nos últimos 30 dias
+    const { data: adData, error: adError } = await supabase
+        .from('ad_metrics')
+        .select('platform, spend_brl')
+        .gte('date', thirtyDaysAgoDate);
+
+    if (adError) {
+        console.error('[AgentData] margin ad_metrics error:', adError.message);
+        lines.push('Gasto em anúncios (últimos 30 dias): dados indisponíveis.');
+    } else if (!adData || adData.length === 0) {
+        lines.push('Gasto em anúncios (últimos 30 dias): nenhum dado registrado ainda.');
+    } else {
+        const totalSpend = adData.reduce((sum, a) => sum + (Number(a.spend_brl) || 0), 0);
+        lines.push(`Gasto total em anúncios (últimos 30 dias): R$ ${totalSpend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    }
+
+    return lines.join('\n');
+}
+
+async function getReactivationContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+
+    // Clientes com last_purchase_at > 90 dias atrás e total_ltv > 0
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: inactiveData, error: inactiveError } = await supabase
+        .from('customers')
+        .select('email, total_ltv, last_purchase_at, acquisition_channel, rfm_score')
+        .eq('user_id', userId)
+        .lt('last_purchase_at', ninetyDaysAgo)
+        .gt('total_ltv', 0)
+        .order('total_ltv', { ascending: false })
+        .limit(25);
+
+    if (inactiveError) {
+        console.error('[AgentData] reactivation error:', inactiveError.message);
+        lines.push('Clientes inativos para reativação: dados indisponíveis.');
+        return lines.join('\n');
+    }
+
+    if (!inactiveData || inactiveData.length === 0) {
+        lines.push('Clientes inativos com LTV > 0 (sem compra há mais de 90 dias): nenhum identificado.');
+        return lines.join('\n');
+    }
+
+    const totalRecoverableRevenue = inactiveData.reduce((sum, c) => sum + (Number(c.total_ltv) || 0), 0);
+    lines.push(`Clientes inativos (sem compra > 90 dias) com LTV positivo — top ${inactiveData.length} por LTV:`);
+    lines.push(`LTV total acumulado deste grupo: R$ ${totalRecoverableRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push('');
+
+    const now = Date.now();
+    for (const c of inactiveData) {
+        const lastPurchase = c.last_purchase_at ? new Date(c.last_purchase_at).toLocaleDateString('pt-BR') : 'N/A';
+        const diasInativo = c.last_purchase_at
+            ? Math.floor((now - new Date(c.last_purchase_at).getTime()) / (24 * 60 * 60 * 1000))
+            : null;
+        lines.push(`— ${c.email} | LTV R$ ${Number(c.total_ltv).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${c.acquisition_channel || 'N/A'} | RFM ${c.rfm_score || 'N/A'} | última compra ${lastPurchase}${diasInativo !== null ? ` (${diasInativo} dias atrás)` : ''}`);
     }
 
     return lines.join('\n');
