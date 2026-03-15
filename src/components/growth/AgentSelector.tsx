@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { AGENT_BY_ID } from '../../constants/agentDefinitions'
+import { useWindowWidth, isMobile } from '../../hooks/useWindowWidth'
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
 
@@ -150,6 +151,8 @@ function GroupHeader({ label }: { label: string }) {
 export default function AgentSelector({ onSelect }: AgentSelectorProps) {
   const [input, setInput] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const width = useWindowWidth()
+  const mobile = isMobile(width)
 
   const handleOrchestratorSend = (text: string) => {
     const trimmed = text.trim()
@@ -157,9 +160,10 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
     onSelect('orchestrator', trimmed)
   }
 
+  const cols = mobile ? 2 : 4
   const grid4: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
     gap: 10,
   }
 
@@ -301,7 +305,7 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
             <GroupHeader label={group.label} />
             <div style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${Math.min(group.agents.length, 4)}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${Math.min(group.agents.length, cols)}, minmax(0, 1fr))`,
               gap: 10,
             }}>
               {group.agents.map(id => (

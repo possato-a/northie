@@ -1,23 +1,45 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar, { type Page } from './components/layout/Sidebar'
-import Dashboard from './pages/Dashboard'
-import Vendas from './pages/Vendas'
-import Clientes from './pages/Clientes'
-import Canais from './pages/Canais'
-import AppStore from './pages/AppStore'
-import Configuracoes from './pages/Configuracoes'
-import Card from './pages/Card'
-import Growth from './pages/Growth'
-import Conversas from './pages/Conversas'
-import Contexto from './pages/Contexto'
-import Relatorios from './pages/Relatorios'
 import ChatSidebar from './components/layout/ChatSidebar'
 import Login from './pages/Login'
 import { supabase } from './lib/supabase'
 import { Session } from '@supabase/supabase-js'
 import { setProfileId } from './lib/api'
 import { useTheme } from './ThemeContext'
+import { ErrorBoundary } from './components/ui/shared'
+
+// ── Lazy-loaded pages ──────────────────────────────────────────────────────────
+const Dashboard    = lazy(() => import('./pages/Dashboard'))
+const Vendas       = lazy(() => import('./pages/Vendas'))
+const Clientes     = lazy(() => import('./pages/Clientes'))
+const Canais       = lazy(() => import('./pages/Canais'))
+const AppStore     = lazy(() => import('./pages/AppStore'))
+const Configuracoes = lazy(() => import('./pages/Configuracoes'))
+const Card         = lazy(() => import('./pages/Card'))
+const Growth       = lazy(() => import('./pages/Growth'))
+const Conversas    = lazy(() => import('./pages/Conversas'))
+const Contexto     = lazy(() => import('./pages/Contexto'))
+const Relatorios   = lazy(() => import('./pages/Relatorios'))
+
+// ── Page loader fallback ───────────────────────────────────────────────────────
+function PageSkeleton() {
+  return (
+    <div style={{
+      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      minHeight: '100vh',
+    }}>
+      <motion.div
+        animate={{ opacity: [0.3, 0.7, 0.3] }}
+        transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          width: 32, height: 32, borderRadius: '50%',
+          background: 'var(--color-primary)', opacity: 0.4,
+        }}
+      />
+    </div>
+  )
+}
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -100,6 +122,8 @@ export default function App() {
     }
   }, [activePage])
 
+  const isGrowth = activePage === 'growth'
+
   if (!isLoggedIn) {
     return (
       <AnimatePresence>
@@ -144,64 +168,78 @@ export default function App() {
           flexDirection: 'column',
         }}
       >
-        {activePage === 'growth' ? (
-          <Growth />
-        ) : (
+        {/* Growth is full-screen, rendered outside the padded wrapper */}
+        <div style={{ display: isGrowth ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+          <ErrorBoundary>
+            <Suspense fallback={<PageSkeleton />}>
+              <Growth />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+
+        {/* All other pages */}
+        {!isGrowth && (
           <div style={{ padding: isCompact ? '14px 32px 48px' : '28px 64px 80px', width: '100%' }}>
-            {activePage === 'visao-geral' && (
-              <Dashboard
-                onToggleChat={() => setChatOpen(!chatOpen)}
-                user={session?.user}
-              />
-            )}
-            {activePage === 'vendas' && (
-              <Vendas
-                onToggleChat={() => setChatOpen(!chatOpen)}
-                user={session?.user}
-              />
-            )}
-            {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {(activePage === 'canais' || activePage === 'canais-meta' || activePage === 'canais-google') && (
-              <Canais
-                onToggleChat={() => setChatOpen(!chatOpen)}
-                channelView={activePage === 'canais-meta' ? 'meta' : activePage === 'canais-google' ? 'google' : undefined}
-              />
-            )}
-            {activePage === 'app-store' && (
-              <AppStore
-                onToggleChat={() => setChatOpen(!chatOpen)}
-                user={session?.user}
-              />
-            )}
-            {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {activePage === 'conversas' && <Conversas onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {activePage === 'contexto' && <Contexto onToggleChat={() => setChatOpen(!chatOpen)} />}
-            {activePage === 'relatorios' && <Relatorios onToggleChat={() => setChatOpen(!chatOpen)} user={session?.user} />}
-            {activePage === 'configuracoes' && (
-              <Configuracoes user={session?.user} onGoToAppStore={() => setActivePage('app-store')} />
-            )}
-            {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'canais-meta' && activePage !== 'canais-google' && activePage !== 'card' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
-              <motion.div
-                key={activePage}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{
-                  paddingTop: 64,
-                  fontFamily: "'Poppins', sans-serif",
-                  fontSize: 40,
-                  fontWeight: 400,
-                  letterSpacing: '-1.6px',
-                  color: 'rgba(var(--fg-rgb), 0.25)',
-                }}
-              >
-                Em breve
-              </motion.div>
-            )}
+            <ErrorBoundary>
+              <Suspense fallback={<PageSkeleton />}>
+                {activePage === 'visao-geral' && (
+                  <Dashboard
+                    onToggleChat={() => setChatOpen(!chatOpen)}
+                    user={session?.user}
+                  />
+                )}
+                {activePage === 'vendas' && (
+                  <Vendas
+                    onToggleChat={() => setChatOpen(!chatOpen)}
+                    user={session?.user}
+                  />
+                )}
+                {activePage === 'clientes' && <Clientes onToggleChat={() => setChatOpen(!chatOpen)} />}
+                {(activePage === 'canais' || activePage === 'canais-meta' || activePage === 'canais-google') && (
+                  <Canais
+                    onToggleChat={() => setChatOpen(!chatOpen)}
+                    channelView={activePage === 'canais-meta' ? 'meta' : activePage === 'canais-google' ? 'google' : undefined}
+                  />
+                )}
+                {activePage === 'app-store' && (
+                  <AppStore
+                    onToggleChat={() => setChatOpen(!chatOpen)}
+                    user={session?.user}
+                  />
+                )}
+                {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
+                {activePage === 'conversas' && <Conversas onToggleChat={() => setChatOpen(!chatOpen)} />}
+                {activePage === 'contexto' && <Contexto onToggleChat={() => setChatOpen(!chatOpen)} />}
+                {activePage === 'relatorios' && <Relatorios onToggleChat={() => setChatOpen(!chatOpen)} user={session?.user} />}
+                {activePage === 'configuracoes' && (
+                  <Configuracoes user={session?.user} onGoToAppStore={() => setActivePage('app-store')} />
+                )}
+                {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'canais-meta' && activePage !== 'canais-google' && activePage !== 'card' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+                  <motion.div
+                    key={activePage}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                    style={{
+                      paddingTop: 64,
+                      fontFamily: "'Poppins', sans-serif",
+                      fontSize: 40,
+                      fontWeight: 400,
+                      letterSpacing: '-1.6px',
+                      color: 'rgba(var(--fg-rgb), 0.25)',
+                    }}
+                  >
+                    Em breve
+                  </motion.div>
+                )}
+              </Suspense>
+            </ErrorBoundary>
           </div>
         )}
       </motion.main>
-      {activePage !== 'growth' && (
+
+      {/* ChatSidebar always mounted to preserve conversation state */}
+      <div style={{ display: isGrowth ? 'none' : 'block' }}>
         <ChatSidebar
           isOpen={chatOpen}
           onClose={() => {
@@ -212,7 +250,7 @@ export default function App() {
           isFull={isChatFull}
           onToggleFull={() => setIsChatFull(!isChatFull)}
         />
-      )}
+      </div>
     </motion.div>
   )
 }

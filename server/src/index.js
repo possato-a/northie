@@ -29,8 +29,16 @@ import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import alertsRoutes from './routes/alerts.routes.js';
+// @ts-ignore — plain JS modules without .d.ts (compiled separately)
+import whatsappRoutes from './routes/whatsapp.routes.js';
+// @ts-ignore
+import calendarRoutes from './routes/calendar.routes.js';
+// @ts-ignore
+import comunidadeRoutes from './routes/comunidade.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
+// @ts-ignore
+import { startCalendarSyncJob } from './jobs/calendar-sync.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
 dotenv.config({ path: '.env.local' });
@@ -83,6 +91,9 @@ app.use('/api/card', authMiddleware, cardRoutes);
 app.use('/api/reports', authMiddleware, reportsRoutes);
 app.use('/api/profile', authMiddleware, profileRoutes);
 app.use('/api/alerts', authMiddleware, alertsRoutes);
+app.use('/api/whatsapp', whatsappRoutes); // webhook sem auth, demais com auth interno
+app.use('/api/calendar', authMiddleware, calendarRoutes);
+app.use('/api/comunidade', authMiddleware, comunidadeRoutes);
 // Basic Route
 app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
@@ -126,6 +137,8 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         delay(15 * 60_000, () => startShopifySyncJob());
         // 20min: reports
         delay(20 * 60_000, () => startReportsJob());
+        // 25min: calendar sync
+        delay(25 * 60_000, () => startCalendarSyncJob());
         // SafetyNet já tem delay interno de 3h
         startSafetyNetJob();
         // Capital Score: mensal, não precisa rodar no boot

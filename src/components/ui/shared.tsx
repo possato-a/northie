@@ -4,7 +4,7 @@
  * Seguem o design system Notion + identidade visual Northie.
  */
 
-import { useState } from 'react'
+import { useState, Component, type ReactNode, type ErrorInfo } from 'react'
 import { motion } from 'framer-motion'
 
 // ── Page Header ───────────────────────────────────────────────────────────────
@@ -665,4 +665,66 @@ export function FilterPills({ options, active, onChange }: FilterPillsProps) {
             ))}
         </div>
     )
+}
+
+// ── Error State ────────────────────────────────────────────────────────────────
+
+export function ErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+    return (
+        <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', padding: '48px 24px', gap: 16,
+        }}>
+            <span style={{ fontSize: 32 }}>⚠️</span>
+            <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-secondary)', margin: 0, textAlign: 'center',
+            }}>
+                {message ?? 'Algo deu errado ao carregar esta página.'}
+            </p>
+            {onRetry && (
+                <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={onRetry}
+                    style={{
+                        padding: '8px 20px', borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)', background: 'var(--color-bg-primary)',
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
+                    }}
+                >
+                    Tentar novamente
+                </motion.button>
+            )}
+        </div>
+    )
+}
+
+// ── Error Boundary ─────────────────────────────────────────────────────────────
+
+interface ErrorBoundaryState { hasError: boolean; message?: string }
+
+export class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, ErrorBoundaryState> {
+    state: ErrorBoundaryState = { hasError: false }
+
+    static getDerivedStateFromError(err: unknown): ErrorBoundaryState {
+        const message = err instanceof Error ? err.message : String(err)
+        return { hasError: true, message }
+    }
+
+    componentDidCatch(err: Error, info: ErrorInfo) {
+        console.error('[ErrorBoundary]', err, info.componentStack)
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return this.props.fallback ?? (
+                <ErrorState
+                    message={this.state.message}
+                    onRetry={() => this.setState({ hasError: false })}
+                />
+            )
+        }
+        return this.props.children
+    }
 }
