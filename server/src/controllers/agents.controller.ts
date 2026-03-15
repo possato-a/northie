@@ -56,7 +56,7 @@ export function listAgents(req: Request, res: Response): void {
         id: agent.id,
         name: agent.name,
         group: agent.group,
-        icon: agent.icon,
+
         sources: agent.sources,
         quickSuggestions: agent.quickSuggestions,
     }));
