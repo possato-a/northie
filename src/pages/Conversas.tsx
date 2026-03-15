@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import { PageHeader, Divider } from '../components/ui/shared'
+import { calendarApi } from '../lib/api'
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
 
@@ -212,96 +213,255 @@ function PipelineView() {
   )
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Meeting {
+  id: string
+  title: string
+  attendees: Array<{ email: string; name?: string; organizer?: boolean }>
+  started_at: string
+  ended_at: string
+  duration_minutes: number
+  meet_link: string | null
+  ai_summary: string | null
+  ai_objections: string[]
+  ai_result: 'positive' | 'neutral' | 'negative' | null
+  ai_cycle_signal: string | null
+  ai_tags: string[]
+  linked_customer_id: string | null
+}
+
+interface Insight {
+  type: string
+  title: string
+  body: string
+  action: string
+}
+
 // ── Reuniões View ─────────────────────────────────────────────────────────────
 
 function ReunioesView() {
-  const [expanded, setExpanded] = useState<number | null>(1)
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [loading, setLoading] = useState(true)
+  const [calendarConnected, setCalendarConnected] = useState(true)
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const statusRes = await calendarApi.getStatus()
+        const status = statusRes.data?.data
+        setCalendarConnected(status?.connected ?? false)
+
+        if (status?.connected) {
+          const eventsRes = await calendarApi.getEvents(20, 0)
+          setMeetings(eventsRes.data?.data || [])
+          if (expanded === null && eventsRes.data?.data?.length > 0) {
+            setExpanded(eventsRes.data.data[0].id)
+          }
+        }
+      } catch {
+        // silencioso — mostra empty state
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const resultColor = (r: string | null) => r === 'positive' ? 'var(--status-complete)' : r === 'negative' ? 'var(--accent-red)' : 'var(--accent-orange)'
+  const resultLabel = (r: string | null) => r === 'positive' ? 'Positivo' : r === 'negative' ? 'Negativo' : 'Neutro'
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {[1,2,3].map(i => (
+          <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.15 }}>
+            <SectionCard style={{ height: 64 }} />
+          </motion.div>
+        ))}
+      </div>
+    )
+  }
+
+  if (!calendarConnected) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+        <SectionCard style={{ padding: '48px 32px', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 16 }}>📅</div>
+          <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 8px' }}>Google Calendar não conectado</h3>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '0 0 24px', maxWidth: 400, marginInline: 'auto', lineHeight: 1.6 }}>
+            Conecte seu Google Calendar para visualizar suas reuniões e obter análises de IA sobre objeções e ciclos de venda.
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+            onClick={() => window.dispatchEvent(new CustomEvent('northie:navigate', { detail: 'app-store' }))}
+            style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, padding: '10px 24px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary)', color: 'white', border: 'none', cursor: 'pointer' }}
+          >
+            Conectar Google Calendar
+          </motion.button>
+        </SectionCard>
+      </motion.div>
+    )
+  }
+
+  if (meetings.length === 0) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <SectionCard style={{ padding: '48px 32px', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0 }}>
+            Nenhuma reunião encontrada nos últimos 90 dias.
+          </p>
+        </SectionCard>
+      </motion.div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {MOCK_REUNIOES.map((r, i) => (
-        <motion.div
-          key={r.id}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: i * 0.05 }}
-        >
-          <SectionCard>
-            {/* Header */}
-            <div
-              onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', cursor: 'pointer' }}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>{r.lead}</span>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>·</span>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{r.company}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {r.tags.map(tag => (
-                    <span key={tag} style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>{tag}</span>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0 }}>{r.date} · {r.duration}</p>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, margin: 0, color: r.result === 'Fechado' ? 'var(--status-complete)' : r.result === 'Perdido' ? 'var(--accent-red)' : 'var(--accent-orange)' }}>{r.result}{r.value > 0 ? ` · ${fmtBRL(r.value)}` : ''}</p>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)', transform: expanded === r.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Expanded */}
-            {expanded === r.id && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2 }}
-                style={{ borderTop: '1px solid var(--color-border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}
+      {meetings.map((r, i) => {
+        const attendeeNames = r.attendees?.filter(a => !a.organizer).map(a => a.name || a.email).join(', ')
+        return (
+          <motion.div
+            key={r.id}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.05 }}
+          >
+            <SectionCard>
+              <div
+                onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', cursor: 'pointer' }}
               >
-                <div>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Resumo da IA</p>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>{r.summary}</p>
-                </div>
-                {r.objections.length > 0 && (
-                  <div>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Objeções levantadas</p>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {r.objections.map(obj => (
-                        <span key={obj} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--priority-high-bg)', color: 'var(--accent-red)' }}>{obj}</span>
-                      ))}
-                    </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>{r.title}</span>
                   </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {(r.ai_tags || []).map(tag => (
+                      <span key={tag} style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>{tag}</span>
+                    ))}
+                    {attendeeNames && (
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>{attendeeNames}</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 24, alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+                      {r.started_at ? fmtDate(r.started_at) : '—'} · {r.duration_minutes ? `${r.duration_minutes}min` : '—'}
+                    </p>
+                    {r.ai_result && (
+                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, margin: 0, color: resultColor(r.ai_result) }}>
+                        {resultLabel(r.ai_result)}
+                      </p>
+                    )}
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-tertiary)', transform: expanded === r.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+              </div>
+
+              <AnimatePresence>
+                {expanded === r.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ borderTop: '1px solid var(--color-border)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, overflow: 'hidden' }}
+                  >
+                    {r.ai_summary && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Resumo da IA</p>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: 0 }}>{r.ai_summary}</p>
+                      </div>
+                    )}
+                    {r.ai_cycle_signal && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Ciclo de Decisão</p>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0 }}>{r.ai_cycle_signal}</p>
+                      </div>
+                    )}
+                    {(r.ai_objections || []).length > 0 && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>Objeções levantadas</p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {r.ai_objections.map(obj => (
+                            <span key={obj} style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 500, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--priority-high-bg)', color: 'var(--accent-red)' }}>{obj}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {r.meet_link && (
+                      <a href={r.meet_link} target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-primary)', textDecoration: 'none' }}>
+                        Abrir no Google Meet →
+                      </a>
+                    )}
+                  </motion.div>
                 )}
-              </motion.div>
-            )}
-          </SectionCard>
-        </motion.div>
-      ))}
+              </AnimatePresence>
+            </SectionCard>
+          </motion.div>
+        )
+      })}
     </div>
   )
 }
 
 // ── Insights View ─────────────────────────────────────────────────────────────
 
+const INSIGHT_COLORS = ['var(--accent-orange)', 'var(--status-complete)', 'var(--accent-red)', 'var(--accent-blue)']
+
 function InsightsView() {
+  const [insights, setInsights] = useState<Insight[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    calendarApi.getInsights()
+      .then(res => setInsights(res.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {[1,2,3,4].map(i => (
+          <motion.div key={i} initial={{ opacity: 0 }} animate={{ opacity: [0.4, 0.7, 0.4] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.1 }}>
+            <SectionCard style={{ height: 160 }} />
+          </motion.div>
+        ))}
+      </div>
+    )
+  }
+
+  if (insights.length === 0) {
+    return (
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+        <SectionCard style={{ padding: '48px 32px', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0 }}>
+            Insights serão gerados após a sincronização de reuniões do Google Calendar.
+          </p>
+        </SectionCard>
+      </motion.div>
+    )
+  }
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-      {MOCK_INSIGHTS.map((insight, i) => (
+      {insights.map((insight, i) => (
         <motion.div
-          key={insight.id}
+          key={i}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: i * 0.07 }}
         >
           <SectionCard style={{ padding: '20px 24px', height: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-              <div style={{ width: 4, height: 40, borderRadius: 2, background: insight.color, flexShrink: 0, marginTop: 2 }} />
+              <div style={{ width: 4, height: 40, borderRadius: 2, background: INSIGHT_COLORS[i % INSIGHT_COLORS.length], flexShrink: 0, marginTop: 2 }} />
               <div>
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{insight.type}</span>
                 <h3 style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 600, color: 'var(--color-text-primary)', margin: '4px 0 0', lineHeight: 1.3 }}>{insight.title}</h3>
