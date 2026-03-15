@@ -56,36 +56,6 @@ const MOCK_REUNIOES = [
   },
 ]
 
-const MOCK_INSIGHTS = [
-  {
-    id: 1, title: 'Objeção de preço em 60% dos leads de alto ticket',
-    type: 'Padrão de Objeção',
-    color: 'var(--accent-orange)',
-    body: 'Leads com ticket acima de R$5k levantam objeção de preço em 3 de cada 5 reuniões. Mas quando o ROI histórico é apresentado nos primeiros 15 min, a taxa de fechamento sobe 40%.',
-    action: 'Antecipar o ROI na apresentação para deals acima de R$5k',
-  },
-  {
-    id: 2, title: 'Ciclo médio de indicações é 2.3x menor',
-    type: 'Padrão de Canal',
-    color: 'var(--status-complete)',
-    body: 'Leads vindos por indicação fecham em 9 dias em média vs 21 dias via formulário. Eles chegam com intenção mais alta e raramente pedem desconto.',
-    action: 'Criar programa de indicação estruturado com incentivo para clientes ativos',
-  },
-  {
-    id: 3, title: 'Reuniões acima de 50 min têm 70% menos conversão',
-    type: 'Padrão de Reunião',
-    color: 'var(--accent-red)',
-    body: 'Reuniões que ultrapassam 50 minutos tendem a indicar perda de foco ou múltiplas objeções não resolvidas. As reuniões que fecham duram entre 30 e 45 minutos.',
-    action: 'Estabelecer agenda de 40 min com checkpoint de decisão aos 30 min',
-  },
-  {
-    id: 4, title: 'Segunda-feira às 14h é o horário de maior taxa de fechamento',
-    type: 'Padrão de Timing',
-    color: 'var(--accent-blue)',
-    body: '3 dos 5 fechamentos aconteceram em reuniões iniciadas segunda-feira entre 14h e 16h. Sexta após as 15h tem 0% de conversão até agora.',
-    action: 'Priorizar slots de segunda à tarde para demos e reuniões de fechamento',
-  },
-]
 
 const fmtBRL = (n: number) => `R$ ${new Intl.NumberFormat('pt-BR').format(n)}`
 
@@ -107,7 +77,7 @@ const STAGE_BG: Record<string, string> = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+function SectionCard({ children, style }: { children?: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
       background: 'var(--color-bg-primary)',

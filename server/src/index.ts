@@ -29,11 +29,15 @@ import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import alertsRoutes from './routes/alerts.routes.js';
+// @ts-ignore — plain JS modules without .d.ts (compiled separately)
 import whatsappRoutes from './routes/whatsapp.routes.js';
+// @ts-ignore
 import calendarRoutes from './routes/calendar.routes.js';
+// @ts-ignore
 import comunidadeRoutes from './routes/comunidade.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
+// @ts-ignore
 import { startCalendarSyncJob } from './jobs/calendar-sync.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
