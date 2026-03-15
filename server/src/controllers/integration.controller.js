@@ -9,7 +9,6 @@ import { runMetaLeadAttribution } from '../jobs/meta-lead-attribution.job.js';
 import { runRfmForAllProfiles } from '../jobs/rfm-calc.job.js';
 import { runSafetyNet } from '../jobs/safety-net.job.js';
 import { runCapitalScoreForAllProfiles } from '../jobs/capital-score.job.js';
-import { runValuationForAllProfiles } from '../jobs/valuation-calc.job.js';
 import { runGrowthCorrelationsForAllProfiles } from '../jobs/growth-correlations.job.js';
 import { refreshCorrelationViews } from '../jobs/correlation-refresh.job.js';
 import { checkAndRefreshAll } from '../jobs/token-refresh.job.js';
@@ -513,7 +512,6 @@ export async function cronSync(req, res) {
         await runRfmForAllProfiles().catch(e => console.error('[cronSync] rfm:', e.message));
         await runSafetyNet().catch(e => console.error('[cronSync] safety-net:', e.message));
         await runCapitalScoreForAllProfiles().catch(e => console.error('[cronSync] capital:', e.message));
-        await runValuationForAllProfiles().catch(e => console.error('[cronSync] valuation:', e.message));
         // Fase 3: correlações (após RFM)
         await refreshCorrelationViews().catch(e => console.error('[cronSync] views:', e.message));
         await runGrowthCorrelationsForAllProfiles().catch(e => console.error('[cronSync] growth:', e.message));
