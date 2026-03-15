@@ -677,11 +677,22 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
     const [copiedPixel, setCopiedPixel] = useState(false)
     const copyPixelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+    interface PixelStats {
+        total_visits: number
+        unique_visitors: number
+        visits_last_7_days: number
+        top_sources: { source: string; count: number }[]
+    }
+    const [pixelStats, setPixelStats] = useState<PixelStats | null>(null)
+
     useEffect(() => {
         if (plugin.id !== 'northie-pixel') return
         pixelApi.getSnippet()
             .then(({ data }) => setPixelSnippet(data.snippet))
             .catch(() => setPixelSnippet(null))
+        pixelApi.getStats()
+            .then(({ data }) => setPixelStats(data.data))
+            .catch(() => setPixelStats(null))
     }, [plugin.id])
 
     const handleCopyPixel = () => {
@@ -974,6 +985,68 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
                                     </ul>
                                 </div>
                             </div>
+                        )}
+
+                        {plugin.id === 'northie-pixel' && pixelStats && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                                style={{ marginTop: 40 }}
+                            >
+                                <SectionLabel gutterBottom={12}>Rastreamento ativo</SectionLabel>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+                                    {[
+                                        { label: 'Total de visitas', value: pixelStats.total_visits.toLocaleString('pt-BR') },
+                                        { label: 'Visitantes únicos', value: pixelStats.unique_visitors.toLocaleString('pt-BR') },
+                                        { label: 'Últimos 7 dias', value: pixelStats.visits_last_7_days.toLocaleString('pt-BR') },
+                                    ].map((stat) => (
+                                        <div key={stat.label} style={{
+                                            background: 'var(--color-bg-secondary)',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 'var(--radius-lg)',
+                                            padding: '16px 20px',
+                                        }}>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginBottom: 6, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                                {stat.label}
+                                            </p>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+                                                {stat.value}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                                {pixelStats.top_sources.length > 0 && (
+                                    <div>
+                                        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 10 }}>
+                                            Top fontes de tráfego
+                                        </p>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                            {pixelStats.top_sources.map((s) => {
+                                                const pct = pixelStats.total_visits > 0 ? Math.round((s.count / pixelStats.total_visits) * 100) : 0
+                                                return (
+                                                    <div key={s.source} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', minWidth: 100 }}>
+                                                            {s.source}
+                                                        </span>
+                                                        <div style={{ flex: 1, background: 'var(--color-border)', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+                                                            <motion.div
+                                                                initial={{ width: 0 }}
+                                                                animate={{ width: `${pct}%` }}
+                                                                transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+                                                                style={{ height: '100%', background: 'var(--color-brand)', borderRadius: 99 }}
+                                                            />
+                                                        </div>
+                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', minWidth: 40, textAlign: 'right' }}>
+                                                            {pct}%
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
                         )}
 
                         {plugin.id === 'northie-pixel' && (

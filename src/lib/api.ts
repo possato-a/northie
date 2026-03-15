@@ -79,6 +79,7 @@ export const growthApi = {
 
 export const pixelApi = {
     getSnippet: () => api.get('/pixel/snippet'),
+    getStats: () => api.get('/pixel/stats'),
 };
 
 export const reportsApi = {
