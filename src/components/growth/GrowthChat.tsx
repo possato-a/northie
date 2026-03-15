@@ -20,10 +20,28 @@ interface ConvItem {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const AGENT_ICONS: Record<string, string> = {
+  orchestrator: '🧠', anomalies: '🚨', forecast: '🔮', correlations: '🔗',
+  health: '🏥', roas: '📈', cac: '🎯', audience: '👥', creatives: '🖼️',
+  ltv: '💎', mrr: '📦', upsell: '⚡', margin: '💸', churn: '🔄',
+  rfm: '🗂️', cohort: '📅', reactivation: '🔁', ecommerce: '🛒',
+  email: '📧', pipeline: '📆', whatsapp: '💬', nps: '🌟',
+  engagement: '🎓', valuation: '📊',
+}
+
+const PINNED_AGENTS = [
+  { id: 'orchestrator', icon: '🧠', name: 'Northie Growth' },
+  { id: 'anomalies',    icon: '🚨', name: 'Anomalias' },
+  { id: 'churn',        icon: '🔄', name: 'Churn' },
+  { id: 'forecast',     icon: '🔮', name: 'Forecast' },
+]
+
 const GROWTH_CHIPS = ['Analisar canais de aquisição', 'Quais clientes estão em risco?', 'Qual campanha tem melhor LTV?']
 
 const getAgentLabel = (id: string) => AGENT_BY_ID[id]?.name ?? 'Northie AI'
 const getAgentChips = (id: string) => AGENT_BY_ID[id]?.quickSuggestions ?? GROWTH_CHIPS
+const getAgentSources = (id: string) => AGENT_BY_ID[id]?.sources.slice(0, 3).join(' · ') ?? ''
+const getAgentIcon = (id: string) => AGENT_ICONS[id] ?? '🤖'
 
 // ── Local components ──────────────────────────────────────────────────────────
 
@@ -75,10 +93,12 @@ export default function GrowthChat() {
   const [copied, setCopied] = useState<string | null>(null)
   const [atBottom, setAtBottom] = useState(true)
   const [convList, setConvList] = useState<ConvItem[]>([])
+  const [showHome, setShowHome] = useState(true)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const emptyTextareaRef = useRef<HTMLTextAreaElement>(null)
   const activeTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const pendingMsgRef = useRef<string | null>(null)
   const hasMessages = messages.length > 0
 
   // Track last assistant message for typewriter
@@ -96,6 +116,15 @@ export default function GrowthChat() {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
     }
   }, [messages, isLoading])
+
+  // Send pending initial message once conversation is ready
+  useEffect(() => {
+    if (agentId && conversationId && pendingMsgRef.current) {
+      const msg = pendingMsgRef.current
+      pendingMsgRef.current = null
+      sendMessage(msg)
+    }
+  }, [agentId, conversationId, sendMessage])
 
   // Load conversation list
   useEffect(() => {
@@ -135,22 +164,42 @@ export default function GrowthChat() {
     await sendMessage(txt)
   }
 
-  const handleCopy = (id: string, content: string) => {
-    navigator.clipboard.writeText(content)
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
+  const handleSelectAgent = async (selectedAgentId: string, initialMsg?: string) => {
+    if (initialMsg) pendingMsgRef.current = initialMsg
+    await startConversation(selectedAgentId)
+    setShowHome(false)
+  }
+
+  const handleBack = () => {
+    setShowHome(true)
   }
 
   const handleNewConversation = () => {
     reset()
     setInput('')
     setAnimatingId(null)
+    pendingMsgRef.current = null
+    setShowHome(true)
+  }
+
+  const handleLoadConversation = (convId: string) => {
+    loadConversation(convId)
+    setShowHome(false)
+  }
+
+  const handleCopy = (id: string, content: string) => {
+    navigator.clipboard.writeText(content)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
   }
 
   const activeChips = agentId ? getAgentChips(agentId) : GROWTH_CHIPS
   const activeLabel = agentId ? getAgentLabel(agentId) : 'Northie AI'
+  const activeIcon = agentId ? getAgentIcon(agentId) : '🧠'
+  const activeSources = agentId ? getAgentSources(agentId) : ''
 
-  // ── Shared input toolbar renderer
+  // ── Shared input toolbar renderer ─────────────────────────────────────────
+
   const renderInputBox = (ref: React.RefObject<HTMLTextAreaElement>, placeholder: string) => (
     <div style={{
       background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
@@ -242,7 +291,7 @@ export default function GrowthChat() {
         </div>
 
         {/* Recentes */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px 12px', scrollbarWidth: 'none' as any }}>
+        <div style={{ overflowY: 'auto', padding: '4px 8px 8px', scrollbarWidth: 'none' as any }}>
           <p style={{
             fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 400,
             color: 'var(--color-text-tertiary)', letterSpacing: '0.06em',
@@ -253,8 +302,7 @@ export default function GrowthChat() {
           {convList.length === 0 ? (
             <p style={{
               fontFamily: 'var(--font-sans)', fontSize: 11,
-              color: 'var(--color-text-tertiary)', padding: '4px 4px',
-              margin: 0,
+              color: 'var(--color-text-tertiary)', padding: '4px 4px', margin: 0,
             }}>
               Nenhuma conversa ainda
             </p>
@@ -263,17 +311,17 @@ export default function GrowthChat() {
               <motion.button
                 key={conv.id}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => loadConversation(conv.id)}
+                onClick={() => handleLoadConversation(conv.id)}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 6,
                   padding: '7px 8px', borderRadius: 'var(--radius-sm)', border: 'none',
-                  background: conversationId === conv.id ? 'var(--color-bg-primary)' : 'transparent',
+                  background: !showHome && conversationId === conv.id ? 'var(--color-bg-primary)' : 'transparent',
                   cursor: 'pointer', textAlign: 'left' as const,
                 }}
               >
                 <span style={{
                   fontFamily: 'var(--font-sans)', fontSize: 12,
-                  color: conversationId === conv.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                  color: !showHome && conversationId === conv.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, lineHeight: 1.4,
                 }}>
                   {conv.title ?? getAgentLabel(conv.agent_id)}
@@ -283,25 +331,63 @@ export default function GrowthChat() {
           )}
         </div>
 
+        {/* ── Agentes fixos ── */}
+        <div style={{ padding: '8px 8px 4px', borderTop: '1px solid var(--color-border)' }}>
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 400,
+            color: 'var(--color-text-tertiary)', letterSpacing: '0.06em',
+            textTransform: 'uppercase' as const, margin: '0 0 4px', padding: '0 4px',
+          }}>
+            Agentes
+          </p>
+          {PINNED_AGENTS.map(agent => {
+            const isActive = !showHome && agentId === agent.id
+            return (
+              <motion.button
+                key={agent.id}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handleSelectAgent(agent.id)}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: 'none',
+                  background: isActive ? 'var(--color-bg-primary)' : 'transparent',
+                  cursor: 'pointer', textAlign: 'left' as const,
+                }}
+              >
+                <span style={{ fontSize: 13, flexShrink: 0 }}>{agent.icon}</span>
+                <span style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 12,
+                  color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                  fontWeight: isActive ? 500 : 400,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                }}>
+                  {agent.name}
+                </span>
+              </motion.button>
+            )
+          })}
+        </div>
+
         {/* Footer */}
         <div style={{
           padding: '10px 12px 14px', borderTop: '1px solid var(--color-border)',
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto',
         }}>
           <div style={{
             width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-            background: 'var(--color-border)',
+            background: agentId && !showHome ? 'var(--color-primary)' : 'var(--color-border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600,
-            color: 'var(--color-text-secondary)',
-          }}>N</div>
+            fontSize: 13,
+          }}>
+            {agentId && !showHome ? getAgentIcon(agentId) : 'N'}
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{
               fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
               color: 'var(--color-text-primary)', margin: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {agentId ? getAgentLabel(agentId) : 'Northie AI'}
+              {agentId && !showHome ? getAgentLabel(agentId) : 'Northie AI'}
             </p>
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', margin: 0 }}>
               {MODEL_LABELS[model]}
@@ -312,67 +398,112 @@ export default function GrowthChat() {
 
       {/* ── Main area ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--color-bg-primary)' }}>
-        {!agentId ? (
+        {showHome ? (
 
-          /* ── AGENT SELECTION ── */
-          <AgentSelector onSelect={startConversation} />
+          /* ── TELA INICIAL ── */
+          <AgentSelector onSelect={handleSelectAgent} />
 
         ) : !hasMessages ? (
 
-          /* ── EMPTY STATE (agent selected, no messages yet) ── */
-          <div style={{
-            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', padding: '0 32px 60px', overflow: 'hidden',
-          }}>
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 560 }}
-            >
-              <div style={{ width: 36, height: 36, marginBottom: 18, opacity: 0.35 }}>
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L14.09 8.26L20 9.27L16 13.14L17.18 19.02L12 16.02L6.82 19.02L8 13.14L4 9.27L9.91 8.26L12 2Z"
-                    stroke="var(--color-text-secondary)" strokeWidth="1.5" strokeLinejoin="round"/>
+          /* ── AGENTE SELECIONADO, SEM MENSAGENS ── */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+            {/* Header com voltar */}
+            <div style={{
+              height: 48, flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '0 20px', borderBottom: '1px solid var(--color-border)',
+            }}>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={handleBack}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 10px', background: 'transparent',
+                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11,
+                  color: 'var(--color-text-secondary)', flexShrink: 0,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-              </div>
-              <h2 style={{
-                fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500,
-                letterSpacing: '-0.4px', color: 'var(--color-text-primary)',
-                margin: '0 0 6px', textAlign: 'center',
-              }}>
-                {activeLabel}
-              </h2>
-              <p style={{
-                fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)',
-                margin: '0 0 24px', textAlign: 'center', lineHeight: 1.5,
-              }}>
-                Como posso ajudar você hoje?
-              </p>
+                Voltar
+              </motion.button>
+              {agentId && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>{activeIcon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{
+                      fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+                      color: 'var(--color-text-primary)', margin: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {activeLabel}
+                    </p>
+                    {activeSources && (
+                      <p style={{
+                        fontFamily: 'var(--font-sans)', fontSize: 10,
+                        color: 'var(--color-text-tertiary)', margin: 0,
+                      }}>
+                        {activeSources}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
-              <div style={{ width: '100%', marginBottom: 14 }}>
-                {renderInputBox(emptyTextareaRef, 'Como posso ajudar você hoje?')}
-              </div>
+            {/* Empty state centrado */}
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', padding: '0 32px 60px', overflow: 'hidden',
+            }}>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 560 }}
+              >
+                <span style={{ fontSize: 32, marginBottom: 14, opacity: 0.7 }}>{activeIcon}</span>
+                <h2 style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 20, fontWeight: 500,
+                  letterSpacing: '-0.4px', color: 'var(--color-text-primary)',
+                  margin: '0 0 6px', textAlign: 'center',
+                }}>
+                  {activeLabel}
+                </h2>
+                <p style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)',
+                  margin: '0 0 24px', textAlign: 'center', lineHeight: 1.5,
+                }}>
+                  {agentId ? (AGENT_BY_ID[agentId]?.description ?? 'Como posso ajudar?') : 'Como posso ajudar você hoje?'}
+                </p>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                {activeChips.map(chip => (
-                  <motion.button
-                    key={chip}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => handleSend(chip)}
-                    style={{
-                      padding: '6px 14px',
-                      background: 'transparent', border: '1px solid var(--color-border)',
-                      borderRadius: 20, cursor: 'pointer',
-                      fontFamily: 'var(--font-sans)', fontSize: 12,
-                      color: 'var(--color-text-secondary)',
-                    }}
-                  >
-                    {chip}
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
+                <div style={{ width: '100%', marginBottom: 14 }}>
+                  {renderInputBox(emptyTextareaRef, `Pergunte ao ${activeLabel}...`)}
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                  {activeChips.map(chip => (
+                    <motion.button
+                      key={chip}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => handleSend(chip)}
+                      style={{
+                        padding: '6px 14px',
+                        background: 'transparent', border: '1px solid var(--color-border)',
+                        borderRadius: 20, cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)', fontSize: 12,
+                        color: 'var(--color-text-secondary)',
+                      }}
+                    >
+                      {chip}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
           </div>
 
         ) : (
@@ -383,18 +514,45 @@ export default function GrowthChat() {
             {/* Header da conversa */}
             <div style={{
               height: 48, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '0 24px', borderBottom: '1px solid var(--color-border)',
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '0 20px', borderBottom: '1px solid var(--color-border)',
               background: 'var(--color-bg-primary)',
             }}>
-              <p style={{
-                fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
-                color: 'var(--color-text-primary)', margin: 0,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-              }}>
-                {messages.find(m => m.role === 'user')?.content.slice(0, 52) || 'Nova conversa'}
-                {(messages.find(m => m.role === 'user')?.content.length ?? 0) > 52 ? '...' : ''}
-              </p>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={handleBack}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 10px', background: 'transparent',
+                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11,
+                  color: 'var(--color-text-secondary)', flexShrink: 0,
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M8 1L3 6L8 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Voltar
+              </motion.button>
+
+              {agentId && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>{activeIcon}</span>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+                    color: 'var(--color-text-primary)', margin: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                  }}>
+                    {activeLabel}
+                    {activeSources && (
+                      <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 8 }}>
+                        {activeSources}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
+
               <motion.button
                 whileTap={{ scale: 0.96 }}
                 onClick={handleNewConversation}
@@ -403,7 +561,7 @@ export default function GrowthChat() {
                   padding: '5px 10px', background: 'transparent',
                   border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11,
-                  color: 'var(--color-text-secondary)', flexShrink: 0, marginLeft: 12,
+                  color: 'var(--color-text-secondary)', flexShrink: 0,
                 }}
               >
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -538,7 +696,7 @@ export default function GrowthChat() {
               background: 'var(--color-bg-primary)', flexShrink: 0,
             }}>
               <div style={{ maxWidth: 640, margin: '0 auto' }}>
-                {renderInputBox(activeTextareaRef, 'Responder...')}
+                {renderInputBox(activeTextareaRef, `Pergunte ao ${activeLabel}...`)}
                 <p style={{
                   fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)',
                   textAlign: 'center' as const, margin: '7px 0 0',

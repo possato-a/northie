@@ -1,194 +1,317 @@
+import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { AGENT_GROUPS, AgentInfo } from '../../constants/agentDefinitions'
+import { AGENT_BY_ID } from '../../constants/agentDefinitions'
 
-interface AgentSelectorProps {
-  onSelect: (agentId: string) => void
+// ── Icon map ──────────────────────────────────────────────────────────────────
+
+const AGENT_ICONS: Record<string, string> = {
+  orchestrator: '🧠',
+  anomalies:    '🚨',
+  forecast:     '🔮',
+  correlations: '🔗',
+  health:       '🏥',
+  roas:         '📈',
+  cac:          '🎯',
+  audience:     '👥',
+  creatives:    '🖼️',
+  ltv:          '💎',
+  mrr:          '📦',
+  upsell:       '⚡',
+  margin:       '💸',
+  churn:        '🔄',
+  rfm:          '🗂️',
+  cohort:       '📅',
+  reactivation: '🔁',
+  ecommerce:    '🛒',
+  email:        '📧',
+  pipeline:     '📆',
+  whatsapp:     '💬',
+  nps:          '🌟',
+  engagement:   '🎓',
+  valuation:    '📊',
 }
 
-const GROUP_ORDER = [
-  'Orquestrador',
-  'Aquisição & Mídia Paga',
-  'Financeiro & Receita',
-  'Retenção & Comportamento',
-  'Produto & Operações',
-  'Relacionamento & CX',
-  'Valuation & Saúde',
-  'Inteligência Avançada',
+// ── Groups config ──────────────────────────────────────────────────────────────
+
+const ADVANCED_IDS = ['anomalies', 'forecast', 'correlations', 'health']
+
+const GROUPS = [
+  { label: 'Aquisição & Mídia',        agents: ['roas', 'cac', 'audience', 'creatives'] },
+  { label: 'Financeiro & Receita',     agents: ['ltv', 'mrr', 'upsell', 'margin'] },
+  { label: 'Retenção & Comportamento', agents: ['churn', 'rfm', 'cohort', 'reactivation'] },
+  { label: 'Produto & Operações',      agents: ['ecommerce', 'email', 'pipeline'] },
+  { label: 'Relacionamento & CX',      agents: ['whatsapp', 'nps', 'engagement'] },
+  { label: 'Valuation & Saúde',        agents: ['valuation', 'health'] },
 ]
 
-const PROACTIVE_AGENTS = new Set(['anomalies'])
+const ORCHESTRATOR_CHIPS = [
+  'Como está a saúde do negócio?',
+  'Onde estou perdendo mais dinheiro?',
+  'Quais são as 3 maiores oportunidades?',
+  'O que priorizar essa semana?',
+]
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+
+interface AgentSelectorProps {
+  onSelect: (agentId: string, initialMessage?: string) => void
+}
+
+// ── Agent card ────────────────────────────────────────────────────────────────
+
+function AgentCard({ agentId, onSelect, isAlert }: {
+  agentId: string
+  onSelect: (id: string) => void
+  isAlert?: boolean
+}) {
+  const agent = AGENT_BY_ID[agentId]
+  if (!agent) return null
+  const icon = AGENT_ICONS[agentId] ?? '🤖'
+  const sources = agent.sources.slice(0, 2).join(' · ')
+
+  return (
+    <motion.button
+      whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
+      whileTap={{ scale: 0.97 }}
+      onClick={() => onSelect(agentId)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 5,
+        padding: '12px 14px',
+        background: isAlert
+          ? 'color-mix(in srgb, #EF4444 5%, var(--color-bg-primary))'
+          : 'var(--color-bg-primary)',
+        border: isAlert
+          ? '1px solid color-mix(in srgb, #EF4444 30%, var(--color-border))'
+          : '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        cursor: 'pointer',
+        textAlign: 'left',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 14 }}>{icon}</span>
+        {isAlert && (
+          <motion.span
+            animate={{ opacity: [1, 0.25, 1] }}
+            transition={{ duration: 1.6, repeat: Infinity }}
+            style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: '#EF4444', display: 'inline-block', flexShrink: 0,
+            }}
+          />
+        )}
+      </div>
+      <span style={{
+        fontFamily: 'var(--font-sans)',
+        fontSize: 11, fontWeight: 500,
+        color: isAlert ? '#DC2626' : 'var(--color-text-primary)',
+        lineHeight: 1.3,
+      }}>
+        {agent.name}
+      </span>
+      {sources && (
+        <span style={{
+          fontFamily: 'var(--font-sans)',
+          fontSize: 10,
+          color: 'var(--color-text-tertiary)',
+          lineHeight: 1.3,
+        }}>
+          {sources}
+        </span>
+      )}
+    </motion.button>
+  )
+}
+
+// ── Group header ──────────────────────────────────────────────────────────────
+
+function GroupHeader({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+      <p style={{
+        fontFamily: 'var(--font-sans)',
+        fontSize: 10, fontWeight: 500,
+        color: 'var(--color-text-tertiary)',
+        letterSpacing: '0.07em',
+        textTransform: 'uppercase',
+        margin: 0, whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </p>
+      <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+    </div>
+  )
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 
 export default function AgentSelector({ onSelect }: AgentSelectorProps) {
-  // Build a flat index for staggered entrance delays
-  const allAgents: AgentInfo[] = GROUP_ORDER.flatMap(g => AGENT_GROUPS[g] ?? [])
-  const globalIndex = (agent: AgentInfo) => allAgents.findIndex(a => a.id === agent.id)
+  const [input, setInput] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleOrchestratorSend = (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    onSelect('orchestrator', trimmed)
+  }
+
+  const grid4: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: 10,
+  }
 
   return (
     <div style={{
       flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '32px 32px 32px',
       overflowY: 'auto',
+      padding: '24px 28px 48px',
+      scrollbarWidth: 'thin',
     }}>
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          width: '100%',
-          maxWidth: 820,
-        }}
-      >
-        <h2 style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 22,
-          fontWeight: 500,
-          letterSpacing: '-0.4px',
-          color: 'var(--color-text-primary)',
-          margin: '0 0 6px',
-          textAlign: 'center',
-        }}>
-          Com qual agente você quer conversar?
-        </h2>
-        <p style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 13,
-          color: 'var(--color-text-tertiary)',
-          margin: '0 0 32px',
-          textAlign: 'center',
-          lineHeight: 1.5,
-        }}>
-          Cada agente acessa dados reais da sua conta.
-        </p>
+      <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%' }}>
-          {GROUP_ORDER.map(group => {
-            const agents = AGENT_GROUPS[group]
-            if (!agents || agents.length === 0) return null
-            return (
-              <div key={group}>
-                <p style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: 10,
-                  fontWeight: 400,
-                  color: 'var(--color-text-tertiary)',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  margin: '0 0 10px',
+        {/* ── Orchestrator card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+          style={{
+            padding: '20px 24px',
+            background: 'var(--color-bg-primary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <span style={{ fontSize: 22 }}>🧠</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <span style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500,
+                  color: 'var(--color-text-primary)',
                 }}>
-                  {group}
-                </p>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                  gap: 10,
+                  Northie Growth
+                </span>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 500,
+                  color: '#16A34A',
+                  background: 'color-mix(in srgb, #16A34A 10%, transparent)',
+                  border: '1px solid color-mix(in srgb, #16A34A 25%, transparent)',
+                  borderRadius: 'var(--radius-sm)', padding: '2px 7px',
+                  letterSpacing: '0.04em', textTransform: 'uppercase',
                 }}>
-                  {agents.map(agent => {
-                    const i = globalIndex(agent)
-                    const sourceBadges = agent.sources.slice(0, 2)
-                    return (
-                      <motion.button
-                        key={agent.id}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{
-                          duration: 0.3,
-                          ease: [0.25, 0.1, 0.25, 1],
-                          delay: i * 0.03,
-                        }}
-                        whileHover={{ y: -2, boxShadow: 'var(--shadow-md)' }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => onSelect(agent.id)}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8,
-                          padding: 14,
-                          background: 'var(--color-bg-primary)',
-                          border: '1px solid var(--color-border)',
-                          borderRadius: 'var(--radius-lg)',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
-                          <span style={{
-                            fontFamily: 'var(--font-sans)',
-                            fontSize: 13,
-                            fontWeight: 500,
-                            color: 'var(--color-text-primary)',
-                            lineHeight: 1.3,
-                          }}>
-                            {agent.name}
-                          </span>
-                          {PROACTIVE_AGENTS.has(agent.id) && (
-                            <span style={{
-                              fontFamily: 'var(--font-sans)',
-                              fontSize: 8,
-                              fontWeight: 500,
-                              color: 'var(--color-primary)',
-                              background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)',
-                              border: '1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)',
-                              borderRadius: 3,
-                              padding: '1px 5px',
-                              letterSpacing: '0.06em',
-                              textTransform: 'uppercase',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                            }}>
-                              Proativo
-                            </span>
-                          )}
-                        </div>
-                        <span style={{
-                          fontFamily: 'var(--font-sans)',
-                          fontSize: 11,
-                          color: 'var(--color-text-tertiary)',
-                          lineHeight: 1.4,
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                        }}>
-                          {agent.description}
-                        </span>
-                        {sourceBadges.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
-                            {sourceBadges.map(src => (
-                              <span
-                                key={src}
-                                style={{
-                                  fontFamily: 'var(--font-sans)',
-                                  fontSize: 9,
-                                  color: 'var(--color-text-tertiary)',
-                                  background: 'var(--color-bg-secondary)',
-                                  border: '1px solid var(--color-border)',
-                                  borderRadius: 4,
-                                  padding: '1px 5px',
-                                  lineHeight: 1.6,
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                {src}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </motion.button>
-                    )
-                  })}
-                </div>
+                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
+                  online
+                </span>
               </div>
-            )
-          })}
-        </div>
-      </motion.div>
+              <span style={{
+                fontFamily: 'var(--font-sans)', fontSize: 11,
+                color: 'var(--color-text-tertiary)',
+              }}>
+                Agente orquestrador — acesso a todos os dados
+              </span>
+            </div>
+          </div>
+
+          {/* Input */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'var(--color-bg-secondary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 12, padding: '10px 14px',
+            marginBottom: 12,
+          }}>
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleOrchestratorSend(input) }}
+              placeholder="Pergunte qualquer coisa sobre o negócio..."
+              style={{
+                flex: 1, background: 'none', border: 'none', outline: 'none',
+                fontFamily: 'var(--font-sans)', fontSize: 13,
+                color: 'var(--color-text-primary)',
+              }}
+            />
+            <motion.button
+              whileTap={{ scale: 0.93 }}
+              onClick={() => handleOrchestratorSend(input)}
+              style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: 'var(--color-primary)', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M1 7H13M13 7L7 1M13 7L7 13" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </motion.button>
+          </div>
+
+          {/* Chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {ORCHESTRATOR_CHIPS.map(chip => (
+              <motion.button
+                key={chip}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handleOrchestratorSend(chip)}
+                style={{
+                  padding: '5px 12px',
+                  background: 'transparent',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 20, cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)', fontSize: 12,
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                {chip}
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── Inteligência Avançada (sempre visível, sem colapso) ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
+        >
+          <GroupHeader label="Inteligência Avançada" />
+          <div style={grid4}>
+            {ADVANCED_IDS.map(id => (
+              <AgentCard key={id} agentId={id} onSelect={onSelect} isAlert={id === 'anomalies'} />
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── Outros grupos ── */}
+        {GROUPS.map((group, gi) => (
+          <motion.div
+            key={group.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.08 + gi * 0.04, ease: [0.25, 0.1, 0.25, 1] }}
+          >
+            <GroupHeader label={group.label} />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${Math.min(group.agents.length, 4)}, minmax(0, 1fr))`,
+              gap: 10,
+            }}>
+              {group.agents.map(id => (
+                <AgentCard key={id} agentId={id} onSelect={onSelect} />
+              ))}
+            </div>
+          </motion.div>
+        ))}
+
+      </div>
     </div>
   )
 }
