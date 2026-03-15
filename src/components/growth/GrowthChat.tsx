@@ -1,5 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Brain, AlertTriangle, TrendingUp, GitBranch, HeartPulse,
+  BarChart2, Target, Users, Layers,
+  Gem, DollarSign, Zap, PieChart,
+  AlertCircle, Grid3X3, CalendarDays, RefreshCw,
+  ShoppingCart, Mail, Kanban,
+  MessageCircle, Star, BookOpen,
+  LineChart,
+} from 'lucide-react'
+import type { LucideProps } from 'lucide-react'
 import AgentSelector from './AgentSelector'
 import { useAgentChat } from '../../hooks/useAgentChat'
 import { supabase } from '../../lib/supabase'
@@ -20,20 +30,40 @@ interface ConvItem {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const AGENT_ICONS: Record<string, string> = {
-  orchestrator: '🧠', anomalies: '🚨', forecast: '🔮', correlations: '🔗',
-  health: '🏥', roas: '📈', cac: '🎯', audience: '👥', creatives: '🖼️',
-  ltv: '💎', mrr: '📦', upsell: '⚡', margin: '💸', churn: '🔄',
-  rfm: '🗂️', cohort: '📅', reactivation: '🔁', ecommerce: '🛒',
-  email: '📧', pipeline: '📆', whatsapp: '💬', nps: '🌟',
-  engagement: '🎓', valuation: '📊',
+type LucideIcon = React.ComponentType<LucideProps>
+
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  orchestrator: Brain,
+  anomalies:    AlertTriangle,
+  forecast:     TrendingUp,
+  correlations: GitBranch,
+  health:       HeartPulse,
+  roas:         BarChart2,
+  cac:          Target,
+  audience:     Users,
+  creatives:    Layers,
+  ltv:          Gem,
+  mrr:          DollarSign,
+  upsell:       Zap,
+  margin:       PieChart,
+  churn:        AlertCircle,
+  rfm:          Grid3X3,
+  cohort:       CalendarDays,
+  reactivation: RefreshCw,
+  ecommerce:    ShoppingCart,
+  email:        Mail,
+  pipeline:     Kanban,
+  whatsapp:     MessageCircle,
+  nps:          Star,
+  engagement:   BookOpen,
+  valuation:    LineChart,
 }
 
 const PINNED_AGENTS = [
-  { id: 'orchestrator', icon: '🧠', name: 'Northie Growth' },
-  { id: 'anomalies',    icon: '🚨', name: 'Anomalias' },
-  { id: 'churn',        icon: '🔄', name: 'Churn' },
-  { id: 'forecast',     icon: '🔮', name: 'Forecast' },
+  { id: 'orchestrator', name: 'Northie Growth' },
+  { id: 'anomalies',    name: 'Anomalias' },
+  { id: 'churn',        name: 'Churn' },
+  { id: 'forecast',     name: 'Forecast' },
 ]
 
 const GROWTH_CHIPS = ['Analisar canais de aquisição', 'Quais clientes estão em risco?', 'Qual campanha tem melhor LTV?']
@@ -41,7 +71,7 @@ const GROWTH_CHIPS = ['Analisar canais de aquisição', 'Quais clientes estão e
 const getAgentLabel = (id: string) => AGENT_BY_ID[id]?.name ?? 'Northie AI'
 const getAgentChips = (id: string) => AGENT_BY_ID[id]?.quickSuggestions ?? GROWTH_CHIPS
 const getAgentSources = (id: string) => AGENT_BY_ID[id]?.sources.slice(0, 3).join(' · ') ?? ''
-const getAgentIcon = (id: string) => AGENT_ICONS[id] ?? '🤖'
+const getAgentIcon = (id: string): LucideIcon => AGENT_ICONS[id] ?? Brain
 
 // ── Local components ──────────────────────────────────────────────────────────
 
@@ -195,7 +225,7 @@ export default function GrowthChat() {
 
   const activeChips = agentId ? getAgentChips(agentId) : GROWTH_CHIPS
   const activeLabel = agentId ? getAgentLabel(agentId) : 'Northie AI'
-  const activeIcon = agentId ? getAgentIcon(agentId) : '🧠'
+  const ActiveIcon = agentId ? getAgentIcon(agentId) : Brain
   const activeSources = agentId ? getAgentSources(agentId) : ''
 
   // ── Shared input toolbar renderer ─────────────────────────────────────────
@@ -342,6 +372,7 @@ export default function GrowthChat() {
           </p>
           {PINNED_AGENTS.map(agent => {
             const isActive = !showHome && agentId === agent.id
+            const PinnedIcon = getAgentIcon(agent.id)
             return (
               <motion.button
                 key={agent.id}
@@ -354,7 +385,12 @@ export default function GrowthChat() {
                   cursor: 'pointer', textAlign: 'left' as const,
                 }}
               >
-                <span style={{ fontSize: 13, flexShrink: 0 }}>{agent.icon}</span>
+                <PinnedIcon
+                  size={14}
+                  strokeWidth={1.5}
+                  color={isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)'}
+                  style={{ flexShrink: 0 }}
+                />
                 <span style={{
                   fontFamily: 'var(--font-sans)', fontSize: 12,
                   color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
@@ -377,9 +413,8 @@ export default function GrowthChat() {
             width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
             background: agentId && !showHome ? 'var(--color-primary)' : 'var(--color-border)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13,
           }}>
-            {agentId && !showHome ? getAgentIcon(agentId) : 'N'}
+            {(() => { const I = getAgentIcon(agentId ?? 'orchestrator'); return <I size={13} strokeWidth={1.5} color="white" /> })()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{
@@ -432,7 +467,7 @@ export default function GrowthChat() {
               </motion.button>
               {agentId && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>{activeIcon}</span>
+                  <ActiveIcon size={14} strokeWidth={1.5} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
                   <div style={{ minWidth: 0 }}>
                     <p style={{
                       fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
@@ -465,7 +500,7 @@ export default function GrowthChat() {
                 transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: 560 }}
               >
-                <span style={{ fontSize: 32, marginBottom: 14, opacity: 0.7 }}>{activeIcon}</span>
+                <ActiveIcon size={32} strokeWidth={1.25} color="var(--color-text-secondary)" style={{ marginBottom: 14, opacity: 0.7 }} />
                 <h2 style={{
                   fontFamily: 'var(--font-sans)', fontSize: 20, fontWeight: 500,
                   letterSpacing: '-0.4px', color: 'var(--color-text-primary)',
@@ -537,7 +572,7 @@ export default function GrowthChat() {
 
               {agentId && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>{activeIcon}</span>
+                  <ActiveIcon size={14} strokeWidth={1.5} color="var(--color-text-secondary)" style={{ flexShrink: 0 }} />
                   <p style={{
                     fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
                     color: 'var(--color-text-primary)', margin: 0,

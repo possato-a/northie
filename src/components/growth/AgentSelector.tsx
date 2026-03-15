@@ -1,35 +1,47 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Brain, AlertTriangle, TrendingUp, GitBranch, HeartPulse,
+  BarChart2, Target, Users, Layers,
+  Gem, DollarSign, Zap, PieChart,
+  AlertCircle, Grid3X3, CalendarDays, RefreshCw,
+  ShoppingCart, Mail, Kanban,
+  MessageCircle, Star, BookOpen,
+  LineChart,
+} from 'lucide-react'
+import type { LucideProps } from 'lucide-react'
 import { AGENT_BY_ID } from '../../constants/agentDefinitions'
 import { useWindowWidth, isMobile } from '../../hooks/useWindowWidth'
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
 
-const AGENT_ICONS: Record<string, string> = {
-  orchestrator: '🧠',
-  anomalies:    '🚨',
-  forecast:     '🔮',
-  correlations: '🔗',
-  health:       '🏥',
-  roas:         '📈',
-  cac:          '🎯',
-  audience:     '👥',
-  creatives:    '🖼️',
-  ltv:          '💎',
-  mrr:          '📦',
-  upsell:       '⚡',
-  margin:       '💸',
-  churn:        '🔄',
-  rfm:          '🗂️',
-  cohort:       '📅',
-  reactivation: '🔁',
-  ecommerce:    '🛒',
-  email:        '📧',
-  pipeline:     '📆',
-  whatsapp:     '💬',
-  nps:          '🌟',
-  engagement:   '🎓',
-  valuation:    '📊',
+type LucideIcon = React.ComponentType<LucideProps>
+
+const AGENT_ICONS: Record<string, LucideIcon> = {
+  orchestrator: Brain,
+  anomalies:    AlertTriangle,
+  forecast:     TrendingUp,
+  correlations: GitBranch,
+  health:       HeartPulse,
+  roas:         BarChart2,
+  cac:          Target,
+  audience:     Users,
+  creatives:    Layers,
+  ltv:          Gem,
+  mrr:          DollarSign,
+  upsell:       Zap,
+  margin:       PieChart,
+  churn:        AlertCircle,
+  rfm:          Grid3X3,
+  cohort:       CalendarDays,
+  reactivation: RefreshCw,
+  ecommerce:    ShoppingCart,
+  email:        Mail,
+  pipeline:     Kanban,
+  whatsapp:     MessageCircle,
+  nps:          Star,
+  engagement:   BookOpen,
+  valuation:    LineChart,
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -67,8 +79,9 @@ function AgentCard({ agentId, onSelect, isAlert }: {
 }) {
   const agent = AGENT_BY_ID[agentId]
   if (!agent) return null
-  const icon = AGENT_ICONS[agentId] ?? '🤖'
+  const Icon = AGENT_ICONS[agentId] ?? Brain
   const sources = agent.sources.slice(0, 2).join(' · ')
+  const iconColor = isAlert ? 'var(--color-text-danger, #DC2626)' : 'var(--color-text-secondary)'
 
   return (
     <motion.button
@@ -92,7 +105,7 @@ function AgentCard({ agentId, onSelect, isAlert }: {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 14 }}>{icon}</span>
+        <Icon size={16} color={iconColor} strokeWidth={1.5} />
         {isAlert && (
           <motion.span
             animate={{ opacity: [1, 0.25, 1] }}
@@ -227,7 +240,7 @@ export default function AgentSelector({ onSelectAgent }: AgentSelectorProps) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <span style={{ fontSize: 22 }}>🧠</span>
+            <Brain size={22} color="var(--color-text-primary)" strokeWidth={1.5} />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                 <span style={{
