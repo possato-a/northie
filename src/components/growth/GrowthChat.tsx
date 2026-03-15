@@ -401,7 +401,7 @@ export default function GrowthChat() {
         {showHome ? (
 
           /* ── TELA INICIAL ── */
-          <AgentSelector onSelect={handleSelectAgent} />
+          <AgentSelector onSelectAgent={handleSelectAgent} />
 
         ) : !hasMessages ? (
 

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { AGENT_BY_ID } from '../../constants/agentDefinitions'
 import { useWindowWidth, isMobile } from '../../hooks/useWindowWidth'
 
@@ -32,7 +32,7 @@ const AGENT_ICONS: Record<string, string> = {
   valuation:    '📊',
 }
 
-// ── Groups config ──────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const ADVANCED_IDS = ['anomalies', 'forecast', 'correlations', 'health']
 
@@ -55,7 +55,7 @@ const ORCHESTRATOR_CHIPS = [
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface AgentSelectorProps {
-  onSelect: (agentId: string, initialMessage?: string) => void
+  onSelectAgent: (agentId: string, initialMessage?: string) => void
 }
 
 // ── Agent card ────────────────────────────────────────────────────────────────
@@ -126,9 +126,9 @@ function AgentCard({ agentId, onSelect, isAlert }: {
   )
 }
 
-// ── Group header ──────────────────────────────────────────────────────────────
+// ── Section headers ───────────────────────────────────────────────────────────
 
-function GroupHeader({ label }: { label: string }) {
+function SectionHeader({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
       <p style={{
@@ -146,32 +146,69 @@ function GroupHeader({ label }: { label: string }) {
   )
 }
 
+function CollapsibleHeader({ label, isCollapsed, onToggle }: {
+  label: string
+  isCollapsed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <motion.button
+      onClick={onToggle}
+      whileTap={{ scale: 0.99 }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        width: '100%', background: 'none', border: 'none',
+        cursor: 'pointer', padding: 0, marginBottom: isCollapsed ? 0 : 12,
+      }}
+    >
+      <p style={{
+        fontFamily: 'var(--font-sans)',
+        fontSize: 10, fontWeight: 500,
+        color: 'var(--color-text-tertiary)',
+        letterSpacing: '0.07em',
+        textTransform: 'uppercase',
+        margin: 0, whiteSpace: 'nowrap',
+      }}>
+        {label}
+      </p>
+      <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+      <motion.svg
+        animate={{ rotate: isCollapsed ? -90 : 0 }}
+        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+        width="10" height="10" viewBox="0 0 10 10" fill="none"
+        style={{ flexShrink: 0 }}
+      >
+        <path d="M2 4L5 7L8 4" stroke="var(--color-text-tertiary)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+      </motion.svg>
+    </motion.button>
+  )
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
-export default function AgentSelector({ onSelect }: AgentSelectorProps) {
+export default function AgentSelector({ onSelectAgent }: AgentSelectorProps) {
   const [input, setInput] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const width = useWindowWidth()
   const mobile = isMobile(width)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+
+  const cols = mobile ? 2 : 4
 
   const handleOrchestratorSend = (text: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
-    onSelect('orchestrator', trimmed)
+    onSelectAgent('orchestrator', trimmed)
   }
 
-  const cols = mobile ? 2 : 4
-  const grid4: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-    gap: 10,
-  }
+  const toggleGroup = (label: string) =>
+    setCollapsed(prev => ({ ...prev, [label]: !prev[label] }))
 
   return (
     <div style={{
       flex: 1,
       overflowY: 'auto',
-      padding: '24px 28px 48px',
+      padding: '28px',
       scrollbarWidth: 'thin',
     }}>
       <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -189,7 +226,6 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
             boxShadow: 'var(--shadow-md)',
           }}
         >
-          {/* Header row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
             <span style={{ fontSize: 22 }}>🧠</span>
             <div style={{ flex: 1 }}>
@@ -222,7 +258,6 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
             </div>
           </div>
 
-          {/* Input */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             background: 'var(--color-bg-secondary)',
@@ -258,7 +293,6 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
             </motion.button>
           </div>
 
-          {/* Chips */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {ORCHESTRATOR_CHIPS.map(chip => (
               <motion.button
@@ -280,40 +314,64 @@ export default function AgentSelector({ onSelect }: AgentSelectorProps) {
           </div>
         </motion.div>
 
-        {/* ── Inteligência Avançada (sempre visível, sem colapso) ── */}
+        {/* ── Inteligência Avançada — sempre visível ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.05, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <GroupHeader label="Inteligência Avançada" />
-          <div style={grid4}>
+          <SectionHeader label="Inteligência Avançada" />
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${Math.min(ADVANCED_IDS.length, cols)}, minmax(0, 1fr))`,
+            gap: 8,
+          }}>
             {ADVANCED_IDS.map(id => (
-              <AgentCard key={id} agentId={id} onSelect={onSelect} isAlert={id === 'anomalies'} />
+              <AgentCard key={id} agentId={id} onSelect={onSelectAgent} isAlert={id === 'anomalies'} />
             ))}
           </div>
         </motion.div>
 
-        {/* ── Outros grupos ── */}
-        {GROUPS.map((group, gi) => (
-          <motion.div
-            key={group.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.08 + gi * 0.04, ease: [0.25, 0.1, 0.25, 1] }}
-          >
-            <GroupHeader label={group.label} />
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${Math.min(group.agents.length, cols)}, minmax(0, 1fr))`,
-              gap: 10,
-            }}>
-              {group.agents.map(id => (
-                <AgentCard key={id} agentId={id} onSelect={onSelect} />
-              ))}
-            </div>
-          </motion.div>
-        ))}
+        {/* ── Grupos colapsáveis ── */}
+        {GROUPS.map((group, gi) => {
+          const isCollapsed = !!collapsed[group.label]
+          return (
+            <motion.div
+              key={group.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.08 + gi * 0.04, ease: [0.25, 0.1, 0.25, 1] }}
+            >
+              <CollapsibleHeader
+                label={group.label}
+                isCollapsed={isCollapsed}
+                onToggle={() => toggleGroup(group.label)}
+              />
+              <AnimatePresence initial={false}>
+                {!isCollapsed && (
+                  <motion.div
+                    key="content"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${Math.min(group.agents.length, cols)}, minmax(0, 1fr))`,
+                      gap: 8,
+                    }}>
+                      {group.agents.map(id => (
+                        <AgentCard key={id} agentId={id} onSelect={onSelectAgent} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )
+        })}
 
       </div>
     </div>
