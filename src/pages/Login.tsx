@@ -176,6 +176,26 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
     const [focused, setFocused] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [resetState, setResetState] = useState<'idle' | 'sending' | 'sent'>('idle')
+
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            setError('Digite seu email primeiro para redefinir a senha.')
+            return
+        }
+        setResetState('sending')
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/?reset_password=true`,
+        })
+        if (resetError) {
+            setError(resetError.message)
+            setResetState('idle')
+        } else {
+            setResetState('sent')
+            setError(null)
+            setTimeout(() => setResetState('idle'), 5000)
+        }
+    }
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -315,13 +335,15 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 </div>
 
                 <div style={{ textAlign: 'right', marginTop: -8 }}>
-                    <button type="button" style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
+                    <button type="button" onClick={handleForgotPassword} disabled={resetState === 'sending'} style={{
+                        background: 'none', border: 'none', cursor: resetState === 'sending' ? 'default' : 'pointer',
                         fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                        color: 'var(--color-text-tertiary)',
+                        color: resetState === 'sent' ? 'var(--color-success, #22c55e)' : 'var(--color-text-tertiary)',
                         textDecoration: 'underline', textUnderlineOffset: 3, padding: 0,
+                        opacity: resetState === 'sending' ? 0.6 : 1,
+                        transition: 'color 0.2s, opacity 0.2s',
                     }}>
-                        Esqueceu a senha?
+                        {resetState === 'sending' ? 'Enviando...' : resetState === 'sent' ? 'Email enviado!' : 'Esqueceu a senha?'}
                     </button>
                 </div>
 

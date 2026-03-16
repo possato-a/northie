@@ -160,7 +160,14 @@ export default function TopBar(_props: TopBarProps) {
           onChange={e => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder="Buscar em Northie..."
+          onKeyDown={e => {
+            if (e.key === 'Enter' && query.trim()) {
+              window.dispatchEvent(new CustomEvent('northie:ask', { detail: query.trim() }))
+              setQuery('')
+              ;(e.target as HTMLInputElement).blur()
+            }
+          }}
+          placeholder="Perguntar para a Northie..."
           style={{
             flex: 1,
             border: 'none',

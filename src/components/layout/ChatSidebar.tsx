@@ -137,6 +137,16 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
         }
     }, [messages, isThinking])
 
+    // Listen for search bar queries from TopBar
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const query = (e as CustomEvent<string>).detail
+            if (query) handleSend(query)
+        }
+        window.addEventListener('northie:ask', handler)
+        return () => window.removeEventListener('northie:ask', handler)
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
     const handleSend = async (text?: string) => {
         const messageText = text || input
         if (!messageText.trim()) return
