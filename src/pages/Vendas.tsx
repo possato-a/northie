@@ -8,37 +8,6 @@ import { dashboardApi, dataApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
 import type { Transaction, TransactionStatus } from '../types'
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_TRANSACTIONS: Transaction[] = [
-  { id: '1',  date: '09/03/2026', client: 'Rafael Mendes',     product: 'Método Escrita Avançada', value: 497,  method: 'Pix',    status: 'Pago',        channel: 'Meta Ads' },
-  { id: '2',  date: '09/03/2026', client: 'Ana Paula Costa',   product: 'Mentoria Individual',      value: 1200, method: 'Cartão', status: 'Pago',        channel: 'Google Ads' },
-  { id: '3',  date: '08/03/2026', client: 'Bruno Oliveira',    product: 'Copywriting na Prática',   value: 297,  method: 'Pix',    status: 'Pago',        channel: 'Meta Ads' },
-  { id: '4',  date: '08/03/2026', client: 'Carla Santos',      product: 'Pack Templates Premium',   value: 197,  method: 'Boleto', status: 'Pendente',    channel: 'Direto' },
-  { id: '5',  date: '07/03/2026', client: 'Diego Ferreira',    product: 'Método Escrita Avançada', value: 497,  method: 'Cartão', status: 'Pago',        channel: 'Meta Ads' },
-  { id: '6',  date: '07/03/2026', client: 'Fernanda Lima',     product: 'Acesso Comunidade VIP',   value: 97,   method: 'Pix',    status: 'Pago',        channel: 'Email' },
-  { id: '7',  date: '06/03/2026', client: 'Gabriel Rocha',     product: 'Mentoria Individual',      value: 1200, method: 'Cartão', status: 'Pago',        channel: 'Google Ads' },
-  { id: '8',  date: '06/03/2026', client: 'Helena Martins',    product: 'Copywriting na Prática',   value: 297,  method: 'Pix',    status: 'Reembolsado', channel: 'Meta Ads' },
-  { id: '9',  date: '05/03/2026', client: 'Igor Souza',        product: 'Método Escrita Avançada', value: 497,  method: 'Boleto', status: 'Pago',        channel: 'Meta Ads' },
-  { id: '10', date: '05/03/2026', client: 'Juliana Pereira',   product: 'Pack Templates Premium',   value: 197,  method: 'Pix',    status: 'Pago',        channel: 'Direto' },
-  { id: '11', date: '04/03/2026', client: 'Lucas Almeida',     product: 'Acesso Comunidade VIP',   value: 97,   method: 'Cartão', status: 'Pago',        channel: 'Meta Ads' },
-  { id: '12', date: '04/03/2026', client: 'Marina Castro',     product: 'Método Escrita Avançada', value: 497,  method: 'Pix',    status: 'Pago',        channel: 'Google Ads' },
-  { id: '13', date: '03/03/2026', client: 'Nicolas Barbosa',   product: 'Mentoria Individual',      value: 1200, method: 'Cartão', status: 'Pendente',    channel: 'Google Ads' },
-  { id: '14', date: '03/03/2026', client: 'Olivia Torres',     product: 'Copywriting na Prática',   value: 297,  method: 'Pix',    status: 'Pago',        channel: 'Meta Ads' },
-  { id: '15', date: '02/03/2026', client: 'Paulo Gomes',       product: 'Pack Templates Premium',   value: 197,  method: 'Boleto', status: 'Pago',        channel: 'Direto' },
-  { id: '16', date: '02/03/2026', client: 'Renata Nunes',      product: 'Método Escrita Avançada', value: 497,  method: 'Pix',    status: 'Pago',        channel: 'Meta Ads' },
-  { id: '17', date: '01/03/2026', client: 'Samuel Freitas',    product: 'Acesso Comunidade VIP',   value: 97,   method: 'Cartão', status: 'Reembolsado', channel: 'Email' },
-  { id: '18', date: '01/03/2026', client: 'Tatiane Ramos',     product: 'Copywriting na Prática',   value: 297,  method: 'Pix',    status: 'Pago',        channel: 'Meta Ads' },
-  { id: '19', date: '28/02/2026', client: 'Ubirajara Silva',   product: 'Método Escrita Avançada', value: 497,  method: 'Cartão', status: 'Pago',        channel: 'Google Ads' },
-  { id: '20', date: '28/02/2026', client: 'Vanessa Cardoso',   product: 'Mentoria Individual',      value: 1200, method: 'Pix',    status: 'Pago',        channel: 'Meta Ads' },
-]
-
-const MOCK_STATS = {
-  total_revenue: 8854,
-  average_ticket: 443,
-  convRate: 3.8,
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fadeUp(delay: number) {
@@ -421,8 +390,8 @@ const PAGE_SIZE = 5
 
 export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => void; user?: any }) {
   const [dateRange, setDateRange] = useState<DateRange>(defaultRange)
-  const [transactions, setTransactions] = useState<Transaction[]>(MOCK_TRANSACTIONS)
-  const [stats, setStats] = useState<any>(MOCK_STATS)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [stats, setStats] = useState<{ total_revenue?: number; average_ticket?: number; convRate?: number | null }>({});
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState<TransactionStatus | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
@@ -527,12 +496,60 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
         <KpiCard label="Taxa Conversão" value={stats?.convRate ?? 0} suffix="%" decimals={1} delay={0.23} />
       </motion.div>
 
+      {/* ── Empty state global ── */}
+      <AnimatePresence>
+        {!loading && transactions.length === 0 && (
+          <motion.div
+            key="empty-global"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{ marginBottom: 14 }}
+          >
+            <SectionCard style={{ padding: '48px 32px', textAlign: 'center' }}>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)',
+                color: 'var(--color-text-secondary)', margin: '0 0 6px', fontWeight: 500,
+              }}>
+                Nenhuma transação encontrada neste período.
+              </p>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-tertiary)', margin: '0 0 20px',
+              }}>
+                Conecte suas integrações para importar dados.
+              </p>
+              <motion.button
+                whileHover={{ opacity: 0.85 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => window.dispatchEvent(new CustomEvent('northie:navigate', { detail: 'app-store' }))}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '8px 18px',
+                  background: 'var(--color-text-primary)',
+                  color: 'var(--color-bg-primary)',
+                  border: 'none', borderRadius: 'var(--radius-md)',
+                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                  fontWeight: 500, cursor: 'pointer', letterSpacing: '-0.1px',
+                }}
+              >
+                Conectar integrações
+              </motion.button>
+            </SectionCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Daily Revenue Chart ── */}
-      <motion.div {...fadeUp(0.26)}>
-        <DailyRevenueChart transactions={transactions} />
-      </motion.div>
+      {transactions.length > 0 && (
+        <motion.div {...fadeUp(0.26)}>
+          <DailyRevenueChart transactions={transactions} />
+        </motion.div>
+      )}
 
       {/* ── Two-column layout ── */}
+      {transactions.length > 0 && (
       <motion.div
         {...fadeUp(0.32)}
         style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14 }}
@@ -808,6 +825,7 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
           ))}
         </SectionCard>
       </motion.div>
+      )}
     </div>
   )
 }

@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
-import DateRangePicker, { type DateRange } from '../components/ui/DateRangePicker'
 import CohortHeatmap from '../components/charts/CohortHeatmap'
 import RFMCards from '../components/ui/RFMCards'
 import RFMSegmentDetail from '../components/ui/RFMSegmentDetail'
@@ -19,14 +18,6 @@ function fadeUp(delay: number) {
     animate: { opacity: 1, y: 0 },
     transition: { duration: 0.4, delay, ease: [0.25, 0.1, 0.25, 1] as const },
   }
-}
-
-function defaultRange(): DateRange {
-  const end = new Date()
-  end.setHours(0, 0, 0, 0)
-  const start = new Date(end)
-  start.setDate(start.getDate() - 29)
-  return { start, end, label: 'Últimos 30 dias' }
 }
 
 function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -71,31 +62,6 @@ function mapChannel(raw: string | undefined): AcquisitionChannel {
   if (s === 'stripe') return 'Direto'
   return 'Direto'
 }
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_CLIENTS: ClientUI[] = [
-  { id: '1',  name: 'Rafael Mendes',      channel: 'Meta Ads',      totalSpent: 1491, cac: 87,  ltv: 1491, margin: 94, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '09/03', churnProb: 0.05, purchases: [{ date: '09/03/26', product: 'Método Escrita Avançada', value: 497 }, { date: '02/02/26', product: 'Copywriting na Prática', value: 297 }, { date: '10/01/26', product: 'Pack Templates Premium', value: 697 }] },
-  { id: '2',  name: 'Ana Paula Costa',    channel: 'Google Ads',    totalSpent: 2400, cac: 142, ltv: 2400, margin: 94, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '09/03', churnProb: 0.03, purchases: [{ date: '09/03/26', product: 'Mentoria Individual', value: 1200 }, { date: '15/01/26', product: 'Mentoria Individual', value: 1200 }] },
-  { id: '3',  name: 'Bruno Oliveira',     channel: 'Meta Ads',      totalSpent: 594,  cac: 91,  ltv: 594,  margin: 85, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '08/03', churnProb: 0.22, purchases: [{ date: '08/03/26', product: 'Copywriting na Prática', value: 297 }, { date: '20/02/26', product: 'Acesso Comunidade VIP', value: 297 }] },
-  { id: '4',  name: 'Carla Santos',       channel: 'Direto',        totalSpent: 197,  cac: 0,   ltv: 197,  margin: 70, status: 'Payback',   segment: 'Novos Promissores', lastPurchase: '08/03', churnProb: 0.41, purchases: [{ date: '08/03/26', product: 'Pack Templates Premium', value: 197 }] },
-  { id: '5',  name: 'Diego Ferreira',     channel: 'Meta Ads',      totalSpent: 994,  cac: 87,  ltv: 994,  margin: 91, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '07/03', churnProb: 0.08, purchases: [{ date: '07/03/26', product: 'Método Escrita Avançada', value: 497 }, { date: '14/02/26', product: 'Método Escrita Avançada', value: 497 }] },
-  { id: '6',  name: 'Fernanda Lima',      channel: 'Email',         totalSpent: 194,  cac: 12,  ltv: 194,  margin: 94, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '07/03', churnProb: 0.33, purchases: [{ date: '07/03/26', product: 'Acesso Comunidade VIP', value: 97 }, { date: '10/02/26', product: 'Acesso Comunidade VIP', value: 97 }] },
-  { id: '7',  name: 'Gabriel Rocha',      channel: 'Google Ads',    totalSpent: 3600, cac: 142, ltv: 3600, margin: 96, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '06/03', churnProb: 0.04, purchases: [{ date: '06/03/26', product: 'Mentoria Individual', value: 1200 }, { date: '06/01/26', product: 'Mentoria Individual', value: 1200 }, { date: '06/11/25', product: 'Mentoria Individual', value: 1200 }] },
-  { id: '8',  name: 'Helena Martins',     channel: 'Meta Ads',      totalSpent: 297,  cac: 91,  ltv: 297,  margin: 69, status: 'Payback',   segment: 'Em Risco',          lastPurchase: '06/03', churnProb: 0.67, purchases: [{ date: '06/03/26', product: 'Copywriting na Prática', value: 297 }] },
-  { id: '9',  name: 'Igor Souza',         channel: 'Meta Ads',      totalSpent: 994,  cac: 87,  ltv: 994,  margin: 91, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '05/03', churnProb: 0.11, purchases: [{ date: '05/03/26', product: 'Método Escrita Avançada', value: 497 }, { date: '05/01/26', product: 'Método Escrita Avançada', value: 497 }] },
-  { id: '10', name: 'Juliana Pereira',    channel: 'Direto',        totalSpent: 394,  cac: 0,   ltv: 394,  margin: 70, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '05/03', churnProb: 0.19, purchases: [{ date: '05/03/26', product: 'Pack Templates Premium', value: 197 }, { date: '20/01/26', product: 'Pack Templates Premium', value: 197 }] },
-  { id: '11', name: 'Lucas Almeida',      channel: 'Meta Ads',      totalSpent: 194,  cac: 91,  ltv: 194,  margin: 53, status: 'Payback',   segment: 'Novos Promissores', lastPurchase: '04/03', churnProb: 0.38, purchases: [{ date: '04/03/26', product: 'Acesso Comunidade VIP', value: 97 }, { date: '10/02/26', product: 'Acesso Comunidade VIP', value: 97 }] },
-  { id: '12', name: 'Marina Castro',      channel: 'Google Ads',    totalSpent: 994,  cac: 142, ltv: 994,  margin: 86, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '04/03', churnProb: 0.07, purchases: [{ date: '04/03/26', product: 'Método Escrita Avançada', value: 497 }, { date: '04/01/26', product: 'Método Escrita Avançada', value: 497 }] },
-  { id: '13', name: 'Nicolas Barbosa',    channel: 'Google Ads',    totalSpent: 1200, cac: 142, ltv: 1200, margin: 88, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '03/03', churnProb: 0.27, purchases: [{ date: '03/03/26', product: 'Mentoria Individual', value: 1200 }] },
-  { id: '14', name: 'Olivia Torres',      channel: 'Meta Ads',      totalSpent: 594,  cac: 87,  ltv: 594,  margin: 85, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '03/03', churnProb: 0.20, purchases: [{ date: '03/03/26', product: 'Copywriting na Prática', value: 297 }, { date: '03/01/26', product: 'Copywriting na Prática', value: 297 }] },
-  { id: '15', name: 'Paulo Gomes',        channel: 'Direto',        totalSpent: 591,  cac: 0,   ltv: 591,  margin: 70, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '02/03', churnProb: 0.15, purchases: [{ date: '02/03/26', product: 'Pack Templates Premium', value: 197 }, { date: '02/01/26', product: 'Pack Templates Premium', value: 197 }, { date: '02/11/25', product: 'Pack Templates Premium', value: 197 }] },
-  { id: '16', name: 'Renata Nunes',       channel: 'Meta Ads',      totalSpent: 994,  cac: 87,  ltv: 994,  margin: 91, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '02/03', churnProb: 0.06, purchases: [{ date: '02/03/26', product: 'Método Escrita Avançada', value: 497 }, { date: '02/01/26', product: 'Método Escrita Avançada', value: 497 }] },
-  { id: '17', name: 'Samuel Freitas',     channel: 'Email',         totalSpent: 97,   cac: 12,  ltv: 97,   margin: 88, status: 'Risco',     segment: 'Inativos',          lastPurchase: '01/03', churnProb: 0.78, purchases: [{ date: '01/03/26', product: 'Acesso Comunidade VIP', value: 97 }] },
-  { id: '18', name: 'Tatiane Ramos',      channel: 'Meta Ads',      totalSpent: 594,  cac: 87,  ltv: 594,  margin: 85, status: 'Lucrativo', segment: 'Novos Promissores', lastPurchase: '01/03', churnProb: 0.18, purchases: [{ date: '01/03/26', product: 'Copywriting na Prática', value: 297 }, { date: '01/01/26', product: 'Copywriting na Prática', value: 297 }] },
-  { id: '19', name: 'Ubirajara Silva',    channel: 'Google Ads',    totalSpent: 994,  cac: 142, ltv: 994,  margin: 86, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '28/02', churnProb: 0.09, purchases: [{ date: '28/02/26', product: 'Método Escrita Avançada', value: 497 }, { date: '28/12/25', product: 'Método Escrita Avançada', value: 497 }] },
-  { id: '20', name: 'Vanessa Cardoso',    channel: 'Meta Ads',      totalSpent: 2400, cac: 87,  ltv: 2400, margin: 96, status: 'Lucrativo', segment: 'Champions',        lastPurchase: '28/02', churnProb: 0.04, purchases: [{ date: '28/02/26', product: 'Mentoria Individual', value: 1200 }, { date: '28/12/25', product: 'Mentoria Individual', value: 1200 }] },
-]
 
 // ── Filter Constants ───────────────────────────────────────────────────────────
 
@@ -457,11 +423,11 @@ function ClientList({ clients, loading, onSelect }: { clients: ClientUI[]; loadi
 export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }) {
   const [selectedClient, setSelectedClient] = useState<ClientUI | null>(null)
   const [selectedSegment, setSelectedSegment] = useState<RFMSegment | null>(null)
-  const [clients, setClients] = useState<ClientUI[]>(MOCK_CLIENTS)
-  const [loading, setLoading] = useState(false)
-  const [dateRange, setDateRange] = useState<DateRange>(defaultRange)
+  const [clients, setClients] = useState<ClientUI[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    setLoading(true)
     const custPromise = dataApi.getCustomers().catch(() => ({ data: [] }))
     const attrPromise = dashboardApi.getAttribution().catch(() => ({ data: [] }))
     const txPromise = dataApi.getTransactions(365).catch(() => ({ data: [] }))
@@ -538,23 +504,20 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
       {/* Page header */}
       <motion.div
         {...fadeUp(0)}
-        style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}
+        style={{ marginBottom: 24 }}
       >
-        <div>
-          <h1 style={{
-            fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-3xl)',
-            letterSpacing: '-0.5px', color: 'var(--color-text-primary)', lineHeight: 1.1, margin: '0 0 5px',
-          }}>
-            Clientes
-          </h1>
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)',
-            color: 'var(--color-text-secondary)', margin: 0, letterSpacing: '-0.1px',
-          }}>
-            Acompanhe o ciclo de vida e unit economics da sua base.
-          </p>
-        </div>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <h1 style={{
+          fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 'var(--text-3xl)',
+          letterSpacing: '-0.5px', color: 'var(--color-text-primary)', lineHeight: 1.1, margin: '0 0 5px',
+        }}>
+          Clientes
+        </h1>
+        <p style={{
+          fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)',
+          color: 'var(--color-text-secondary)', margin: 0, letterSpacing: '-0.1px',
+        }}>
+          Acompanhe o ciclo de vida e unit economics da sua base.
+        </p>
       </motion.div>
 
       {/* KPI grid — 4 cards */}
@@ -568,7 +531,53 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
         <KpiCard label="Lucrativos" value={kpis.lucrativos} decimals={0} delay={0.23} />
       </motion.div>
 
+      {/* ── Empty state global ── */}
+      <AnimatePresence>
+        {!loading && clients.length === 0 && (
+          <motion.div
+            key="empty-global"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{ marginBottom: 14 }}
+          >
+            <SectionCard style={{ padding: '48px 32px', textAlign: 'center' }}>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)',
+                color: 'var(--color-text-secondary)', margin: '0 0 6px', fontWeight: 500,
+              }}>
+                Nenhum cliente encontrado.
+              </p>
+              <p style={{
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-tertiary)', margin: '0 0 20px',
+              }}>
+                Conecte suas integrações para importar dados.
+              </p>
+              <motion.button
+                whileHover={{ opacity: 0.85 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => window.dispatchEvent(new CustomEvent('northie:navigate', { detail: 'app-store' }))}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '8px 18px',
+                  background: 'var(--color-text-primary)',
+                  color: 'var(--color-bg-primary)',
+                  border: 'none', borderRadius: 'var(--radius-md)',
+                  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                  fontWeight: 500, cursor: 'pointer', letterSpacing: '-0.1px',
+                }}
+              >
+                Conectar integrações
+              </motion.button>
+            </SectionCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Cohort Heatmap — full width */}
+      {clients.length > 0 && (
       <motion.div {...fadeUp(0.28)} style={{ marginBottom: 14 }}>
         <SectionCard style={{ padding: '20px 24px' }}>
           <div style={{ marginBottom: 16 }}>
@@ -598,7 +607,10 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
           <CohortHeatmap />
         </SectionCard>
       </motion.div>
+      )}
 
+      {clients.length > 0 && (
+      <>
       {/* Two-column: ClientList (left) + RFM Analysis (right) */}
       <motion.div
         {...fadeUp(0.36)}
@@ -636,6 +648,8 @@ export default function Clientes({ onToggleChat }: { onToggleChat?: () => void }
           <RFMCards clients={clients} onSelect={setSelectedSegment} />
         </SectionCard>
       </motion.div>
+      </>
+      )}
 
       {/* Client profile drawer */}
       <AnimatePresence>

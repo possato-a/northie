@@ -91,7 +91,7 @@ function DropZone() {
         color: 'var(--color-text-tertiary)',
         fontStyle: 'italic',
       }}>
-        Upload de arquivos sera disponibilizado em breve
+        Upload de arquivos será disponibilizado em breve
       </div>
     </div>
   )

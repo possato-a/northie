@@ -1,6 +1,6 @@
 /**
  * @file pages/Relatorios/index.tsx
- * Página de Relatórios — preview ao vivo, histórico rico e configuração automática.
+ * Página de Relatórios — geração sob demanda, análise de IA, envio automático e histórico.
  */
 
 import { useState, useEffect } from 'react'
@@ -50,40 +50,6 @@ interface ReportLog {
         diagnosticos_count?: number
         criticos: number
     }
-}
-
-interface ChannelEconomics {
-    channel: string
-    new_customers: number
-    avg_ltv: number
-    cac: number
-    ltv_cac_ratio: number | null
-    total_spend: number
-    value_created: number
-    status: 'lucrativo' | 'prejuizo' | 'organico'
-}
-
-interface PreviewData {
-    period: { start: string; end: string; days: number }
-    summary: {
-        revenue_net: number
-        revenue_gross: number
-        gross_margin_pct: number
-        aov: number
-        ad_spend: number
-        roas: number
-        new_customers: number
-        ltv_avg: number
-        revenue_change_pct: number | null
-        transactions: number
-        total_customers: number
-    }
-    channel_economics: ChannelEconomics[]
-    at_risk_customers: { ltv: number | null }[]
-    revenue_trend?: { revenue: number }[]
-    top_products?: { product: string; revenue: number; transactions: number }[]
-    rfm_distribution?: { segment: string; count: number; avg_ltv: number }[]
-    rfm_source?: string
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -158,27 +124,7 @@ function SegmentedControl<T extends string>({ options, value, onChange, labels }
     )
 }
 
-// ── Sparkline ─────────────────────────────────────────────────────────────────
-
-function Sparkline({ data, width = 160, height = 28 }: { data: number[]; width?: number; height?: number }) {
-    if (data.length < 2) return null
-    const min = Math.min(...data)
-    const max = Math.max(...data)
-    const range = max - min || 1
-    const points = data.map((v, i) => {
-        const x = (i / (data.length - 1)) * width
-        const y = height - ((v - min) / range) * (height - 6) - 3
-        return `${x.toFixed(1)},${y.toFixed(1)}`
-    }).join(' ')
-    const trend = data[data.length - 1] >= data[0]
-    return (
-        <svg width={width} height={height} style={{ overflow: 'visible', flexShrink: 0 }}>
-            <polyline points={points} fill="none" stroke={trend ? 'var(--accent-green)' : 'var(--accent-red)'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-        </svg>
-    )
-}
-
-// ── Preview components ────────────────────────────────────────────────────────
+// ── Channel label map ─────────────────────────────────────────────────────────
 
 const CHANNEL_LABEL: Record<string, string> = {
     meta_ads: 'Meta Ads', google_ads: 'Google Ads', hotmart: 'Hotmart',
@@ -193,70 +139,6 @@ const CHANNEL_LABEL: Record<string, string> = {
     rastreamento_e_atribuicao: 'Rastreamento',
     concentracao_de_produto: 'Concentração de Produto',
     ok: 'OK',
-}
-
-const STATUS_STYLE: Record<string, { color: string; bg: string; label: string }> = {
-    lucrativo: { color: 'var(--accent-green)',         bg: 'var(--status-complete-bg)',   label: 'Lucrativo' },
-    prejuizo:  { color: 'var(--accent-red)',           bg: 'var(--priority-high-bg)',     label: 'Prejuízo'  },
-    organico:  { color: 'var(--color-text-secondary)', bg: 'var(--status-not-started-bg)', label: 'Orgânico' },
-}
-
-const RFM_LABELS: Record<string, { label: string; color: string }> = {
-    champions:  { label: 'Champions',   color: 'var(--accent-green)'  },
-    loyalists:  { label: 'Leais',       color: 'var(--accent-blue)'   },
-    em_risco:   { label: 'Em Risco',    color: 'var(--accent-orange)' },
-    perdidos:   { label: 'Perdidos',    color: 'var(--color-text-secondary)' },
-    novos:      { label: 'Novos',       color: 'var(--accent-blue)'   },
-    outros:     { label: 'Outros',      color: 'var(--accent-purple)' },
-}
-
-function PreviewKpi({ label, value, sub, subColor }: { label: string; value: string; sub?: string; subColor?: string }) {
-    return (
-        <div style={{
-            display: 'flex', flexDirection: 'column', gap: 4,
-            padding: '14px 16px',
-            background: 'var(--color-bg-secondary)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 8,
-            minWidth: 0,
-        }}>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                {label}
-            </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)', lineHeight: 1.2 }}>
-                {value}
-            </span>
-            {sub && (
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: subColor ?? 'var(--color-text-secondary)' }}>
-                    {sub}
-                </span>
-            )}
-        </div>
-    )
-}
-
-function PreviewSkeleton() {
-    const bar = (w: string, h = 12) => (
-        <div style={{ width: w, height: h, borderRadius: 4, background: 'var(--color-bg-tertiary)', animation: 'pulse 1.4s ease-in-out infinite' }} />
-    )
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                {[0,1,2,3].map(i => (
-                    <div key={i} style={{ padding: '14px 16px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {bar('50%', 10)}{bar('70%', 20)}
-                    </div>
-                ))}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[0,1].map(i => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
-                        {bar('120px')}{bar('80px')}{bar('60px')}
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
 }
 
 // ── AI Analysis types + components ───────────────────────────────────────────
@@ -283,7 +165,7 @@ const SEV_STYLE: Record<string, { color: string; label: string }> = {
     ok:      { color: 'var(--accent-green)',  label: 'OK'      },
 }
 
-// ── Download helper ───────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
 
 function DownloadIcon() {
     return (
@@ -354,6 +236,9 @@ export default function Relatorios(_props: RelatoriosProps) {
     const card: React.CSSProperties = { background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 28 }
     const delay = (n: number) => n * 0.07
 
+    // Active tab
+    const [activeTab, setActiveTab] = useState<'gerar' | 'ai' | 'automatico' | 'historico'>('gerar')
+
     // Config state
     const [config, setConfig] = useState<ReportConfig>({ enabled: false, frequency: 'mensal', format: 'pdf', email: '' })
     const [savedConfig, setSavedConfig] = useState<ReportConfig | null>(null)
@@ -361,16 +246,11 @@ export default function Relatorios(_props: RelatoriosProps) {
     const [savedFeedback, setSavedFeedback] = useState(false)
     const [emailError, setEmailError] = useState<string | null>(null)
 
-    // Preview
-    const [preview, setPreview] = useState<PreviewData | null>(null)
-    const [loadingPreview, setLoadingPreview] = useState(true)
-    const [previewError, setPreviewError] = useState(false)
-
     // AI Analysis (lazy — só carrega quando o usuário pede)
     const [aiAnalysis, setAiAnalysis] = useState<AIAnalysis | null>(null)
     const [loadingAI, setLoadingAI] = useState(false)
-    const [aiStreamText, setAiStreamText] = useState('')   // texto acumulado durante stream
-    const [aiReady, setAiReady] = useState(false)          // dados carregados, IA iniciou
+    const [aiStreamText, setAiStreamText] = useState('')
+    const [aiReady, setAiReady] = useState(false)
     const [aiError, setAiError] = useState(false)
     const [aiTimedOut, setAiTimedOut] = useState(false)
 
@@ -409,7 +289,6 @@ export default function Relatorios(_props: RelatoriosProps) {
                 if (res.data) {
                     setConfig(res.data as ReportConfig)
                     setSavedConfig(res.data as ReportConfig)
-                    // F1 — sync genFrequency with saved config
                     if ((res.data as ReportConfig).frequency) {
                         setGenFrequency((res.data as ReportConfig).frequency)
                     }
@@ -443,7 +322,6 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
     }
 
-    // F8 — Refresh logs handler
     async function handleRefreshLogs() {
         setRefreshingLogs(true)
         try {
@@ -456,21 +334,6 @@ export default function Relatorios(_props: RelatoriosProps) {
             setRefreshingLogs(false)
         }
     }
-
-    useEffect(() => {
-        setLoadingPreview(true)
-        setPreviewError(false)
-        setAiAnalysis(null)
-        setAiError(false)
-        const dates = periodType === 'custom' && customStart && customEnd
-            ? { period_type: 'custom', custom_start: customStart, custom_end: customEnd }
-            : {}
-        reportsApi.getPreview(genFrequency, dates)
-            .then(res => { setPreview(res.data as PreviewData) })
-            .catch(() => setPreviewError(true))
-            .finally(() => setLoadingPreview(false))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [genFrequency, periodType, periodType === 'custom' ? customStart : null, periodType === 'custom' ? customEnd : null])
 
     async function handleRequestAI() {
         setLoadingAI(true)
@@ -503,7 +366,6 @@ export default function Relatorios(_props: RelatoriosProps) {
                 if (done) break
                 buffer += decoder.decode(value, { stream: true })
 
-                // Processa linhas SSE completas
                 const lines = buffer.split('\n')
                 buffer = lines.pop() ?? ''
 
@@ -544,7 +406,6 @@ export default function Relatorios(_props: RelatoriosProps) {
     }
 
     async function handleSaveConfig() {
-        // F9 — validate email before saving
         if (config.email && !isValidEmail(config.email)) {
             setEmailError('Email inválido')
             return
@@ -575,7 +436,6 @@ export default function Relatorios(_props: RelatoriosProps) {
         setGeneratingStep(0)
         setEmailFeedback(null)
 
-        // Timings calibrados por formato: PDF com IA leva mais tempo
         const isPdf = format === 'pdf'
         const t1 = setTimeout(() => setGeneratingStep(1), 3000)
         const t2 = setTimeout(() => setGeneratingStep(2), isPdf ? 8000 : 5000)
@@ -604,7 +464,6 @@ export default function Relatorios(_props: RelatoriosProps) {
     async function handlePreviewPdf() {
         setPreviewPdfLoading(true)
         try {
-            // Usa o endpoint de export rápido (sem IA) para preview
             const periodParam = periodType === 'last_7_days' ? '7d' : periodType === 'last_90_days' ? '90d' : '30d'
             const res = await reportsApi.exportQuick('pdf', periodParam)
             const url = URL.createObjectURL(new Blob([res.data as BlobPart], { type: 'application/pdf' }))
@@ -640,7 +499,6 @@ export default function Relatorios(_props: RelatoriosProps) {
             a.href = url; a.download = `northie-relatorio-${freqLabel}-${dateStr}.${format}`; a.click()
             URL.revokeObjectURL(url)
         } catch {
-            // F10 — keep error visible until user retries (no auto-clear)
             setDownloadError(log.id)
         } finally {
             setDownloadingLogId(null)
@@ -650,7 +508,7 @@ export default function Relatorios(_props: RelatoriosProps) {
     async function handleSendEmail() {
         const email = config.email || savedConfig?.email || ''
         if (!email) {
-            setEmailFeedback({ ok: false, msg: 'Configure um email na seção "Envio automático" abaixo.' })
+            setEmailFeedback({ ok: false, msg: 'Configure um email na aba "Configurar envio".' })
             setTimeout(() => setEmailFeedback(null), 4000)
             return
         }
@@ -676,7 +534,6 @@ export default function Relatorios(_props: RelatoriosProps) {
         }
     }
 
-    // F3 — email button label per format
     const emailButtonLabel = sendingEmail
         ? 'Enviando...'
         : genFormat === 'pdf'
@@ -685,8 +542,15 @@ export default function Relatorios(_props: RelatoriosProps) {
                 ? 'Enviar Excel por email'
                 : 'Enviar JSON por email'
 
+    const TABS = [
+        { id: 'gerar',      label: 'Gerar'            },
+        { id: 'ai',         label: 'Análise IA'        },
+        { id: 'automatico', label: 'Configurar envio'  },
+        { id: 'historico',  label: 'Histórico'         },
+    ] as const
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 40 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
             <PageHeader title="Relatórios" subtitle="Análise completa do seu negócio com cruzamento de dados e diagnóstico de IA." />
 
             {/* ── PDF Preview Modal ──────────────────────────────────────── */}
@@ -741,911 +605,708 @@ export default function Relatorios(_props: RelatoriosProps) {
                 )}
             </AnimatePresence>
 
-
-            {/* ── Prévia dos dados ────────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(1), ease: [0.25, 0.1, 0.25, 1] }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <SectionLabel gutterBottom={0}>Prévia dos dados</SectionLabel>
-                    {preview && !loadingPreview && (
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                            {fmtDateShort(preview.period.start)} – {fmtDateShort(preview.period.end)} · {preview.period.days} dias
-                        </span>
-                    )}
+            {/* ── Tabs ────────────────────────────────────────────────────── */}
+            <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, delay: delay(1), ease: [0.25, 0.1, 0.25, 1] }}
+                style={{ paddingBottom: 40 }}
+            >
+                <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>
+                    {TABS.map(tab => (
+                        <motion.button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            whileTap={{ scale: 0.97 }}
+                            style={{
+                                padding: '8px 16px 10px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--font-sans)',
+                                fontSize: 14,
+                                fontWeight: activeTab === tab.id ? 600 : 400,
+                                color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                                borderBottom: activeTab === tab.id ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                marginBottom: -1,
+                                transition: 'color 0.15s, border-color 0.15s',
+                            }}
+                        >
+                            {tab.label}
+                        </motion.button>
+                    ))}
                 </div>
-                <div style={card}>
-                    <AnimatePresence mode="wait">
-                        {loadingPreview ? (
-                            <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                                <PreviewSkeleton />
-                            </motion.div>
-                        ) : previewError ? (
-                            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ textAlign: 'center', padding: '24px 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                Não foi possível carregar a prévia. Verifique as integrações.
-                            </motion.div>
-                        ) : preview ? (
-                            <motion.div key="data" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                                {/* KPI grid */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-                                    <PreviewKpi
-                                        label="Receita Líquida"
-                                        value={fmtBRL(preview.summary.revenue_net)}
-                                        sub={preview.summary.revenue_change_pct !== null
-                                            ? `${preview.summary.revenue_change_pct >= 0 ? '+' : ''}${preview.summary.revenue_change_pct.toFixed(1)}% vs período anterior`
-                                            : `${preview.summary.transactions} transações`}
-                                        subColor={preview.summary.revenue_change_pct !== null
-                                            ? preview.summary.revenue_change_pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'
-                                            : undefined}
-                                    />
-                                    <PreviewKpi
-                                        label="ROAS"
-                                        value={`${preview.summary.roas.toFixed(2)}x`}
-                                        sub={`Gasto em ads: ${fmtBRL(preview.summary.ad_spend)}`}
-                                    />
-                                    <PreviewKpi
-                                        label="Novos Clientes"
-                                        value={String(preview.summary.new_customers)}
-                                        sub={`Base total: ${preview.summary.total_customers}`}
-                                    />
-                                    <PreviewKpi
-                                        label="LTV Médio"
-                                        value={fmtBRL(preview.summary.ltv_avg)}
-                                        sub={`Margem bruta: ${preview.summary.gross_margin_pct.toFixed(1)}%`}
-                                    />
-                                </div>
+                <AnimatePresence mode="wait">
 
-                                {/* F4 — Sparkline de receita */}
-                                {(preview.revenue_trend?.length ?? 0) >= 2 && (() => {
-                                    const trendData = preview.revenue_trend!.map(t => t.revenue)
-                                    const lastVal = trendData[trendData.length - 1]
-                                    const firstVal = trendData[0]
-                                    const trendUp = lastVal >= firstVal
-                                    return (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>
-                                                Tendência de receita
-                                            </span>
-                                            <Sparkline data={trendData} width={180} height={28} />
-                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: trendUp ? 'var(--accent-green)' : 'var(--accent-red)', whiteSpace: 'nowrap' }}>
-                                                {fmtBRL(lastVal)}
-                                            </span>
+                    {/* ── TAB: Gerar ───────────────────────────────────────── */}
+                    {activeTab === 'gerar' && (
+                        <motion.div key="tab-gerar" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}>
+                            <SectionLabel gutterBottom={16}>Exportar relatório</SectionLabel>
+                            <div style={card}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                        Gere e baixe o relatório completo com dados cruzados, análise de canais e diagnóstico de IA.
+                                    </p>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Período</span>
+                                            <SegmentedControl
+                                                options={['semanal', 'mensal', 'trimestral'] as const}
+                                                value={genFrequency}
+                                                onChange={setGenFrequency}
+                                                labels={{ semanal: 'Última semana', mensal: 'Último mês', trimestral: 'Último trimestre' }}
+                                            />
                                         </div>
-                                    )
-                                })()}
-
-                                {/* Canais */}
-                                {preview.channel_economics.filter(c => c.channel !== 'desconhecido').length > 0 && (
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                                                Canais
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            {preview.channel_economics
-                                                .filter(c => c.channel !== 'desconhecido')
-                                                .sort((a, b) => b.value_created - a.value_created)
-                                                .map((ch, i, arr) => {
-                                                    const st = STATUS_STYLE[ch.status] ?? STATUS_STYLE.organico
-                                                    return (
-                                                        <div key={ch.channel} style={{
-                                                            display: 'grid',
-                                                            gridTemplateColumns: '160px 1fr 90px 90px 80px',
-                                                            alignItems: 'center',
-                                                            gap: 16,
-                                                            padding: '10px 0',
-                                                            borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
-                                                        }}>
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                                                {CHANNEL_LABEL[ch.channel] ?? ch.channel}
-                                                            </span>
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                                                                    {ch.new_customers} clientes
-                                                                </span>
-                                                            </div>
-                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'right' }}>
-                                                                LTV {fmtBRL(ch.avg_ltv)}
-                                                            </span>
-                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'right' }}>
-                                                                CAC {ch.cac > 0 ? fmtBRL(ch.cac) : '—'}
-                                                            </span>
-                                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                                <span style={{
-                                                                    fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600,
-                                                                    padding: '2px 8px', borderRadius: 4,
-                                                                    background: st.bg, color: st.color,
-                                                                }}>
-                                                                    {st.label}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                })}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Intervalo customizado</span>
+                                            <SegmentedControl
+                                                options={['last_7_days', 'last_30_days', 'last_90_days', 'custom'] as const}
+                                                value={periodType}
+                                                onChange={setPeriodType}
+                                                labels={{ last_7_days: '7 dias', last_30_days: '30 dias', last_90_days: '90 dias', custom: 'Personalizado' }}
+                                            />
                                         </div>
                                     </div>
-                                )}
 
-                                {/* F5 — Top produtos */}
-                                {(preview.top_products?.length ?? 0) > 0 && (
-                                    <div>
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 10 }}>
-                                            Top Produtos
-                                        </span>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            {preview.top_products!.slice(0, 3).map((p, i, arr) => (
-                                                <div key={p.product} style={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '1fr auto auto',
-                                                    gap: 12,
-                                                    padding: '8px 0',
-                                                    borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
-                                                    alignItems: 'center',
-                                                }}>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {p.product}
-                                                    </span>
-                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                                                        {fmtBRL(p.revenue)}
-                                                    </span>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
-                                                        {p.transactions} transações
-                                                    </span>
+                                    {/* Custom date range pickers */}
+                                    <AnimatePresence>
+                                        {periodType === 'custom' && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                style={{ overflow: 'hidden' }}
+                                            >
+                                                <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingTop: 4 }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>De</span>
+                                                        <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
+                                                            style={{ padding: '7px 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, outline: 'none' }} />
+                                                    </div>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 20 }}>→</span>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>Até</span>
+                                                        <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
+                                                            style={{ padding: '7px 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, outline: 'none' }} />
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* RFM — pills ou empty state */}
-                                {preview.rfm_source === 'unavailable' || (preview.rfm_distribution?.every(s => s.count === 0) ?? true) ? (
-                                    <div style={{
-                                        display: 'flex', alignItems: 'flex-start', gap: 10,
-                                        padding: '12px 14px',
-                                        background: 'rgba(99,102,241,0.06)',
-                                        border: '1px solid rgba(99,102,241,0.18)',
-                                        borderRadius: 8,
-                                    }}>
-                                        <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⏱</span>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                                Segmentação RFM não disponível ainda
-                                            </span>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                                Calculada automaticamente todo dia às 6h. Estará disponível após o primeiro ciclo completo de dados.
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (preview.rfm_distribution?.length ?? 0) > 0 && (
-                                    <div>
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 10 }}>
-                                            Segmentação RFM
-                                        </span>
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                                            {preview.rfm_distribution!.filter(s => s.count > 0).map(seg => {
-                                                const rfmCfg = RFM_LABELS[seg.segment] ?? { label: seg.segment, color: 'var(--color-text-secondary)' }
-                                                return (
-                                                    <span key={seg.segment} style={{
-                                                        fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 500,
-                                                        padding: '4px 10px', borderRadius: 20,
-                                                        background: rfmCfg.color + '18',
-                                                        color: rfmCfg.color,
-                                                        border: `1px solid ${rfmCfg.color}30`,
-                                                    }}>
-                                                        {rfmCfg.label} · {seg.count} clientes
-                                                    </span>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Clientes em risco */}
-                                {preview.at_risk_customers.length > 0 && (
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', gap: 10,
-                                        padding: '10px 14px',
-                                        background: 'var(--priority-high-bg)',
-                                        border: '1px solid var(--priority-high)',
-                                        borderRadius: 8,
-                                    }}>
-                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-red)', flexShrink: 0 }} />
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)' }}>
-                                            <strong style={{ color: 'var(--accent-red)' }}>{preview.at_risk_customers.length}</strong>
-                                            {' '}clientes com risco de churn acima de 60% —{' '}
-                                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-red)' }}>
-                                                {fmtBRL(preview.at_risk_customers.reduce((s, c) => s + (c.ltv ?? 0), 0))}
-                                            </span>
-                                            {' '}em LTV em risco
-                                        </span>
-                                    </div>
-                                )}
-                            </motion.div>
-                        ) : null}
-                    </AnimatePresence>
-                </div>
-            </motion.div>
-
-            {/* ── Análise de IA ───────────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(2), ease: [0.25, 0.1, 0.25, 1] }}>
-                <SectionLabel gutterBottom={16}>Análise de IA</SectionLabel>
-                <div style={card}>
-                    <AnimatePresence mode="wait">
-                        {!aiAnalysis && !loadingAI && (
-                            <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                                <div>
-                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                        Diagnóstico com IA
-                                    </p>
-                                    <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                        Cruzamento de canais, análise de churn e diagnósticos por severidade. Leva ~30-60s.
-                                    </p>
-                                </div>
-                                <Btn variant="primary" onClick={handleRequestAI} disabled={loadingPreview || previewError}>
-                                    Analisar com IA
-                                </Btn>
-                            </motion.div>
-                        )}
-
-                        {loadingAI && (
-                            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
-                                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                    </svg>
-                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                        {!aiReady ? 'Carregando dados...' : 'Analisando com IA...'}
-                                    </span>
-                                </div>
-                                {/* Texto streamado em tempo real */}
-                                {aiStreamText && (
-                                    <div style={{
-                                        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)',
-                                        lineHeight: 1.6, maxHeight: 160, overflow: 'hidden',
-                                        padding: '10px 14px',
-                                        background: 'var(--color-bg-secondary)',
-                                        borderRadius: 8,
-                                        border: '1px solid var(--color-border)',
-                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                                        position: 'relative',
-                                    }}>
-                                        {aiStreamText.slice(-600)}
-                                        <span style={{ animation: 'pulse 0.8s ease-in-out infinite', color: 'var(--color-primary)' }}>▋</span>
-                                        {/* fade out no topo */}
-                                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32, background: 'linear-gradient(to bottom, var(--color-bg-secondary), transparent)', borderRadius: '8px 8px 0 0', pointerEvents: 'none' }} />
-                                    </div>
-                                )}
-                            </motion.div>
-                        )}
-
-                        {aiError && !loadingAI && (
-                            <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--accent-red)' }}>
-                                    {aiTimedOut
-                                        ? 'A análise excedeu o tempo limite. O servidor pode estar sob carga — aguarde alguns instantes e tente novamente.'
-                                        : 'Falha na análise. Verifique as integrações e tente novamente.'}
-                                </span>
-                                <Btn variant="secondary" onClick={handleRequestAI}>Tentar novamente</Btn>
-                            </motion.div>
-                        )}
-
-                        {aiAnalysis && !loadingAI && (
-                            <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-                                {/* Header: situação geral + resumo */}
-                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-                                    <SituacaoBadge value={aiAnalysis.situacao_geral} size="md" />
-                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                        {aiAnalysis.is_ai_fallback && (
-                                            <span style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                                fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600,
-                                                color: '#F59E0B', background: 'rgba(245,158,11,0.10)',
-                                                border: '1px solid rgba(245,158,11,0.25)',
-                                                padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em',
-                                                textTransform: 'uppercase', width: 'fit-content',
-                                            }}>
-                                                ⚡ Análise simplificada — IA indisponível no momento
-                                            </span>
+                                            </motion.div>
                                         )}
-                                        <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-                                            {aiAnalysis.resumo_executivo}
-                                        </p>
-                                    </div>
-                                </div>
+                                    </AnimatePresence>
 
-                                {/* Diagnósticos */}
-                                {aiAnalysis.diagnosticos.length > 0 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
-                                            Diagnósticos por canal
-                                        </span>
-                                        {aiAnalysis.diagnosticos
-                                            .sort((a, b) => (['critica','alta','media','ok'].indexOf(a.severidade)) - (['critica','alta','media','ok'].indexOf(b.severidade)))
-                                            .map((d, i, arr) => {
-                                                const sev = SEV_STYLE[d.severidade] ?? SEV_STYLE.media
-                                                return (
-                                                    <div key={i} style={{
-                                                        display: 'grid',
-                                                        gridTemplateColumns: 'minmax(120px, 160px) 1fr auto',
-                                                        alignItems: 'start',
-                                                        gap: 16,
-                                                        padding: '12px 0',
-                                                        borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
-                                                    }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-all' }}>
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', overflowWrap: 'break-word', wordBreak: 'break-all' }}>
-                                                                {CHANNEL_LABEL[d.canal] ?? d.canal}
-                                                            </span>
-                                                            <span style={{ display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: sev.color, letterSpacing: '0.06em' }}>
-                                                                {sev.label}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
-                                                                {d.sintoma}
-                                                            </span>
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-                                                                → {d.acao_recomendada}
-                                                            </span>
-                                                        </div>
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: sev.color, whiteSpace: 'nowrap', minWidth: 0 }}>
-                                                            {fmtBRL(d.consequencia_financeira_brl)}
-                                                        </span>
-                                                    </div>
-                                                )
-                                            })}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato para email</span>
+                                        <SegmentedControl
+                                            options={['pdf', 'xlsx', 'json'] as const}
+                                            value={genFormat}
+                                            onChange={setGenFormat}
+                                            labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }}
+                                        />
                                     </div>
-                                )}
 
-                                {/* Próximos passos */}
-                                {aiAnalysis.proximos_passos.length > 0 && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', background: 'var(--color-bg-secondary)', borderRadius: 8 }}>
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                                            Próximos passos
-                                        </span>
-                                        {aiAnalysis.proximos_passos.map((step, i) => (
-                                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 }}>
-                                                    {String(i + 1).padStart(2, '0')}
-                                                </span>
-                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
-                                                    {step}
-                                                </span>
-                                            </div>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                        {(['xlsx', 'json', 'pdf'] as const).map(fmt => (
+                                            <Btn key={fmt} variant={fmt === 'pdf' ? 'primary' : 'secondary'}
+                                                onClick={() => handleDownload(fmt)}
+                                                disabled={generating !== null || sendingEmail}
+                                                icon={<DownloadIcon />}>
+                                                {generating === fmt ? 'Gerando...' : fmt === 'pdf' ? 'PDF com IA' : fmt === 'xlsx' ? 'Excel' : 'JSON'}
+                                            </Btn>
                                         ))}
+                                        <Btn variant="secondary"
+                                            onClick={handlePreviewPdf}
+                                            disabled={generating !== null || previewPdfLoading}
+                                            icon={<EyeIcon />}>
+                                            {previewPdfLoading ? 'Carregando...' : 'Pré-visualizar PDF'}
+                                        </Btn>
+                                        <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
+                                        <Btn variant="secondary"
+                                            onClick={handleSendEmail}
+                                            disabled={generating !== null || sendingEmail}
+                                            icon={<EmailIcon />}>
+                                            {emailButtonLabel}
+                                        </Btn>
                                     </div>
-                                )}
-
-                                {/* Refazer análise */}
-                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                    <Btn variant="secondary" onClick={handleRequestAI} disabled={loadingAI}>
-                                        Atualizar análise
-                                    </Btn>
                                 </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </motion.div>
-
-            {/* ── Gerar relatório ─────────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(2), ease: [0.25, 0.1, 0.25, 1] }}>
-                <SectionLabel gutterBottom={16}>Exportar relatório</SectionLabel>
-                <div style={card}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                        <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                            Gere e baixe o relatório completo com dados cruzados, análise de canais e diagnóstico de IA.
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Período</span>
-                                <SegmentedControl
-                                    options={['semanal', 'mensal', 'trimestral'] as const}
-                                    value={genFrequency}
-                                    onChange={setGenFrequency}
-                                    labels={{ semanal: 'Última semana', mensal: 'Último mês', trimestral: 'Último trimestre' }}
-                                />
+                                <AnimatePresence>
+                                    {generating !== null && (
+                                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                            style={{ margin: '16px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                            </svg>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                                {getStepMessage(generatingStep, generating)}
+                                            </span>
+                                        </motion.div>
+                                    )}
+                                    {emailFeedback && (
+                                        <motion.p key="email-feedback" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                            style={{ margin: '12px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: emailFeedback.ok ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                            {emailFeedback.msg}
+                                        </motion.p>
+                                    )}
+                                </AnimatePresence>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Intervalo customizado</span>
-                                <SegmentedControl
-                                    options={['last_7_days', 'last_30_days', 'last_90_days', 'custom'] as const}
-                                    value={periodType}
-                                    onChange={setPeriodType}
-                                    labels={{ last_7_days: '7 dias', last_30_days: '30 dias', last_90_days: '90 dias', custom: 'Personalizado' }}
-                                />
-                            </div>
-                        </div>
+                        </motion.div>
+                    )}
 
-                        {/* Custom date range pickers */}
-                        <AnimatePresence>
-                            {periodType === 'custom' && (
-                                <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    style={{ overflow: 'hidden' }}
-                                >
-                                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', paddingTop: 4 }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>De</span>
-                                            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                                                style={{ padding: '7px 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, outline: 'none' }} />
-                                        </div>
-                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 20 }}>→</span>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>Até</span>
-                                            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                                                style={{ padding: '7px 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)', fontSize: 13, outline: 'none' }} />
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                    {/* ── TAB: Análise IA ──────────────────────────────────── */}
+                    {activeTab === 'ai' && (
+                        <motion.div key="tab-ai" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}>
+                            <SectionLabel gutterBottom={16}>Análise de IA</SectionLabel>
+                            <div style={card}>
+                                <AnimatePresence mode="wait">
+                                    {!aiAnalysis && !loadingAI && (
+                                        <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                                            <div>
+                                                <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                    Diagnóstico com IA
+                                                </p>
+                                                <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                                    Cruzamento de canais, análise de churn e diagnósticos por severidade. Leva ~30-60s.
+                                                </p>
+                                            </div>
+                                            <Btn variant="primary" onClick={handleRequestAI}>
+                                                Analisar com IA
+                                            </Btn>
+                                        </motion.div>
+                                    )}
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato para email</span>
-                            <SegmentedControl
-                                options={['pdf', 'xlsx', 'json'] as const}
-                                value={genFormat}
-                                onChange={setGenFormat}
-                                labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }}
-                            />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                            {(['xlsx', 'json', 'pdf'] as const).map(fmt => (
-                                <Btn key={fmt} variant={fmt === 'pdf' ? 'primary' : 'secondary'}
-                                    onClick={() => handleDownload(fmt)}
-                                    disabled={generating !== null || sendingEmail}
-                                    icon={<DownloadIcon />}>
-                                    {generating === fmt ? 'Gerando...' : fmt === 'pdf' ? 'PDF com IA' : fmt === 'xlsx' ? 'Excel' : 'JSON'}
-                                </Btn>
-                            ))}
-                            {/* PDF preview button */}
-                            <Btn variant="secondary"
-                                onClick={handlePreviewPdf}
-                                disabled={generating !== null || previewPdfLoading}
-                                icon={<EyeIcon />}>
-                                {previewPdfLoading ? 'Carregando...' : 'Pré-visualizar PDF'}
-                            </Btn>
-                            <div style={{ width: 1, height: 24, background: 'var(--color-border)', flexShrink: 0 }} />
-                            {/* F3 — dynamic email button label */}
-                            <Btn variant="secondary"
-                                onClick={handleSendEmail}
-                                disabled={generating !== null || sendingEmail}
-                                icon={<EmailIcon />}>
-                                {emailButtonLabel}
-                            </Btn>
-                        </div>
-                    </div>
-                    <AnimatePresence>
-                        {generating !== null && (
-                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                                style={{ margin: '16px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
-                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                </svg>
-                                {/* F2 — dynamic step message */}
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                    {getStepMessage(generatingStep, generating)}
-                                </span>
-                            </motion.div>
-                        )}
-                        {emailFeedback && (
-                            <motion.p key="email-feedback" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                                style={{ margin: '12px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: emailFeedback.ok ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                {emailFeedback.msg}
-                            </motion.p>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </motion.div>
-
-            {/* ── Config automática ───────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(3), ease: [0.25, 0.1, 0.25, 1] }}>
-                <SectionLabel gutterBottom={16}>Envio automático</SectionLabel>
-                <div style={card}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                            <div>
-                                <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>Relatórios automáticos</p>
-                                <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                    Gerados e enviados por email na frequência configurada
-                                </p>
-                            </div>
-                            <ToggleSwitch enabled={config.enabled} onChange={v => setConfig(c => ({ ...c, enabled: v }))} />
-                        </div>
-
-                        <div style={{ height: 1, background: 'var(--color-border)' }} />
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Frequência</span>
-                                <SegmentedControl options={['semanal', 'mensal', 'trimestral'] as const} value={config.frequency}
-                                    onChange={v => setConfig(c => ({ ...c, frequency: v }))}
-                                    labels={{ semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral' }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato</span>
-                                <SegmentedControl options={['pdf', 'xlsx', 'json'] as const} value={config.format}
-                                    onChange={v => setConfig(c => ({ ...c, format: v }))}
-                                    labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }} />
-                            </div>
-                        </div>
-
-                        {/* F9 — email validation */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email de envio</span>
-                            <input
-                                type="email"
-                                placeholder="seu@email.com"
-                                value={config.email}
-                                onChange={e => {
-                                    setConfig(c => ({ ...c, email: e.target.value }))
-                                    setEmailError(null)
-                                }}
-                                onBlur={e => {
-                                    if (e.target.value && !isValidEmail(e.target.value)) {
-                                        setEmailError('Email inválido')
-                                    }
-                                }}
-                                style={{
-                                    padding: '8px 12px',
-                                    background: 'var(--color-bg-secondary)',
-                                    border: `1px solid ${emailError ? 'var(--accent-red)' : 'var(--color-border)'}`,
-                                    borderRadius: 'var(--radius-md)',
-                                    color: 'var(--color-text-primary)',
-                                    fontFamily: 'var(--font-sans)',
-                                    fontSize: 14,
-                                    outline: 'none',
-                                    width: '100%',
-                                    maxWidth: 360,
-                                    boxSizing: 'border-box',
-                                    transition: 'border-color 0.15s',
-                                }}
-                                onFocus={e => { if (!emailError) e.currentTarget.style.borderColor = 'var(--color-primary)' }}
-                            />
-                            <AnimatePresence>
-                                {emailError && (
-                                    <motion.span
-                                        initial={{ opacity: 0, y: -4 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -4 }}
-                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent-red)' }}
-                                    >
-                                        {emailError}
-                                    </motion.span>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-                        <div style={{ height: 1, background: 'var(--color-border)' }} />
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                            <Btn variant="primary" onClick={handleSaveConfig} disabled={savingConfig || emailError !== null}>
-                                {savingConfig ? 'Salvando...' : 'Salvar configuração'}
-                            </Btn>
-                            <AnimatePresence>
-                                {savedFeedback && (
-                                    <motion.span initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--accent-green)' }}>
-                                        Salvo
-                                    </motion.span>
-                                )}
-                            </AnimatePresence>
-                        </div>
-
-                        {(savedConfig?.enabled || config.enabled) && (
-                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                style={{ padding: '12px 16px', background: 'var(--status-in-progress-bg)', borderRadius: 8, border: '1px solid var(--status-in-progress)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                    Próximo relatório em{' '}
-                                    <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-primary)', fontWeight: 600 }}>
-                                        {nextReportDate(config.frequency, savedConfig?.next_send_at)}
-                                    </span>
-                                </span>
-                            </motion.div>
-                        )}
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* ── Histórico ──────────────────────────────────────────────── */}
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: delay(4), ease: [0.25, 0.1, 0.25, 1] }} style={{ paddingBottom: 40 }}>
-                {/* F8 — Refresh button in section header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <SectionLabel gutterBottom={0}>Histórico de relatórios</SectionLabel>
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleRefreshLogs}
-                        disabled={refreshingLogs || loadingLogs}
-                        title="Atualizar histórico"
-                        style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            width: 32, height: 32, borderRadius: 8,
-                            border: '1px solid var(--color-border)',
-                            background: 'transparent',
-                            cursor: refreshingLogs || loadingLogs ? 'default' : 'pointer',
-                            color: 'var(--color-text-secondary)',
-                            opacity: refreshingLogs || loadingLogs ? 0.5 : 1,
-                        }}
-                    >
-                        <RefreshIcon spinning={refreshingLogs} />
-                    </motion.button>
-                </div>
-
-                <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', padding: '12px 20px', borderBottom: '1px solid var(--color-border)' }}>
-                        <TH>Período</TH>
-                        <TH>Frequência</TH>
-                        <TH>Formato</TH>
-                        <TH>Receita</TH>
-                        <TH>Situação</TH>
-                        <TH align="right">Email</TH>
-                        <TH align="right"> </TH>
-                    </div>
-
-                    {loadingLogs ? <LoadingRow /> : logs.length === 0 ? (
-                        <EmptyState title="Nenhum relatório gerado ainda" description="Gere seu primeiro relatório acima ou configure o envio automático." />
-                    ) : (
-                        <div>
-                            {logs.map(log => {
-                                const freqLabel: Record<string, string> = { semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral', weekly: 'Semanal', monthly: 'Mensal', quarterly: 'Trimestral' }
-                                const emailStatusLabel: Record<string, { label: string; color: string }> = {
-                                    sent: { label: 'Enviado', color: 'var(--color-text-secondary)' },
-                                    delivered: { label: 'Entregue', color: 'var(--accent-green)' },
-                                    bounced: { label: 'Bounce', color: 'var(--accent-red)' },
-                                    complained: { label: 'Spam', color: 'var(--accent-orange)' },
-                                    delayed: { label: 'Atrasado', color: 'var(--accent-orange)' },
-                                }
-                                const emailSt = log.email_status ? emailStatusLabel[log.email_status] : null
-                                const isError = log.status === 'error'
-                                const canRedownload = !isError && (log.format === 'pdf' || log.format === 'xlsx' || log.format === 'json')
-                                const isExpanded = expandedLogId === log.id
-                                const snap = log.snapshot
-
-                                return (
-                                    <div key={log.id}>
-                                        {/* F7 — clickable row for expand */}
-                                        <NotionRow
-                                            style={{ padding: '0 20px', opacity: isError ? 0.6 : 1, cursor: snap ? 'pointer' : 'default' }}
-                                            onClick={() => snap && setExpandedLogId(isExpanded ? null : log.id)}
-                                        >
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', width: '100%', alignItems: 'center', minHeight: 52 }}>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                        {/* F7 — chevron indicator */}
-                                                        {snap && (
-                                                            <motion.span
-                                                                animate={{ rotate: isExpanded ? 90 : 0 }}
-                                                                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-                                                                style={{ display: 'inline-flex', fontSize: 10, color: 'var(--color-text-secondary)', flexShrink: 0 }}
-                                                            >
-                                                                ▶
-                                                            </motion.span>
-                                                        )}
-                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
-                                                            {fmtDate(log.created_at)}
-                                                        </span>
-                                                        {isError && (
-                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: 'var(--accent-red)', background: 'var(--priority-high-bg)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
-                                                        )}
-                                                    </div>
-                                                    {log.period_start && log.period_end && (
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', marginLeft: snap ? 18 : 0 }}>
-                                                            {fmtDateShort(log.period_start)} – {fmtDateShort(log.period_end)}
-                                                        </span>
-                                                    )}
+                                    {loadingAI && (
+                                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                            style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 0.9s linear infinite', flexShrink: 0 }}>
+                                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                                </svg>
+                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                    {!aiReady ? 'Carregando dados...' : 'Analisando com IA...'}
+                                                </span>
+                                            </div>
+                                            {aiStreamText && (
+                                                <div style={{
+                                                    fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)',
+                                                    lineHeight: 1.6, maxHeight: 160, overflow: 'hidden',
+                                                    padding: '10px 14px',
+                                                    background: 'var(--color-bg-secondary)',
+                                                    borderRadius: 8,
+                                                    border: '1px solid var(--color-border)',
+                                                    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                                    position: 'relative',
+                                                }}>
+                                                    {aiStreamText.slice(-600)}
+                                                    <span style={{ animation: 'pulse 0.8s ease-in-out infinite', color: 'var(--color-primary)' }}>▋</span>
+                                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32, background: 'linear-gradient(to bottom, var(--color-bg-secondary), transparent)', borderRadius: '8px 8px 0 0', pointerEvents: 'none' }} />
                                                 </div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                                                        {freqLabel[log.frequency] ?? log.frequency}
-                                                    </span>
-                                                    {log.triggered_by && log.triggered_by !== 'manual' && (
+                                            )}
+                                        </motion.div>
+                                    )}
+
+                                    {aiError && !loadingAI && (
+                                        <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--accent-red)' }}>
+                                                {aiTimedOut
+                                                    ? 'A análise excedeu o tempo limite. O servidor pode estar sob carga — aguarde alguns instantes e tente novamente.'
+                                                    : 'Falha na análise. Verifique as integrações e tente novamente.'}
+                                            </span>
+                                            <Btn variant="secondary" onClick={handleRequestAI}>Tentar novamente</Btn>
+                                        </motion.div>
+                                    )}
+
+                                    {aiAnalysis && !loadingAI && (
+                                        <motion.div key="result" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                            style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                                                <SituacaoBadge value={aiAnalysis.situacao_geral} size="md" />
+                                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                    {aiAnalysis.is_ai_fallback && (
                                                         <span style={{
-                                                            display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700,
-                                                            letterSpacing: '0.06em', textTransform: 'uppercase', padding: '1px 5px', borderRadius: 3,
-                                                            color: log.triggered_by === 'automatic' ? 'var(--accent-purple)' : 'var(--color-primary)',
-                                                            background: log.triggered_by === 'automatic' ? 'var(--status-not-started-bg)' : 'var(--status-in-progress-bg)',
+                                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                            fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600,
+                                                            color: '#F59E0B', background: 'rgba(245,158,11,0.10)',
+                                                            border: '1px solid rgba(245,158,11,0.25)',
+                                                            padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em',
+                                                            textTransform: 'uppercase', width: 'fit-content',
                                                         }}>
-                                                            {log.triggered_by === 'automatic' ? 'Auto' : 'Email'}
+                                                            Análise simplificada — IA indisponível no momento
                                                         </span>
                                                     )}
-                                                </div>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
-                                                    {log.format}
-                                                </span>
-                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600 }}>
-                                                    {snap?.revenue_net !== undefined ? fmtBRL(snap.revenue_net) : '—'}
-                                                </span>
-                                                <div>
-                                                    {log.situacao_geral ? <SituacaoBadge value={log.situacao_geral} /> : (
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
-                                                    )}
-                                                </div>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    {emailSt ? (
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: emailSt.color, fontWeight: 500 }}>{emailSt.label}</span>
-                                                    ) : (
-                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
-                                                    )}
-                                                </div>
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
-                                                    {canRedownload && (
-                                                        // F10 — retry button on error, no auto-clear
-                                                        downloadError === log.id ? (
-                                                            <motion.button
-                                                                whileTap={{ scale: 0.95 }}
-                                                                onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
-                                                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent-red)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                                                            >
-                                                                Erro — tentar novamente
-                                                            </motion.button>
-                                                        ) : (
-                                                            <motion.button
-                                                                whileHover={{ scale: downloadingLogId ? 1 : 1.08 }}
-                                                                whileTap={{ scale: downloadingLogId ? 1 : 0.95 }}
-                                                                onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
-                                                                disabled={!!downloadingLogId}
-                                                                title={downloadingLogId === log.id ? 'Gerando...' : 'Baixar novamente'}
-                                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? 'var(--color-primary)' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
-                                                                {downloadingLogId === log.id
-                                                                    ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" /></path></svg>
-                                                                    : <DownloadIcon />
-                                                                }
-                                                            </motion.button>
-                                                        )
-                                                    )}
+                                                    <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                                                        {aiAnalysis.resumo_executivo}
+                                                    </p>
                                                 </div>
                                             </div>
-                                        </NotionRow>
 
-                                        {/* F7 — expandable snapshot detail */}
-                                        <AnimatePresence>
-                                            {isExpanded && snap && (
-                                                <motion.div
-                                                    key={`expand-${log.id}`}
-                                                    initial={{ opacity: 0, height: 0 }}
-                                                    animate={{ opacity: 1, height: 'auto' }}
-                                                    exit={{ opacity: 0, height: 0 }}
-                                                    transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-                                                    style={{ overflow: 'hidden' }}
-                                                >
-                                                    <div style={{ padding: '16px 28px 20px', background: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--color-border)' }}>
-                                                        {/* Row 1 — 4 core KPIs */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Receita líquida</span>
-                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{fmtBRL(snap.revenue_net)}</span>
-                                                                {snap.revenue_change_pct !== null && snap.revenue_change_pct !== undefined && (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: snap.revenue_change_pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
-                                                                        {snap.revenue_change_pct >= 0 ? '+' : ''}{snap.revenue_change_pct.toFixed(1)}%
+                                            {aiAnalysis.diagnosticos.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                                                        Diagnósticos por canal
+                                                    </span>
+                                                    {aiAnalysis.diagnosticos
+                                                        .sort((a, b) => (['critica','alta','media','ok'].indexOf(a.severidade)) - (['critica','alta','media','ok'].indexOf(b.severidade)))
+                                                        .map((d, i, arr) => {
+                                                            const sev = SEV_STYLE[d.severidade] ?? SEV_STYLE.media
+                                                            return (
+                                                                <div key={i} style={{
+                                                                    display: 'grid',
+                                                                    gridTemplateColumns: 'minmax(120px, 160px) 1fr auto',
+                                                                    alignItems: 'start',
+                                                                    gap: 16,
+                                                                    padding: '12px 0',
+                                                                    borderBottom: i < arr.length - 1 ? '1px solid var(--color-border)' : 'none',
+                                                                }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-all' }}>
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', overflowWrap: 'break-word', wordBreak: 'break-all' }}>
+                                                                            {CHANNEL_LABEL[d.canal] ?? d.canal}
+                                                                        </span>
+                                                                        <span style={{ display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: sev.color, letterSpacing: '0.06em' }}>
+                                                                            {sev.label}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                                                                            {d.sintoma}
+                                                                        </span>
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                                                                            → {d.acao_recomendada}
+                                                                        </span>
+                                                                    </div>
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: sev.color, whiteSpace: 'nowrap', minWidth: 0 }}>
+                                                                        {fmtBRL(d.consequencia_financeira_brl)}
                                                                     </span>
-                                                                )}
-                                                            </div>
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ROAS</span>
-                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.roas?.toFixed(2) ?? '—'}x</span>
-                                                                {snap.ad_spend !== undefined && (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>Ads: {fmtBRL(snap.ad_spend)}</span>
-                                                                )}
-                                                            </div>
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Novos clientes</span>
-                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.new_customers ?? '—'}</span>
-                                                            </div>
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>LTV médio</span>
-                                                                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.ltv_avg !== undefined ? fmtBRL(snap.ltv_avg) : '—'}</span>
-                                                            </div>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                </div>
+                                            )}
+
+                                            {aiAnalysis.proximos_passos.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px', background: 'var(--color-bg-secondary)', borderRadius: 8 }}>
+                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                                                        Próximos passos
+                                                    </span>
+                                                    {aiAnalysis.proximos_passos.map((step, i) => (
+                                                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--color-primary)', flexShrink: 0, marginTop: 1 }}>
+                                                                {String(i + 1).padStart(2, '0')}
+                                                            </span>
+                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+                                                                {step}
+                                                            </span>
                                                         </div>
+                                                    ))}
+                                                </div>
+                                            )}
 
-                                                        {/* Row 2 — channels + at risk + diagnostics */}
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: snap.resumo_executivo ? 12 : 0 }}>
-                                                            {/* Canal top */}
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canal top</span>
-                                                                {snap.top_channel ? (
-                                                                    <>
-                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                                                            {CHANNEL_LABEL[snap.top_channel.channel] ?? snap.top_channel.channel}
-                                                                        </span>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-green)' }}>
-                                                                            {fmtBRL(snap.top_channel.value_created)}
-                                                                        </span>
-                                                                    </>
-                                                                ) : (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
-                                                                )}
-                                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                <Btn variant="secondary" onClick={handleRequestAI} disabled={loadingAI}>
+                                                    Atualizar análise
+                                                </Btn>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </motion.div>
+                    )}
 
-                                                            {/* Canal pior */}
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canal em prejuízo</span>
-                                                                {snap.worst_channel ? (
-                                                                    <>
-                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                                                                            {CHANNEL_LABEL[snap.worst_channel.channel] ?? snap.worst_channel.channel}
-                                                                        </span>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-red)' }}>
-                                                                            {fmtBRL(snap.worst_channel.value_created)}
-                                                                        </span>
-                                                                    </>
-                                                                ) : (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
-                                                                )}
-                                                            </div>
+                    {/* ── TAB: Configurar envio ────────────────────────────── */}
+                    {activeTab === 'automatico' && (
+                        <motion.div key="tab-automatico" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}>
+                            <SectionLabel gutterBottom={16}>Envio automático</SectionLabel>
+                            <div style={card}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                                        <div>
+                                            <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 500, color: 'var(--color-text-primary)' }}>Relatórios automáticos</p>
+                                            <p style={{ margin: '4px 0 0', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                                Gerados e enviados por email na frequência configurada
+                                            </p>
+                                        </div>
+                                        <ToggleSwitch enabled={config.enabled} onChange={v => setConfig(c => ({ ...c, enabled: v }))} />
+                                    </div>
 
-                                                            {/* Clientes em risco */}
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Clientes em risco</span>
-                                                                {snap.at_risk_count !== undefined ? (
-                                                                    <>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--accent-orange)' }}>{snap.at_risk_count}</span>
-                                                                        {snap.at_risk_ltv !== undefined && (
-                                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)' }}>{fmtBRL(snap.at_risk_ltv)} em LTV</span>
-                                                                        )}
-                                                                    </>
-                                                                ) : (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
-                                                                )}
-                                                            </div>
+                                    <div style={{ height: 1, background: 'var(--color-border)' }} />
 
-                                                            {/* Diagnósticos críticos */}
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diagnósticos críticos</span>
-                                                                {snap.diagnosticos_count !== undefined ? (
-                                                                    <>
-                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: snap.criticos > 0 ? 'var(--accent-red)' : 'var(--color-text-primary)' }}>
-                                                                            {snap.criticos} críticos
-                                                                        </span>
-                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                                                                            {snap.diagnosticos_count} total
-                                                                        </span>
-                                                                    </>
-                                                                ) : (
-                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Frequência</span>
+                                            <SegmentedControl options={['semanal', 'mensal', 'trimestral'] as const} value={config.frequency}
+                                                onChange={v => setConfig(c => ({ ...c, frequency: v }))}
+                                                labels={{ semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Formato</span>
+                                            <SegmentedControl options={['pdf', 'xlsx', 'json'] as const} value={config.format}
+                                                onChange={v => setConfig(c => ({ ...c, format: v }))}
+                                                labels={{ pdf: 'PDF com IA', xlsx: 'Excel', json: 'JSON' }} />
+                                        </div>
+                                    </div>
 
-                                                        {/* Resumo executivo */}
-                                                        {snap.resumo_executivo && (
-                                                            <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6, paddingTop: 4 }}>
-                                                                {snap.resumo_executivo}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </motion.div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Email de envio</span>
+                                        <input
+                                            type="email"
+                                            placeholder="seu@email.com"
+                                            value={config.email}
+                                            onChange={e => {
+                                                setConfig(c => ({ ...c, email: e.target.value }))
+                                                setEmailError(null)
+                                            }}
+                                            onBlur={e => {
+                                                if (e.target.value && !isValidEmail(e.target.value)) {
+                                                    setEmailError('Email inválido')
+                                                }
+                                            }}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: 'var(--color-bg-secondary)',
+                                                border: `1px solid ${emailError ? 'var(--accent-red)' : 'var(--color-border)'}`,
+                                                borderRadius: 'var(--radius-md)',
+                                                color: 'var(--color-text-primary)',
+                                                fontFamily: 'var(--font-sans)',
+                                                fontSize: 14,
+                                                outline: 'none',
+                                                width: '100%',
+                                                maxWidth: 360,
+                                                boxSizing: 'border-box',
+                                                transition: 'border-color 0.15s',
+                                            }}
+                                            onFocus={e => { if (!emailError) e.currentTarget.style.borderColor = 'var(--color-primary)' }}
+                                        />
+                                        <AnimatePresence>
+                                            {emailError && (
+                                                <motion.span
+                                                    initial={{ opacity: 0, y: -4 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0, y: -4 }}
+                                                    style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent-red)' }}
+                                                >
+                                                    {emailError}
+                                                </motion.span>
                                             )}
                                         </AnimatePresence>
                                     </div>
-                                )
-                            })}
-                            {hasMoreLogs && (
-                                <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 20px', borderTop: '1px solid var(--color-border)' }}>
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                        onClick={handleLoadMoreLogs}
-                                        disabled={loadingMore}
-                                        style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: loadingMore ? 'var(--color-text-secondary)' : 'var(--color-primary)', background: 'transparent', border: 'none', cursor: loadingMore ? 'default' : 'pointer', padding: '4px 12px' }}>
-                                        {loadingMore ? 'Carregando...' : 'Carregar mais'}
-                                    </motion.button>
+
+                                    <div style={{ height: 1, background: 'var(--color-border)' }} />
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                        <Btn variant="primary" onClick={handleSaveConfig} disabled={savingConfig || emailError !== null}>
+                                            {savingConfig ? 'Salvando...' : 'Salvar configuração'}
+                                        </Btn>
+                                        <AnimatePresence>
+                                            {savedFeedback && (
+                                                <motion.span initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                                                    style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--accent-green)' }}>
+                                                    Salvo
+                                                </motion.span>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
+
+                                    {(savedConfig?.enabled || config.enabled) && (
+                                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                            style={{ padding: '12px 16px', background: 'var(--status-in-progress-bg)', borderRadius: 8, border: '1px solid var(--status-in-progress)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                                Próximo relatório em{' '}
+                                                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-primary)', fontWeight: 600 }}>
+                                                    {nextReportDate(config.frequency, savedConfig?.next_send_at)}
+                                                </span>
+                                            </span>
+                                        </motion.div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        </motion.div>
                     )}
-                </div>
+
+                    {/* ── TAB: Histórico ───────────────────────────────────── */}
+                    {activeTab === 'historico' && (
+                        <motion.div key="tab-historico" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                                <SectionLabel gutterBottom={0}>Histórico de relatórios</SectionLabel>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={handleRefreshLogs}
+                                    disabled={refreshingLogs || loadingLogs}
+                                    title="Atualizar histórico"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        width: 32, height: 32, borderRadius: 8,
+                                        border: '1px solid var(--color-border)',
+                                        background: 'transparent',
+                                        cursor: refreshingLogs || loadingLogs ? 'default' : 'pointer',
+                                        color: 'var(--color-text-secondary)',
+                                        opacity: refreshingLogs || loadingLogs ? 0.5 : 1,
+                                    }}
+                                >
+                                    <RefreshIcon spinning={refreshingLogs} />
+                                </motion.button>
+                            </div>
+
+                            <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', padding: '12px 20px', borderBottom: '1px solid var(--color-border)' }}>
+                                    <TH>Período</TH>
+                                    <TH>Frequência</TH>
+                                    <TH>Formato</TH>
+                                    <TH>Receita</TH>
+                                    <TH>Situação</TH>
+                                    <TH align="right">Email</TH>
+                                    <TH align="right"> </TH>
+                                </div>
+
+                                {loadingLogs ? <LoadingRow /> : logs.length === 0 ? (
+                                    <EmptyState title="Nenhum relatório gerado ainda" description="Gere seu primeiro relatório na aba Gerar ou configure o envio automático." />
+                                ) : (
+                                    <div>
+                                        {logs.map(log => {
+                                            const freqLabel: Record<string, string> = { semanal: 'Semanal', mensal: 'Mensal', trimestral: 'Trimestral', weekly: 'Semanal', monthly: 'Mensal', quarterly: 'Trimestral' }
+                                            const emailStatusLabel: Record<string, { label: string; color: string }> = {
+                                                sent: { label: 'Enviado', color: 'var(--color-text-secondary)' },
+                                                delivered: { label: 'Entregue', color: 'var(--accent-green)' },
+                                                bounced: { label: 'Bounce', color: 'var(--accent-red)' },
+                                                complained: { label: 'Spam', color: 'var(--accent-orange)' },
+                                                delayed: { label: 'Atrasado', color: 'var(--accent-orange)' },
+                                            }
+                                            const emailSt = log.email_status ? emailStatusLabel[log.email_status] : null
+                                            const isError = log.status === 'error'
+                                            const canRedownload = !isError && (log.format === 'pdf' || log.format === 'xlsx' || log.format === 'json')
+                                            const isExpanded = expandedLogId === log.id
+                                            const snap = log.snapshot
+
+                                            return (
+                                                <div key={log.id}>
+                                                    <NotionRow
+                                                        style={{ padding: '0 20px', opacity: isError ? 0.6 : 1, cursor: snap ? 'pointer' : 'default' }}
+                                                        onClick={() => snap && setExpandedLogId(isExpanded ? null : log.id)}
+                                                    >
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 100px 80px 120px 110px 80px 52px', width: '100%', alignItems: 'center', minHeight: 52 }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                    {snap && (
+                                                                        <motion.span
+                                                                            animate={{ rotate: isExpanded ? 90 : 0 }}
+                                                                            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                                                                            style={{ display: 'inline-flex', fontSize: 10, color: 'var(--color-text-secondary)', flexShrink: 0 }}
+                                                                        >
+                                                                            ▶
+                                                                        </motion.span>
+                                                                    )}
+                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)' }}>
+                                                                        {fmtDate(log.created_at)}
+                                                                    </span>
+                                                                    {isError && (
+                                                                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: 'var(--accent-red)', background: 'var(--priority-high-bg)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.04em' }}>ERRO</span>
+                                                                    )}
+                                                                </div>
+                                                                {log.period_start && log.period_end && (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', marginLeft: snap ? 18 : 0 }}>
+                                                                        {fmtDateShort(log.period_start)} – {fmtDateShort(log.period_end)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                                                                    {freqLabel[log.frequency] ?? log.frequency}
+                                                                </span>
+                                                                {log.triggered_by && log.triggered_by !== 'manual' && (
+                                                                    <span style={{
+                                                                        display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700,
+                                                                        letterSpacing: '0.06em', textTransform: 'uppercase', padding: '1px 5px', borderRadius: 3,
+                                                                        color: log.triggered_by === 'automatic' ? 'var(--accent-purple)' : 'var(--color-primary)',
+                                                                        background: log.triggered_by === 'automatic' ? 'var(--status-not-started-bg)' : 'var(--status-in-progress-bg)',
+                                                                    }}>
+                                                                        {log.triggered_by === 'automatic' ? 'Auto' : 'Email'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                                                                {log.format}
+                                                            </span>
+                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600 }}>
+                                                                {snap?.revenue_net !== undefined ? fmtBRL(snap.revenue_net) : '—'}
+                                                            </span>
+                                                            <div>
+                                                                {log.situacao_geral ? <SituacaoBadge value={log.situacao_geral} /> : (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ textAlign: 'right' }}>
+                                                                {emailSt ? (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: emailSt.color, fontWeight: 500 }}>{emailSt.label}</span>
+                                                                ) : (
+                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                )}
+                                                            </div>
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                                                                {canRedownload && (
+                                                                    downloadError === log.id ? (
+                                                                        <motion.button
+                                                                            whileTap={{ scale: 0.95 }}
+                                                                            onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
+                                                                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent-red)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                                                                        >
+                                                                            Erro — tentar novamente
+                                                                        </motion.button>
+                                                                    ) : (
+                                                                        <motion.button
+                                                                            whileHover={{ scale: downloadingLogId ? 1 : 1.08 }}
+                                                                            whileTap={{ scale: downloadingLogId ? 1 : 0.95 }}
+                                                                            onClick={(e) => { e.stopPropagation(); handleRedownload(log) }}
+                                                                            disabled={!!downloadingLogId}
+                                                                            title={downloadingLogId === log.id ? 'Gerando...' : 'Baixar novamente'}
+                                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 6, border: '1px solid var(--color-border)', background: 'transparent', cursor: downloadingLogId ? 'default' : 'pointer', color: downloadingLogId === log.id ? 'var(--color-primary)' : 'var(--color-text-secondary)', opacity: downloadingLogId && downloadingLogId !== log.id ? 0.4 : 1 }}>
+                                                                            {downloadingLogId === log.id
+                                                                                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" strokeOpacity="0.25" /><path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" /></path></svg>
+                                                                                : <DownloadIcon />
+                                                                            }
+                                                                        </motion.button>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </NotionRow>
+
+                                                    {/* Expandable snapshot detail */}
+                                                    <AnimatePresence>
+                                                        {isExpanded && snap && (
+                                                            <motion.div
+                                                                key={`expand-${log.id}`}
+                                                                initial={{ opacity: 0, height: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto' }}
+                                                                exit={{ opacity: 0, height: 0 }}
+                                                                transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                                                                style={{ overflow: 'hidden' }}
+                                                            >
+                                                                <div style={{ padding: '16px 28px 20px', background: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--color-border)' }}>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Receita líquida</span>
+                                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{fmtBRL(snap.revenue_net)}</span>
+                                                                            {snap.revenue_change_pct !== null && snap.revenue_change_pct !== undefined && (
+                                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: snap.revenue_change_pct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' }}>
+                                                                                    {snap.revenue_change_pct >= 0 ? '+' : ''}{snap.revenue_change_pct.toFixed(1)}%
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ROAS</span>
+                                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.roas?.toFixed(2) ?? '—'}x</span>
+                                                                            {snap.ad_spend !== undefined && (
+                                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>Ads: {fmtBRL(snap.ad_spend)}</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Novos clientes</span>
+                                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.new_customers ?? '—'}</span>
+                                                                        </div>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>LTV médio</span>
+                                                                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{snap.ltv_avg !== undefined ? fmtBRL(snap.ltv_avg) : '—'}</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: snap.resumo_executivo ? 12 : 0 }}>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canal top</span>
+                                                                            {snap.top_channel ? (
+                                                                                <>
+                                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                                                        {CHANNEL_LABEL[snap.top_channel.channel] ?? snap.top_channel.channel}
+                                                                                    </span>
+                                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-green)' }}>
+                                                                                        {fmtBRL(snap.top_channel.value_created)}
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Canal em prejuízo</span>
+                                                                            {snap.worst_channel ? (
+                                                                                <>
+                                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                                                                                        {CHANNEL_LABEL[snap.worst_channel.channel] ?? snap.worst_channel.channel}
+                                                                                    </span>
+                                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--accent-red)' }}>
+                                                                                        {fmtBRL(snap.worst_channel.value_created)}
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Clientes em risco</span>
+                                                                            {snap.at_risk_count !== undefined ? (
+                                                                                <>
+                                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--accent-orange)' }}>{snap.at_risk_count}</span>
+                                                                                    {snap.at_risk_ltv !== undefined && (
+                                                                                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-secondary)' }}>{fmtBRL(snap.at_risk_ltv)} em LTV</span>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : (
+                                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                                            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Diagnósticos críticos</span>
+                                                                            {snap.diagnosticos_count !== undefined ? (
+                                                                                <>
+                                                                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: snap.criticos > 0 ? 'var(--accent-red)' : 'var(--color-text-primary)' }}>
+                                                                                        {snap.criticos} críticos
+                                                                                    </span>
+                                                                                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                                                                                        {snap.diagnosticos_count} total
+                                                                                    </span>
+                                                                                </>
+                                                                            ) : (
+                                                                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)' }}>—</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {snap.resumo_executivo && (
+                                                                        <p style={{ margin: 0, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.6, paddingTop: 4 }}>
+                                                                            {snap.resumo_executivo}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+                                                </div>
+                                            )
+                                        })}
+                                        {hasMoreLogs && (
+                                            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 20px', borderTop: '1px solid var(--color-border)' }}>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                                    onClick={handleLoadMoreLogs}
+                                                    disabled={loadingMore}
+                                                    style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: loadingMore ? 'var(--color-text-secondary)' : 'var(--color-primary)', background: 'transparent', border: 'none', cursor: loadingMore ? 'default' : 'pointer', padding: '4px 12px' }}>
+                                                    {loadingMore ? 'Carregando...' : 'Carregar mais'}
+                                                </motion.button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+
+                </AnimatePresence>
             </motion.div>
         </div>
     )

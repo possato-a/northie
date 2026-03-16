@@ -85,38 +85,6 @@ const EXEC_CHANNEL: Record<RecType, { label: string; color: string }> = {
   em_risco_alto_valor:           { label: 'WhatsApp', color: '#25D366' },
 }
 
-const MOCK_RECOMMENDATIONS: Recommendation[] = [
-  {
-    id: 'mock_1', type: 'reativacao_alto_ltv', status: 'pending',
-    title: '14 clientes Champions sem compra há 73 dias',
-    narrative: 'Seus 14 melhores clientes (LTV médio R$ 2.340) estão aproximando o limiar de churn — eles compraram em média 2,8x com intervalo de 42 dias, mas o último contato foi há 73 dias. Uma reativação agora preserva R$ 32.760 em receita futura projetada e custa zero em aquisição.',
-    impact_estimate: 'Até R$ 12.000 em receita reativada nos próximos 30 dias',
-    sources: ['stripe', 'meta_ads'],
-    execution_log: [],
-    meta: { segment_count: 14, avg_ltv: 2340, global_avg_ltv: 890 },
-    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'mock_2', type: 'pausa_campanha_ltv_baixo', status: 'pending',
-    title: 'Campanha "Interesses Frios Jan" traz clientes com LTV 3x abaixo da média',
-    narrative: 'Nos últimos 14 dias, essa campanha gastou R$ 1.640 e gerou 7 clientes com LTV médio de R$ 221 — contra R$ 890 do restante da base. CAC de R$ 234 não se paga com esse LTV. Pausar e realocar o budget para o Retargeting (ROAS 4.0x) melhora a margem imediatamente.',
-    impact_estimate: 'Economia de R$ 1.640/mês + ganho de margem no Retargeting',
-    sources: ['meta_ads', 'stripe'],
-    execution_log: [],
-    meta: { total_spend_14d: 1640, global_avg_ltv: 890, campaigns: [{ name: 'LANÇAMENTO JAN | Conversão | Interesses frios' }] },
-    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  },
-  {
-    id: 'mock_3', type: 'audience_sync_champions', status: 'pending',
-    title: 'Sincronizar 38 Champions como Lookalike 1% no Meta Ads',
-    narrative: 'Você tem 38 clientes champions (5+ compras, LTV > R$ 1.800) que nunca foram usados como semente de audiência. Criar um Lookalike 1% com esse segmento qualificado por LTV real tende a reduzir CAC em 18–25% nas próximas campanhas, com base em dados históricos de atribuição.',
-    impact_estimate: 'Redução potencial de CAC de R$ 120 → R$ 90 nas próximas campanhas',
-    sources: ['stripe', 'meta_ads'],
-    execution_log: [],
-    meta: { champion_count: 38, avg_ltv: 2840 },
-    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  },
-]
 
 
 const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -1233,8 +1201,6 @@ export default function Growth() {
                 <div style={{ height: 220, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', opacity: 0.6 }} />
               </div>
             ) : (() => {
-              const display = pendingRecs.length > 0 ? pendingRecs : MOCK_RECOMMENDATIONS
-              const isMock = pendingRecs.length === 0
               const completedCount = recommendations.filter(r => r.status === 'completed').length
               const totalImpact = MOCK_IMPACT_DATA.reduce((s, d) => s + d.value, 0)
 
@@ -1248,14 +1214,14 @@ export default function Growth() {
                     transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
                     style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}
                   >
-                    <KpiCard label="Aguardando aprovação" value={display.length} decimals={0} delay={0.05} />
+                    <KpiCard label="Aguardando aprovação" value={pendingRecs.length} decimals={0} delay={0.05} />
                     <KpiCard label="Em execução" value={activeRecs.length} decimals={0} delay={0.1} />
                     <KpiCard label="Concluídas" value={completedCount} decimals={0} delay={0.15} />
                     <KpiCard label="Impacto estimado" value={totalImpact} prefix="R$" decimals={0} delay={0.2} />
                   </motion.div>
 
                   {/* Aguardando aprovação */}
-                  {display.length > 0 && (
+                  {pendingRecs.length > 0 ? (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1275,25 +1241,35 @@ export default function Growth() {
                             background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
                             borderRadius: 'var(--radius-full)', padding: '1px 7px', fontWeight: 400,
                           }}>
-                            {display.length} {display.length > 1 ? 'ações' : 'ação'}
+                            {pendingRecs.length} {pendingRecs.length > 1 ? 'ações' : 'ação'}
                           </span>
-                          {isMock && (
-                            <span style={{
-                              fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)',
-                              background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-                              borderRadius: 6, padding: '2px 8px', marginLeft: 'auto',
-                            }}>
-                              demonstração
-                            </span>
-                          )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                           <AnimatePresence>
-                            {display.map(rec => (
+                            {pendingRecs.map(rec => (
                               <RecommendationCard key={rec.id} rec={rec} onClick={() => setSelectedRec(rec)} />
                             ))}
                           </AnimatePresence>
                         </div>
+                      </SectionCard>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.1, ease: [0.25, 0.1, 0.25, 1] }}
+                    >
+                      <SectionCard style={{ padding: '32px 24px' }}>
+                        <p style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: 'var(--text-sm)',
+                          color: 'var(--color-text-tertiary)',
+                          margin: 0,
+                          textAlign: 'center' as const,
+                          lineHeight: 1.6,
+                        }}>
+                          Nenhuma recomendação ativa. O motor de correlações analisa seus dados diariamente e gera recomendações automaticamente.
+                        </p>
                       </SectionCard>
                     </motion.div>
                   )}

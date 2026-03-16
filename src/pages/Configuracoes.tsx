@@ -1019,7 +1019,6 @@ function NotificacoesPanel({ user }: { user?: User }) {
 }
 
 function SegurancaPanel() {
-    const [twoFactor, setTwoFactor] = useState(false)
     const [signingOut, setSigningOut] = useState(false)
 
     const handleSignOut = async () => {
@@ -1035,7 +1034,46 @@ function SegurancaPanel() {
                 title="Autenticação em dois fatores"
                 description="Adicione uma camada extra de segurança à sua conta."
             >
-                <Toggle value={twoFactor} onChange={setTwoFactor} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 11,
+                        color: 'var(--color-text-tertiary)',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 6,
+                        padding: '2px 8px',
+                        letterSpacing: '0.01em',
+                    }}>
+                        Em breve
+                    </span>
+                    <button
+                        disabled
+                        style={{
+                            width: 40,
+                            height: 22,
+                            borderRadius: 11,
+                            border: 'none',
+                            cursor: 'not-allowed',
+                            padding: 2,
+                            background: 'var(--color-border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexShrink: 0,
+                            position: 'relative',
+                            opacity: 0.5,
+                        }}
+                    >
+                        <span style={{
+                            display: 'block',
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            background: 'white',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        }} />
+                    </button>
+                </div>
             </SettingRow>
 
             <SettingRow

@@ -73,24 +73,10 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   rejected:       { label: 'Não aprovado',     color: 'var(--color-error, #ef4444)',   bg: 'rgba(239,68,68,0.1)' },
 }
 
-const DIMENSION_LABELS: Record<keyof ScoreDimensions, string> = {
-  revenue_consistency: 'Consistência de receita',
-  customer_quality: 'Qualidade de clientes',
-  acquisition_efficiency: 'Eficiência de aquisição',
-  platform_tenure: 'Tempo de plataforma',
-}
-
 const fmt = {
   currency: (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }),
   decimal: (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
   percent: (v: number) => v.toLocaleString('pt-BR', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }),
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return 'var(--color-success, #22c55e)'
-  if (score >= 70) return '#eab308'
-  if (score >= 50) return '#f97316'
-  return 'var(--color-error, #ef4444)'
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
@@ -136,74 +122,6 @@ function OptionRow({ label, selected, onSelect, multi = false }: {
   )
 }
 
-function ScoreGauge({ score }: { score: number }) {
-  const color = getScoreColor(score)
-  const circumference = 2 * Math.PI * 42
-  const progress = (score / 100) * circumference
-
-  return (
-    <div style={{ position: 'relative', width: 110, height: 110 }}>
-      <svg width="110" height="110" viewBox="0 0 110 110" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="55" cy="55" r="42" fill="none" stroke="var(--color-border)" strokeWidth="6" />
-        <motion.circle
-          cx="55" cy="55" r="42" fill="none" stroke={color} strokeWidth="6"
-          strokeLinecap="round"
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: circumference - progress }}
-          transition={{ duration: 1.2, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
-          strokeDasharray={circumference}
-        />
-      </svg>
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <motion.span
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          style={{
-            fontFamily: 'var(--font-mono, var(--font-sans))', fontSize: 28, fontWeight: 600,
-            color: 'var(--color-text-primary)', lineHeight: 1,
-          }}
-        >
-          {score}
-        </motion.span>
-        <span style={{
-          fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)',
-          marginTop: 2,
-        }}>
-          de 100
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function DimensionBar({ label, value, maxValue }: { label: string; value: number; maxValue: number }) {
-  const pct = maxValue > 0 ? Math.min((value / maxValue) * 100, 100) : 0
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-secondary)' }}>
-          {label}
-        </span>
-        <span style={{ fontFamily: 'var(--font-mono, var(--font-sans))', fontSize: 12, color: 'var(--color-text-primary)', fontWeight: 500 }}>
-          {fmt.decimal(value)}
-        </span>
-      </div>
-      <div style={{ height: 4, borderRadius: 2, background: 'var(--color-border)', overflow: 'hidden' }}>
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
-          style={{ height: '100%', borderRadius: 2, background: getScoreColor(pct) }}
-        />
-      </div>
-    </div>
-  )
-}
-
 function StatusBadge({ status }: { status: string }) {
   const config = STATUS_LABELS[status] ?? STATUS_LABELS.waitlist
   return (
@@ -215,6 +133,103 @@ function StatusBadge({ status }: { status: string }) {
     }}>
       {config.label}
     </span>
+  )
+}
+
+function ScoreBanner({ score }: { score: CapitalScore }) {
+  const isEligible = score.score >= 70
+  const pointsNeeded = 70 - score.score
+
+  const bannerBg = isEligible
+    ? 'rgba(34,197,94,0.06)'
+    : score.score >= 50
+      ? 'rgba(234,179,8,0.06)'
+      : 'rgba(239,68,68,0.06)'
+
+  const bannerBorder = isEligible
+    ? 'rgba(34,197,94,0.18)'
+    : score.score >= 50
+      ? 'rgba(234,179,8,0.18)'
+      : 'rgba(239,68,68,0.18)'
+
+  const scoreColor = isEligible
+    ? 'var(--color-success, #22c55e)'
+    : score.score >= 50
+      ? '#eab308'
+      : 'var(--color-error, #ef4444)'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+      style={{
+        background: bannerBg,
+        border: `1px solid ${bannerBorder}`,
+        borderRadius: 'var(--radius-lg)',
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 24,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <span style={{
+          fontFamily: 'var(--font-mono, var(--font-sans))',
+          fontSize: 40,
+          fontWeight: 700,
+          color: scoreColor,
+          lineHeight: 1,
+          letterSpacing: '-1px',
+        }}>
+          {score.score}
+        </span>
+        <span style={{
+          fontFamily: 'var(--font-sans)',
+          fontSize: 14,
+          color: 'var(--color-text-tertiary)',
+        }}>
+          / 100 — Capital Score
+        </span>
+      </div>
+
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        {isEligible ? (
+          <>
+            <p style={{
+              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+              color: 'var(--color-success, #22c55e)', margin: '0 0 2px',
+            }}>
+              Elegivel para solicitar
+            </p>
+            {score.credit_limit_brl > 0 && (
+              <p style={{
+                fontFamily: 'var(--font-mono, var(--font-sans))', fontSize: 16, fontWeight: 600,
+                color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.3px',
+              }}>
+                Limite estimado: {fmt.currency(score.credit_limit_brl)}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <p style={{
+              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+              color: 'var(--color-text-primary)', margin: '0 0 2px',
+            }}>
+              Capital Score abaixo do minimo
+            </p>
+            <p style={{
+              fontFamily: 'var(--font-sans)', fontSize: 12,
+              color: 'var(--color-text-tertiary)', margin: 0,
+            }}>
+              Faltam {pointsNeeded} pontos para elegibilidade
+            </p>
+          </>
+        )}
+      </div>
+    </motion.div>
   )
 }
 
@@ -274,12 +289,12 @@ export default function Card({ onToggleChat }: PageProps) {
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { status?: number; data?: { error?: string } } }
         if (axiosErr.response?.status === 403) {
-          setSubmitError('Capital Score insuficiente. Mínimo de 70 pontos necessário para solicitar o Northie Card.')
+          setSubmitError('Capital Score insuficiente. Minimo de 70 pontos necessario para solicitar o Northie Card.')
         } else {
-          setSubmitError(axiosErr.response?.data?.error ?? 'Erro ao enviar solicitação. Tente novamente.')
+          setSubmitError(axiosErr.response?.data?.error ?? 'Erro ao enviar solicitacao. Tente novamente.')
         }
       } else {
-        setSubmitError('Erro ao enviar solicitação. Tente novamente.')
+        setSubmitError('Erro ao enviar solicitacao. Tente novamente.')
       }
     }
     setSubmitting(false)
@@ -292,6 +307,11 @@ export default function Card({ onToggleChat }: PageProps) {
     borderRadius: 10, padding: '11px 14px',
     fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6,
     color: 'var(--color-text-primary)', outline: 'none',
+  }
+
+  const pageWrapper: React.CSSProperties = {
+    maxWidth: 640,
+    margin: '0 auto',
   }
 
   // ── Loading ──
@@ -333,18 +353,11 @@ export default function Card({ onToggleChat }: PageProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-          style={{ display: 'grid', gridTemplateColumns: '5fr 7fr', gap: 24, alignItems: 'start' }}
+          style={pageWrapper}
         >
-          {/* Left column -- Score */}
-          <div style={{ position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {score && (
-              <ScoreCard score={score} />
-            )}
-            <HeroCard />
-          </div>
-
-          {/* Right column -- Application status */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {score && <ScoreBanner score={score} />}
+
             <div style={{
               background: 'var(--color-bg-primary)',
               border: '1px solid var(--color-border)',
@@ -359,7 +372,7 @@ export default function Card({ onToggleChat }: PageProps) {
                     color: 'var(--color-text-tertiary)', letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                   }}>
-                    Solicitação
+                    Solicitacao
                   </span>
                   <h3 style={{
                     fontFamily: 'var(--font-sans)', fontSize: 20, fontWeight: 500,
@@ -433,7 +446,7 @@ export default function Card({ onToggleChat }: PageProps) {
                   fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)',
                   margin: 0, lineHeight: 1.65,
                 }}>
-                  Sua solicitação não foi aprovada neste momento. Continue integrando seus dados e melhorando seu Capital Score para futuras análises.
+                  Sua solicitacao nao foi aprovada neste momento. Continue integrando seus dados e melhorando seu Capital Score para futuras analises.
                 </p>
               </motion.div>
             )}
@@ -452,48 +465,15 @@ export default function Card({ onToggleChat }: PageProps) {
         key="form"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        style={{ display: 'grid', gridTemplateColumns: '5fr 7fr', gap: 24, alignItems: 'start' }}
+        style={pageWrapper}
       >
-
-        {/* Left column -- Score + Hero */}
-        <div style={{ position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {score && (
-            <ScoreCard score={score} />
-          )}
-          <HeroCard />
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
-            margin: 0, lineHeight: 1.55, padding: '0 4px',
-          }}>
-            Opera via parceiro financeiro regulado. Limite calculado com base nos seus dados reais — não em score de crédito tradicional.
-          </p>
-        </div>
-
-        {/* Right column -- Request form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {/* Not eligible warning */}
-          {score && !isEligible && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                background: 'rgba(239,68,68,0.06)',
-                border: '1px solid rgba(239,68,68,0.15)',
-                borderRadius: 'var(--radius-lg)',
-                padding: '16px 20px',
-              }}
-            >
-              <p style={{
-                fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)',
-                margin: 0, lineHeight: 1.65,
-              }}>
-                <strong style={{ color: 'var(--color-text-primary)' }}>Capital Score abaixo do mínimo.</strong>{' '}
-                Seu score atual é {score.score}/100. O mínimo para solicitar o Northie Card é 70 pontos.
-                Continue integrando dados e acompanhe sua evolução.
-              </p>
-            </motion.div>
-          )}
+          {/* Score banner */}
+          {score && <ScoreBanner score={score} />}
+
+          {/* Hero card */}
+          <HeroCard />
 
           {/* Form card */}
           <motion.div
@@ -528,8 +508,8 @@ export default function Card({ onToggleChat }: PageProps) {
                 color: 'var(--color-text-tertiary)', margin: 0,
               }}>
                 {isEligible
-                  ? 'Preencha os dados abaixo para solicitar seu cartão corporativo.'
-                  : 'Registre seu interesse e avisaremos quando estiver elegível.'
+                  ? 'Preencha os dados abaixo para solicitar seu cartao corporativo.'
+                  : 'Registre seu interesse e avisaremos quando estiver elegivel.'
                 }
               </p>
             </div>
@@ -674,6 +654,14 @@ export default function Card({ onToggleChat }: PageProps) {
               </motion.button>
             </div>
           </motion.div>
+
+          {/* Disclaimer */}
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
+            margin: 0, lineHeight: 1.55, padding: '0 4px',
+          }}>
+            Opera via parceiro financeiro regulado. Limite calculado com base nos seus dados reais — nao em score de credito tradicional.
+          </p>
         </div>
       </motion.div>
     </div>
@@ -681,88 +669,6 @@ export default function Card({ onToggleChat }: PageProps) {
 }
 
 // ── Shared cards ─────────────────────────────────────────────────────────────
-
-function ScoreCard({ score }: { score: CapitalScore }) {
-  const dims = score.dimensions
-  // Max per dimension from capital.service.ts logic: revenue=25, customer=25, acquisition=25, tenure=25
-  const dimMax = 25
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-      style={{
-        background: 'var(--color-bg-primary)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-md)',
-        padding: '24px',
-      }}
-    >
-      <span style={{
-        fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 400,
-        color: 'var(--color-text-tertiary)', letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-      }}>
-        Capital Score
-      </span>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginTop: 16 }}>
-        <ScoreGauge score={score.score} />
-        <div style={{ flex: 1 }}>
-          {score.credit_limit_brl > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <p style={{
-                fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
-                margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.04em',
-              }}>
-                Limite estimado
-              </p>
-              <p style={{
-                fontFamily: 'var(--font-mono, var(--font-sans))', fontSize: 22, fontWeight: 600,
-                color: 'var(--color-text-primary)', margin: 0, letterSpacing: '-0.3px',
-              }}>
-                {fmt.currency(score.credit_limit_brl)}
-              </p>
-            </div>
-          )}
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
-            margin: 0, lineHeight: 1.55,
-          }}>
-            {score.score >= 70
-              ? 'Elegível para solicitar o Northie Card.'
-              : `Faltam ${70 - score.score} pontos para elegibilidade.`
-            }
-          </p>
-        </div>
-      </div>
-
-      <div style={{ height: 1, background: 'var(--color-border)', margin: '18px 0 16px' }} />
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {(Object.keys(DIMENSION_LABELS) as Array<keyof ScoreDimensions>).map(key => (
-          <DimensionBar
-            key={key}
-            label={DIMENSION_LABELS[key]}
-            value={dims[key]}
-            maxValue={dimMax}
-          />
-        ))}
-      </div>
-
-      {score.snapshot_month && (
-        <p style={{
-          fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)',
-          margin: '14px 0 0', textAlign: 'right',
-        }}>
-          Calculado em {score.snapshot_month}
-        </p>
-      )}
-    </motion.div>
-  )
-}
 
 function HeroCard() {
   return (
@@ -785,13 +691,13 @@ function HeroCard() {
         letterSpacing: '-0.6px', color: 'var(--color-text-primary)',
         lineHeight: 1.2, margin: '10px 0 16px',
       }}>
-        Capital que cresce com o seu negócio.
+        Capital que cresce com o seu negocio.
       </h2>
       <p style={{
         fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)',
         lineHeight: 1.65, margin: '0 0 24px',
       }}>
-        Sem garantia física, sem equity, sem burocracia. O limite é calculado diretamente pelos seus dados de faturamento, LTV e saúde do caixa — não por quem você conhece.
+        Sem garantia fisica, sem equity, sem burocracia. O limite e calculado diretamente pelos seus dados de faturamento, LTV e saude do caixa — nao por quem voce conhece.
       </p>
       <div style={{ height: 1, background: 'var(--color-border)', marginBottom: 20 }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -845,4 +751,3 @@ function MetricBlock({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
-
