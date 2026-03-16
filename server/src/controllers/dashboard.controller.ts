@@ -131,11 +131,28 @@ export async function getGeneralStats(req: Request, res: Response) {
         // Average Ticket (AOV) — revenue / number of transactions
         const averageTicket = transactionCount > 0 ? totalRevenue / transactionCount : 0;
 
+        // Active customers (purchased in last 90 days) + average churn rate
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        const [activeResult, churnResult] = await Promise.all([
+            supabase.from('customers').select('id', { count: 'exact', head: true })
+                .eq('profile_id', profileId).gte('last_purchase_at', ninetyDaysAgo),
+            supabase.from('customers').select('churn_probability')
+                .eq('profile_id', profileId),
+        ]);
+
+        const activeCustomers = activeResult.count ?? 0;
+        const churnData = churnResult.data ?? [];
+        const churnRate = churnData.length > 0
+            ? churnData.reduce((sum, c) => sum + (Number(c.churn_probability) || 0), 0) / churnData.length
+            : 0;
+
         res.status(200).json({
             total_revenue: totalRevenue,
             total_customers: customerCount,
             total_transactions: transactionCount,
             average_ticket: Number(averageTicket.toFixed(2)),
+            active_customers: activeCustomers,
+            churn_rate: Number(churnRate.toFixed(2)),
             currency: 'BRL'
         });
     } catch (error: unknown) {
@@ -720,12 +737,33 @@ export async function getFullDashboard(req: Request, res: Response) {
     const ok = <T>(r: PromiseSettledResult<T>): T | null => r.status === 'fulfilled' ? r.value : null;
 
     const dashStats = ok(statsR);
+
+    // Active customers + churn rate (parallel)
+    let activeCustomers = 0;
+    let churnRate = 0;
+    if (dashStats) {
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        const [activeR, churnR] = await Promise.all([
+            supabase.from('customers').select('id', { count: 'exact', head: true })
+                .eq('profile_id', profileId).gte('last_purchase_at', ninetyDaysAgo),
+            supabase.from('customers').select('churn_probability')
+                .eq('profile_id', profileId),
+        ]);
+        activeCustomers = activeR.count ?? 0;
+        const churnData = churnR.data ?? [];
+        churnRate = churnData.length > 0
+            ? Number((churnData.reduce((s, c) => s + (Number(c.churn_probability) || 0), 0) / churnData.length).toFixed(2))
+            : 0;
+    }
+
     res.status(200).json({
         stats: dashStats ? {
             total_revenue: dashStats.total_revenue,
             total_customers: dashStats.total_customers,
             total_transactions: dashStats.total_transactions,
             average_ticket: dashStats.average_ticket,
+            active_customers: activeCustomers,
+            churn_rate: churnRate,
             currency: 'BRL',
         } : null,
         growth: dashStats ? {

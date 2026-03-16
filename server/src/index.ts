@@ -103,7 +103,7 @@ app.use('/api/comunidade', authMiddleware, comunidadeRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'northie-backend', version: 'v13' });
+    res.json({ status: 'ok', service: 'northie-backend', version: 'v14' });
 });
 
 // Global error handler — captura qualquer erro não tratado nas rotas (Express 5 propaga async throws)

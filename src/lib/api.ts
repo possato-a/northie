@@ -65,12 +65,15 @@ export const dataApi = {
 export const aiApi = {
     chat: (message: string, pageContext?: string, model?: string) => api.post('/ai/chat', { message, page_context: pageContext, model }),
     growthChat: (message: string, model?: string) => api.post('/ai/growth-chat', { message, model }),
+    clearHistory: () => api.delete('/ai/history'),
 };
 
 export const growthApi = {
     listRecommendations: () => api.get('/growth/recommendations'),
     approve: (id: string) => api.post(`/growth/recommendations/${id}/approve`),
     dismiss: (id: string) => api.post(`/growth/recommendations/${id}/dismiss`),
+    reject: (id: string) => api.post(`/growth/recommendations/${id}/reject`),
+    cancel: (id: string) => api.post(`/growth/recommendations/${id}/cancel`),
     getStatus: (id: string) => api.get(`/growth/recommendations/${id}/status`),
     getMetrics: () => api.get('/growth/metrics'),
     runDiagnostic: (days = 30) => api.post('/growth/diagnostic', { days }, { timeout: 180000 }),
@@ -101,6 +104,29 @@ export const reportsApi = {
         api.get('/reports/export', { params: { format, period }, responseType: 'blob', timeout: 60000 }),
     redownload: (logId: string, format: 'pdf' | 'xlsx' | 'json') =>
         api.get(`/reports/logs/${logId}/download`, { params: { format }, responseType: 'blob', timeout: 60000 }),
+};
+
+export const cardApi = {
+    getScore: () => api.get('/card/score'),
+    getHistory: () => api.get('/card/history'),
+    getApplication: () => api.get('/card/application'),
+    request: (data: { requested_limit_brl: number; purposes?: string[]; term_months: number }) =>
+        api.post('/card/request', data),
+};
+
+export const contextApi = {
+    get: () => api.get('/context'),
+    save: (data: Record<string, unknown>) => api.post('/context', data),
+};
+
+export const pipelineApi = {
+    listLeads: () => api.get('/pipeline/leads'),
+    createLead: (data: Record<string, unknown>) => api.post('/pipeline/leads', data),
+    updateLead: (id: string, data: Record<string, unknown>) => api.patch(`/pipeline/leads/${id}`, data),
+    deleteLead: (id: string) => api.delete(`/pipeline/leads/${id}`),
+    listMeetings: () => api.get('/pipeline/meetings'),
+    createMeeting: (data: Record<string, unknown>) => api.post('/pipeline/meetings', data),
+    updateMeeting: (id: string, data: Record<string, unknown>) => api.patch(`/pipeline/meetings/${id}`, data),
 };
 
 export const alertsApi = {

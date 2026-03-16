@@ -25,7 +25,10 @@ export interface KpiData {
 export interface DashboardStats {
     total_revenue: number
     total_customers: number
+    total_transactions: number
     average_ticket: number
+    active_customers: number
+    churn_rate: number
     currency: string
 }
 
@@ -50,13 +53,28 @@ export interface ChannelTrends {
 }
 
 export interface AdCampaign {
-    id: string
-    name: string
+    campaign_id: string
+    campaign_name: string
     platform: string
-    spendToday: number
-    roasToday: number
-    status: string
+    spend_brl: number
+    roas: number
+    impressions: number
+    clicks: number
+    ctr: number
+    cpc_brl: number
+    cpm_brl: number
+    purchases: number
+    purchase_value: number
+    leads: number
+    results: number
+    result_type: string
+    cost_per_result: number
+    status: string | null
+    objective: string | null
 }
+
+/** @deprecated alias — use RecStatus */
+export type RecommendationStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed' | 'rejected' | 'cancelled'
 
 // ── Customers ────────────────────────────────────────────────────────────────
 
