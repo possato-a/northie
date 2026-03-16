@@ -38,28 +38,6 @@ interface Meeting {
 type LeadStatus = 'lead' | 'reuniao_agendada' | 'reuniao_realizada' | 'fechado' | 'perdido'
 type MeetingStatus = 'agendada' | 'realizada' | 'cancelada' | 'no_show'
 
-// ── Mock Data (fallback) ─────────────────────────────────────────────────────
-
-const MOCK_LEADS: Lead[] = [
-  { id: '1', name: 'Ana Beatriz Costa',   email: 'ana@studioab.com',   phone: null, company: 'Studio AB',        source: 'Formulário',  status: 'fechado',            value_estimate: 4800, notes: null, meta: null, created_at: '2026-03-10T10:00:00Z', updated_at: '2026-03-10T10:00:00Z' },
-  { id: '2', name: 'Rafael Mendes',       email: 'rafael@mendes.com',  phone: null, company: 'Agência Mendes',   source: 'Indicação',   status: 'reuniao_realizada',  value_estimate: 7200, notes: null, meta: null, created_at: '2026-03-08T10:00:00Z', updated_at: '2026-03-08T10:00:00Z' },
-  { id: '3', name: 'Camila Torres',       email: 'camila@ct.com',      phone: null, company: 'CT Educação',      source: 'Formulário',  status: 'reuniao_agendada',   value_estimate: 3600, notes: null, meta: null, created_at: '2026-03-07T10:00:00Z', updated_at: '2026-03-07T10:00:00Z' },
-  { id: '4', name: 'Bruno Figueiredo',    email: 'bruno@bf.com',       phone: null, company: 'BF Soluções',      source: 'LinkedIn',    status: 'lead',               value_estimate: 9600, notes: null, meta: null, created_at: '2026-03-06T10:00:00Z', updated_at: '2026-03-06T10:00:00Z' },
-  { id: '5', name: 'Mariana Souza',       email: 'mariana@ms.com',     phone: null, company: 'MS Digital',       source: 'Formulário',  status: 'fechado',            value_estimate: 2400, notes: null, meta: null, created_at: '2026-03-04T10:00:00Z', updated_at: '2026-03-04T10:00:00Z' },
-  { id: '6', name: 'Pedro Almeida',       email: 'pedro@pa.com',       phone: null, company: 'PA Consultoria',   source: 'Indicação',   status: 'perdido',            value_estimate: 6000, notes: null, meta: null, created_at: '2026-03-02T10:00:00Z', updated_at: '2026-03-02T10:00:00Z' },
-  { id: '7', name: 'Fernanda Lima',       email: 'fernanda@fl.com',    phone: null, company: 'FL Marketing',     source: 'Formulário',  status: 'reuniao_realizada',  value_estimate: 5400, notes: null, meta: null, created_at: '2026-03-01T10:00:00Z', updated_at: '2026-03-01T10:00:00Z' },
-  { id: '8', name: 'Lucas Pereira',       email: 'lucas@lp.com',       phone: null, company: 'LP Tech',          source: 'LinkedIn',    status: 'lead',               value_estimate: 12000, notes: null, meta: null, created_at: '2026-02-28T10:00:00Z', updated_at: '2026-02-28T10:00:00Z' },
-]
-
-const MOCK_MEETINGS: Meeting[] = [
-  { id: '1', lead_id: '1', title: 'Demo Northie — Ana Beatriz',   scheduled_at: '2026-03-09T14:00:00Z', duration_minutes: 42, status: 'realizada',  notes: null, transcript_summary: 'Cliente demonstrou forte interesse na automação de reativação. Principal objeção: preço inicial. Resolvida após apresentar ROI histórico de clientes similares.', created_at: '2026-03-09T14:00:00Z', updated_at: '2026-03-09T14:00:00Z' },
-  { id: '2', lead_id: '2', title: 'Reunião técnica — Rafael',     scheduled_at: '2026-03-07T10:00:00Z', duration_minutes: 58, status: 'realizada',  notes: null, transcript_summary: 'Reunião técnica aprofundada sobre integrações com Meta Ads. Cliente solicitou proposta customizada para agência com múltiplos clientes.', created_at: '2026-03-07T10:00:00Z', updated_at: '2026-03-07T10:00:00Z' },
-  { id: '3', lead_id: '5', title: 'Demo Northie — Mariana',       scheduled_at: '2026-03-03T15:00:00Z', duration_minutes: 35, status: 'realizada',  notes: null, transcript_summary: 'Ciclo curto — cliente já conhecia a Northie por indicação. Decisão tomada na própria reunião. Onboarding agendado para semana seguinte.', created_at: '2026-03-03T15:00:00Z', updated_at: '2026-03-03T15:00:00Z' },
-  { id: '4', lead_id: '6', title: 'Demo Northie — Pedro',         scheduled_at: '2026-02-28T16:00:00Z', duration_minutes: 48, status: 'realizada',  notes: null, transcript_summary: 'Cliente escolheu concorrente com integração nativa ao CRM legado. Abertura para revisitar em 6 meses quando renovar contrato.', created_at: '2026-02-28T16:00:00Z', updated_at: '2026-02-28T16:00:00Z' },
-  { id: '5', lead_id: '7', title: 'Growth Engine demo — Fernanda', scheduled_at: '2026-03-01T14:00:00Z', duration_minutes: 51, status: 'realizada', notes: null, transcript_summary: 'Apresentação do Growth Engine. Cliente ficou muito animado com a correlação LTV × canal. Solicitou apresentação para sócio na próxima semana.', created_at: '2026-03-01T14:00:00Z', updated_at: '2026-03-01T14:00:00Z' },
-]
-
-
 // ── Display helpers ──────────────────────────────────────────────────────────
 
 const fmtBRL = (n: number) => `R$ ${new Intl.NumberFormat('pt-BR').format(n)}`
@@ -516,9 +494,32 @@ function PipelineView({ leads, onLeadStatusChange, onNewLead }: {
         </div>
 
         {leads.length === 0 && (
-          <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>Nenhum lead encontrado. Crie o primeiro.</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{ padding: '48px 32px', textAlign: 'center' }}
+          >
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
+              Nenhum lead registrado ainda.
+            </p>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: '0 0 20px' }}>
+              Crie seu primeiro lead para começar a acompanhar o pipeline.
+            </p>
+            <motion.button
+              whileHover={{ opacity: 0.85 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onNewLead}
+              style={{
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500,
+                color: '#fff', background: 'var(--color-primary)',
+                border: 'none', borderRadius: 'var(--radius-md)',
+                padding: '8px 20px', cursor: 'pointer',
+              }}
+            >
+              + Novo Lead
+            </motion.button>
+          </motion.div>
         )}
 
         {leads.map((lead, i) => {
@@ -903,9 +904,8 @@ export default function Conversas({ onToggleChat }: { onToggleChat?: () => void 
         setLeads(leadsRes.data || [])
         setMeetings(meetingsRes.data || [])
       } catch {
-        // Fallback to mock data if backend unavailable
-        setLeads(MOCK_LEADS)
-        setMeetings(MOCK_MEETINGS)
+        setLeads([])
+        setMeetings([])
       }
       setLoading(false)
     }

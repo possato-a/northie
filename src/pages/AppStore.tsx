@@ -10,6 +10,25 @@ import {
 // ── Types & Mock Data ────────────────────────────────────────────────────────
 
 type Category = 'Todos' | 'Integrações' | 'Marketing' | 'Pagamentos' | 'Rastreamento' | 'Fiscal' | 'Em breve'
+type PluginStatus = 'Instalar' | 'Em breve' | 'Conectado' | 'Expirado'
+
+// Mapeia plugin.id → nome de plataforma esperado pelo backend
+const PLUGIN_TO_PLATFORM: Record<string, string> = {
+    'meta-ads': 'meta',
+    'google-ads': 'google',
+    'hotmart': 'hotmart',
+    'stripe': 'stripe',
+    'shopify': 'shopify',
+}
+
+// Mapeia platform (backend) → plugin.id
+const PLATFORM_TO_PLUGIN: Record<string, string> = {
+    'meta': 'meta-ads',
+    'google': 'google-ads',
+    'hotmart': 'hotmart',
+    'stripe': 'stripe',
+    'shopify': 'shopify',
+}
 
 interface Plugin {
     id: string
@@ -18,7 +37,7 @@ interface Plugin {
     description: string
     fullDescription: string
     installCount: string
-    status: 'Instalar' | 'Em breve' | 'Conectado' | 'Expirado'
+    status: PluginStatus
     iconColor: string
     developer: string
     reviews: string
@@ -331,6 +350,7 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [installedPlugins, setInstalledPlugins] = useState<string[]>([])
     const [expiredPlugins, setExpiredPlugins] = useState<string[]>([])
     const [pluginMeta, setPluginMeta] = useState<Record<string, { connectedAccounts?: number }>>({})
+    const [statusLoading, setStatusLoading] = useState(true)
     const [syncingPlatform, setSyncingPlatform] = useState<string | null>(null)
     const [shopifyDomain, setShopifyDomain] = useState('')
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
@@ -345,25 +365,27 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     useEffect(() => {
         if (!user?.id) return
         const fetchIntegrations = async () => {
+            setStatusLoading(true)
             try {
                 setProfileId(user.id)
                 const { data } = await integrationApi.getStatus()
                 if (Array.isArray(data)) {
-                    const platformMap: Record<string, string> = {
-                        meta: 'meta-ads',
-                        google: 'google-ads',
+                    interface IntegrationItem {
+                        platform: string
+                        status: string
+                        google_customer_ids?: string[]
                     }
-                    const active = data
-                        .filter((item: { status: string }) => item.status === 'active')
-                        .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
-                    const expired = data
-                        .filter((item: { status: string }) => item.status === 'expired' || item.status === 'inactive')
-                        .map((item: { platform: string }) => platformMap[item.platform] ?? item.platform)
+                    const active = (data as IntegrationItem[])
+                        .filter(item => item.status === 'active')
+                        .map(item => PLATFORM_TO_PLUGIN[item.platform] ?? item.platform)
+                    const expired = (data as IntegrationItem[])
+                        .filter(item => item.status === 'expired' || item.status === 'inactive')
+                        .map(item => PLATFORM_TO_PLUGIN[item.platform] ?? item.platform)
 
-                    // Mapeia metadados extras (ex: contas Google conectadas)
+                    // Metadados extras — ex: número de contas Google conectadas
                     const meta: Record<string, { connectedAccounts?: number }> = {}
-                    for (const item of data) {
-                        const pluginId = platformMap[item.platform] ?? item.platform
+                    for (const item of data as IntegrationItem[]) {
+                        const pluginId = PLATFORM_TO_PLUGIN[item.platform] ?? item.platform
                         if (item.google_customer_ids?.length) {
                             meta[pluginId] = { connectedAccounts: item.google_customer_ids.length }
                         }
@@ -375,13 +397,15 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 }
             } catch (err) {
                 console.error('[AppStore] fetchIntegrations error:', err)
+            } finally {
+                setStatusLoading(false)
             }
         }
         fetchIntegrations()
     }, [user?.id])
 
     const handleSync = useCallback(async (pluginId: string, days = 30) => {
-        const platform = pluginId === 'meta-ads' ? 'meta' : pluginId.replace('-ads', '')
+        const platform = PLUGIN_TO_PLATFORM[pluginId] ?? pluginId
         setSyncingPlatform(days === 0 ? `${pluginId}-full` : pluginId)
         try {
             await integrationApi.sync(platform, days)
@@ -421,18 +445,10 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         const handleMessage = (event: MessageEvent) => {
             if (!trustedOrigins.includes(event.origin)) return
             if (event.data?.type === 'NORTHIE_OAUTH_SUCCESS') {
-                const { platform } = event.data
-                // Map platform name → pluginId
-                const pluginIdMap: Record<string, string> = {
-                    meta: 'meta-ads',
-                    google: 'google-ads',
-                    hotmart: 'hotmart',
-                    shopify: 'shopify',
-                    stripe: 'stripe',
-                }
-                const id = pluginIdMap[platform] ?? `${platform}-ads`
+                const { platform } = event.data as { platform: string }
+                const id = PLATFORM_TO_PLUGIN[platform] ?? platform
                 setInstalledPlugins(prev => [...new Set([...prev, id])])
-                // Trigger 30-day sync automatically after OAuth completes
+                // Dispara sync dos últimos 30 dias automaticamente após OAuth
                 handleSync(id, 30)
             }
         }
@@ -442,16 +458,21 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
 
     const categories: Category[] = ['Todos', 'Integrações', 'Marketing', 'Pagamentos', 'Rastreamento', 'Fiscal', 'Em breve']
 
-    const currentPlugins = useMemo(() => {
-        return PLUGINS.map(p => ({
-            ...p,
-            status: (
-                installedPlugins.includes(p.id) ? 'Conectado' :
-                expiredPlugins.includes(p.id) ? 'Expirado' :
-                p.status
-            ) as any,
-            connectedAccounts: pluginMeta[p.id]?.connectedAccounts,
-        }))
+    const currentPlugins = useMemo((): Plugin[] => {
+        return PLUGINS.map(p => {
+            const isBackendManaged = p.id in PLUGIN_TO_PLATFORM
+            let resolvedStatus: PluginStatus = p.status
+            if (isBackendManaged) {
+                if (installedPlugins.includes(p.id)) resolvedStatus = 'Conectado'
+                else if (expiredPlugins.includes(p.id)) resolvedStatus = 'Expirado'
+                else resolvedStatus = 'Instalar'
+            }
+            return {
+                ...p,
+                status: resolvedStatus,
+                connectedAccounts: pluginMeta[p.id]?.connectedAccounts,
+            }
+        })
     }, [installedPlugins, expiredPlugins, pluginMeta])
 
     const filteredPlugins = useMemo(() => {
@@ -464,17 +485,8 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }, [activeCategory, searchQuery, currentPlugins])
 
     const handleInstall = (pluginId: string) => {
-        // Todas as plataformas com fluxo OAuth (popup)
-        const oauthPlatforms: Record<string, string> = {
-            'meta-ads': 'meta',
-            'google-ads': 'google',
-            'hotmart': 'hotmart',
-            'shopify': 'shopify',
-            'stripe': 'stripe',
-        }
-
-        if (pluginId in oauthPlatforms) {
-            const platform = oauthPlatforms[pluginId]!
+        if (pluginId in PLUGIN_TO_PLATFORM) {
+            const platform = PLUGIN_TO_PLATFORM[pluginId]!
 
             // Shopify requer o domínio da loja antes de iniciar o OAuth
             if (pluginId === 'shopify') {
@@ -518,16 +530,17 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     }
 
     const handleDisconnect = async (pluginId: string) => {
-        if (!window.confirm(`Tem certeza que deseja desconectar o ${pluginId}?`)) return
+        const platformName = PLUGIN_TO_PLATFORM[pluginId] ?? pluginId
+        const displayName = currentPlugins.find(p => p.id === pluginId)?.name ?? pluginId
+        if (!window.confirm(`Tem certeza que deseja desconectar o ${displayName}?`)) return
 
         try {
-            await integrationApi.disconnect(pluginId)
+            await integrationApi.disconnect(platformName)
             setInstalledPlugins(prev => prev.filter(id => id !== pluginId))
-            if (selectedPlugin?.id === pluginId) {
-                setSelectedPlugin(prev => prev ? { ...prev, status: 'Instalar' } : null)
-            }
+            setExpiredPlugins(prev => prev.filter(id => id !== pluginId))
+            showToast(`${displayName} desconectado com sucesso.`, 'success')
         } catch (error) {
-            console.error('Failed to disconnect:', error)
+            console.error('[AppStore] handleDisconnect error:', error)
             showToast('Falha ao desconectar. Tente novamente.', 'error')
         }
     }
@@ -587,16 +600,34 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                         <div style={{
                             display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20, marginTop: 32
                         }}>
-                            {filteredPlugins.map(plugin => (
-                                <PluginCard
-                                    key={plugin.id}
-                                    plugin={plugin as Plugin}
-                                    onClick={() => setSelectedPlugin(plugin as Plugin)}
-                                />
-                            ))}
+                            {statusLoading ? (
+                                Array.from({ length: 6 }).map((_, i) => (
+                                    <motion.div
+                                        key={i}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: [0.4, 0.7, 0.4] }}
+                                        transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut', delay: i * 0.08 }}
+                                        style={{
+                                            padding: 20,
+                                            borderRadius: 'var(--radius-lg)',
+                                            border: '1px solid var(--color-border)',
+                                            background: 'var(--color-bg-primary)',
+                                            height: 140,
+                                        }}
+                                    />
+                                ))
+                            ) : (
+                                filteredPlugins.map(plugin => (
+                                    <PluginCard
+                                        key={plugin.id}
+                                        plugin={plugin}
+                                        onClick={() => setSelectedPlugin(plugin)}
+                                    />
+                                ))
+                            )}
                         </div>
 
-                        {filteredPlugins.length === 0 && (
+                        {!statusLoading && filteredPlugins.length === 0 && (
                             <EmptyState
                                 title="Não encontramos este App"
                                 description={`Não existem resultados para "${searchQuery}" nesta categoria.`}

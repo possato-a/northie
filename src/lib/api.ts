@@ -156,17 +156,8 @@ export const calendarApi = {
         api.post(`/calendar/link/${meetingId}/${customerId}`),
 };
 
-export const comunidadeApi = {
-    getPosts: (space = 'feed_geral', limit = 20) => api.get('/comunidade', { params: { space, limit } }),
-    createPost: (content: string, space = 'feed_geral') => api.post('/comunidade', { content, space }),
-    toggleLike: (postId: string) => api.post(`/comunidade/${postId}/like`),
-    getComments: (postId: string) => api.get(`/comunidade/${postId}/comments`),
-    addComment: (postId: string, content: string) => api.post(`/comunidade/${postId}/comments`, { content }),
-    getMembers: (sort = 'points', limit = 50) => api.get('/comunidade/members', { params: { sort, limit } }),
-    getMyStats: () => api.get('/comunidade/me'),
-    getEvents: () => api.get('/comunidade/events'),
-    enrollEvent: (eventId: string) => api.post(`/comunidade/events/${eventId}/enroll`),
-    getDrops: () => api.get('/comunidade/drops'),
+export const profileApi = {
+    deleteAccount: () => api.delete('/profile'),
 };
 
 export default api;

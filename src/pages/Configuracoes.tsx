@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../ThemeContext'
 import { supabase } from '../lib/supabase'
-import { integrationApi } from '../lib/api'
+import { integrationApi, profileApi } from '../lib/api'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,23 @@ type SettingsSection =
 interface NavGroup {
     label: string
     items: { id: SettingsSection; label: string; icon: React.ReactNode }[]
+}
+
+interface User {
+    id: string
+    email?: string
+    user_metadata?: {
+        full_name?: string
+        [key: string]: unknown
+    }
+    created_at?: string
+}
+
+interface IntegrationStatus {
+    platform: string
+    status: string
+    last_sync_at: string | null
+    google_customer_ids?: string[] | null
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -291,7 +308,7 @@ function NavItem({
 
 // ── Settings Panels ────────────────────────────────────────────────────────────
 
-function PerfilPanel({ user }: { user?: any }) {
+function PerfilPanel({ user }: { user?: User }) {
     const initialName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
     const email = user?.email || ''
     const [name, setName] = useState(initialName)
@@ -299,6 +316,10 @@ function PerfilPanel({ user }: { user?: any }) {
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
     const [pwResetState, setPwResetState] = useState<'idle' | 'sending' | 'sent'>('idle')
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+    const [deleteConfirmText, setDeleteConfirmText] = useState('')
+    const [deleteError, setDeleteError] = useState<string | null>(null)
+    const [deleting, setDeleting] = useState(false)
 
     const handleSave = async () => {
         if (!user?.id || !name.trim()) return
@@ -321,6 +342,20 @@ function PerfilPanel({ user }: { user?: any }) {
         })
         setPwResetState('sent')
         setTimeout(() => setPwResetState('idle'), 5000)
+    }
+
+    const handleDeleteAccount = async () => {
+        if (deleteConfirmText !== 'EXCLUIR') return
+        setDeleting(true)
+        setDeleteError(null)
+        try {
+            await profileApi.deleteAccount()
+            await supabase.auth.signOut()
+            window.location.href = '/login'
+        } catch {
+            setDeleteError('Não foi possível excluir a conta. Tente novamente ou entre em contato com o suporte.')
+            setDeleting(false)
+        }
     }
 
     const initial = name?.[0]?.toUpperCase() || email?.[0]?.toUpperCase() || 'N'
@@ -446,27 +481,168 @@ function PerfilPanel({ user }: { user?: any }) {
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', margin: 0 }}>Excluir conta</p>
                         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '4px 0 0' }}>Todos os seus dados serão permanentemente removidos.</p>
                     </div>
-                    <button style={{
-                        padding: '7px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--priority-high)',
-                        background: 'transparent',
-                        color: 'var(--priority-high)',
-                        fontFamily: 'var(--font-sans)',
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                    }}>
+                    <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => { setDeleteModalOpen(true); setDeleteConfirmText(''); setDeleteError(null) }}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--priority-high)',
+                            background: 'transparent',
+                            color: 'var(--priority-high)',
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: 'var(--text-sm)',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
                         Excluir conta
-                    </button>
+                    </motion.button>
                 </div>
             </div>
+
+            {/* Modal de confirmação de exclusão */}
+            <AnimatePresence>
+                {deleteModalOpen && (
+                    <motion.div
+                        key="delete-overlay"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.18 }}
+                        onClick={() => { if (!deleting) setDeleteModalOpen(false) }}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(0,0,0,0.5)',
+                            zIndex: 1000,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 24,
+                        }}
+                    >
+                        <motion.div
+                            key="delete-modal"
+                            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+                            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                background: 'var(--color-bg-primary)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 'var(--radius-xl)',
+                                padding: '32px',
+                                maxWidth: 440,
+                                width: '100%',
+                                boxShadow: 'var(--shadow-lg)',
+                            }}
+                        >
+                            {/* Ícone de alerta */}
+                            <div style={{
+                                width: 40, height: 40,
+                                borderRadius: 'var(--radius-full)',
+                                background: 'var(--priority-high-bg)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                marginBottom: 16,
+                            }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--priority-high)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                                </svg>
+                            </div>
+
+                            <p style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 'var(--text-lg)', color: 'var(--color-text-primary)', margin: '0 0 8px' }}>
+                                Excluir conta permanentemente
+                            </p>
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '0 0 24px', lineHeight: 1.6 }}>
+                                Tem certeza? Todos os seus dados — integrações, histórico financeiro, clientes, campanhas e configurações — serão permanentemente removidos. Essa ação não pode ser desfeita.
+                            </p>
+
+                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 8px' }}>
+                                Para confirmar, digite <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--priority-high)' }}>EXCLUIR</span> abaixo:
+                            </p>
+                            <input
+                                value={deleteConfirmText}
+                                onChange={e => setDeleteConfirmText(e.target.value)}
+                                placeholder="EXCLUIR"
+                                autoFocus
+                                disabled={deleting}
+                                style={{
+                                    width: '100%',
+                                    padding: '9px 12px',
+                                    background: 'var(--color-bg-secondary)',
+                                    border: `1px solid ${deleteConfirmText === 'EXCLUIR' ? 'var(--priority-high)' : 'var(--color-border)'}`,
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--color-text-primary)',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 'var(--text-base)',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                    marginBottom: 16,
+                                    transition: 'border-color var(--transition-base)',
+                                }}
+                            />
+
+                            {deleteError && (
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--priority-high)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                                    {deleteError}
+                                </p>
+                            )}
+
+                            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setDeleteModalOpen(false)}
+                                    disabled={deleting}
+                                    style={{
+                                        padding: '8px 18px',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1px solid var(--color-border)',
+                                        background: 'var(--color-bg-secondary)',
+                                        color: 'var(--color-text-secondary)',
+                                        fontFamily: 'var(--font-sans)',
+                                        fontSize: 'var(--text-sm)',
+                                        fontWeight: 500,
+                                        cursor: deleting ? 'default' : 'pointer',
+                                        opacity: deleting ? 0.5 : 1,
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <motion.button
+                                    whileHover={!deleting && deleteConfirmText === 'EXCLUIR' ? { scale: 1.02 } : {}}
+                                    whileTap={!deleting && deleteConfirmText === 'EXCLUIR' ? { scale: 0.97 } : {}}
+                                    onClick={handleDeleteAccount}
+                                    disabled={deleteConfirmText !== 'EXCLUIR' || deleting}
+                                    style={{
+                                        padding: '8px 18px',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: 'none',
+                                        background: deleteConfirmText === 'EXCLUIR' ? 'var(--priority-high)' : 'var(--color-bg-tertiary)',
+                                        color: deleteConfirmText === 'EXCLUIR' ? 'white' : 'var(--color-text-tertiary)',
+                                        fontFamily: 'var(--font-sans)',
+                                        fontSize: 'var(--text-sm)',
+                                        fontWeight: 500,
+                                        cursor: deleteConfirmText !== 'EXCLUIR' || deleting ? 'default' : 'pointer',
+                                        opacity: deleting ? 0.7 : 1,
+                                        transition: 'background 0.2s, color 0.2s',
+                                    }}
+                                >
+                                    {deleting ? 'Excluindo...' : 'Excluir permanentemente'}
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     )
 }
 
-function PreferenciasPanel({ user }: { user?: any }) {
+function PreferenciasPanel({ user }: { user?: User }) {
     const { isDark, setTheme, isCompact, setCompact, language, setLanguage, dateFormat, setDateFormat, startWeekMonday, setStartWeekMonday } = useTheme()
     const [autoTimezone, setAutoTimezone] = useState(true)
     const [detectedTz, setDetectedTz] = useState('')
@@ -625,7 +801,7 @@ function PreferenciasPanel({ user }: { user?: any }) {
     )
 }
 
-function NotificacoesPanel({ user }: { user?: any }) {
+function NotificacoesPanel({ user }: { user?: User }) {
     const [emailNotif, setEmailNotif] = useState(true)
     const [browser, setBrowser] = useState(false)
     const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default')
@@ -634,7 +810,7 @@ function NotificacoesPanel({ user }: { user?: any }) {
     const [alertRoas, setAlertRoas] = useState(true)
     const [alertBudget, setAlertBudget] = useState(false)
     const [saving, setSaving] = useState(false)
-    const [recentAlerts, setRecentAlerts] = useState<any[]>([])
+    const [recentAlerts, setRecentAlerts] = useState<{ id: string; type: string; severity: string; title: string; body: string; read: boolean; created_at: string }[]>([])
 
     useEffect(() => {
         // Check current browser notification permission
@@ -924,7 +1100,7 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
 }
 const BUSINESS_TYPE_OPTIONS = Object.keys(BUSINESS_TYPE_LABELS)
 
-function WorkspacePanel({ user }: { user?: any }) {
+function WorkspacePanel({ user }: { user?: User }) {
     const [wsName, setWsName] = useState('')
     const [businessType, setBusinessType] = useState('infoprodutor_perpetuo')
     const [timezone, setTimezone] = useState('América/São Paulo (UTC-3)')
@@ -1131,7 +1307,7 @@ function WorkspacePanel({ user }: { user?: any }) {
     )
 }
 
-function MembrosPanel({ user }: { user?: any }) {
+function MembrosPanel({ user }: { user?: User }) {
     const name = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Founder'
     const email = user?.email || ''
     const initial = name?.[0]?.toUpperCase() || 'F'
@@ -1215,18 +1391,33 @@ function IntegracoesPanel({ onGoToAppStore }: { onGoToAppStore?: () => void }) {
         { platform: 'shopify', name: 'Shopify', description: 'Pedidos, clientes e estoque do seu e-commerce.', logoUrl: '/logos/logo-shopify.png' },
     ]
 
-    const [statuses, setStatuses] = useState<Record<string, string>>({})
+    const [integrations, setIntegrations] = useState<IntegrationStatus[]>([])
+    const [disconnecting, setDisconnecting] = useState<string | null>(null)
 
-    useEffect(() => {
+    const fetchStatuses = () => {
         integrationApi.getStatus()
             .then(({ data }) => {
-                if (!Array.isArray(data)) return
-                const map: Record<string, string> = {}
-                for (const item of data) map[item.platform] = item.status
-                setStatuses(map)
+                if (Array.isArray(data)) setIntegrations(data as IntegrationStatus[])
             })
             .catch(() => { })
-    }, [])
+    }
+
+    useEffect(() => { fetchStatuses() }, [])
+
+    const handleDisconnect = async (platform: string) => {
+        setDisconnecting(platform)
+        try {
+            await integrationApi.disconnect(platform)
+            fetchStatuses()
+        } catch {
+            // falha silenciosa — o status nao muda e o botao volta ao normal
+        } finally {
+            setDisconnecting(null)
+        }
+    }
+
+    const statusMap: Record<string, IntegrationStatus> = {}
+    for (const item of integrations) statusMap[item.platform] = item
 
     return (
         <div>
@@ -1243,9 +1434,15 @@ function IntegracoesPanel({ onGoToAppStore }: { onGoToAppStore?: () => void }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {INTEGRATION_META.map((intg, i) => {
-                    const status = statuses[intg.platform]
+                    const record = statusMap[intg.platform]
+                    const status = record?.status
                     const isActive = status === 'active'
                     const isExpired = status === 'expired' || status === 'inactive'
+                    const lastSync = record?.last_sync_at
+                        ? new Date(record.last_sync_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : null
+                    const isDisconnecting = disconnecting === intg.platform
+
                     return (
                         <motion.div
                             key={intg.platform}
@@ -1274,26 +1471,61 @@ function IntegracoesPanel({ onGoToAppStore }: { onGoToAppStore?: () => void }) {
                                     {isActive && <span className="tag tag-complete" style={{ fontSize: 9 }}>Conectado</span>}
                                     {isExpired && <span className="tag tag-warning" style={{ fontSize: 9 }}>Expirado</span>}
                                 </div>
-                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '3px 0 0', lineHeight: 1.4 }}>{intg.description}</p>
+                                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: '3px 0 0', lineHeight: 1.4 }}>
+                                    {intg.description}
+                                </p>
+                                {isActive && lastSync && (
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', margin: '4px 0 0' }}>
+                                        Último sync: {lastSync}
+                                    </p>
+                                )}
                             </div>
-                            <button
-                                onClick={onGoToAppStore}
-                                style={{
-                                    padding: '6px 14px',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: `1px solid ${isExpired ? 'var(--status-critical)' : 'var(--color-border)'}`,
-                                    background: 'var(--color-bg-secondary)',
-                                    color: isExpired ? 'var(--status-critical)' : 'var(--color-text-secondary)',
-                                    fontFamily: 'var(--font-sans)',
-                                    fontSize: 'var(--text-sm)',
-                                    fontWeight: 400,
-                                    cursor: 'pointer',
-                                    whiteSpace: 'nowrap',
-                                    transition: 'all var(--transition-base)',
-                                }}
-                            >
-                                {isExpired ? 'Reconectar' : isActive ? 'Gerenciar' : 'Conectar'}
-                            </button>
+                            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                                {isActive && (
+                                    <motion.button
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.97 }}
+                                        onClick={() => handleDisconnect(intg.platform)}
+                                        disabled={isDisconnecting}
+                                        style={{
+                                            padding: '6px 12px',
+                                            borderRadius: 'var(--radius-md)',
+                                            border: '1px solid var(--color-border)',
+                                            background: 'transparent',
+                                            color: 'var(--color-text-tertiary)',
+                                            fontFamily: 'var(--font-sans)',
+                                            fontSize: 'var(--text-sm)',
+                                            fontWeight: 400,
+                                            cursor: isDisconnecting ? 'default' : 'pointer',
+                                            opacity: isDisconnecting ? 0.5 : 1,
+                                            whiteSpace: 'nowrap',
+                                            transition: 'all var(--transition-base)',
+                                        }}
+                                    >
+                                        {isDisconnecting ? 'Desconectando...' : 'Desconectar'}
+                                    </motion.button>
+                                )}
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={onGoToAppStore}
+                                    style={{
+                                        padding: '6px 14px',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: `1px solid ${isExpired ? 'var(--status-critical)' : 'var(--color-border)'}`,
+                                        background: 'var(--color-bg-secondary)',
+                                        color: isExpired ? 'var(--status-critical)' : 'var(--color-text-secondary)',
+                                        fontFamily: 'var(--font-sans)',
+                                        fontSize: 'var(--text-sm)',
+                                        fontWeight: 400,
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                        transition: 'all var(--transition-base)',
+                                    }}
+                                >
+                                    {isExpired ? 'Reconectar' : isActive ? 'Gerenciar' : 'Conectar'}
+                                </motion.button>
+                            </div>
                         </motion.div>
                     )
                 })}
@@ -1302,7 +1534,7 @@ function IntegracoesPanel({ onGoToAppStore }: { onGoToAppStore?: () => void }) {
     )
 }
 
-function PlanosPanel({ user }: { user?: any }) {
+function PlanosPanel({ user }: { user?: User }) {
     const [plan, setPlan] = useState<string | null>(null)
     const [memberSince, setMemberSince] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
@@ -1453,7 +1685,7 @@ const navGroups: NavGroup[] = [
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-export default function Configuracoes({ user, onGoToAppStore }: { user?: any; onGoToAppStore?: () => void }) {
+export default function Configuracoes({ user, onGoToAppStore }: { user?: User; onGoToAppStore?: () => void }) {
     const [active, setActive] = useState<SettingsSection>('preferencias')
 
     const renderPanel = () => {

@@ -185,6 +185,7 @@ export default function App() {
                 {activePage === 'visao-geral' && (
                   <Dashboard
                     onToggleChat={() => setChatOpen(!chatOpen)}
+                    onNavigate={setActivePage}
                     user={session?.user}
                   />
                 )}

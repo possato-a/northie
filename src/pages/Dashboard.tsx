@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import RevenueChart from '../components/charts/RevenueChart'
@@ -8,92 +8,57 @@ import TopClients from '../components/ui/TopClients'
 import SalesHeatmap from '../components/charts/SalesHeatmap'
 import DateRangePicker, { type DateRange } from '../components/ui/DateRangePicker'
 import { dashboardApi } from '../lib/api'
+import { type Page } from '../components/layout/Sidebar'
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+interface DashboardUser {
+  id: string
+  email?: string
+  user_metadata?: {
+    full_name?: string
+  }
+}
 
 interface DashboardProps {
   onToggleChat?: () => void
-  user?: any
+  onNavigate?: (page: Page) => void
+  user?: DashboardUser
 }
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_STATS = {
-  faturamento: 87340,
-  ticketMedio: 297,
-  pedidos: 294,
-  roi: 3.2,
-  growthTrend: '18.4%',
-  growthPositive: true,
-  activeCustomers: 214,
-  churnRate: 4.2,
+interface DashboardStats {
+  faturamento: number
+  ticketMedio: number
+  pedidos: number
+  roi: number
+  growthTrend?: string
+  growthPositive?: boolean
+  activeCustomers: number
+  churnRate: number
 }
 
-const MOCK_CHART_DATA = [
-  { date: '2026-02-08', amount: 1840 },
-  { date: '2026-02-09', amount: 2980 },
-  { date: '2026-02-10', amount: 1420 },
-  { date: '2026-02-11', amount: 3100 },
-  { date: '2026-02-12', amount: 2750 },
-  { date: '2026-02-13', amount: 4200 },
-  { date: '2026-02-14', amount: 3640 },
-  { date: '2026-02-15', amount: 2100 },
-  { date: '2026-02-16', amount: 2890 },
-  { date: '2026-02-17', amount: 3340 },
-  { date: '2026-02-18', amount: 2680 },
-  { date: '2026-02-19', amount: 3900 },
-  { date: '2026-02-20', amount: 4100 },
-  { date: '2026-02-21', amount: 3250 },
-  { date: '2026-02-22', amount: 2100 },
-  { date: '2026-02-23', amount: 2840 },
-  { date: '2026-02-24', amount: 3560 },
-  { date: '2026-02-25', amount: 4780 },
-  { date: '2026-02-26', amount: 3920 },
-  { date: '2026-02-27', amount: 2340 },
-  { date: '2026-02-28', amount: 3100 },
-  { date: '2026-03-01', amount: 4200 },
-  { date: '2026-03-02', amount: 5100 },
-  { date: '2026-03-03', amount: 3800 },
-  { date: '2026-03-04', amount: 2900 },
-  { date: '2026-03-05', amount: 3600 },
-  { date: '2026-03-06', amount: 4400 },
-  { date: '2026-03-07', amount: 3200 },
-  { date: '2026-03-08', amount: 4840 },
-  { date: '2026-03-09', amount: 3680 },
-]
+interface ChartPoint {
+  date: string
+  amount: number
+}
 
-const MOCK_ATTRIBUTION = [
-  { channel: 'Meta Ads', revenue: 52400, customers: 128 },
-  { channel: 'Google Ads', revenue: 21300, customers: 67 },
-  { channel: 'Orgânico', revenue: 9800, customers: 19 },
-  { channel: 'Email', revenue: 3840, customers: 12 },
-]
+interface AttributionChannel {
+  channel: string
+  revenue: number
+  customers: number
+}
 
-const MOCK_TOP_CLIENTS = [
-  { name: 'Rafael Mendes', email: 'rafael@mendes.com', total_ltv: 4200, cac: 180 },
-  { name: 'Ana Paula Costa', email: 'ana@costa.com', total_ltv: 3750, cac: 220 },
-  { name: 'Bruno Oliveira', email: 'bruno@email.com', total_ltv: 2980, cac: 150 },
-  { name: 'Carla Santos', email: 'carla@email.com', total_ltv: 2640, cac: 195 },
-  { name: 'Diego Ferreira', email: 'diego@email.com', total_ltv: 2100, cac: 130 },
-]
-
-const MOCK_HEATMAP: Record<string, number> = (() => {
-  const result: Record<string, number> = {}
-  const today = new Date('2026-03-09')
-  const seed = [3, 0, 8, 0, 5, 2, 0, 11, 0, 4, 7, 0, 2, 0, 6, 9, 0, 3, 1, 0, 5, 0, 8, 4, 0, 2, 12, 0, 6, 3]
-  for (let i = 364; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const dateStr = d.toISOString().split('T')[0]!
-    const base = seed[i % seed.length]!
-    if (base > 0 && i < 90) result[dateStr] = base
-    else if (base > 4 && i < 180) result[dateStr] = Math.floor(base / 2)
-    else if (base > 8) result[dateStr] = 1
-  }
-  return result
-})()
+interface TopCustomer {
+  name: string
+  email: string
+  total_ltv: number
+  cac: number
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtBR(v: number) {
+function fmtBR(v: number | null | undefined) {
+  if (v === null || v === undefined) return '—'
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
 }
 
@@ -113,6 +78,8 @@ function defaultRange(): DateRange {
   return { start, end, label: 'Últimos 30 dias' }
 }
 
+// ── Sub-components ────────────────────────────────────────────────────────────
+
 function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
     <div style={{
@@ -127,44 +94,185 @@ function SectionCard({ children, style }: { children: React.ReactNode; style?: R
   )
 }
 
+function SkeletonBlock({ height, width = '100%', style }: { height: number; width?: string | number; style?: React.CSSProperties }) {
+  return (
+    <motion.div
+      animate={{ opacity: [0.4, 0.7, 0.4] }}
+      transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+      style={{
+        height,
+        width,
+        background: 'var(--color-bg-secondary)',
+        borderRadius: 'var(--radius-sm)',
+        ...style,
+      }}
+    />
+  )
+}
+
+function KpiSkeleton() {
+  return (
+    <div style={{
+      background: 'var(--color-bg-primary)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-lg)',
+      boxShadow: 'var(--shadow-md)',
+      padding: '18px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+    }}>
+      <SkeletonBlock height={10} width={80} />
+      <SkeletonBlock height={24} width={120} />
+    </div>
+  )
+}
+
+function EmptyState({ onNavigate }: { onNavigate?: (page: Page) => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '80px 32px',
+        gap: 16,
+        textAlign: 'center',
+      }}
+    >
+      <div style={{
+        width: 48,
+        height: 48,
+        borderRadius: '50%',
+        background: 'var(--color-bg-secondary)',
+        border: '1px solid var(--color-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+      }}>
+        <span style={{ fontSize: 22, lineHeight: 1 }}>∅</span>
+      </div>
+      <p style={{
+        fontFamily: 'var(--font-sans)',
+        fontWeight: 500,
+        fontSize: 'var(--text-lg)',
+        letterSpacing: '-0.3px',
+        color: 'var(--color-text-primary)',
+        margin: 0,
+      }}>
+        Nenhum dado no período
+      </p>
+      <p style={{
+        fontFamily: 'var(--font-sans)',
+        fontSize: 'var(--text-base)',
+        color: 'var(--color-text-secondary)',
+        margin: 0,
+        maxWidth: 360,
+        lineHeight: 1.5,
+      }}>
+        Conecte suas integrações para ver dados reais de faturamento, clientes e canais aqui.
+      </p>
+      {onNavigate && (
+        <motion.button
+          onClick={() => onNavigate('app-store')}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            marginTop: 8,
+            padding: '9px 20px',
+            background: 'var(--color-bg-primary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--text-sm)',
+            fontWeight: 500,
+            color: 'var(--color-text-primary)',
+            cursor: 'pointer',
+            letterSpacing: '-0.1px',
+          }}
+        >
+          Conectar integrações
+        </motion.button>
+      )}
+    </motion.div>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Dashboard({ onToggleChat, user }: DashboardProps) {
+export default function Dashboard({ onToggleChat, onNavigate, user }: DashboardProps) {
   const [dateRange, setDateRange] = useState<DateRange>(defaultRange)
-  const [stats, setStats] = useState<any>(MOCK_STATS)
-  const [chartData, setChartData] = useState<any>(MOCK_CHART_DATA)
-  const [attribution, setAttribution] = useState<any>(MOCK_ATTRIBUTION)
-  const [heatmap] = useState<any>(MOCK_HEATMAP)
-  const [topCustomers, setTopCustomers] = useState<any>(MOCK_TOP_CLIENTS)
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [chartData, setChartData] = useState<ChartPoint[] | null>(null)
+  const [attribution, setAttribution] = useState<AttributionChannel[] | null>(null)
+  const [heatmap, setHeatmap] = useState<Record<string, number> | null>(null)
+  const [topCustomers, setTopCustomers] = useState<TopCustomer[] | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!user?.id) return
+    setLoading(true)
     const days = Math.round((dateRange.end.getTime() - dateRange.start.getTime()) / 86400000) + 1
-    dashboardApi.getFull(days).then(({ data: full }) => {
-      const data = full.stats ?? {}
-      const campaigns: any[] = full.adCampaigns ?? []
-      const growth = full.growth
-      const totalSpend = campaigns.reduce((s: number, c: any) => s + (c.spend_brl || 0), 0)
-      const totalRevenue = campaigns.reduce((s: number, c: any) => s + (c.purchase_value || 0), 0)
-      const growthPct = growth?.growth_percentage ?? null
-      setStats({
-        faturamento: data.total_revenue || 0,
-        ticketMedio: data.average_ticket || 0,
-        pedidos: data.total_transactions || 0,
-        roi: totalSpend > 0 ? totalRevenue / totalSpend : 0,
-        growthTrend: growthPct !== null ? `${Math.abs(growthPct).toFixed(1)}%` : undefined,
-        growthPositive: growthPct !== null ? growthPct >= 0 : undefined,
-        activeCustomers: data.active_customers || 0,
-        churnRate: data.churn_rate || 0,
+
+    dashboardApi.getFull(days)
+      .then(({ data: full }) => {
+        const raw = full.stats ?? {}
+        const campaigns: Array<{ spend_brl?: number; purchase_value?: number }> = full.adCampaigns ?? []
+        const growth = full.growth
+
+        const totalSpend = campaigns.reduce((s, c) => s + (c.spend_brl ?? 0), 0)
+        const totalRevenue = campaigns.reduce((s, c) => s + (c.purchase_value ?? 0), 0)
+        const growthPct: number | null = growth?.growth_percentage ?? null
+
+        setStats({
+          faturamento: raw.total_revenue ?? 0,
+          ticketMedio: raw.average_ticket ?? 0,
+          pedidos: raw.total_transactions ?? 0,
+          roi: totalSpend > 0 ? totalRevenue / totalSpend : 0,
+          growthTrend: growthPct !== null ? `${Math.abs(growthPct).toFixed(1)}%` : undefined,
+          growthPositive: growthPct !== null ? growthPct >= 0 : undefined,
+          activeCustomers: raw.active_customers ?? 0,
+          churnRate: raw.churn_rate ?? 0,
+        })
+
+        setChartData(Array.isArray(full.chart) && full.chart.length > 0 ? full.chart : null)
+        setAttribution(Array.isArray(full.attribution) && full.attribution.length > 0 ? full.attribution : null)
+        setTopCustomers(Array.isArray(full.topCustomers) && full.topCustomers.length > 0 ? full.topCustomers : null)
+
+        // heatmap pode vir junto ou ser chamado separadamente
+        if (full.heatmap && Object.keys(full.heatmap).length > 0) {
+          setHeatmap(full.heatmap)
+        } else {
+          dashboardApi.getHeatmap()
+            .then(({ data: hm }) => {
+              setHeatmap(hm && Object.keys(hm).length > 0 ? hm : {})
+            })
+            .catch(() => setHeatmap({}))
+        }
       })
-      if (full.chart) setChartData(full.chart)
-      if (full.attribution) setAttribution(full.attribution)
-      if (full.topCustomers) setTopCustomers(full.topCustomers)
-    }).catch(console.error)
+      .catch(err => {
+        console.error('[Dashboard] getFull falhou:', err)
+        setStats(null)
+        setChartData(null)
+        setAttribution(null)
+        setTopCustomers(null)
+        setHeatmap({})
+      })
+      .finally(() => setLoading(false))
   }, [user?.id, dateRange])
 
-  const userName = user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'você'
-  const totalChannelRevenue = attribution?.reduce((s: number, c: any) => s + c.revenue, 0) || stats.faturamento
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const userName = user?.user_metadata?.full_name?.split(' ')[0] ?? user?.email?.split('@')[0] ?? 'você'
+  const totalChannelRevenue = attribution?.reduce((s, c) => s + c.revenue, 0) ?? stats?.faturamento ?? 0
+  const hasData = stats !== null && stats.faturamento > 0
 
   return (
     <div>
@@ -218,55 +326,195 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
         <DateRangePicker value={dateRange} onChange={setDateRange} />
       </motion.div>
 
-      {/* ── KPI Grid — 4 cards ── */}
-      <motion.div
-        {...fadeUp(0.06)}
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}
-      >
-        <KpiCard label="Faturamento" value={stats.faturamento} prefix="R$ " decimals={0} delay={0.08} trend={stats.growthTrend} positive={stats.growthPositive} />
-        <KpiCard label="Ticket Médio" value={stats.ticketMedio} prefix="R$ " decimals={0} delay={0.13} />
-        <KpiCard label="ROAS Geral" value={stats.roi} suffix="x" decimals={2} delay={0.18} />
-        <KpiCard label="Clientes Ativos" value={stats.activeCustomers} decimals={0} delay={0.23} />
-      </motion.div>
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* ── KPI Skeleton ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}>
+              {[0, 1, 2, 3].map(i => <KpiSkeleton key={i} />)}
+            </div>
 
-      {/* ── Heatmap — primeiro após os KPIs ── */}
-      <motion.div {...fadeUp(0.2)} style={{ marginBottom: 14 }}>
-        <SectionCard style={{ padding: '20px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <p style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 11,
-              fontWeight: 400,
-              color: 'var(--color-text-secondary)',
-              letterSpacing: '0.02em',
-              textTransform: 'uppercase',
-              margin: 0,
-            }}>
-              Atividade de Vendas
-            </p>
-            <span style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: 11,
-              color: 'var(--color-text-tertiary)',
-              background: 'var(--color-bg-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-full)',
-              padding: '1px 7px',
-              fontWeight: 400,
-            }}>
-              365 dias
-            </span>
-          </div>
-          <SalesHeatmap initialData={heatmap} />
-        </SectionCard>
-      </motion.div>
+            {/* ── Heatmap Skeleton ── */}
+            <div style={{ marginBottom: 14 }}>
+              <SectionCard style={{ padding: '20px 24px' }}>
+                <SkeletonBlock height={12} width={140} style={{ marginBottom: 16 }} />
+                <SkeletonBlock height={80} />
+              </SectionCard>
+            </div>
 
-      {/* ── Revenue chart card ── */}
-      <motion.div {...fadeUp(0.28)} style={{ marginBottom: 14 }}>
-        <SectionCard style={{ padding: '20px 24px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+            {/* ── Chart Skeleton ── */}
+            <div style={{ marginBottom: 14 }}>
+              <SectionCard style={{ padding: '20px 24px 16px' }}>
+                <SkeletonBlock height={12} width={160} style={{ marginBottom: 10 }} />
+                <SkeletonBlock height={28} width={200} style={{ marginBottom: 20 }} />
+                <SkeletonBlock height={180} />
+              </SectionCard>
+            </div>
+
+            {/* ── Bottom row Skeleton ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {[0, 1].map(i => (
+                <SectionCard key={i} style={{ padding: '20px 24px' }}>
+                  <SkeletonBlock height={12} width={120} style={{ marginBottom: 10 }} />
+                  <SkeletonBlock height={28} width={160} style={{ marginBottom: 20 }} />
+                  <SkeletonBlock height={160} />
+                </SectionCard>
+              ))}
+            </div>
+          </motion.div>
+        ) : !hasData ? (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <SectionCard>
+              <EmptyState onNavigate={onNavigate} />
+            </SectionCard>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="content"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* ── KPI Grid — 4 cards ── */}
+            <motion.div
+              {...fadeUp(0.06)}
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 14 }}
+            >
+              <KpiCard
+                label="Faturamento"
+                value={stats.faturamento}
+                prefix="R$ "
+                decimals={0}
+                delay={0.08}
+                trend={stats.growthTrend}
+                positive={stats.growthPositive}
+              />
+              <KpiCard label="Ticket Médio" value={stats.ticketMedio} prefix="R$ " decimals={0} delay={0.13} />
+              <KpiCard label="ROAS Geral" value={stats.roi} suffix="x" decimals={2} delay={0.18} />
+              <KpiCard label="Clientes Ativos" value={stats.activeCustomers} decimals={0} delay={0.23} />
+            </motion.div>
+
+            {/* ── Heatmap — primeiro após os KPIs ── */}
+            <motion.div {...fadeUp(0.2)} style={{ marginBottom: 14 }}>
+              <SectionCard style={{ padding: '20px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 11,
+                    fontWeight: 400,
+                    color: 'var(--color-text-secondary)',
+                    letterSpacing: '0.02em',
+                    textTransform: 'uppercase',
+                    margin: 0,
+                  }}>
+                    Atividade de Vendas
+                  </p>
+                  <span style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 11,
+                    color: 'var(--color-text-tertiary)',
+                    background: 'var(--color-bg-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-full)',
+                    padding: '1px 7px',
+                    fontWeight: 400,
+                  }}>
+                    365 dias
+                  </span>
+                </div>
+                <SalesHeatmap initialData={heatmap ?? {}} />
+              </SectionCard>
+            </motion.div>
+
+            {/* ── Revenue chart card ── */}
+            <motion.div {...fadeUp(0.28)} style={{ marginBottom: 14 }}>
+              <SectionCard style={{ padding: '20px 24px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                      <p style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 11,
+                        fontWeight: 400,
+                        color: 'var(--color-text-secondary)',
+                        letterSpacing: '0.02em',
+                        textTransform: 'uppercase',
+                        margin: 0,
+                      }}>
+                        Receita no período
+                      </p>
+                      <span style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: 11,
+                        color: 'var(--color-text-tertiary)',
+                        background: 'var(--color-bg-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '1px 7px',
+                        fontWeight: 400,
+                      }}>
+                        {dateRange.label ?? `${Math.round((dateRange.end.getTime() - dateRange.start.getTime()) / 86400000) + 1} dias`}
+                      </span>
+                    </div>
+                    <span style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontWeight: 500,
+                      fontSize: 22,
+                      letterSpacing: '-0.4px',
+                      color: 'var(--color-text-primary)',
+                      display: 'block',
+                    }}>
+                      R$ {fmtBR(stats.faturamento)}
+                    </span>
+                    <span style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: 12,
+                      color: 'var(--color-text-tertiary)',
+                      letterSpacing: '-0.1px',
+                      marginTop: 3,
+                      display: 'block',
+                    }}>
+                      {fmtBR(stats.pedidos)} pedidos · R$ {fmtBR(stats.ticketMedio)} ticket médio
+                    </span>
+                  </div>
+                  {stats.growthTrend && (
+                    <span style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: stats.growthPositive ? 'var(--status-complete)' : 'var(--accent-red)',
+                      background: stats.growthPositive ? 'var(--status-complete-bg)' : 'var(--priority-high-bg)',
+                      padding: '3px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      marginTop: 4,
+                    }}>
+                      {stats.growthPositive ? '↑' : '↓'} {stats.growthTrend} vs período anterior
+                    </span>
+                  )}
+                </div>
+                <RevenueChart initialData={chartData ?? []} />
+              </SectionCard>
+            </motion.div>
+
+            {/* ── Canais + Top Clientes ── */}
+            <motion.div
+              {...fadeUp(0.36)}
+              style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}
+            >
+              <SectionCard style={{ padding: '20px 24px' }}>
                 <p style={{
                   fontFamily: 'var(--font-sans)',
                   fontSize: 11,
@@ -274,118 +522,73 @@ export default function Dashboard({ onToggleChat, user }: DashboardProps) {
                   color: 'var(--color-text-secondary)',
                   letterSpacing: '0.02em',
                   textTransform: 'uppercase',
-                  margin: 0,
+                  margin: '0 0 4px',
                 }}>
-                  Receita no período
+                  Receita por Canal
                 </p>
-                <span style={{
+                <p style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 22,
+                  fontWeight: 500,
+                  letterSpacing: '-0.4px',
+                  color: 'var(--color-text-primary)',
+                  margin: '0 0 16px',
+                }}>
+                  {attribution ? `R$ ${fmtBR(totalChannelRevenue)}` : '—'}
+                </p>
+                {attribution ? (
+                  <ChannelChart initialData={attribution} />
+                ) : (
+                  <p style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--color-text-tertiary)',
+                    margin: 0,
+                  }}>
+                    Sem dados de atribuição no período.
+                  </p>
+                )}
+              </SectionCard>
+
+              <SectionCard style={{ padding: '20px 24px' }}>
+                <p style={{
                   fontFamily: 'var(--font-sans)',
                   fontSize: 11,
-                  color: 'var(--color-text-tertiary)',
-                  background: 'var(--color-bg-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-full)',
-                  padding: '1px 7px',
                   fontWeight: 400,
+                  color: 'var(--color-text-secondary)',
+                  letterSpacing: '0.02em',
+                  textTransform: 'uppercase',
+                  margin: '0 0 4px',
                 }}>
-                  {dateRange.label ?? `${Math.round((dateRange.end.getTime() - dateRange.start.getTime()) / 86400000) + 1} dias`}
-                </span>
-              </div>
-              <span style={{
-                fontFamily: 'var(--font-sans)',
-                fontWeight: 500,
-                fontSize: 22,
-                letterSpacing: '-0.4px',
-                color: 'var(--color-text-primary)',
-                display: 'block',
-              }}>
-                R$ {fmtBR(stats.faturamento)}
-              </span>
-              <span style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12,
-                color: 'var(--color-text-tertiary)',
-                letterSpacing: '-0.1px',
-                marginTop: 3,
-                display: 'block',
-              }}>
-                {fmtBR(stats.pedidos)} pedidos · R$ {fmtBR(stats.ticketMedio)} ticket médio
-              </span>
-            </div>
-            {stats.growthTrend && (
-              <span style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 12,
-                fontWeight: 500,
-                color: stats.growthPositive ? 'var(--status-complete)' : 'var(--accent-red)',
-                background: stats.growthPositive ? 'var(--status-complete-bg)' : 'var(--priority-high-bg)',
-                padding: '3px 8px',
-                borderRadius: 'var(--radius-sm)',
-                marginTop: 4,
-              }}>
-                {stats.growthPositive ? '↑' : '↓'} {stats.growthTrend} vs período anterior
-              </span>
-            )}
-          </div>
-          <RevenueChart initialData={chartData} />
-        </SectionCard>
-      </motion.div>
-
-      {/* ── Canais + Top Clientes ── */}
-      <motion.div
-        {...fadeUp(0.36)}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}
-      >
-        <SectionCard style={{ padding: '20px 24px' }}>
-          <p style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 11,
-            fontWeight: 400,
-            color: 'var(--color-text-secondary)',
-            letterSpacing: '0.02em',
-            textTransform: 'uppercase',
-            margin: '0 0 4px',
-          }}>
-            Receita por Canal
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 22,
-            fontWeight: 500,
-            letterSpacing: '-0.4px',
-            color: 'var(--color-text-primary)',
-            margin: '0 0 16px',
-          }}>
-            R$ {fmtBR(totalChannelRevenue)}
-          </p>
-          <ChannelChart initialData={attribution} />
-        </SectionCard>
-
-        <SectionCard style={{ padding: '20px 24px' }}>
-          <p style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 11,
-            fontWeight: 400,
-            color: 'var(--color-text-secondary)',
-            letterSpacing: '0.02em',
-            textTransform: 'uppercase',
-            margin: '0 0 4px',
-          }}>
-            Top Clientes
-          </p>
-          <p style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 22,
-            fontWeight: 500,
-            letterSpacing: '-0.4px',
-            color: 'var(--color-text-primary)',
-            margin: '0 0 16px',
-          }}>
-            {topCustomers?.length || 0} clientes
-          </p>
-          <TopClients initialData={topCustomers} />
-        </SectionCard>
-      </motion.div>
+                  Top Clientes
+                </p>
+                <p style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 22,
+                  fontWeight: 500,
+                  letterSpacing: '-0.4px',
+                  color: 'var(--color-text-primary)',
+                  margin: '0 0 16px',
+                }}>
+                  {topCustomers ? `${topCustomers.length} clientes` : '—'}
+                </p>
+                {topCustomers ? (
+                  <TopClients initialData={topCustomers} />
+                ) : (
+                  <p style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 'var(--text-sm)',
+                    color: 'var(--color-text-tertiary)',
+                    margin: 0,
+                  }}>
+                    Sem clientes no período.
+                  </p>
+                )}
+              </SectionCard>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

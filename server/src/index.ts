@@ -33,8 +33,6 @@ import alertsRoutes from './routes/alerts.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 // @ts-ignore
 import calendarRoutes from './routes/calendar.routes.js';
-// @ts-ignore
-import comunidadeRoutes from './routes/comunidade.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
 // @ts-ignore
@@ -99,7 +97,6 @@ app.use('/api/profile', authMiddleware, profileRoutes);
 app.use('/api/alerts', authMiddleware, alertsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);          // webhook sem auth, demais com auth interno
 app.use('/api/calendar', authMiddleware, calendarRoutes);
-app.use('/api/comunidade', authMiddleware, comunidadeRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {

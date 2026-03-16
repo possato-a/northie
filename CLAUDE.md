@@ -237,7 +237,6 @@ src/
     Conversas/      # Pipeline nativo + reuniões transcritas
     Contexto/       # Contexto do Negócio — founder treina a IA
     Criadores/      # Campanhas de criadores e gestão de comissões
-    Comunidade/     # Comunidade de founders (dados mock, em desenvolvimento)
     Relatorios/     # Relatórios automáticos
     AppStore/       # Gerenciamento de integrações
     Configuracoes/  # Configurações do workspace
@@ -350,7 +349,6 @@ Schema revisado, migrations estáveis, RLS policies completas, motor de correla�
 Integrações (Stripe, Shopify, Meta, Hotmart), páginas Growth e Card, motor de correlações, Capital Score, Relatórios, Contexto do Negócio e Conversas todos implementados e mergeados na `main`.
 
 ### Fase C — Em andamento
-- Comunidade (dados mock → backend real)
 - Google Calendar + Google Meet (transcrição IA)
 - WhatsApp Business API (execução de reativação)
 - Northie Pixel (atribuição determinística)
