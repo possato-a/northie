@@ -223,6 +223,18 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <button
+                                onClick={async () => {
+                                    setMessages([{ id: String(Date.now()), role: 'assistant', content: `Conectado. Contexto: ${context}. O que vamos analisar?` }])
+                                    try { await aiApi.clearHistory() } catch { /* ok */ }
+                                }}
+                                className="notion-btn-icon"
+                                title="Nova conversa"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                            </button>
+                            <button
                                 onClick={onToggleFull}
                                 className="notion-btn-icon"
                                 title={isFull ? 'Minimizar' : 'Expandir'}

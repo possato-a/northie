@@ -6,7 +6,7 @@ import GrowthChatComponent from '../components/growth/GrowthChat'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type RecStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed'
+type RecStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed' | 'rejected' | 'cancelled'
 type RecType =
   | 'reativacao_alto_ltv'
   | 'pausa_campanha_ltv_baixo'
@@ -345,13 +345,15 @@ function RecommendationCard({ rec, onClick }: {
   )
 }
 
-function RecDetailDrawer({ rec, onClose, onApprove, onDismiss }: {
+function RecDetailDrawer({ rec, onClose, onApprove, onDismiss, onReject, onCancel }: {
   rec: Recommendation
   onClose: () => void
   onApprove: (id: string) => void
   onDismiss: (id: string) => void
+  onReject?: (id: string) => void
+  onCancel?: (id: string) => void
 }) {
-  const isActive = ['approved', 'executing', 'completed', 'failed'].includes(rec.status)
+  const isActive = ['approved', 'executing', 'completed', 'failed', 'cancelled'].includes(rec.status)
   const ch = EXEC_CHANNEL[rec.type]
 
   return (
@@ -526,31 +528,61 @@ function RecDetailDrawer({ rec, onClose, onApprove, onDismiss }: {
                 via {ch.label}
               </span>
               <div style={{ display: 'flex', gap: 8 }}>
-                <motion.button
-                  onClick={() => { onApprove(rec.id); onClose() }}
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                  style={{
-                    padding: '8px 22px',
-                    background: 'rgba(249,115,22,1)',
-                    color: 'white',
-                    border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer',
-                  }}
-                >
-                  Aprovar
-                </motion.button>
-                <motion.button
-                  onClick={() => { onDismiss(rec.id); onClose() }}
-                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                  style={{
-                    padding: '8px 14px', background: 'transparent',
-                    color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--text-sm)', cursor: 'pointer',
-                  }}
-                >
-                  Rejeitar
-                </motion.button>
+                {rec.status === 'pending' && (
+                  <>
+                    <motion.button
+                      onClick={() => { onApprove(rec.id); onClose() }}
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      style={{
+                        padding: '8px 22px',
+                        background: 'rgba(249,115,22,1)',
+                        color: 'white',
+                        border: 'none', borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer',
+                      }}
+                    >
+                      Aprovar
+                    </motion.button>
+                    <motion.button
+                      onClick={() => { onDismiss(rec.id); onClose() }}
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      style={{
+                        padding: '8px 14px', background: 'transparent',
+                        color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)', cursor: 'pointer',
+                      }}
+                    >
+                      Agora não
+                    </motion.button>
+                    <motion.button
+                      onClick={() => { onReject?.(rec.id); onClose() }}
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                      style={{
+                        padding: '8px 14px', background: 'transparent',
+                        color: 'var(--color-error, #ef4444)', border: '1px solid var(--color-error, #ef4444)',
+                        borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                        fontSize: 'var(--text-sm)', cursor: 'pointer',
+                      }}
+                    >
+                      Rejeitar
+                    </motion.button>
+                  </>
+                )}
+                {(rec.status === 'approved' || rec.status === 'executing') && (
+                  <motion.button
+                    onClick={() => { onCancel?.(rec.id); onClose() }}
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                    style={{
+                      padding: '8px 14px', background: 'transparent',
+                      color: 'var(--color-error, #ef4444)', border: '1px solid var(--color-error, #ef4444)',
+                      borderRadius: 'var(--radius-md)', fontFamily: 'var(--font-sans)',
+                      fontSize: 'var(--text-sm)', cursor: 'pointer',
+                    }}
+                  >
+                    Cancelar execução
+                  </motion.button>
+                )}
               </div>
             </div>
           </div>
@@ -1090,8 +1122,22 @@ export default function Growth() {
     try { await growthApi.dismiss(id) } catch { /* silently ok */ }
   }
 
+  const handleReject = async (id: string) => {
+    setRecommendations(prev => prev.map(r =>
+      r.id === id ? { ...r, status: 'rejected' as RecStatus } : r
+    ))
+    try { await growthApi.reject(id) } catch { /* silently ok */ }
+  }
+
+  const handleCancel = async (id: string) => {
+    setRecommendations(prev => prev.map(r =>
+      r.id === id ? { ...r, status: 'cancelled' as RecStatus } : r
+    ))
+    try { await growthApi.cancel(id) } catch { /* silently ok */ }
+  }
+
   const pendingRecs = recommendations.filter(r => r.status === 'pending')
-  const activeRecs = recommendations.filter(r => ['approved', 'executing', 'completed', 'failed'].includes(r.status))
+  const activeRecs = recommendations.filter(r => ['approved', 'executing', 'completed', 'failed', 'cancelled'].includes(r.status))
   return (
     <motion.div
       style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}
@@ -1338,6 +1384,8 @@ export default function Growth() {
             onClose={() => setSelectedRec(null)}
             onApprove={(id) => { handleApprove(id); setSelectedRec(null) }}
             onDismiss={(id) => { handleDismiss(id); setSelectedRec(null) }}
+            onReject={(id) => { handleReject(id); setSelectedRec(null) }}
+            onCancel={(id) => { handleCancel(id); setSelectedRec(null) }}
           />
         )}
       </AnimatePresence>
