@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { KpiCard } from '../components/ui/KpiCard'
 import TopBar from '../components/layout/TopBar'
 import { PageHeader, Divider } from '../components/ui/shared'
-import { calendarApi } from '../lib/api'
+import { calendarApi, pipelineApi } from '../lib/api'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ const STAGE_BG: Record<string, string> = {
   'Perdido':           'var(--priority-high-bg)',
 }
 
-const MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
+const _MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
   agendada: 'Agendada',
   realizada: 'Realizada',
   cancelada: 'Cancelada',
@@ -584,9 +584,9 @@ function PipelineView({ leads, onLeadStatusChange, onNewLead }: {
   )
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Calendar Meeting Type (Google Calendar integration) ──────────────────────
 
-interface Meeting {
+interface CalendarMeeting {
   id: string
   title: string
   attendees: Array<{ email: string; name?: string; organizer?: boolean }>
@@ -611,8 +611,8 @@ interface Insight {
 
 // ── Reuniões View ─────────────────────────────────────────────────────────────
 
-function ReunioesView() {
-  const [meetings, setMeetings] = useState<Meeting[]>([])
+function ReunioesView({ meetings: pipelineMeetings, leads: _leads, onNewMeeting }: { meetings?: Meeting[]; leads?: Lead[]; onNewMeeting?: () => void }) {
+  const [calMeetings, setCalMeetings] = useState<CalendarMeeting[]>([])
   const [loading, setLoading] = useState(true)
   const [calendarConnected, setCalendarConnected] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -626,7 +626,7 @@ function ReunioesView() {
 
         if (status?.connected) {
           const eventsRes = await calendarApi.getEvents(20, 0)
-          setMeetings(eventsRes.data?.data || [])
+          setCalMeetings(eventsRes.data?.data || [])
           if (expanded === null && eventsRes.data?.data?.length > 0) {
             setExpanded(eventsRes.data.data[0].id)
           }
@@ -677,13 +677,22 @@ function ReunioesView() {
     )
   }
 
-  if (meetings.length === 0) {
+  const hasPipeline = (pipelineMeetings?.length ?? 0) > 0;
+  const hasCalendar = calMeetings.length > 0;
+
+  if (!hasPipeline && !hasCalendar && !loading) {
     return (
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <SectionCard style={{ padding: '48px 32px', textAlign: 'center' }}>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', margin: 0 }}>
-            Nenhuma reunião encontrada nos últimos 90 dias.
+            Nenhuma reunião encontrada.
           </p>
+          {onNewMeeting && (
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={onNewMeeting}
+              style={{ marginTop: 16, fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500, padding: '8px 20px', borderRadius: 'var(--radius-md)', background: 'var(--color-primary)', color: 'white', border: 'none', cursor: 'pointer' }}>
+              + Nova Reunião
+            </motion.button>
+          )}
         </SectionCard>
       </motion.div>
     )
@@ -691,7 +700,28 @@ function ReunioesView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {meetings.map((r, i) => {
+      {/* Pipeline meetings */}
+      {hasPipeline && pipelineMeetings!.map((m, i) => (
+        <motion.div key={`p-${m.id}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.05 }}>
+          <SectionCard>
+            <div style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.title}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>{m.status}</span>
+              </div>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                {new Date(m.scheduled_at).toLocaleDateString('pt-BR')} · {m.duration_minutes ? `${m.duration_minutes}min` : '—'}
+              </span>
+              {m.transcript_summary && (
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.6, margin: '8px 0 0' }}>{m.transcript_summary}</p>
+              )}
+            </div>
+          </SectionCard>
+        </motion.div>
+      ))}
+
+      {/* Calendar meetings (Google Calendar integration) */}
+      {hasCalendar && calMeetings.map((r, i) => {
         const attendeeNames = r.attendees?.filter(a => !a.organizer).map(a => a.name || a.email).join(', ')
         return (
           <motion.div
