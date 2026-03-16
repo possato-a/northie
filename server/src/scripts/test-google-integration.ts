@@ -15,7 +15,7 @@ import { dirname, resolve } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Setup ──────────────────────────────────────────────────────────────────────
@@ -161,8 +161,8 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
         } else {
             warn('expires_at e expires_in não definidos', 'não é possível verificar validade');
         }
-    } catch (err: any) {
-        fail('Leitura do token', err.message);
+    } catch (err: unknown) {
+        fail('Leitura do token', err instanceof Error ? err.message : String(err));
     }
 }
 
@@ -196,9 +196,9 @@ if (!userAccessToken) {
         if (customerIds.length > 0) {
             console.log(`     Contas: ${customerIds.join(', ')}`);
         }
-    } catch (err: any) {
-        const status = err.response?.status;
-        const msg = err.response?.data?.error?.message || err.message;
+    } catch (err: unknown) {
+        const status = isAxiosError(err) ? err.response?.status : undefined;
+        const msg = isAxiosError(err) ? (err.response?.data?.error?.message || err.message) : (err instanceof Error ? err.message : String(err));
         fail(`listAccessibleCustomers (HTTP ${status})`, msg);
     }
 }
@@ -239,9 +239,9 @@ async function testGoogleLevel(
             }
         }
         ok(`${levelName} — searchStream OK`, `${count} linha(s) | R$${(spendMicros / 1_000_000).toFixed(2)} gasto (últimos 7 dias)`);
-    } catch (err: any) {
-        const status = err.response?.status;
-        const msg = err.response?.data?.error?.message || err.message;
+    } catch (err: unknown) {
+        const status = isAxiosError(err) ? err.response?.status : undefined;
+        const msg = isAxiosError(err) ? (err.response?.data?.error?.message || err.message) : (err instanceof Error ? err.message : String(err));
         if (status === 401) {
             fail(`${levelName} — token expirado (401)`, 'reconecte a integração Google no AppStore');
         } else {

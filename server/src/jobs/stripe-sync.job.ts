@@ -38,7 +38,7 @@ async function processPaymentIntent(
         if (existing) return 'skipped';
 
         // Tenta extrair e-mail e nome do PaymentIntent
-        const email: string = (pi as any).receipt_email || 'unknown@stripe.com';
+        const email: string = (pi as unknown as { receipt_email?: string }).receipt_email || 'unknown@stripe.com';
         const name: string = '';
 
         // Upsert customer
@@ -94,8 +94,8 @@ async function processPaymentIntent(
             .eq('id', customer.id);
 
         return 'synced';
-    } catch (e: any) {
-        console.error(`[StripeSync] Unexpected error processing PI ${pi.id}:`, e.message);
+    } catch (e: unknown) {
+        console.error(`[StripeSync] Unexpected error processing PI ${pi.id}:`, e instanceof Error ? e.message : String(e));
         return 'error';
     }
 }
@@ -150,7 +150,7 @@ export async function backfillStripe(
         throw new Error(`[StripeSync] No Stripe integration for profile ${profileId}`);
     }
 
-    const { access_token, stripe_user_id } = integration as any;
+    const { access_token, stripe_user_id } = integration as unknown as { access_token?: string; stripe_user_id?: string };
     if (!access_token) {
         throw new Error(`[StripeSync] Missing access_token for profile ${profileId}`);
     }
@@ -184,8 +184,8 @@ export async function backfillStripe(
     })) {
         try {
             await processRefund(profileId, refund);
-        } catch (e: any) {
-            console.error(`[StripeSync] Error processing refund ${refund.id}:`, e.message);
+        } catch (e: unknown) {
+            console.error(`[StripeSync] Error processing refund ${refund.id}:`, e instanceof Error ? e.message : String(e));
             errors++;
         }
     }
@@ -215,8 +215,8 @@ export async function runStripeSyncForAllProfiles(): Promise<void> {
     for (const { profile_id } of integrations) {
         try {
             await backfillStripe(profile_id, 2);
-        } catch (e: any) {
-            console.error(`[StripeSync] Cron failed for profile ${profile_id}:`, e.message);
+        } catch (e: unknown) {
+            console.error(`[StripeSync] Cron failed for profile ${profile_id}:`, e instanceof Error ? e.message : String(e));
         }
     }
 }

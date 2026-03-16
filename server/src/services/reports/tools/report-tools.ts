@@ -266,7 +266,7 @@ export async function executeTool(
             default:
                 return { error: `Tool desconhecida: ${name}` };
         }
-    } catch (err) {
+    } catch (err: unknown) {
         console.error(`[ReportTools] Erro na tool ${name}:`, err);
         return { error: 'Falha ao executar tool', tool: name };
     }

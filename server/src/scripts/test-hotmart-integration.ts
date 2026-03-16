@@ -15,7 +15,7 @@ import { dirname, resolve } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Setup ──────────────────────────────────────────────────────────────────────
@@ -139,8 +139,8 @@ try {
     } else {
         fail('client_credentials', 'token não retornado na resposta');
     }
-} catch (err: any) {
-    const msg = err.response?.data?.error_description || err.response?.data?.error || err.message;
+} catch (err: unknown) {
+    const msg = isAxiosError(err) ? (err.response?.data?.error_description || err.response?.data?.error || err.message) : (err instanceof Error ? err.message : String(err));
     fail('client_credentials', msg);
 }
 
@@ -181,8 +181,8 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
         } else {
             warn('expires_at não definido', 'não é possível verificar validade do token');
         }
-    } catch (err: any) {
-        fail('Leitura do token', err.message);
+    } catch (err: unknown) {
+        fail('Leitura do token', err instanceof Error ? err.message : String(err));
     }
 }
 
@@ -363,9 +363,9 @@ if (!connectToken) {
             console.log(`     Amostra: ${sample.buyer_name} | ${sample.transaction_status} | R$${sample.amount} | ${new Date(sample.purchase_date).toLocaleDateString('pt-BR')}`);
             ok('Payload da API tem campos esperados', `transaction: ${sample.transaction}`);
         }
-    } catch (err: any) {
-        const status = err.response?.status;
-        const msg = err.response?.data?.error_description || err.response?.data?.error || err.message;
+    } catch (err: unknown) {
+        const status = isAxiosError(err) ? err.response?.status : undefined;
+        const msg = isAxiosError(err) ? (err.response?.data?.error_description || err.response?.data?.error || err.message) : (err instanceof Error ? err.message : String(err));
 
         if (status === 401 || (typeof msg === 'string' && msg.includes('Decode token error'))) {
             warn('Connect API — configuração pendente',

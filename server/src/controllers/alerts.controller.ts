@@ -15,8 +15,8 @@ export async function getAlerts(req: Request, res: Response) {
 
         if (error) throw error;
         res.json({ data: data || [] });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
 }
 
@@ -34,8 +34,8 @@ export async function markRead(req: Request, res: Response) {
 
         if (error) throw error;
         res.json({ success: true });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
 }
 
@@ -52,7 +52,7 @@ export async function markAllRead(req: Request, res: Response) {
 
         if (error) throw error;
         res.json({ success: true });
-    } catch (err: any) {
-        res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
 }

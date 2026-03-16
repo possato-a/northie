@@ -105,7 +105,7 @@ export async function runDiagnostic(
             customer_id: row.customer_id as string,
             amount_net: row.amount_net as number,
             created_at: row.created_at as string,
-            northie_attribution_id: (row as any).northie_attribution_id as string | null,
+            northie_attribution_id: (row as unknown as { northie_attribution_id?: string | null }).northie_attribution_id ?? null,
             acquisition_channel: (customers?.acquisition_channel as string | null) ?? null,
             acquisition_campaign_id: (customers?.acquisition_campaign_id as string | null) ?? null,
             utm_source: null as string | null,

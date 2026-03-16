@@ -11,7 +11,7 @@ function getStripe(): Stripe {
     if (!_stripe) {
         const key = process.env.STRIPE_SECRET_KEY;
         if (!key) throw new Error('STRIPE_SECRET_KEY not configured');
-        _stripe = new Stripe(key, { apiVersion: '2026-01-28.clover' as any });
+        _stripe = new Stripe(key, { apiVersion: '2026-01-28.clover' as Stripe.LatestApiVersion });
     }
     return _stripe;
 }
@@ -92,13 +92,14 @@ export async function handleStripeWebhook(req: Request, res: Response) {
     let event: Stripe.Event;
     try {
         event = getStripe().webhooks.constructEvent(req.body as Buffer, sig, webhookSecret);
-    } catch (err: any) {
-        console.warn('[StripeWebhook] Signature verification failed:', err.message);
-        return res.status(400).json({ error: `Webhook Error: ${err.message}` });
+    } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.warn('[StripeWebhook] Signature verification failed:', errMsg);
+        return res.status(400).json({ error: `Webhook Error: ${errMsg}` });
     }
 
     // For Stripe Connect, every event includes the connected account ID
-    const stripeAccountId: string | undefined = (event as any).account;
+    const stripeAccountId: string | undefined = (event as unknown as { account?: string }).account;
 
     let profileId: string | null = null;
 
@@ -192,8 +193,8 @@ export async function handleHotmartWebhook(req: Request, res: Response) {
 
         // 6. Enfileira normalização com retry automático
         webhookQueue.enqueue(rawData.id, 'hotmart', payload, profileId);
-    } catch (error: any) {
-        console.error(`[Webhook] Hotmart error for profile ${profileId}:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[Webhook] Hotmart error for profile ${profileId}:`, error instanceof Error ? error.message : String(error));
         if (!res.headersSent) {
             res.status(500).json({ error: 'Internal server error' });
         }
@@ -281,8 +282,8 @@ export async function handleShopifyWebhook(req: Request, res: Response) {
 
         // 5. Enfileira normalização com retry automático
         webhookQueue.enqueue(rawData.id, 'shopify', { ...payload, _topic: topic }, profileId);
-    } catch (error: any) {
-        console.error(`[ShopifyWebhook] Error for profile ${profileId}:`, error.message);
+    } catch (error: unknown) {
+        console.error(`[ShopifyWebhook] Error for profile ${profileId}:`, error instanceof Error ? error.message : String(error));
         if (!res.headersSent) {
             res.status(500).json({ error: 'Internal server error' });
         }
@@ -339,7 +340,7 @@ export async function handleWebhook(req: Request, res: Response) {
         // 5. Enfileira normalização com retry automático e backoff exponencial
         webhookQueue.enqueue(rawData.id, platform, payload, profileId as string);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Webhook error for ${platform}:`, error);
         res.status(500).json({ error: 'Internal server error' });
     }

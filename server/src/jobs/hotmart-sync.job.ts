@@ -23,15 +23,16 @@ const HOTMART_FEE_RATE = 0.099;
  * ou erros transitórios (5xx). Usa backoff exponencial com jitter.
  */
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> {
-    let lastError: any;
+    let lastError: unknown = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             return await fn();
-        } catch (err: any) {
+        } catch (err: unknown) {
             lastError = err;
-            const status = err.response?.status;
+            const axiosErr = err as { response?: { status?: number } };
+            const status = axiosErr.response?.status;
             if (status === 401 || status === 403) throw err;
-            const isRetryable = status === 429 || (status >= 500 && status < 600) || !status;
+            const isRetryable = status === 429 || (status !== undefined && status >= 500 && status < 600) || !status;
             if (!isRetryable || attempt === maxRetries) throw err;
             const baseDelay = Math.pow(2, attempt + 1) * 1000;
             const jitter = Math.random() * 1000;
@@ -214,7 +215,7 @@ interface HotmartSalesResponse {
  */
 interface FetchResult {
     sales: HotmartSale[];
-    rawFirstPage: any;
+    rawFirstPage: Record<string, unknown> | null;
     httpStatus: number;
 }
 
@@ -225,12 +226,12 @@ async function fetchAllHotmartSales(
 ): Promise<FetchResult> {
     const all: HotmartSale[] = [];
     let pageToken: string | undefined = undefined;
-    let rawFirstPage: any = null;
+    let rawFirstPage: Record<string, unknown> | null = null;
     let httpStatus = 0;
 
     do {
         console.log(`[HotmartSync] Fetching page with token: ${pageToken ?? 'none'}`);
-        const params: Record<string, any> = {
+        const params: Record<string, unknown> = {
             max_results: 50,
             ...(startDateMs !== undefined && { start_date: startDateMs }),
             ...(endDateMs !== undefined && { end_date: endDateMs }),
@@ -261,7 +262,7 @@ async function fetchAllHotmartSales(
                 items_count: res.data?.items?.length ?? 0,
                 // First item: all keys + raw object (redact email)
                 sample_item_keys: res.data?.items?.[0] ? Object.keys(res.data.items[0]) : [],
-                sample_item_raw: res.data?.items?.[0] ? (() => { const s: any = { ...res.data.items[0] }; if (s.buyer?.email) s.buyer = { ...s.buyer, email: '***' }; return s; })() : null,
+                sample_item_raw: res.data?.items?.[0] ? (() => { const s = { ...res.data.items[0] } as Record<string, unknown>; const buyer = s.buyer as Record<string, unknown> | undefined; if (buyer?.email) { s.buyer = { ...buyer, email: '***' }; } return s; })() : null,
             };
         }
 
@@ -410,7 +411,7 @@ async function processSale(profileId: string, sale: HotmartSale): Promise<void> 
  * - days=0 ou undefined: busca os últimos 365 dias
  * - days=N: busca os últimos N dias
  */
-export async function backfillHotmart(profileId: string, days?: number, force = false): Promise<{ synced: number; skipped: number; errors: number; debug?: any }> {
+export async function backfillHotmart(profileId: string, days?: number, force = false): Promise<{ synced: number; skipped: number; errors: number; debug?: Record<string, unknown> }> {
     const effectiveDays = (!days || days <= 0) ? 365 : days;
     const endMs = Date.now();
     const startMs = endMs - effectiveDays * 24 * 60 * 60 * 1000;
@@ -453,7 +454,7 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
     let tokenRefreshed = _tokenRefreshed;
     let totalFetched = 0;
     let tokenExpiresAt = userTokens?.expires_at ? new Date(userTokens.expires_at).toISOString() : 'unknown';
-    const debugExtra: Record<string, any> = {};
+    const debugExtra: Record<string, unknown> = {};
 
     try {
         // A API de sales history da Hotmart exige client_credentials (app-level token).
@@ -493,18 +494,20 @@ export async function backfillHotmart(profileId: string, days?: number, force = 
                     .then(({ error }) => {
                         if (error) console.warn(`[HotmartSync] platforms_data_raw insert failed for ${sale.transaction}:`, error.message);
                     });
-            } catch (e: any) {
-                console.error(`[HotmartSync] Error processing sale ${sale.transaction}:`, e.message);
+            } catch (e: unknown) {
+                console.error(`[HotmartSync] Error processing sale ${sale.transaction}:`, e instanceof Error ? e.message : String(e));
                 errors++;
             }
         }
 
         console.log(`[HotmartSync] Done for ${profileId}: ${synced} synced, ${skipped} skipped, ${errors} errors`);
         await finishSyncLog(logId, synced);
-    } catch (e: any) {
-        const msg = JSON.stringify(e.response?.data ?? e.message);
+    } catch (e: unknown) {
+        const axiosErr = e as { response?: { data?: unknown } };
+        const errMsg = e instanceof Error ? e.message : String(e);
+        const msg = JSON.stringify(axiosErr.response?.data ?? errMsg);
         console.error(`[HotmartSync] Backfill failed for ${profileId}:`, msg);
-        await finishSyncLog(logId, synced, e.message);
+        await finishSyncLog(logId, synced, errMsg);
         throw e;
     } finally {
         if (!force) await releaseSyncMutex(profileId);
@@ -548,8 +551,8 @@ export async function runHotmartSyncForAllProfiles(): Promise<void> {
     for (const { profile_id } of integrations) {
         try {
             await backfillHotmart(profile_id, 7);
-        } catch (e: any) {
-            console.error(`[HotmartSync] Cron sync failed for profile ${profile_id}:`, e.message);
+        } catch (e: unknown) {
+            console.error(`[HotmartSync] Cron sync failed for profile ${profile_id}:`, e instanceof Error ? e.message : String(e));
         }
     }
 

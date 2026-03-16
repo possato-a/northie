@@ -16,8 +16,8 @@ export async function deleteAccount(req: Request, res: Response): Promise<void> 
         if (error) throw error;
 
         res.json({ ok: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('[Profile] deleteAccount error:', err);
-        res.status(500).json({ error: err.message || 'Falha ao excluir conta' });
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Falha ao excluir conta' });
     }
 }

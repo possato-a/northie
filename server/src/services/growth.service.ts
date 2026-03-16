@@ -27,6 +27,101 @@ interface ExecutionStep {
     detail?: string;
 }
 
+// ── Meta API response shapes ─────────────────────────────────────────────────
+
+interface MetaAdAccountsResponse {
+    data?: Array<{ id: string }>;
+}
+
+interface MetaAudienceResponse {
+    id?: string;
+}
+
+// ── Discriminated union for recommendation meta payloads ─────────────────────
+
+interface CampaignRef {
+    campaign_id_external?: string;
+    platform?: string;
+}
+
+interface ChannelPerformance {
+    platform?: string;
+    channel?: string;
+    roi_drop_pct?: number;
+    historic_spend?: number;
+    current_spend?: number;
+    true_roi?: number;
+    avg_ltv_brl?: number;
+}
+
+interface CohortRetentionChannel {
+    cohort_month?: string;
+    current_retention?: number;
+    historic_avg?: number;
+}
+
+interface ReativacaoAltoLtvMeta {
+    customer_ids?: string[];
+    customer_emails?: string[];
+}
+
+interface PausaCampanhaLtvBaixoMeta {
+    campaigns?: CampaignRef[];
+}
+
+interface AudienceSyncChampionsMeta {
+    champion_count?: number;
+    customer_emails?: string[];
+}
+
+interface RealocacaoBudgetMeta {
+    best_channel?: ChannelPerformance;
+    worst_channel?: ChannelPerformance;
+}
+
+interface UpsellCohortMeta {
+    segment_count?: number;
+    avg_interval_days?: number;
+    customer_emails?: string[];
+}
+
+interface DivergenciaRoiCanalMeta {
+    worst_channel?: ChannelPerformance;
+}
+
+interface QuedaRetencaoCohortMeta {
+    worst_channel?: CohortRetentionChannel;
+}
+
+interface CanalAltoLtvUnderinvestedMeta {
+    best_channel?: ChannelPerformance;
+}
+
+interface CacVsLtvDeficitMeta {
+    unprofitable_count?: number;
+    total_deficit?: number;
+    customer_emails?: string[];
+}
+
+interface EmRiscoAltoValorMeta {
+    at_risk_count?: number;
+    avg_ltv?: number;
+    avg_churn_probability?: number;
+    customer_emails?: string[];
+}
+
+type RecommendationMeta =
+    | ReativacaoAltoLtvMeta
+    | PausaCampanhaLtvBaixoMeta
+    | AudienceSyncChampionsMeta
+    | RealocacaoBudgetMeta
+    | UpsellCohortMeta
+    | DivergenciaRoiCanalMeta
+    | QuedaRetencaoCohortMeta
+    | CanalAltoLtvUnderinvestedMeta
+    | CacVsLtvDeficitMeta
+    | EmRiscoAltoValorMeta;
+
 // In-memory log buffer — evita read+write no DB a cada step (antes: 30 queries por execução)
 const logBuffers = new Map<string, ExecutionStep[]>();
 
@@ -62,7 +157,7 @@ async function getMetaAdAccountId(accessToken: string): Promise<string | null> {
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     try {
         const res = await fetch(`https://graph.facebook.com/v25.0/me/adaccounts?fields=id&access_token=${accessToken}`, { signal: controller.signal });
-        const json = await res.json() as any;
+        const json = await res.json() as MetaAdAccountsResponse;
         return json.data?.[0]?.id || null;
     } catch {
         return null;
@@ -107,7 +202,7 @@ async function createMetaCustomAudience(
         } finally {
             clearTimeout(createTimeoutId);
         }
-        const audience = await createRes.json() as any;
+        const audience = await createRes.json() as MetaAudienceResponse;
         if (!audience.id) return null;
 
         // 2. Adicionar usuários com hashed emails
@@ -142,7 +237,7 @@ async function createMetaCustomAudience(
 
 // ── Executores por tipo ────────────────────────────────────────────────────────
 
-async function executeReativacaoAltoLtv(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeReativacaoAltoLtv(profileId: string, recId: string, meta: ReativacaoAltoLtvMeta): Promise<void> {
     await appendLog(recId, { step: 'Buscando segmento de clientes', status: 'done', timestamp: new Date().toISOString(), detail: `${meta.customer_ids?.length || 0} clientes identificados` });
 
     const accessToken = await getMetaToken(profileId);
@@ -185,7 +280,7 @@ async function executeReativacaoAltoLtv(profileId: string, recId: string, meta: 
     await updateStatus(recId, 'completed');
 }
 
-async function executePausaCampanhaLtvBaixo(profileId: string, recId: string, meta: any): Promise<void> {
+async function executePausaCampanhaLtvBaixo(profileId: string, recId: string, meta: PausaCampanhaLtvBaixoMeta): Promise<void> {
     await appendLog(recId, { step: 'Identificando campanhas para pausar', status: 'done', timestamp: new Date().toISOString(), detail: `${meta.campaigns?.length || 0} campanhas` });
 
     const accessToken = await getMetaToken(profileId);
@@ -220,7 +315,7 @@ async function executePausaCampanhaLtvBaixo(profileId: string, recId: string, me
     await updateStatus(recId, 'completed');
 }
 
-async function executeAudienceSyncChampions(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeAudienceSyncChampions(profileId: string, recId: string, meta: AudienceSyncChampionsMeta): Promise<void> {
     await appendLog(recId, { step: 'Buscando segmento Champions', status: 'done', timestamp: new Date().toISOString(), detail: `${meta.champion_count || 0} Champions identificados` });
 
     const accessToken = await getMetaToken(profileId);
@@ -258,7 +353,7 @@ async function executeAudienceSyncChampions(profileId: string, recId: string, me
     await updateStatus(recId, 'completed');
 }
 
-async function executeReaLocacaoBudget(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeReaLocacaoBudget(profileId: string, recId: string, meta: RealocacaoBudgetMeta): Promise<void> {
     await appendLog(recId, { step: 'Calculando nova distribuição de budget', status: 'done', timestamp: new Date().toISOString(), detail: `Canal alvo: ${meta.best_channel?.platform}` });
 
     const accessToken = await getMetaToken(profileId);
@@ -282,7 +377,7 @@ async function executeReaLocacaoBudget(profileId: string, recId: string, meta: a
     await updateStatus(recId, 'completed');
 }
 
-async function executeUpsellCohort(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeUpsellCohort(profileId: string, recId: string, meta: UpsellCohortMeta): Promise<void> {
     await appendLog(recId, { step: 'Buscando clientes na janela de recompra', status: 'done', timestamp: new Date().toISOString(), detail: `${meta.segment_count || 0} clientes na janela de ${meta.avg_interval_days} dias` });
 
     const accessToken = await getMetaToken(profileId);
@@ -322,13 +417,13 @@ async function executeUpsellCohort(profileId: string, recId: string, meta: any):
 
 // ── Executores dos novos tipos (análise e/ou audience sync) ───────────────────
 
-async function executeDivergenciaRoiCanal(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeDivergenciaRoiCanal(profileId: string, recId: string, meta: DivergenciaRoiCanalMeta): Promise<void> {
     const worst = meta.worst_channel;
     await appendLog(recId, {
         step: 'Análise de divergência ROI concluída',
         status: 'done',
         timestamp: new Date().toISOString(),
-        detail: worst ? `${worst.channel}: ROI caiu ${worst.roi_drop_pct}%${worst.historic_spend > 0 ? ` com spend +${Math.round(((worst.current_spend - worst.historic_spend) / worst.historic_spend) * 100)}%` : ''}` : 'Ver detalhes acima',
+        detail: worst ? `${worst.channel}: ROI caiu ${worst.roi_drop_pct}%${(worst.historic_spend ?? 0) > 0 ? ` com spend +${Math.round((((worst.current_spend ?? 0) - (worst.historic_spend ?? 0)) / (worst.historic_spend ?? 1)) * 100)}%` : ''}` : 'Ver detalhes acima',
     });
     await appendLog(recId, {
         step: 'Recomendação: revisar criativos e segmentação',
@@ -339,7 +434,7 @@ async function executeDivergenciaRoiCanal(profileId: string, recId: string, meta
     await updateStatus(recId, 'completed');
 }
 
-async function executeQuedaRetencaoCohort(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeQuedaRetencaoCohort(profileId: string, recId: string, meta: QuedaRetencaoCohortMeta): Promise<void> {
     const worst = meta.worst_channel;
     await appendLog(recId, {
         step: 'Análise de retenção de cohort concluída',
@@ -356,7 +451,7 @@ async function executeQuedaRetencaoCohort(profileId: string, recId: string, meta
     await updateStatus(recId, 'completed');
 }
 
-async function executeCanalAltoLtvUnderinvested(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeCanalAltoLtvUnderinvested(profileId: string, recId: string, meta: CanalAltoLtvUnderinvestedMeta): Promise<void> {
     const best = meta.best_channel;
     await appendLog(recId, {
         step: 'Canal de alto LTV identificado',
@@ -373,7 +468,7 @@ async function executeCanalAltoLtvUnderinvested(profileId: string, recId: string
     await updateStatus(recId, 'completed');
 }
 
-async function executeCacVsLtvDeficit(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeCacVsLtvDeficit(profileId: string, recId: string, meta: CacVsLtvDeficitMeta): Promise<void> {
     await appendLog(recId, {
         step: 'Segmento com déficit CAC vs LTV identificado',
         status: 'done',
@@ -421,7 +516,7 @@ async function executeCacVsLtvDeficit(profileId: string, recId: string, meta: an
     await updateStatus(recId, 'completed');
 }
 
-async function executeEmRiscoAltoValor(profileId: string, recId: string, meta: any): Promise<void> {
+async function executeEmRiscoAltoValor(profileId: string, recId: string, meta: EmRiscoAltoValorMeta): Promise<void> {
     await appendLog(recId, {
         step: 'Segmento Em Risco de Alto Valor identificado',
         status: 'done',
@@ -487,44 +582,45 @@ export async function executeRecommendation(profileId: string, recId: string): P
     // Inicializa log buffer com log existente (se houver)
     clearLogBuffer(recId);
     await updateStatus(recId, 'executing');
-    const meta = rec.meta as any;
+    const meta = (rec.meta ?? {}) as Record<string, unknown>;
 
     try {
         switch (rec.type as RecType) {
             case 'reativacao_alto_ltv':
-                await executeReativacaoAltoLtv(profileId, recId, meta);
+                await executeReativacaoAltoLtv(profileId, recId, meta as unknown as ReativacaoAltoLtvMeta);
                 break;
             case 'pausa_campanha_ltv_baixo':
-                await executePausaCampanhaLtvBaixo(profileId, recId, meta);
+                await executePausaCampanhaLtvBaixo(profileId, recId, meta as unknown as PausaCampanhaLtvBaixoMeta);
                 break;
             case 'audience_sync_champions':
-                await executeAudienceSyncChampions(profileId, recId, meta);
+                await executeAudienceSyncChampions(profileId, recId, meta as unknown as AudienceSyncChampionsMeta);
                 break;
             case 'realocacao_budget':
-                await executeReaLocacaoBudget(profileId, recId, meta);
+                await executeReaLocacaoBudget(profileId, recId, meta as unknown as RealocacaoBudgetMeta);
                 break;
             case 'upsell_cohort':
-                await executeUpsellCohort(profileId, recId, meta);
+                await executeUpsellCohort(profileId, recId, meta as unknown as UpsellCohortMeta);
                 break;
             case 'divergencia_roi_canal':
-                await executeDivergenciaRoiCanal(profileId, recId, meta);
+                await executeDivergenciaRoiCanal(profileId, recId, meta as unknown as DivergenciaRoiCanalMeta);
                 break;
             case 'queda_retencao_cohort':
-                await executeQuedaRetencaoCohort(profileId, recId, meta);
+                await executeQuedaRetencaoCohort(profileId, recId, meta as unknown as QuedaRetencaoCohortMeta);
                 break;
             case 'canal_alto_ltv_underinvested':
-                await executeCanalAltoLtvUnderinvested(profileId, recId, meta);
+                await executeCanalAltoLtvUnderinvested(profileId, recId, meta as unknown as CanalAltoLtvUnderinvestedMeta);
                 break;
             case 'cac_vs_ltv_deficit':
-                await executeCacVsLtvDeficit(profileId, recId, meta);
+                await executeCacVsLtvDeficit(profileId, recId, meta as unknown as CacVsLtvDeficitMeta);
                 break;
             case 'em_risco_alto_valor':
-                await executeEmRiscoAltoValor(profileId, recId, meta);
+                await executeEmRiscoAltoValor(profileId, recId, meta as unknown as EmRiscoAltoValorMeta);
                 break;
         }
-    } catch (err: any) {
-        console.error(`[Growth] Execution error for rec ${recId}:`, err.message);
-        await appendLog(recId, { step: 'Erro inesperado', status: 'failed', timestamp: new Date().toISOString(), detail: err.message });
+    } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[Growth] Execution error for rec ${recId}:`, errMsg);
+        await appendLog(recId, { step: 'Erro inesperado', status: 'failed', timestamp: new Date().toISOString(), detail: errMsg });
         await updateStatus(recId, 'failed');
     } finally {
         clearLogBuffer(recId);

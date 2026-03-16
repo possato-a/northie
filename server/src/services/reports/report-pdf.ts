@@ -560,7 +560,7 @@ function buildCover(data: ReportData, ai: ReportAIAnalysis, genDate: string): st
                                     `<span class="badge-red">Abaixo</span>`;
 
     // LTV/CAC geral - calculado inline
-    const ltvCacRatio = (data as any).ltv_cac_overall ?? null;
+    const ltvCacRatio = data.ltv_cac_overall ?? null;
     const ltvCacBadge = ltvCacRatio !== null
         ? (ltvCacRatio >= 3 ? `<span class="badge-green">Acima 3x</span>` :
            ltvCacRatio >= 1 ? `<span class="badge-yellow">Atenção</span>` :
@@ -761,10 +761,10 @@ function buildAnaliseIA(data: ReportData, ai: ReportAIAnalysis, profile: string,
 
     // Top 3 métricas que precisam atenção
     const attentionItems: string[] = [];
-    if (hs.breakdown && (hs.breakdown as any).ltv_cac?.score < 50) attentionItems.push(`LTV/CAC abaixo do benchmark (score: ${(hs.breakdown as any).ltv_cac?.score ?? '—'})`);
-    if (hs.breakdown && (hs.breakdown as any).refund?.score < 50) attentionItems.push(`Taxa de reembolso elevada (score: ${(hs.breakdown as any).refund?.score ?? '—'})`);
-    if (hs.breakdown && (hs.breakdown as any).roas?.score < 50) attentionItems.push(`ROAS abaixo do esperado (score: ${(hs.breakdown as any).roas?.score ?? '—'})`);
-    if (hs.breakdown && (hs.breakdown as any).growth?.score < 50) attentionItems.push(`Crescimento de receita lento (score: ${(hs.breakdown as any).growth?.score ?? '—'})`);
+    if (hs.breakdown && hs.breakdown.ltv_cac?.score < 50) attentionItems.push(`LTV/CAC abaixo do benchmark (score: ${hs.breakdown.ltv_cac?.score ?? '—'})`);
+    if (hs.breakdown && hs.breakdown.refund?.score < 50) attentionItems.push(`Taxa de reembolso elevada (score: ${hs.breakdown.refund?.score ?? '—'})`);
+    if (hs.breakdown && hs.breakdown.roas?.score < 50) attentionItems.push(`ROAS abaixo do esperado (score: ${hs.breakdown.roas?.score ?? '—'})`);
+    if (hs.breakdown && hs.breakdown.growth?.score < 50) attentionItems.push(`Crescimento de receita lento (score: ${hs.breakdown.growth?.score ?? '—'})`);
     const top3 = attentionItems.slice(0, 3);
 
     const attentionHtml = top3.length > 0
@@ -1174,8 +1174,8 @@ function buildProjecoes(data: ReportData, profile: string, period: string, genDa
     </div>`;
     }
 
-    const ltvCacOverall = (data as any).ltv_cac_overall ?? null;
-    const paybackMonths = (data as any).payback_months ?? null;
+    const ltvCacOverall = data.ltv_cac_overall ?? null;
+    const paybackMonths = data.payback_months ?? null;
 
     return `<div class="page">
   ${pageHeader('Projeções', profile, period)}
@@ -1202,12 +1202,12 @@ function buildProjecoes(data: ReportData, profile: string, period: string, genDa
     <div class="kpi-grid kpi-grid-4">
       <div class="kpi-card neutral">
         <div class="kpi-label">MRR Projetado</div>
-        <div class="kpi-value">${fmtBrl((data as any).mrr_projected ?? 0)}</div>
+        <div class="kpi-value">${fmtBrl(data.mrr_projected ?? 0)}</div>
         <div class="kpi-ctx">Baseado no período</div>
       </div>
       <div class="kpi-card neutral">
         <div class="kpi-label">ARR Projetado</div>
-        <div class="kpi-value">${fmtBrl((data as any).arr_projected ?? 0)}</div>
+        <div class="kpi-value">${fmtBrl(data.arr_projected ?? 0)}</div>
         <div class="kpi-ctx">MRR × 12</div>
       </div>
       <div class="kpi-card ${paybackMonths !== null && paybackMonths <= 12 ? 'positive' : 'negative'}">
@@ -1307,7 +1307,16 @@ function buildCohort(data: ReportData, profile: string, period: string, genDate:
         total: number;
         m0: number; m1: number | null; m2: number | null;
         m3: number | null; m4: number | null; m5: number | null;
-    }> = (data as any).cohort ?? (data as any).retencao ?? [];
+    }> = (data.cohort_retention ?? []).map(c => ({
+        month: c.cohort,
+        total: c.total,
+        m0: c.m0,
+        m1: c.m1,
+        m2: c.m2,
+        m3: c.m3,
+        m4: c.m4,
+        m5: c.m5,
+    }));
 
     function cellClr(pct: number | null): string {
         if (pct === null) return 'cohort-cell-empty';
@@ -1403,7 +1412,7 @@ function buildValuation(data: ReportData, profile: string, period: string, genDa
     const s   = data.summary;
     const hs  = data.health_score;
 
-    const arr = (data as any).arr_projected ?? s.revenue_net * 12;
+    const arr = data.arr_projected ?? s.revenue_net * 12;
     const ltvTotal = data.channel_economics.reduce((sum, c) => sum + c.avg_ltv * c.new_customers, s.total_customers > 0 ? s.ltv_avg * s.total_customers * 0.5 : 0);
 
     const valMin = arr * 3;
@@ -1418,7 +1427,7 @@ function buildValuation(data: ReportData, profile: string, period: string, genDa
 
     // Benchmarks
     const cacAvg = data.channel_economics.filter(c => c.cac > 0).reduce((sum, c, _, a) => sum + c.cac / a.length, 0);
-    const ltvCac = (data as any).ltv_cac_overall ?? null;
+    const ltvCac = data.ltv_cac_overall ?? null;
 
     function bmRow(label: string, value: string, benchmark: string, ok: boolean): string {
         return `<tr>
@@ -1539,7 +1548,7 @@ function buildTopClientes(data: ReportData, profile: string, period: string, gen
 
     const clientRows = allClients.map((c, i) => {
         const barPct = maxLtv > 0 ? Math.round(((c.ltv ?? 0) / maxLtv) * 100) : 0;
-        const rfmSeg = (c as any).rfm_segment ?? '';
+        const rfmSeg = '';
         const badgeCls = RFM_SEGMENT_COLOR[rfmSeg] ?? 'badge-orange';
         const rfmLabel = RFM_META[rfmSeg]?.label ?? (rfmSeg || '—');
         return `<div class="client-rank">

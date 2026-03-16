@@ -18,13 +18,13 @@ export async function listRecommendations(req: Request, res: Response) {
             .from('growth_recommendations')
             .select('id, type, status, title, narrative, impact_estimate, sources, execution_log, meta, created_at, updated_at')
             .eq('profile_id', profileId)
-            .or(`status.in.(pending,approved,executing),and(status.in.(completed,failed,dismissed),created_at.gte.${sevenDaysAgo})`)
+            .or(`status.in.(pending,approved,executing),and(status.in.(completed,failed,dismissed,rejected,cancelled),created_at.gte.${sevenDaysAgo})`)
             .order('created_at', { ascending: false })
             .limit(20);
 
         if (error) return res.status(500).json({ error: 'Failed to fetch recommendations' });
         res.json(data);
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Growth] listRecommendations error:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }
@@ -79,6 +79,67 @@ export async function dismissRecommendation(req: Request, res: Response) {
 
     if (error) return res.status(500).json({ error: 'Failed to dismiss recommendation' });
     res.json({ message: 'Recommendation dismissed', id });
+}
+
+/**
+ * POST /api/growth/recommendations/:id/reject
+ * Rejeição definitiva — o founder não quer essa ação. Diferente de dismiss ("agora não").
+ */
+export async function rejectRecommendation(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    const { id } = req.params;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const { data: rec, error: fetchErr } = await supabase
+        .from('growth_recommendations')
+        .select('id, status')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+
+    if (fetchErr || !rec) return res.status(404).json({ error: 'Recommendation not found' });
+    if (rec.status !== 'pending') return res.status(409).json({ error: 'Only pending recommendations can be rejected' });
+
+    const { error } = await supabase
+        .from('growth_recommendations')
+        .update({ status: 'rejected', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('profile_id', profileId);
+
+    if (error) return res.status(500).json({ error: 'Failed to reject recommendation' });
+    res.json({ message: 'Recommendation rejected', id });
+}
+
+/**
+ * POST /api/growth/recommendations/:id/cancel
+ * Cancela uma execução em andamento (approved ou executing).
+ * Nota: a execução async pode já ter completado — nesse caso retorna 409.
+ */
+export async function cancelRecommendation(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    const { id } = req.params;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const { data: rec, error: fetchErr } = await supabase
+        .from('growth_recommendations')
+        .select('id, status')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+
+    if (fetchErr || !rec) return res.status(404).json({ error: 'Recommendation not found' });
+    if (rec.status !== 'approved' && rec.status !== 'executing') {
+        return res.status(409).json({ error: `Cannot cancel recommendation in "${rec.status}" status` });
+    }
+
+    const { error } = await supabase
+        .from('growth_recommendations')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('profile_id', profileId);
+
+    if (error) return res.status(500).json({ error: 'Failed to cancel recommendation' });
+    res.json({ message: 'Recommendation cancelled', id });
 }
 
 /**
@@ -155,7 +216,7 @@ export async function getGrowthMetrics(req: Request, res: Response) {
                 best_roi: Math.round(globalRoi * 100) / 100,
             },
         });
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Growth] getGrowthMetrics error:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }

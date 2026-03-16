@@ -131,11 +131,16 @@ REGRAS INVIOLÁVEIS:
         }
 
         throw new Error('Unexpected response format from Claude');
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('--- Anthropic API Error Detail ---');
-        if (error.status) console.error('Status:', error.status);
-        if (error.error) console.error('Error Body:', JSON.stringify(error.error, null, 2));
-        console.error('Message:', error.message);
+        if (error instanceof Error) {
+            const errObj = error as unknown as Record<string, unknown>;
+            if (errObj.status) console.error('Status:', errObj.status);
+            if (errObj.error) console.error('Error Body:', JSON.stringify(errObj.error, null, 2));
+            console.error('Message:', error.message);
+        } else {
+            console.error('Error:', error);
+        }
         console.error('---------------------------------');
 
         return {
@@ -174,7 +179,7 @@ export interface GrowthChatContext {
         title: string;
         narrative: string;
         impact_estimate: string;
-        meta: any;
+        meta: Record<string, unknown>;
     }>;
     recentRecs?: Array<{
         id: string;
@@ -304,8 +309,8 @@ REGRAS INVIOLÁVEIS:
         if (response.stop_reason === 'tool_use') {
             const toolUseBlock = response.content.find(b => b.type === 'tool_use');
             if (toolUseBlock && toolUseBlock.type === 'tool_use') {
-                const toolInput = toolUseBlock.input as any;
-                const recType = toolInput.recommendation_type;
+                const toolInput = toolUseBlock.input as Record<string, unknown>;
+                const recType = toolInput.recommendation_type as string;
                 const matchingRec = (context.pendingRecs || []).find(r => r.type === recType);
 
                 let toolResult = '';
@@ -316,13 +321,16 @@ REGRAS INVIOLÁVEIS:
                 } else if (toolUseBlock.name === 'get_segment_preview') {
                     if (matchingRec?.meta) {
                         const m = matchingRec.meta;
-                        toolResult = `Preview do segmento (${recType}):\n- Total: ${m.segment_count || m.champion_count || m.campaigns?.length || 'N/A'}\n- LTV médio: R$ ${(m.avg_ltv || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n- Fontes: ${matchingRec.impact_estimate}`;
+                        const campaignsArr = Array.isArray(m.campaigns) ? m.campaigns : [];
+                        const total = m.segment_count || m.champion_count || campaignsArr.length || 'N/A';
+                        const avgLtv = Number(m.avg_ltv || 0);
+                        toolResult = `Preview do segmento (${recType}):\n- Total: ${total}\n- LTV médio: R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n- Fontes: ${matchingRec.impact_estimate}`;
                     } else {
                         toolResult = `Sem dados de segmento para ${recType}.`;
                     }
                 } else if (toolUseBlock.name === 'explain_correlation') {
                     toolResult = matchingRec
-                        ? `Correlação para "${matchingRec.title}":\nEssa recomendação cruzou as seguintes fontes: ${(matchingRec as any).sources?.join(', ') || 'N/A'}.\n${matchingRec.narrative}`
+                        ? `Correlação para "${matchingRec.title}":\nEssa recomendação cruzou as seguintes fontes: ${(Array.isArray(matchingRec.meta?.sources) ? (matchingRec.meta.sources as string[]).join(', ') : 'N/A')}.\n${matchingRec.narrative}`
                         : `Nenhuma recomendação ativa do tipo ${recType}.`;
                 }
 
@@ -333,12 +341,12 @@ REGRAS INVIOLÁVEIS:
                     system: systemPrompt,
                     messages: [
                         ...messages,
-                        { role: 'assistant', content: response.content },
+                        { role: 'assistant' as const, content: response.content },
                         {
-                            role: 'user',
-                            content: [{ type: 'tool_result', tool_use_id: toolUseBlock.id, content: toolResult }],
+                            role: 'user' as const,
+                            content: [{ type: 'tool_result' as const, tool_use_id: toolUseBlock.id, content: toolResult }],
                         },
-                    ] as any,
+                    ] as Anthropic.MessageParam[],
                 });
 
                 const followUpText = followUp.content.find(b => b.type === 'text');
@@ -354,8 +362,8 @@ REGRAS INVIOLÁVEIS:
         }
 
         throw new Error('Unexpected response format');
-    } catch (error: any) {
-        console.error('[AI Growth] Error:', error.message);
+    } catch (error: unknown) {
+        console.error('[AI Growth] Error:', error instanceof Error ? error.message : String(error));
         return {
             role: 'assistant',
             content: 'Desculpe, tive um problema ao processar sua pergunta. Tente novamente.',

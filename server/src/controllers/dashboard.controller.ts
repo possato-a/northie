@@ -1,6 +1,110 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 
+// ── Interfaces for aggregation maps ────────────────────────────────────────
+
+interface ChannelStatsEntry {
+    spend: number;
+    revenue: number;
+    purchases: number;
+    ltv_sum: number;
+    customers: number;
+}
+
+interface CampaignAggregation {
+    campaign_id: string;
+    campaign_name: string;
+    platform: string;
+    account_name: string | null;
+    objective: string | null;
+    status: string | null;
+    spend_brl: number;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    freq_impressions_sum: number;
+    purchases: number;
+    purchase_value: number;
+    leads: number;
+    link_clicks: number;
+    landing_page_views: number;
+    video_views: number;
+}
+
+interface AdsetAggregation {
+    adset_id: string;
+    adset_name: string | null;
+    campaign_id: string;
+    status: string | null;
+    spend_brl: number;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    freq_impressions_sum: number;
+    purchases: number;
+    purchase_value: number;
+    leads: number;
+    link_clicks: number;
+    landing_page_views: number;
+    video_views: number;
+}
+
+interface AdAggregation {
+    ad_id: string;
+    ad_name: string | null;
+    adset_id: string | null;
+    campaign_id: string;
+    status: string | null;
+    spend_brl: number;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    freq_impressions_sum: number;
+    purchases: number;
+    purchase_value: number;
+    leads: number;
+    link_clicks: number;
+    landing_page_views: number;
+    video_views: number;
+}
+
+interface ChannelTrendData {
+    roas: number[];
+    cac: number[];
+}
+
+interface TransactionWithCustomerJoin {
+    amount_net: number;
+    created_at: string;
+    customers: { acquisition_channel: string | null } | null;
+}
+
+interface AdCampaignRow {
+    campaign_id: string;
+    campaign_name: string;
+    adset_id: string | null;
+    adset_name: string | null;
+    ad_id: string | null;
+    ad_name: string | null;
+    platform: string;
+    level: string;
+    status: string | null;
+    date: string;
+    spend_brl: number;
+    impressions: number;
+    reach: number;
+    clicks: number;
+    frequency: number;
+    purchases: number | null;
+    purchase_value: number | null;
+    leads: number | null;
+    link_clicks: number | null;
+    landing_page_views: number | null;
+    video_views: number | null;
+    account_name: string | null;
+    objective: string | null;
+}
+
 /**
  * Returns general high-level stats for the Northie Dashboard
  */
@@ -34,7 +138,7 @@ export async function getGeneralStats(req: Request, res: Response) {
             average_ticket: Number(averageTicket.toFixed(2)),
             currency: 'BRL'
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Dashboard Stats Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -120,7 +224,7 @@ export async function getAttributionStats(req: Request, res: Response) {
             .sort((a, b) => b.spend - a.spend);
 
         res.status(200).json(formattedData);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Attribution Stats Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -146,7 +250,7 @@ export async function getGrowthMetrics(req: Request, res: Response) {
             previous_revenue: stats?.previous_revenue || 0,
             growth_percentage: stats?.growth_percentage ?? null,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Growth Metrics Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -193,7 +297,7 @@ export async function getRevenueChart(req: Request, res: Response) {
             .sort((a, b) => a.date.localeCompare(b.date));
 
         res.status(200).json(chartData);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Revenue Chart Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -224,7 +328,7 @@ export async function getSalesHeatmap(req: Request, res: Response) {
         });
 
         res.status(200).json(dayCounts);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Sales Heatmap Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -260,7 +364,7 @@ export async function getRetentionCohort(req: Request, res: Response) {
         }));
 
         res.status(200).json(formatted);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Retention Cohort Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -284,7 +388,7 @@ export async function getTopCustomers(req: Request, res: Response) {
         if (error) throw error;
 
         res.status(200).json(customers);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Top Customers Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -333,7 +437,7 @@ export async function getChannelTrends(req: Request, res: Response) {
         type TxAgg = { revenue: number; count: number };
         const txIndex = new Map<string, TxAgg>();
         for (const t of txs || []) {
-            const ch = (t as any).customers?.acquisition_channel as string;
+            const ch = (t as unknown as TransactionWithCustomerJoin).customers?.acquisition_channel;
             if (!ch) continue;
             const dateKey = t.created_at.split('T')[0];
             const key = `${ch}|${dateKey}`;
@@ -344,7 +448,7 @@ export async function getChannelTrends(req: Request, res: Response) {
         }
 
         const channelMap: Record<string, string> = { meta: 'meta_ads', google: 'google_ads' };
-        const trends: Record<string, any> = {};
+        const trends: Record<string, ChannelTrendData> = {};
 
         ['meta', 'google'].forEach(p => {
             trends[p] = { roas: [], cac: [] };
@@ -375,7 +479,7 @@ export async function getChannelTrends(req: Request, res: Response) {
         });
 
         res.status(200).json(trends);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Channel Trends Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -408,7 +512,7 @@ export async function getAdCampaigns(req: Request, res: Response) {
         if (error) throw error;
 
         // Aggregate by campaign_id
-        const map: Record<string, any> = {};
+        const map: Record<string, CampaignAggregation> = {};
         for (const row of data || []) {
             if (!map[row.campaign_id]) {
                 map[row.campaign_id] = {
@@ -425,7 +529,7 @@ export async function getAdCampaigns(req: Request, res: Response) {
                     link_clicks: 0, landing_page_views: 0, video_views: 0,
                 };
             }
-            const c = map[row.campaign_id];
+            const c = map[row.campaign_id]!;
             c.spend_brl += Number(row.spend_brl);
             c.impressions += Number(row.impressions);
             c.reach += Number(row.reach);
@@ -442,7 +546,7 @@ export async function getAdCampaigns(req: Request, res: Response) {
         }
 
         // Recalculate derived metrics
-        const result = Object.values(map).map((c: any) => {
+        const result = Object.values(map).map((c: CampaignAggregation) => {
             const frequency = c.impressions > 0 ? Number((c.freq_impressions_sum / c.impressions).toFixed(2)) : 0;
             const results = c.purchases > 0 ? c.purchases : c.leads > 0 ? c.leads : c.link_clicks;
             const result_type = c.purchases > 0 ? 'purchase' : c.leads > 0 ? 'lead' : 'link_click';
@@ -477,7 +581,7 @@ export async function getAdCampaigns(req: Request, res: Response) {
         }).sort((a, b) => b.spend_brl - a.spend_brl);
 
         res.status(200).json(result);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Ad Campaigns Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -589,12 +693,12 @@ export async function getFullDashboard(req: Request, res: Response) {
             }
             const { data, error } = await query;
             if (error) throw error;
-            const map: Record<string, any> = {};
+            const map: Record<string, CampaignAggregation> = {};
             for (const row of data || []) {
                 if (!map[row.campaign_id]) {
                     map[row.campaign_id] = { campaign_id: row.campaign_id, campaign_name: row.campaign_name, platform: row.platform, account_name: row.account_name, objective: row.objective, status: row.status, spend_brl: 0, impressions: 0, reach: 0, clicks: 0, freq_impressions_sum: 0, purchases: 0, purchase_value: 0, leads: 0, link_clicks: 0, landing_page_views: 0, video_views: 0 };
                 }
-                const c = map[row.campaign_id];
+                const c = map[row.campaign_id]!;
                 c.spend_brl += Number(row.spend_brl); c.impressions += Number(row.impressions); c.reach += Number(row.reach); c.clicks += Number(row.clicks);
                 c.freq_impressions_sum += Number(row.frequency) * Number(row.impressions);
                 c.purchases += Number(row.purchases || 0); c.purchase_value += Number(row.purchase_value || 0); c.leads += Number(row.leads || 0);
@@ -602,18 +706,18 @@ export async function getFullDashboard(req: Request, res: Response) {
                 if (row.status) c.status = row.status;
                 if (row.objective) c.objective = row.objective;
             }
-            return Object.values(map).map((c: any) => {
+            return Object.values(map).map((c: CampaignAggregation) => {
                 const frequency = c.impressions > 0 ? Number((c.freq_impressions_sum / c.impressions).toFixed(2)) : 0;
                 const results = c.purchases > 0 ? c.purchases : c.leads > 0 ? c.leads : c.link_clicks;
                 const result_type = c.purchases > 0 ? 'purchase' : c.leads > 0 ? 'lead' : 'link_click';
                 const cost_per_result = results > 0 ? Number((c.spend_brl / results).toFixed(2)) : 0;
                 const roas = c.purchase_value > 0 && c.spend_brl > 0 ? Number((c.purchase_value / c.spend_brl).toFixed(2)) : 0;
                 return { campaign_id: c.campaign_id, campaign_name: c.campaign_name, platform: c.platform, account_name: c.account_name, objective: c.objective, status: c.status, spend_brl: Number(c.spend_brl.toFixed(2)), impressions: c.impressions, reach: c.reach, clicks: c.clicks, ctr: c.impressions > 0 ? Number(((c.clicks / c.impressions) * 100).toFixed(2)) : 0, cpc_brl: c.clicks > 0 ? Number((c.spend_brl / c.clicks).toFixed(2)) : 0, cpm_brl: c.impressions > 0 ? Number((c.spend_brl / c.impressions * 1000).toFixed(2)) : 0, frequency, purchases: c.purchases, purchase_value: Number(c.purchase_value.toFixed(2)), leads: c.leads, link_clicks: c.link_clicks, landing_page_views: c.landing_page_views, video_views: c.video_views, results, result_type, cost_per_result, roas };
-            }).sort((a: any, b: any) => b.spend_brl - a.spend_brl);
+            }).sort((a, b) => b.spend_brl - a.spend_brl);
         })(),
     ]);
 
-    const ok = (r: PromiseSettledResult<any>) => r.status === 'fulfilled' ? r.value : null;
+    const ok = <T>(r: PromiseSettledResult<T>): T | null => r.status === 'fulfilled' ? r.value : null;
 
     const dashStats = ok(statsR);
     res.status(200).json({
@@ -664,11 +768,12 @@ export async function getAdCampaignDetail(req: Request, res: Response) {
         const { data, error } = await query;
         if (error) throw error;
 
-        const adsets: Record<string, any> = {};
-        const ads: Record<string, any> = {};
+        const adsets: Record<string, AdsetAggregation> = {};
+        const ads: Record<string, AdAggregation> = {};
 
-        const initItem = (base: any) => ({ ...base, spend_brl: 0, impressions: 0, reach: 0, clicks: 0, freq_impressions_sum: 0, purchases: 0, purchase_value: 0, leads: 0, link_clicks: 0, landing_page_views: 0, video_views: 0 });
-        const accumulate = (a: any, row: any) => {
+        const initAdset = (base: Pick<AdsetAggregation, 'adset_id' | 'adset_name' | 'campaign_id' | 'status'>): AdsetAggregation => ({ ...base, spend_brl: 0, impressions: 0, reach: 0, clicks: 0, freq_impressions_sum: 0, purchases: 0, purchase_value: 0, leads: 0, link_clicks: 0, landing_page_views: 0, video_views: 0 });
+        const initAd = (base: Pick<AdAggregation, 'ad_id' | 'ad_name' | 'adset_id' | 'campaign_id' | 'status'>): AdAggregation => ({ ...base, spend_brl: 0, impressions: 0, reach: 0, clicks: 0, freq_impressions_sum: 0, purchases: 0, purchase_value: 0, leads: 0, link_clicks: 0, landing_page_views: 0, video_views: 0 });
+        const accumulate = (a: AdsetAggregation | AdAggregation, row: AdCampaignRow) => {
             a.spend_brl += Number(row.spend_brl);
             a.impressions += Number(row.impressions);
             a.reach += Number(row.reach);
@@ -683,18 +788,18 @@ export async function getAdCampaignDetail(req: Request, res: Response) {
             if (row.status) a.status = row.status;
         };
 
-        for (const row of data || []) {
+        for (const row of (data || []) as AdCampaignRow[]) {
             if (row.level === 'adset' && row.adset_id) {
-                if (!adsets[row.adset_id]) adsets[row.adset_id] = initItem({ adset_id: row.adset_id, adset_name: row.adset_name, campaign_id: row.campaign_id, status: row.status });
-                accumulate(adsets[row.adset_id], row);
+                if (!adsets[row.adset_id]) adsets[row.adset_id] = initAdset({ adset_id: row.adset_id, adset_name: row.adset_name, campaign_id: row.campaign_id, status: row.status });
+                accumulate(adsets[row.adset_id]!, row);
             }
             if (row.level === 'ad' && row.ad_id) {
-                if (!ads[row.ad_id]) ads[row.ad_id] = initItem({ ad_id: row.ad_id, ad_name: row.ad_name, adset_id: row.adset_id, campaign_id: row.campaign_id, status: row.status });
-                accumulate(ads[row.ad_id], row);
+                if (!ads[row.ad_id]) ads[row.ad_id] = initAd({ ad_id: row.ad_id, ad_name: row.ad_name, adset_id: row.adset_id, campaign_id: row.campaign_id, status: row.status });
+                accumulate(ads[row.ad_id]!, row);
             }
         }
 
-        const finalize = (item: any) => {
+        const finalize = (item: AdsetAggregation | AdAggregation) => {
             const frequency = item.impressions > 0 ? Number((item.freq_impressions_sum / item.impressions).toFixed(2)) : 0;
             const results = item.purchases > 0 ? item.purchases : item.leads > 0 ? item.leads : item.link_clicks;
             const cost_per_result = results > 0 ? Number((item.spend_brl / results).toFixed(2)) : 0;
@@ -715,7 +820,7 @@ export async function getAdCampaignDetail(req: Request, res: Response) {
             adsets: Object.values(adsets).map(finalize).sort((a, b) => b.spend_brl - a.spend_brl),
             ads: Object.values(ads).map(finalize).sort((a, b) => b.spend_brl - a.spend_brl),
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Ad Campaign Detail Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }

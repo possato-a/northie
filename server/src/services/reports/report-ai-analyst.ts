@@ -304,8 +304,8 @@ export async function* streamReportNarrative(
 
         const result = parseAnalysis(fullText);
         yield { type: 'done', result: { ...result, generated_at: generatedAt, model } };
-    } catch (err: any) {
-        if (err?.name === 'AbortError' || signal?.aborted) {
+    } catch (err: unknown) {
+        if ((err instanceof Error && err.name === 'AbortError') || signal?.aborted) {
             // Interrupção intencional — cliente desconectou
             return;
         }
@@ -348,7 +348,7 @@ export async function generateReportNarrative(
 
         const result = parseAnalysis(raw);
         return { ...result, generated_at: generatedAt, model };
-    } catch (err) {
+    } catch (err: unknown) {
         const isTimeout = err instanceof Error && err.message === 'AI_TIMEOUT';
         if (isTimeout) {
             console.warn('[ReportAI] Timeout — usando narrativa fallback baseada em dados');

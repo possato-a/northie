@@ -11,7 +11,7 @@ export async function listCampaigns(req: Request, res: Response) {
         // Buscar tudo em paralelo (4 queries fixas, independente do número de campanhas)
         const [{ data, error }, { data: allCreators }, { data: allCommissions }, { data: allSales }] = await Promise.all([
             supabase.from('campaigns').select('id, name, type, commission_rate, description, product_name, start_date, end_date, status, created_at, updated_at').eq('profile_id', profileId).order('created_at', { ascending: false }),
-            supabase.from('campaign_creators').select('campaign_id').eq('campaign_id', profileId ? undefined as any : ''),  // placeholder
+            supabase.from('campaign_creators').select('campaign_id').eq('campaign_id', ''),  // placeholder — unused, kept for parallel structure
             supabase.from('commissions').select('campaign_id, amount').eq('profile_id', profileId),
             supabase.from('transactions').select('campaign_id').eq('profile_id', profileId).eq('status', 'approved').not('campaign_id', 'is', null),
         ]);
@@ -19,7 +19,7 @@ export async function listCampaigns(req: Request, res: Response) {
         if (error) throw error;
 
         // Fetch creators count por campaign (1 query para todas)
-        const campaignIds = (data || []).map((c: any) => c.id);
+        const campaignIds = (data || []).map((c) => c.id);
         const { data: creatorLinks } = campaignIds.length > 0
             ? await supabase.from('campaign_creators').select('campaign_id').in('campaign_id', campaignIds)
             : { data: [] };
@@ -40,7 +40,7 @@ export async function listCampaigns(req: Request, res: Response) {
             salesCountMap.set(s.campaign_id, (salesCountMap.get(s.campaign_id) ?? 0) + 1);
         }
 
-        const campaignsWithCreators = (data || []).map((camp: any) => ({
+        const campaignsWithCreators = (data || []).map((camp) => ({
             ...camp,
             creators_count: creatorsCountMap.get(camp.id) ?? 0,
             commission_total: commissionMap.get(camp.id) ?? 0,
@@ -48,7 +48,7 @@ export async function listCampaigns(req: Request, res: Response) {
         }));
 
         res.status(200).json(campaignsWithCreators);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[CampaignController] List Error:', error);
         res.status(500).json({ error: 'Failed to list campaigns' });
     }
@@ -82,7 +82,7 @@ export async function createCampaign(req: Request, res: Response) {
 
         if (error) throw error;
         res.status(201).json(data);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[CampaignController] Create Error:', error);
         res.status(500).json({ error: 'Failed to create campaign' });
     }
@@ -138,8 +138,10 @@ export async function listCampaignCreators(req: Request, res: Response) {
             else if (c.status === 'pending') entry.pending += Number(c.amount);
         }
 
-        const creatorsWithStats = (data ?? []).map((item: any) => {
-            const creator = item.creator;
+        const creatorsWithStats = (data ?? []).map((item) => {
+            // Supabase join returns array for untyped client — extract first element
+            const rawCreator = Array.isArray(item.creator) ? item.creator[0] : item.creator;
+            const creator = rawCreator as unknown as { id: string; [key: string]: unknown };
             const comm = commByCreator.get(creator.id) ?? { paid: 0, pending: 0 };
             return {
                 ...creator,
@@ -151,7 +153,7 @@ export async function listCampaignCreators(req: Request, res: Response) {
         });
 
         res.status(200).json(creatorsWithStats);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[CampaignController] List Creators Error:', error);
         res.status(500).json({ error: 'Failed to list creators' });
     }
@@ -190,7 +192,7 @@ export async function addCreatorToCampaign(req: Request, res: Response) {
         if (lError) throw lError;
 
         res.status(201).json(creator);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[CampaignController] Add Creator Error:', error);
         res.status(500).json({ error: 'Failed to add creator' });
     }
@@ -230,7 +232,7 @@ export async function confirmPayout(req: Request, res: Response) {
         if (error) throw error;
 
         res.status(200).json({ message: 'Payout confirmed' });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[CampaignController] Confirm Payout Error:', error);
         res.status(500).json({ error: 'Failed to confirm payout' });
     }

@@ -59,6 +59,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
         next();
     } catch (err: unknown) {
         const isExpired = (err as jwt.JsonWebTokenError)?.name === 'TokenExpiredError';
+        console.warn('[Auth] JWT verification failed:', err instanceof Error ? err.message : String(err));
         res.status(401).json({
             error: isExpired ? 'Token expirado. Faça login novamente.' : 'Token inválido.',
         });

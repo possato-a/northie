@@ -88,7 +88,7 @@ export const ShopifyWebhookSchema = z.union([ShopifyOrderSchema, ShopifyCustomer
 // ── Validator genérico ────────────────────────────────────────────────────────
 
 type ValidationResult =
-    | { success: true; data: any }
+    | { success: true; data: unknown }
     | { success: false; errors: string[] };
 
 export function validateWebhookPayload(platform: string, payload: unknown): ValidationResult {

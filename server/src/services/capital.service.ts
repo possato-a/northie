@@ -118,6 +118,14 @@ export async function calculateCapitalScore(profileId: string): Promise<CapitalS
         platform_tenure: Math.round(platform_tenure),
     };
 
+    const metrics = {
+        mrr_avg,
+        ltv_avg,
+        churn_rate,
+        ltv_cac_ratio,
+        months_on_platform,
+    };
+
     // Upsert to capital_score_history
     await supabase
         .from('capital_score_history')
@@ -130,14 +138,12 @@ export async function calculateCapitalScore(profileId: string): Promise<CapitalS
             score_ltv_churn: dimensions.customer_quality,
             score_cac_ltv: dimensions.acquisition_efficiency,
             score_platform_age: dimensions.platform_tenure,
-            dimensions,
-            metrics: {
-                mrr_avg,
-                ltv_avg,
-                churn_rate,
-                ltv_cac_ratio,
-                months_on_platform,
-            },
+            mrr_brl: mrr_avg,
+            ltv_avg_brl: ltv_avg,
+            churn_rate,
+            cac_ltv_ratio: ltv_cac_ratio,
+            months_on_platform,
+            details: { dimensions, metrics },
         }, { onConflict: 'profile_id,snapshot_month' });
 
     return {
@@ -145,12 +151,6 @@ export async function calculateCapitalScore(profileId: string): Promise<CapitalS
         dimensions,
         credit_limit_brl,
         snapshot_month: snapshot_month_label,
-        metrics: {
-            mrr_avg,
-            ltv_avg,
-            churn_rate,
-            ltv_cac_ratio,
-            months_on_platform,
-        },
+        metrics,
     };
 }

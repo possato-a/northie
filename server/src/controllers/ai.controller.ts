@@ -130,7 +130,7 @@ export async function handleChatMessage(req: Request, res: Response) {
 
         res.status(200).json(response);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('AI Chat Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
@@ -227,7 +227,7 @@ export async function handleGrowthChatMessage(req: Request, res: Response) {
         await supabase.from('ai_chat_history').insert({ profile_id: profileId, role: 'assistant', content: response.content });
 
         res.status(200).json(response);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Growth Chat Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }

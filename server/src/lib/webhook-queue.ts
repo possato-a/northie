@@ -17,7 +17,7 @@ import { supabase } from './supabase.js';
 interface QueueItem {
     rawId: string;
     platform: string;
-    payload: any;
+    payload: unknown;
     profileId: string;
     attempts: number;
     nextRetry: number; // timestamp ms
@@ -31,7 +31,7 @@ class WebhookQueue {
     private queue: QueueItem[] = [];
     private running = false;
 
-    enqueue(rawId: string, platform: string, payload: any, profileId: string): void {
+    enqueue(rawId: string, platform: string, payload: unknown, profileId: string): void {
         if (this.queue.length >= MAX_QUEUE_SIZE) {
             console.warn(`[Queue] ⚠ Queue full (${MAX_QUEUE_SIZE}), dropping oldest item`);
             this.queue.shift(); // remove o mais antigo
@@ -63,18 +63,19 @@ class WebhookQueue {
             try {
                 await normalizeData(item.rawId, item.platform, item.payload, item.profileId);
                 console.log(`[Queue] ✓ Processed ${item.platform} raw=${item.rawId}`);
-            } catch (err: any) {
+            } catch (err: unknown) {
                 item.attempts += 1;
+                const errMsg = err instanceof Error ? err.message : String(err);
 
                 if (item.attempts >= MAX_RETRIES) {
                     console.error(
                         `[Queue] ✗ Max retries reached for ${item.platform} raw=${item.rawId}:`,
-                        err.message
+                        errMsg
                     );
                     // Marcar como falha permanente no banco
                     await supabase
                         .from('platforms_data_raw')
-                        .update({ error_message: err.message, failed_at: new Date().toISOString() })
+                        .update({ error_message: errMsg, failed_at: new Date().toISOString() })
                         .eq('id', item.rawId);
                 } else {
                     const delay = BASE_DELAY_MS * Math.pow(2, item.attempts - 1);

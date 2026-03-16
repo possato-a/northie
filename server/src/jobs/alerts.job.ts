@@ -29,7 +29,7 @@ interface AlertPayload {
     severity: AlertSeverity;
     title: string;
     body: string;
-    meta?: Record<string, any>;
+    meta?: Record<string, unknown>;
     notifyEmail?: string | undefined; // se preenchido, envia email
 }
 
@@ -79,8 +79,8 @@ async function sendAlertEmail(to: string, title: string, body: string, severity:
             html,
         });
         console.log(`[Alerts] Email enviado para ${to}: ${title}`);
-    } catch (err: any) {
-        console.warn(`[Alerts] Falha ao enviar email: ${err.message}`);
+    } catch (err: unknown) {
+        console.warn(`[Alerts] Falha ao enviar email: ${err instanceof Error ? err.message : String(err)}`);
     }
 }
 
@@ -148,7 +148,7 @@ async function checkRoasDrop(profileId: string, notifyEmail?: string): Promise<v
     for (const platform of ['meta', 'google']) {
         const platformMetrics = metrics.filter(m => m.platform === platform);
         const channelKey = channelMap[platform] || platform;
-        const platformTxs = txs?.filter(t => (t as any).customers?.acquisition_channel === channelKey) || [];
+        const platformTxs = txs?.filter(t => (t as unknown as { customers?: { acquisition_channel?: string } }).customers?.acquisition_channel === channelKey) || [];
 
         if (!platformMetrics.length) continue;
 
@@ -367,7 +367,7 @@ async function runAlertsForAllProfiles(): Promise<void> {
 
     for (const profile of profiles || []) {
         try {
-            const notif = (profile as any).workspace_config?.notifications ?? {};
+            const notif = (profile as unknown as { workspace_config?: { notifications?: Record<string, unknown> } }).workspace_config?.notifications ?? {};
 
             // Busca email do usuário se notificações por email estão ativas
             let notifyEmail: string | undefined;
@@ -395,8 +395,8 @@ async function runAlertsForAllProfiles(): Promise<void> {
                     console.error(`[Alerts] ${checks[i]!.name} failed for ${profile.id}:`, r.reason?.message);
                 }
             });
-        } catch (err: any) {
-            console.error(`[Alerts] Error for profile ${profile.id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[Alerts] Error for profile ${profile.id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 

@@ -103,8 +103,9 @@ export async function runMetaLeadAttribution(profileId: string): Promise<LeadAtt
         pages = pagesRes.data?.data || [];
         result.pagesFound = pages.length;
         console.log(`[MetaLeadAttribution] ${pages.length} page(s) found for profile ${profileId}`);
-    } catch (err: any) {
-        const msg = err.response?.data?.error?.message || err.message;
+    } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+        const msg = axiosErr.response?.data?.error?.message || (err instanceof Error ? err.message : String(err));
         console.warn(`[MetaLeadAttribution] Could not fetch pages: ${msg}`);
         result.errors.push(`Pages: ${msg}`);
         // Sem pages, tenta direto na conta do usuário (user token pode ter lead forms)
@@ -121,8 +122,9 @@ export async function runMetaLeadAttribution(profileId: string): Promise<LeadAtt
             forms = formsRes.data?.data || [];
             result.formsFound += forms.length;
             console.log(`[MetaLeadAttribution] Page "${page.name}": ${forms.length} lead form(s)`);
-        } catch (err: any) {
-            const msg = err.response?.data?.error?.message || err.message;
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+            const msg = axiosErr.response?.data?.error?.message || (err instanceof Error ? err.message : String(err));
             console.warn(`[MetaLeadAttribution] Could not fetch forms for page ${page.id}: ${msg}`);
             result.errors.push(`Forms (page ${page.id}): ${msg}`);
             continue;
@@ -177,7 +179,8 @@ async function processFormLeads(
         try {
             page = await fetchLeadsPage(pageUrl, pageParams);
         } catch (err: unknown) {
-            const msg = (err as any)?.response?.data?.error?.message ?? (err as Error).message;
+            const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+            const msg = axiosErr.response?.data?.error?.message ?? (err instanceof Error ? err.message : String(err));
             console.warn(`[MetaLeadAttribution] Could not fetch leads for form ${formId}: ${msg}`);
             result.errors.push(`Leads (form ${formId}): ${msg}`);
             break;
@@ -208,7 +211,7 @@ async function processFormLeads(
                 customer.acquisition_channel !== 'desconhecido';
             if (hasChannel) continue;
 
-            const updatePayload: Record<string, any> = { acquisition_channel: 'meta_ads' };
+            const updatePayload: Record<string, unknown> = { acquisition_channel: 'meta_ads' };
 
             // Se nome ainda não foi preenchido, tenta extrair do formulário
             if (!customer.name) {

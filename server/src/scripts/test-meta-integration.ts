@@ -15,7 +15,7 @@ import { dirname, resolve } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Setup ──────────────────────────────────────────────────────────────────────
@@ -144,8 +144,8 @@ try {
     appTokenResponse.data?.access_token
         ? ok('Credenciais Meta App válidas', `App token obtido com sucesso`)
         : fail('Credenciais Meta App', 'token não retornado');
-} catch (err: any) {
-    const msg = err.response?.data?.error?.message || err.message;
+} catch (err: unknown) {
+    const msg = isAxiosError(err) ? (err.response?.data?.error?.message || err.message) : (err instanceof Error ? err.message : String(err));
     fail('Credenciais Meta App', msg);
 }
 
@@ -202,8 +202,8 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
                 ? ok(`Ad accounts acessíveis`, accounts.map((a: any) => a.name).join(', '))
                 : console.log(`  ⚠️  Ad accounts: não listados via /me/adaccounts (normal para system user tokens)`);
         }
-    } catch (err: any) {
-        const msg = err.response?.data?.error?.message || err.message;
+    } catch (err: unknown) {
+        const msg = isAxiosError(err) ? (err.response?.data?.error?.message || err.message) : (err instanceof Error ? err.message : String(err));
         fail('Token de acesso Meta', msg);
     }
 }

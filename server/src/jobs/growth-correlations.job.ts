@@ -42,7 +42,7 @@ async function upsertRecommendation(
         narrative: string;
         impact_estimate: string;
         sources: string[];
-        meta: Record<string, any>;
+        meta: Record<string, unknown>;
     }
 ): Promise<void> {
     // Deduplicação: não criar nova rec do mesmo tipo se já existe pending/approved nas últimas 24h
@@ -668,8 +668,8 @@ async function runGrowthCorrelationsForAllProfiles(): Promise<void> {
                 detectCacVsLtvDeficit(profile.id, allCustomers),
                 detectEmRiscoAltoValor(profile.id, allCustomers),
             ]);
-        } catch (err: any) {
-            console.error(`[Growth] Error for profile ${profile.id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[Growth] Error for profile ${profile.id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 

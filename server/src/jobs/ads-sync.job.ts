@@ -20,16 +20,17 @@ function round2(n: number): number {
  * ou erros transitórios (5xx). Usa backoff exponencial com jitter.
  */
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> {
-    let lastError: any;
+    let lastError: unknown = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             return await fn();
-        } catch (err: any) {
+        } catch (err: unknown) {
             lastError = err;
-            const status = err.response?.status;
-            const fbCode = err.response?.data?.error?.code;
+            const axiosErr = err as { response?: { status?: number; data?: { error?: { code?: number } } } };
+            const status = axiosErr.response?.status;
+            const fbCode = axiosErr.response?.data?.error?.code;
             if (status === 401 || status === 403 || fbCode === 190) throw err;
-            const isRetryable = status === 429 || (status >= 500 && status < 600) || !status;
+            const isRetryable = status === 429 || (status !== undefined && status >= 500 && status < 600) || !status;
             if (!isRetryable || attempt === maxRetries) throw err;
             const baseDelay = Math.pow(2, attempt + 1) * 1000;
             const jitter = Math.random() * 1000;
@@ -145,6 +146,77 @@ const META_INSIGHT_FIELDS =
     'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,date_start,' +
     'actions,action_values,video_p25_watched_actions';
 
+// ── Meta Ads API response types ──────────────────────────────────────────────
+
+interface MetaPaging { next?: string; }
+interface MetaObjectData { id: string; effective_status: string; }
+interface MetaCampaignObjectData { id: string; objective: string; }
+
+interface MetaApiResponse<T> { data: T[]; paging?: MetaPaging; }
+
+type MetaApiParams = Record<string, string | number | boolean>;
+
+// ── Google Ads API response types ────────────────────────────────────────────
+
+interface GoogleAdsCustomerRow {
+    customer?: {
+        descriptiveName?: string;
+        currencyCode?: string;
+    };
+}
+
+interface GoogleAdsCampaignRow {
+    campaign?: {
+        id?: string;
+        name?: string;
+        status?: string;
+        advertisingChannelType?: string;
+    };
+    adGroup?: {
+        id?: string;
+        name?: string;
+        status?: string;
+    };
+    adGroupAd?: {
+        ad?: {
+            id?: string;
+            name?: string;
+        };
+        status?: string;
+    };
+    adGroupCriterion?: {
+        criterionId?: string;
+        keyword?: {
+            text?: string;
+            matchType?: string;
+        };
+        status?: string;
+    };
+    segments?: {
+        date: string;
+    };
+    metrics?: {
+        costMicros?: string;
+        impressions?: string;
+        clicks?: string;
+        conversions?: string;
+        conversionsValue?: string;
+        videoViews?: string;
+        landingPageViews?: string;
+    };
+}
+
+interface GoogleAdsSearchStreamBatch<T = GoogleAdsCampaignRow> {
+    results?: T[];
+}
+
+interface GoogleIntegrationRow {
+    google_customer_ids?: string[];
+    google_login_customer_id?: string;
+}
+
+// ── Meta Ads — campos e tipos ────────────────────────────────────────────────
+
 interface MetaAction { action_type: string; value: string; }
 
 interface MetaInsightRow {
@@ -227,7 +299,7 @@ async function fetchMetaObjectStatuses(
     const statusMap = new Map<string, string>();
     let url: string | null =
         `https://graph.facebook.com/v25.0/${accountId}/${endpointMap[level]}`;
-    const params: Record<string, any> = {
+    const params: MetaApiParams = {
         access_token: accessToken,
         fields: 'id,effective_status',
         limit: 500,
@@ -235,8 +307,8 @@ async function fetchMetaObjectStatuses(
 
     while (url !== null) {
         const currentUrl: string = url;
-        const reqParams: Record<string, any> | undefined = currentUrl.includes('?') ? undefined : params;
-        const res = await axios.get<{ data: any[]; paging?: { next?: string } }>(currentUrl, { params: reqParams });
+        const reqParams: MetaApiParams | undefined = currentUrl.includes('?') ? undefined : params;
+        const res = await axios.get<MetaApiResponse<MetaObjectData>>(currentUrl, { params: reqParams });
         for (const obj of res.data?.data || []) {
             if (obj['id'] && obj['effective_status']) {
                 statusMap.set(obj['id'] as string, obj['effective_status'] as string);
@@ -261,7 +333,7 @@ async function fetchMetaInsights(
     level: 'campaign' | 'adset' | 'ad',
     dateRange: { since: string; until: string } | null,
 ): Promise<MetaInsightRow[]> {
-    const params: Record<string, any> = {
+    const params: MetaApiParams = {
         access_token: accessToken,
         fields: META_INSIGHT_FIELDS,
         time_increment: 1,
@@ -282,7 +354,7 @@ async function fetchMetaInsights(
 
     while (url !== null) {
         const currentUrl: string = url;
-        const reqParams: Record<string, any> | undefined = currentUrl.includes('?') ? undefined : params;
+        const reqParams: MetaApiParams | undefined = currentUrl.includes('?') ? undefined : params;
         const res = await axios.get<{ data: MetaInsightRow[]; paging?: { next?: string } }>(currentUrl, { params: reqParams });
         const data: MetaInsightRow[] = res.data?.data || [];
         rows.push(...data);
@@ -400,19 +472,19 @@ async function syncMetaAccount(
     const objectiveMap = new Map<string, string>();
     try {
         let url: string | null = `https://graph.facebook.com/v25.0/${account.id}/campaigns`;
-        const objParams = { access_token: accessToken, fields: 'id,objective', limit: 500 };
+        const objParams: MetaApiParams = { access_token: accessToken, fields: 'id,objective', limit: 500 };
         while (url !== null) {
             const currentUrl: string = url;
-            const reqParams: Record<string, any> | undefined = currentUrl.includes('?') ? undefined : objParams;
-            const res = await axios.get<{ data: any[]; paging?: { next?: string } }>(currentUrl, { params: reqParams });
+            const reqParams: MetaApiParams | undefined = currentUrl.includes('?') ? undefined : objParams;
+            const res = await axios.get<MetaApiResponse<MetaCampaignObjectData>>(currentUrl, { params: reqParams });
             for (const c of res.data?.data || []) {
                 if (c['id'] && c['objective']) objectiveMap.set(c['id'] as string, c['objective'] as string);
             }
             const next = res.data?.paging?.next;
             url = (next && next !== currentUrl) ? next : null;
         }
-    } catch (e: any) {
-        console.error('[AdsSync] Meta: failed to fetch campaign objectives:', e.message);
+    } catch (e: unknown) {
+        console.error('[AdsSync] Meta: failed to fetch campaign objectives:', e instanceof Error ? e.message : String(e));
     }
 
     for (const level of levels) {
@@ -488,10 +560,11 @@ async function syncMetaAccount(
                 }));
                 await upsertAdMetrics(metricsBatch);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: unknown } };
             console.error(
                 `[AdsSync] Meta: error at ${level} level for account ${account.id}:`,
-                err.response?.data || err.message
+                axiosErr.response?.data || (err instanceof Error ? err.message : String(err))
             );
         }
     }
@@ -535,8 +608,9 @@ async function syncMetaAds(
             accountsRes = await withRetry(() => axios.get('https://graph.facebook.com/v25.0/me/adaccounts', {
                 params: { access_token: accessToken, fields: 'id,name', limit: 50 },
             }));
-        } catch (err: any) {
-            const fbError = err.response?.data?.error;
+        } catch (err: unknown) {
+            const axiosErr = err as { response?: { data?: { error?: { code?: number; message?: string } } } };
+            const fbError = axiosErr.response?.data?.error;
             if (fbError?.code === 190) {
                 console.error(`[AdsSync] Meta: invalid/expired token for profile ${profileId} — marking inactive.`);
                 await supabase
@@ -546,7 +620,7 @@ async function syncMetaAds(
                     .eq('platform', 'meta');
                 await finishSyncLog(logId, 0, 'Token expired (code 190)');
             } else {
-                const msg = fbError?.message ?? err.message;
+                const msg = fbError?.message ?? (err instanceof Error ? err.message : String(err));
                 console.error(`[AdsSync] Meta: failed to list ad accounts for ${profileId}:`, msg);
                 await finishSyncLog(logId, 0, msg);
             }
@@ -568,9 +642,10 @@ async function syncMetaAds(
 
         console.log(`[AdsSync] Meta: sync complete for profile ${profileId}`);
         await finishSyncLog(logId, totalRows);
-    } catch (err: any) {
-        console.error(`[AdsSync] Meta: unhandled error for ${profileId}:`, err.message);
-        await finishSyncLog(logId, totalRows, err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[AdsSync] Meta: unhandled error for ${profileId}:`, msg);
+        await finishSyncLog(logId, totalRows, msg);
     } finally {
         await releaseSyncMutex(profileId, 'meta');
     }
@@ -596,13 +671,13 @@ export async function backfillMetaAds(profileId: string, days?: number): Promise
 /**
  * Executa uma query GAQL via searchStream e retorna todos os resultados achatados.
  */
-async function fetchGoogleRows(
+async function fetchGoogleRows<T = GoogleAdsCampaignRow>(
     customerId: string,
     accessToken: string,
     developerToken: string,
     query: string,
     loginCustomerId?: string,
-): Promise<any[]> {
+): Promise<T[]> {
     const headers: Record<string, string> = {
         Authorization: `Bearer ${accessToken}`,
         'developer-token': developerToken,
@@ -611,19 +686,19 @@ async function fetchGoogleRows(
     if (loginCustomerId && loginCustomerId !== customerId) {
         headers['login-customer-id'] = loginCustomerId;
     }
-    const res = await withRetry(() => axios.post(
+    const res = await withRetry(() => axios.post<GoogleAdsSearchStreamBatch<T>[]>(
         `https://googleads.googleapis.com/v23/customers/${customerId}/googleAds:searchStream`,
         { query },
         { headers, timeout: 30000 }
     ));
-    const batches: any[] = res.data || [];
-    const rows: any[] = [];
+    const batches: GoogleAdsSearchStreamBatch<T>[] = res.data || [];
+    const rows: T[] = [];
     for (const batch of batches) rows.push(...(batch.results || []));
     return rows;
 }
 
 /** Converte cost_micros em BRL com 2 casas */
-function microsToReais(micros: any): number {
+function microsToReais(micros: string | number | undefined): number {
     return round2(parseInt(String(micros || '0'), 10) / 1_000_000);
 }
 
@@ -644,7 +719,7 @@ async function syncGoogleAccount(
     // ── Fix 1: busca nome real da conta via customer.descriptive_name ──────────
     let accountName = `Google Ads #${customerId}`;
     try {
-        const nameRows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+        const nameRows = await fetchGoogleRows<GoogleAdsCustomerRow>(customerId, accessToken, developerToken, `
             SELECT customer.descriptive_name FROM customer
         `, loginCustomerId);
         const descriptiveName = nameRows[0]?.customer?.descriptiveName;
@@ -656,7 +731,7 @@ async function syncGoogleAccount(
     // ── Fix: detecta moeda da conta e calcula taxa de conversão ───────────────
     let exchangeRate = 1.0;
     try {
-        const currencyRows = await fetchGoogleRows(customerId, accessToken, developerToken, `
+        const currencyRows = await fetchGoogleRows<GoogleAdsCustomerRow>(customerId, accessToken, developerToken, `
             SELECT customer.currency_code FROM customer
         `, loginCustomerId);
         const currencyCode: string = currencyRows[0]?.customer?.currencyCode || 'BRL';
@@ -673,7 +748,7 @@ async function syncGoogleAccount(
     }
 
     // Helper local que aplica taxa de câmbio
-    const toReais = (micros: any): number =>
+    const toReais = (micros: string | number | undefined): number =>
         round2((parseInt(String(micros || '0'), 10) / 1_000_000) * exchangeRate);
 
     // Heurística de tipo de conversão por canal:
@@ -724,7 +799,7 @@ async function syncGoogleAccount(
                     level: 'campaign',
                     status: r.campaign?.status || '',
                     objective: channelType,
-                    date: r.segments.date,
+                    date: r.segments!.date,
                     spendBrl,
                     impressions,
                     reach: 0,
@@ -762,9 +837,10 @@ async function syncGoogleAccount(
 
         accountRows += rows.length;
         console.log(`[AdsSync] Google: ${rows.length} campaign row(s) for ${customerId} (${accountName})`);
-    } catch (err: any) {
-        console.error(`[AdsSync] Google: campaign level error for ${customerId}:`, err.response?.data || err.message);
-        if (err.response?.status === 401) throw err;
+    } catch (err: unknown) {
+        const axiosErr = err as { response?: { status?: number; data?: unknown } };
+        console.error(`[AdsSync] Google: campaign level error for ${customerId}:`, axiosErr.response?.data || (err instanceof Error ? err.message : String(err)));
+        if (axiosErr.response?.status === 401) throw err;
     }
 
     // ── Ad Group level (equivalente a adset no Meta) ───────────────────────────
@@ -814,7 +890,7 @@ async function syncGoogleAccount(
                     level: 'adset',
                     status: r.adGroup?.status || '',
                     objective: channelType,
-                    date: r.segments.date,
+                    date: r.segments!.date,
                     spendBrl,
                     impressions,
                     reach: 0,
@@ -835,9 +911,10 @@ async function syncGoogleAccount(
         await upsertAdCampaigns(batch);
         accountRows += rows.length;
         console.log(`[AdsSync] Google: ${rows.length} ad_group row(s) for ${customerId}`);
-    } catch (err: any) {
-        console.error(`[AdsSync] Google: ad_group level error for ${customerId}:`, err.response?.data || err.message);
-        if (err.response?.status === 401) throw err;
+    } catch (err: unknown) {
+        const axiosErr = err as { response?: { status?: number; data?: unknown } };
+        console.error(`[AdsSync] Google: ad_group level error for ${customerId}:`, axiosErr.response?.data || (err instanceof Error ? err.message : String(err)));
+        if (axiosErr.response?.status === 401) throw err;
     }
 
     // ── Ad level ──────────────────────────────────────────────────────────────
@@ -891,7 +968,7 @@ async function syncGoogleAccount(
                     level: 'ad',
                     status: r.adGroupAd?.status || '',
                     objective: channelType,
-                    date: r.segments.date,
+                    date: r.segments!.date,
                     spendBrl,
                     impressions,
                     reach: 0,
@@ -912,9 +989,10 @@ async function syncGoogleAccount(
         await upsertAdCampaigns(batch);
         accountRows += rows.length;
         console.log(`[AdsSync] Google: ${rows.length} ad row(s) for ${customerId}`);
-    } catch (err: any) {
-        console.error(`[AdsSync] Google: ad level error for ${customerId}:`, err.response?.data || err.message);
-        if (err.response?.status === 401) throw err;
+    } catch (err: unknown) {
+        const axiosErr = err as { response?: { status?: number; data?: unknown } };
+        console.error(`[AdsSync] Google: ad level error for ${customerId}:`, axiosErr.response?.data || (err instanceof Error ? err.message : String(err)));
+        if (axiosErr.response?.status === 401) throw err;
     }
 
     // ── Keyword level (só campanhas de Search) ────────────────────────────────
@@ -971,7 +1049,7 @@ async function syncGoogleAccount(
                     level: 'keyword',
                     status: r.adGroupCriterion?.status || '',
                     objective: 'SEARCH',
-                    date: r.segments.date,
+                    date: r.segments!.date,
                     spendBrl,
                     impressions,
                     reach: 0,
@@ -992,9 +1070,10 @@ async function syncGoogleAccount(
         await upsertAdCampaigns(batch);
         accountRows += rows.length;
         console.log(`[AdsSync] Google: ${rows.length} keyword row(s) for ${customerId}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
         // Contas sem campanhas Search não têm keywords — não é erro crítico
-        console.warn(`[AdsSync] Google: keyword level skipped for ${customerId}:`, err.response?.data?.error?.message ?? err.message);
+        const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
+        console.warn(`[AdsSync] Google: keyword level skipped for ${customerId}:`, axiosErr.response?.data?.error?.message ?? (err instanceof Error ? err.message : String(err)));
     }
 
     return accountRows;
@@ -1046,7 +1125,8 @@ async function syncGoogleAds(
             .eq('platform', 'google')
             .single();
 
-        const customerIds: string[] = (integrationRow as any)?.google_customer_ids || [];
+        const googleRow = integrationRow as GoogleIntegrationRow | null;
+        const customerIds: string[] = googleRow?.google_customer_ids || [];
         if (customerIds.length === 0) {
             console.log(`[AdsSync] Google: no customer_ids for profile ${profileId}, skipping.`);
             await finishSyncLog(logId, 0, 'No customer IDs configured');
@@ -1055,7 +1135,7 @@ async function syncGoogleAds(
 
         // loginCustomerId = conta MCC (manager). Necessário para acessar sub-contas via MCC.
         // Para contas diretas (não-MCC), será undefined e o header não será enviado.
-        const loginCustomerId: string | undefined = (integrationRow as any)?.google_login_customer_id ?? undefined;
+        const loginCustomerId: string | undefined = googleRow?.google_login_customer_id ?? undefined;
 
         const since = dateRange?.since ?? yesterday();
         const until = dateRange?.until ?? today();
@@ -1064,9 +1144,10 @@ async function syncGoogleAds(
             try {
                 const rows = await syncGoogleAccount(profileId, customerId, tokens.access_token, developerToken, { since, until }, loginCustomerId);
                 totalRows += rows;
-            } catch (err: any) {
-                const status = err.response?.status;
-                console.error(`[AdsSync] Google: fatal error for ${customerId} (HTTP ${status}):`, err.response?.data || err.message);
+            } catch (err: unknown) {
+                const axiosErr = err as { response?: { status?: number; data?: unknown } };
+                const status = axiosErr.response?.status;
+                console.error(`[AdsSync] Google: fatal error for ${customerId} (HTTP ${status}):`, axiosErr.response?.data || (err instanceof Error ? err.message : String(err)));
                 // Token expirado — marca integração como expired para forçar reconexão
                 if (status === 401) {
                     await supabase
@@ -1083,9 +1164,10 @@ async function syncGoogleAds(
         console.log(`[AdsSync] Google: sync complete for profile ${profileId} (${totalRows} row(s))`);
         await finishSyncLog(logId, totalRows);
         return { rowsUpserted: totalRows };
-    } catch (err: any) {
-        console.error(`[AdsSync] Google: unhandled error for ${profileId}:`, err.message);
-        await finishSyncLog(logId, totalRows, err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[AdsSync] Google: unhandled error for ${profileId}:`, msg);
+        await finishSyncLog(logId, totalRows, msg);
         return { rowsUpserted: totalRows };
     } finally {
         await releaseSyncMutex(profileId, 'google');
@@ -1129,10 +1211,10 @@ async function runAdsSyncForAllProfiles(): Promise<void> {
             } else if (integration.platform === 'google') {
                 await syncGoogleAds(integration.profile_id);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(
                 `[AdsSync] Unhandled error for ${integration.platform} / ${integration.profile_id}:`,
-                err.message
+                err instanceof Error ? err.message : String(err)
             );
         }
     }

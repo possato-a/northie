@@ -134,7 +134,7 @@ export async function processScheduledReports() {
                 .eq('id', config.id);
 
             console.log(`[Reports] Relatório ${format} enviado para ${config.profile_id}`);
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(`[Reports] Falha para profile ${config.profile_id}:`, err);
 
             await supabase.from('report_logs').insert({

@@ -43,7 +43,7 @@ console.log(`\n🚀 Starting Meta Ads backfill for profile ${profileId} — last
 try {
     await backfillMetaAds(profileId, days);
     console.log('\n✅ Backfill complete!');
-} catch (err: any) {
-    console.error('\n❌ Backfill failed:', err.message);
+} catch (err: unknown) {
+    console.error('\n❌ Backfill failed:', err instanceof Error ? err.message : String(err));
     process.exit(1);
 }

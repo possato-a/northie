@@ -33,9 +33,21 @@ router.post('/recommendations/:id/approve', GrowthController.approveRecommendati
 
 /**
  * @route POST /api/growth/recommendations/:id/dismiss
- * @desc Descarta uma recomendação
+ * @desc Descarta uma recomendação ("agora não")
  */
 router.post('/recommendations/:id/dismiss', GrowthController.dismissRecommendation);
+
+/**
+ * @route POST /api/growth/recommendations/:id/reject
+ * @desc Rejeição definitiva (founder não quer essa ação)
+ */
+router.post('/recommendations/:id/reject', GrowthController.rejectRecommendation);
+
+/**
+ * @route POST /api/growth/recommendations/:id/cancel
+ * @desc Cancela execução em andamento (approved/executing)
+ */
+router.post('/recommendations/:id/cancel', GrowthController.cancelRecommendation);
 
 /**
  * @route GET /api/growth/recommendations/:id/status

@@ -33,7 +33,7 @@ export async function listCustomers(req: Request, res: Response) {
         if (error) throw error;
 
         res.status(200).json(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[CustomersController] listCustomers error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }

@@ -20,8 +20,8 @@ export async function getCardApplication(req: Request, res: Response) {
         if (error && error.code !== 'PGRST116') throw error;
 
         return res.status(200).json(data ?? null);
-    } catch (err: any) {
-        console.error('[card.controller] getCardApplication error:', err.message);
+    } catch (err: unknown) {
+        console.error('[card.controller] getCardApplication error:', err instanceof Error ? err.message : String(err));
         return res.status(500).json({ error: 'Failed to fetch card application' });
     }
 }
@@ -79,8 +79,8 @@ export async function requestCard(req: Request, res: Response) {
 
         console.log(`[card.controller] Card request submitted for profile ${profileId} — limit R$${requested_limit_brl}`);
         return res.status(201).json(data);
-    } catch (err: any) {
-        console.error('[card.controller] requestCard error:', err.message);
+    } catch (err: unknown) {
+        console.error('[card.controller] requestCard error:', err instanceof Error ? err.message : String(err));
         return res.status(500).json({ error: 'Failed to submit card request' });
     }
 }
@@ -106,8 +106,8 @@ export async function getCapitalScore(req: Request, res: Response) {
         }
 
         return res.status(200).json(data);
-    } catch (err: any) {
-        console.error('[card.controller] getCapitalScore error:', err.message);
+    } catch (err: unknown) {
+        console.error('[card.controller] getCapitalScore error:', err instanceof Error ? err.message : String(err));
         return res.status(500).json({ error: 'Failed to fetch capital score' });
     }
 }
@@ -127,8 +127,8 @@ export async function getScoreHistory(req: Request, res: Response) {
         if (error) throw error;
 
         return res.status(200).json(data ?? []);
-    } catch (err: any) {
-        console.error('[card.controller] getScoreHistory error:', err.message);
+    } catch (err: unknown) {
+        console.error('[card.controller] getScoreHistory error:', err instanceof Error ? err.message : String(err));
         return res.status(500).json({ error: 'Failed to fetch score history' });
     }
 }

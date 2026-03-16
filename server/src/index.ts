@@ -77,8 +77,7 @@ app.post('/api/webhooks/hotmart/:profileId', express.raw({ type: 'application/js
 app.post('/api/webhooks/shopify/:profileId', express.raw({ type: 'application/json' }), handleShopifyWebhook);
 app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), (req, res, next) => {
     // Expõe rawBody para verificação de assinatura Svix
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (req as any).rawBody = req.body as Buffer;
+    (req as unknown as { rawBody: Buffer }).rawBody = req.body as Buffer;
     next();
 }, handleResendWebhook);
 

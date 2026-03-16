@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import crypto from 'crypto';
 import type { OAuthTokens } from '../types/index.js';
 
@@ -68,7 +68,7 @@ export class IntegrationService {
     /**
      * Generates the OAuth authorization URL for a specific platform
      */
-    static getAuthorizationUrl(platform: string, profileId: string, options?: Record<string, any>): string {
+    static getAuthorizationUrl(platform: string, profileId: string, options?: Record<string, string>): string {
         const redirectUri = this.getRedirectUri(platform);
         const state = this.generateOAuthState(profileId);
 
@@ -156,7 +156,7 @@ export class IntegrationService {
         if (error || !data) return null;
 
         try {
-            const decrypted = decrypt((data.config_encrypted as any).data);
+            const decrypted = decrypt((data.config_encrypted as unknown as { data: string }).data);
             return JSON.parse(decrypted);
         } catch (e) {
             console.error(`[IntegrationService] Failed to decrypt ${platform} tokens:`, e);
@@ -217,22 +217,24 @@ export class IntegrationService {
                 await this.saveIntegration(profileId, platform, newTokens);
                 console.log(`[IntegrationService] Meta token renewed for profile ${profileId}.`);
                 return newTokens;
-            } catch (error: any) {
-                const detail = error.response?.data ?? error.message;
+            } catch (error: unknown) {
+                const detail = isAxiosError(error) ? error.response?.data ?? error.message : (error instanceof Error ? error.message : String(error));
                 console.error(`[IntegrationService] Meta re-exchange failed for ${profileId}:`, detail);
-                const httpStatus = error.response?.status;
-                const errCode = error.response?.data?.error?.code;
-                const errType = error.response?.data?.error?.type;
-                const isPermanent =
-                    (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
-                    (httpStatus === 400 && errType === 'OAuthException' && [190, 102, 467, 458].includes(errCode)) ||
-                    (httpStatus === 401);
-                if (isPermanent) {
-                    await supabase
-                        .from('integrations')
-                        .update({ status: 'inactive' })
-                        .eq('profile_id', profileId)
-                        .eq('platform', 'meta');
+                if (isAxiosError(error)) {
+                    const httpStatus = error.response?.status;
+                    const errCode = error.response?.data?.error?.code;
+                    const errType = error.response?.data?.error?.type;
+                    const isPermanent =
+                        (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
+                        (httpStatus === 400 && errType === 'OAuthException' && [190, 102, 467, 458].includes(errCode)) ||
+                        (httpStatus === 401);
+                    if (isPermanent) {
+                        await supabase
+                            .from('integrations')
+                            .update({ status: 'inactive' })
+                            .eq('profile_id', profileId)
+                            .eq('platform', 'meta');
+                    }
                 }
                 throw error;
             }
@@ -266,18 +268,21 @@ export class IntegrationService {
                 };
                 await this.saveIntegration(profileId, platform, newTokens);
                 return newTokens;
-            } catch (error: any) {
-                console.error(`[IntegrationService] Google refresh failed for ${profileId}:`, error.response?.data ?? error.message);
-                const httpStatus = error.response?.status;
-                const isPermanent =
-                    (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
-                    (httpStatus === 401);
-                if (isPermanent) {
-                    await supabase
-                        .from('integrations')
-                        .update({ status: 'inactive' })
-                        .eq('profile_id', profileId)
-                        .eq('platform', 'google');
+            } catch (error: unknown) {
+                const detail = isAxiosError(error) ? error.response?.data ?? error.message : (error instanceof Error ? error.message : String(error));
+                console.error(`[IntegrationService] Google refresh failed for ${profileId}:`, detail);
+                if (isAxiosError(error)) {
+                    const httpStatus = error.response?.status;
+                    const isPermanent =
+                        (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
+                        (httpStatus === 401);
+                    if (isPermanent) {
+                        await supabase
+                            .from('integrations')
+                            .update({ status: 'inactive' })
+                            .eq('profile_id', profileId)
+                            .eq('platform', 'google');
+                    }
                 }
                 throw error;
             }
@@ -315,19 +320,22 @@ export class IntegrationService {
                 };
                 await this.saveIntegration(profileId, platform, newTokens);
                 return newTokens;
-            } catch (error: any) {
-                console.error(`[IntegrationService] Hotmart refresh failed for ${profileId}:`, error.response?.data ?? error.message);
-                const httpStatus = error.response?.status;
-                const errData = error.response?.data;
-                const isPermanent =
-                    (httpStatus === 400 && (errData?.error === 'invalid_grant' || errData?.error === 'invalid_token')) ||
-                    (httpStatus === 401);
-                if (isPermanent) {
-                    await supabase
-                        .from('integrations')
-                        .update({ status: 'inactive' })
-                        .eq('profile_id', profileId)
-                        .eq('platform', 'hotmart');
+            } catch (error: unknown) {
+                const detail = isAxiosError(error) ? error.response?.data ?? error.message : (error instanceof Error ? error.message : String(error));
+                console.error(`[IntegrationService] Hotmart refresh failed for ${profileId}:`, detail);
+                if (isAxiosError(error)) {
+                    const httpStatus = error.response?.status;
+                    const errData = error.response?.data;
+                    const isPermanent =
+                        (httpStatus === 400 && (errData?.error === 'invalid_grant' || errData?.error === 'invalid_token')) ||
+                        (httpStatus === 401);
+                    if (isPermanent) {
+                        await supabase
+                            .from('integrations')
+                            .update({ status: 'inactive' })
+                            .eq('profile_id', profileId)
+                            .eq('platform', 'hotmart');
+                    }
                 }
                 throw error;
             }

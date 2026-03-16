@@ -21,12 +21,12 @@ export async function checkAndRefreshAll(): Promise<void> {
                     console.log(`[Job] Refreshing ${integration.platform} for ${integration.profile_id} (near expiry)`);
                     await IntegrationService.refreshTokens(integration.profile_id, integration.platform);
                 }
-            } catch (err: any) {
-                console.error(`[Job] Failed to refresh ${integration.platform} for ${integration.profile_id}:`, err.message);
+            } catch (err: unknown) {
+                console.error(`[Job] Failed to refresh ${integration.platform} for ${integration.profile_id}:`, err instanceof Error ? err.message : String(err));
             }
         }
-    } catch (err: any) {
-        console.error('[Job] Main refresh loop error:', err.message);
+    } catch (err: unknown) {
+        console.error('[Job] Main refresh loop error:', err instanceof Error ? err.message : String(err));
     }
 }
 

@@ -43,7 +43,7 @@ try {
     const { synced, skipped, errors } = await backfillHotmart(profileId, days);
     console.log(`\n✅ Backfill complete! synced: ${synced} | skipped: ${skipped} | errors: ${errors}`);
     if (errors > 0) process.exit(1);
-} catch (err: any) {
-    console.error('\n❌ Backfill failed:', err.message);
+} catch (err: unknown) {
+    console.error('\n❌ Backfill failed:', err instanceof Error ? err.message : String(err));
     process.exit(1);
 }

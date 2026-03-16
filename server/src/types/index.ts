@@ -23,6 +23,8 @@ export type SupportedPlatform = 'meta' | 'google' | 'stripe' | 'hotmart' | 'shop
 export type AcquisitionChannel =
     | 'meta_ads'
     | 'google_ads'
+    | 'shopify'
+    | 'stripe'
     | 'organico'
     | 'email'
     | 'direto'
@@ -39,7 +41,7 @@ export interface AIChatContext {
         currency: string
         total_customers: number
     }
-    attribution?: any[]
+    attribution?: Record<string, unknown>[]
 }
 
 /**

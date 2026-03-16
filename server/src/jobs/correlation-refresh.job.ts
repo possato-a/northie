@@ -21,8 +21,8 @@ async function refreshCorrelationViews(): Promise<void> {
         } else {
             console.log('[CorrelationRefresh] ✓ All correlation views refreshed');
         }
-    } catch (err: any) {
-        console.error('[CorrelationRefresh] Unexpected error:', err.message);
+    } catch (err: unknown) {
+        console.error('[CorrelationRefresh] Unexpected error:', err instanceof Error ? err.message : String(err));
     }
 }
 
@@ -90,8 +90,8 @@ async function upsertMonthlySnapshots(): Promise<void> {
             } else {
                 console.log(`[CorrelationRefresh] ✓ Snapshot ${snapshotMonthStr} para profile ${profile.id} (${snapshots.length} linhas)`);
             }
-        } catch (err: any) {
-            console.error(`[CorrelationRefresh] Error for profile ${profile.id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[CorrelationRefresh] Error for profile ${profile.id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 }

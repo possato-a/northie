@@ -61,7 +61,7 @@ export async function handlePixelEvent(req: Request, res: Response) {
         if (error) throw error;
 
         res.status(200).json({ status: 'tracked' });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Pixel tracking error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }

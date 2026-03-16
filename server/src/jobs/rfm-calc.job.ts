@@ -225,8 +225,8 @@ async function runRfmForAllProfiles(): Promise<void> {
     for (const profile of profiles || []) {
         try {
             await calcRfmForProfile(profile.id);
-        } catch (err: any) {
-            console.error(`[RFM] Error for profile ${profile.id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[RFM] Error for profile ${profile.id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 

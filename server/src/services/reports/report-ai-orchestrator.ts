@@ -47,7 +47,7 @@ export async function runOrchestratorPipeline(
 
         return { ...strategistResult, generated_at: generatedAt, model };
 
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[OrchestratorAI] Falha no pipeline:', err);
         return { ...FALLBACK, generated_at: generatedAt, model };
     }

@@ -49,9 +49,10 @@ export async function connectPlatform(req: Request, res: Response) {
         const authUrl = IntegrationService.getAuthorizationUrl(platform as string, profileId as string, shop ? { shop } : undefined);
         console.log(`[IntegrationController] OAuth flow iniciado para platform: ${platform}`);
         res.json({ authUrl });
-    } catch (error: any) {
-        console.error(`[IntegrationController] Error generating Auth URL for ${platform}:`, error.message);
-        res.status(400).json({ error: error.message });
+    } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[IntegrationController] Error generating Auth URL for ${platform}:`, errMsg);
+        res.status(400).json({ error: errMsg });
     }
 }
 
@@ -70,13 +71,14 @@ export async function handleCallback(req: Request, res: Response) {
     let profileId: string;
     try {
         profileId = IntegrationService.validateOAuthState(state as string);
-    } catch (stateErr: any) {
-        console.warn(`[IntegrationController] Invalid OAuth state for ${platform}: ${stateErr.message}`);
+    } catch (stateErr: unknown) {
+        const stateErrMsg = stateErr instanceof Error ? stateErr.message : String(stateErr);
+        console.warn(`[IntegrationController] Invalid OAuth state for ${platform}: ${stateErrMsg}`);
         return res.status(400).send(`
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #fab1a0; background: #fff5f5; color: #d63031; border-radius: 8px;">
                 <h3>Sessão Expirada ou Inválida</h3>
                 <p>O link de conexão expirou (limite de 10 min) ou é inválido.</p>
-                <p style="font-size: 12px; color: #636E72;">Erro: ${escapeHtml(stateErr.message)}</p>
+                <p style="font-size: 12px; color: #636E72;">Erro: ${escapeHtml(stateErrMsg)}</p>
                 <small style="color: #636E72;">Por favor, tente fechar esta janela e clicar no link de conexão novamente.</small>
             </div>
         `);
@@ -126,7 +128,17 @@ export async function handleCallback(req: Request, res: Response) {
             console.log(`[IntegrationController] Profile auto-created successfully for ${user.email}`);
         }
 
-        let tokens: any = {};
+        interface OAuthTokenResult {
+            access_token?: string;
+            refresh_token?: string;
+            expires_in?: number;
+            token_type?: string;
+            scope?: string;
+            stripe_user_id?: string;
+            livemode?: boolean;
+            shop_domain?: string;
+        }
+        let tokens: OAuthTokenResult = {};
 
         if (platform === 'meta') {
             const redirectUri = IntegrationService.getRedirectUri('meta');
@@ -193,10 +205,11 @@ export async function handleCallback(req: Request, res: Response) {
                     }
                 );
                 tokens = tokenRes.data;
-            } catch (hotError: any) {
-                const errorData = hotError.response?.data;
-                const errorStatus = hotError.response?.status;
-                const errorMsg = errorData?.error_description || errorData?.error || hotError.message;
+            } catch (hotError: unknown) {
+                const hotErrorResp = (hotError as { response?: { data?: Record<string, unknown>; status?: number } }).response;
+                const errorData = hotErrorResp?.data;
+                const errorStatus = hotErrorResp?.status;
+                const errorMsg = errorData?.error_description || errorData?.error || (hotError instanceof Error ? hotError.message : String(hotError));
                 throw new Error(`Hotmart API Error (${errorStatus}): ${errorMsg} | RedirectURI: ${redirectUri}`);
             }
         } else if (platform === 'stripe') {
@@ -251,7 +264,7 @@ export async function handleCallback(req: Request, res: Response) {
             if (platform === 'stripe' && tokens.livemode === false) {
                 throw new Error('Apenas contas Stripe em modo live são aceitas. Verifique se o modo de teste está desativado.');
             }
-            await IntegrationService.saveIntegration(profileId, platform as string, tokens);
+            await IntegrationService.saveIntegration(profileId, platform as string, tokens as OAuthTokenResult & { access_token: string });
         } else {
             throw new Error(`A plataforma ${platform} não retornou um access_token válido.`);
         }
@@ -312,15 +325,15 @@ export async function handleCallback(req: Request, res: Response) {
                         const userErrors = gqlRes.data?.data?.webhookSubscriptionCreate?.userErrors;
                         if (userErrors?.length) {
                             // Ignora erro de webhook já existente — idempotente
-                            const isDuplicate = userErrors.some((e: any) => e.message?.toLowerCase().includes('already'));
+                            const isDuplicate = userErrors.some((e: { message?: string }) => e.message?.toLowerCase().includes('already'));
                             if (!isDuplicate) {
                                 console.warn(`[Shopify] GraphQL webhook error para ${topic}:`, userErrors);
                             }
                         } else {
                             console.log(`[Shopify] Webhook registrado via GraphQL: ${topic}`);
                         }
-                    } catch (whErr: any) {
-                        console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, whErr.response?.data ?? whErr.message);
+                    } catch (whErr: unknown) {
+                        console.warn(`[Shopify] Falha ao registrar webhook ${topic}:`, (whErr as { response?: { data?: unknown } }).response?.data ?? (whErr instanceof Error ? whErr.message : String(whErr)));
                     }
                 }
             }
@@ -394,8 +407,8 @@ export async function handleCallback(req: Request, res: Response) {
                     } else {
                         console.warn('[IntegrationController] Google: nenhuma conta encontrada.');
                     }
-                } catch (discoveryErr: any) {
-                    console.warn('[IntegrationController] Google: auto-discovery falhou:', discoveryErr.response?.data || discoveryErr.message);
+                } catch (discoveryErr: unknown) {
+                    console.warn('[IntegrationController] Google: auto-discovery falhou:', (discoveryErr as { response?: { data?: unknown } }).response?.data || (discoveryErr instanceof Error ? discoveryErr.message : String(discoveryErr)));
                 }
             }
         }
@@ -439,18 +452,20 @@ export async function handleCallback(req: Request, res: Response) {
                 </body>
             </html>
         `);
-    } catch (error: any) {
-        console.error(`[IntegrationController] Error during exchange for ${platform}:`, error.response?.data || error.message);
+    } catch (error: unknown) {
+        const errResp = (error as { response?: { data?: unknown; status?: number } }).response;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[IntegrationController] Error during exchange for ${platform}:`, errResp?.data || errMsg);
 
-        const status = error.response?.status || 500;
-        const details = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+        const status = errResp?.status || 500;
+        const details = errResp?.data ? JSON.stringify(errResp.data) : errMsg;
 
         res.status(status).send(`
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #fab1a0; background: #fff5f5; color: #d63031; border-radius: 8px;">
                 <h3>Erro Crítico na Integração</h3>
                 <p>Ocorreu um erro ao processar a resposta de <b>${platform}</b>.</p>
                 <div style="background: #fdf2f2; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 10px 0; border: 1px solid #f9d6d6;">
-                    <b>Mensagem:</b> ${escapeHtml(error.message)}<br>
+                    <b>Mensagem:</b> ${escapeHtml(errMsg)}<br>
                     <b>Status:</b> ${status}<br>
                     <b>Detalhes:</b> ${escapeHtml(typeof details === 'string' ? details : JSON.stringify(details))}
                 </div>
@@ -487,7 +502,7 @@ export async function disconnectPlatform(req: Request, res: Response) {
         if (error) throw error;
 
         res.status(200).json({ message: `Successfully disconnected ${platform}` });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[IntegrationController] Disconnect Error:', error);
         res.status(500).json({ error: 'Failed to disconnect integration' });
     }
@@ -510,7 +525,7 @@ export async function getIntegrationStatus(req: Request, res: Response) {
         if (error) throw error;
 
         res.status(200).json(data ?? []);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[IntegrationController] getIntegrationStatus Error:', error);
         res.status(500).json({ error: 'Failed to fetch integration status' });
     }
@@ -527,9 +542,10 @@ export async function cronReports(req: Request, res: Response) {
     try {
         await processScheduledReports();
         return res.status(200).json({ ok: true, ran_at: new Date().toISOString() });
-    } catch (error: any) {
-        console.error('[cronReports] error:', error.message);
-        return res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error('[cronReports] error:', errMsg);
+        return res.status(500).json({ error: errMsg });
     }
 }
 
@@ -548,27 +564,30 @@ export async function cronSync(req: Request, res: Response) {
         // Fase 0: renovar tokens
         await checkAndRefreshAll();
 
+        const logErr = (label: string) => (e: unknown) => console.error(`[cronSync] ${label}:`, e instanceof Error ? e.message : String(e));
+
         // Fase 1: sync de dados — SEQUENCIAL (cada sync é pesado)
-        await runAdsSyncForAllProfiles().catch(e => console.error('[cronSync] ads:', e.message));
-        await runHotmartSyncForAllProfiles().catch(e => console.error('[cronSync] hotmart:', e.message));
-        await runStripeSyncForAllProfiles().catch(e => console.error('[cronSync] stripe:', e.message));
-        await runShopifySyncForAllProfiles().catch(e => console.error('[cronSync] shopify:', e.message));
+        await runAdsSyncForAllProfiles().catch(logErr('ads'));
+        await runHotmartSyncForAllProfiles().catch(logErr('hotmart'));
+        await runStripeSyncForAllProfiles().catch(logErr('stripe'));
+        await runShopifySyncForAllProfiles().catch(logErr('shopify'));
 
         // Fase 2: jobs analíticos — SEQUENCIAL
-        await runRfmForAllProfiles().catch(e => console.error('[cronSync] rfm:', e.message));
-        await runSafetyNet().catch(e => console.error('[cronSync] safety-net:', e.message));
-        await runCapitalScoreForAllProfiles().catch(e => console.error('[cronSync] capital:', e.message));
+        await runRfmForAllProfiles().catch(logErr('rfm'));
+        await runSafetyNet().catch(logErr('safety-net'));
+        await runCapitalScoreForAllProfiles().catch(logErr('capital'));
         // Fase 3: correlações (após RFM)
-        await refreshCorrelationViews().catch(e => console.error('[cronSync] views:', e.message));
-        await runGrowthCorrelationsForAllProfiles().catch(e => console.error('[cronSync] growth:', e.message));
+        await refreshCorrelationViews().catch(logErr('views'));
+        await runGrowthCorrelationsForAllProfiles().catch(logErr('growth'));
 
         // Fase 4: relatórios
-        await processScheduledReports().catch(e => console.error('[cronSync] reports:', e.message));
+        await processScheduledReports().catch(logErr('reports'));
 
         return res.status(200).json({ message: 'Cron sync completed.' });
-    } catch (error: any) {
-        console.error('[cronSync] error:', error.message);
-        return res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error('[cronSync] error:', errMsg);
+        return res.status(500).json({ error: errMsg });
     }
 }
 
@@ -642,11 +661,13 @@ export async function triggerSync(req: Request, res: Response) {
         }
 
         return res.status(400).json({ error: `Sync not supported for platform: ${platform}` });
-    } catch (error: any) {
-        const hotmartBody = error.response?.data;
-        const errorMsg = hotmartBody?.error_description || hotmartBody?.error || error.message;
-        const httpStatus = error.response?.status;
-        console.error(`[IntegrationController] triggerSync error for ${platform} (HTTP ${httpStatus}):`, JSON.stringify(hotmartBody ?? error.message));
+    } catch (error: unknown) {
+        const errResp = (error as { response?: { data?: Record<string, unknown>; status?: number } }).response;
+        const hotmartBody = errResp?.data;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = hotmartBody?.error_description || hotmartBody?.error || errMsg;
+        const httpStatus = errResp?.status;
+        console.error(`[IntegrationController] triggerSync error for ${platform} (HTTP ${httpStatus}):`, JSON.stringify(hotmartBody ?? errMsg));
         return res.status(500).json({
             error: 'Failed to trigger sync',
             message: errorMsg,
@@ -672,8 +693,9 @@ export async function metaRetroactiveAttribution(req: Request, res: Response) {
             message: 'Atribuição retroativa concluída.',
             ...result,
         });
-    } catch (error: any) {
-        console.error('[IntegrationController] metaRetroactiveAttribution error:', error.message);
-        return res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error('[IntegrationController] metaRetroactiveAttribution error:', errMsg);
+        return res.status(500).json({ error: errMsg });
     }
 }

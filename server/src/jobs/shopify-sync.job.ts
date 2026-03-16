@@ -15,15 +15,16 @@ const SHOPIFY_API_VERSION = '2026-01';
 // ── Retry com backoff exponencial ─────────────────────────────────────────────
 
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> {
-    let lastError: any;
+    let lastError: unknown = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             return await fn();
-        } catch (err: any) {
+        } catch (err: unknown) {
             lastError = err;
-            const status = err.response?.status;
+            const axiosErr = err as { response?: { status?: number } };
+            const status = axiosErr.response?.status;
             if (status === 401 || status === 403) throw err;
-            const isRetryable = status === 429 || (status >= 500 && status < 600) || !status;
+            const isRetryable = status === 429 || (status !== undefined && status >= 500 && status < 600) || !status;
             if (!isRetryable || attempt === maxRetries) throw err;
             const baseDelay = Math.pow(2, attempt + 1) * 1000;
             const jitter = Math.random() * 1000;
@@ -271,7 +272,7 @@ export async function backfillShopify(
     }
 
     const token = integration.access_token;
-    const shop = (integration as any).shop_domain as string | undefined;
+    const shop = (integration as unknown as { shop_domain?: string }).shop_domain;
 
     if (!token || !shop) {
         throw new Error(`[ShopifySync] Missing access_token or shop_domain for profile ${profileId}`);
@@ -304,8 +305,8 @@ export async function backfillShopify(
                     .then(({ error }) => {
                         if (error) console.warn(`[ShopifySync] platforms_data_raw insert failed for order ${order.id}:`, error.message);
                     });
-            } catch (e: any) {
-                console.error(`[ShopifySync] Error processing order ${order.id}:`, e.message);
+            } catch (e: unknown) {
+                console.error(`[ShopifySync] Error processing order ${order.id}:`, e instanceof Error ? e.message : String(e));
                 errors++;
             }
         }
@@ -317,17 +318,19 @@ export async function backfillShopify(
         for (const order of refundedOrders) {
             try {
                 await processRefundedOrder(profileId, order);
-            } catch (e: any) {
-                console.error(`[ShopifySync] Error processing refund for order ${order.id}:`, e.message);
+            } catch (e: unknown) {
+                console.error(`[ShopifySync] Error processing refund for order ${order.id}:`, e instanceof Error ? e.message : String(e));
                 errors++;
             }
         }
 
         console.log(`[ShopifySync] Done for ${profileId}: ${synced} synced, ${skipped} skipped, ${errors} errors`);
         await finishSyncLog(logId, synced);
-    } catch (e: any) {
-        console.error(`[ShopifySync] Backfill failed for ${profileId}:`, e.response?.data ?? e.message);
-        await finishSyncLog(logId, synced, e.message);
+    } catch (e: unknown) {
+        const axiosErr = e as { response?: { data?: unknown } };
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error(`[ShopifySync] Backfill failed for ${profileId}:`, axiosErr.response?.data ?? errMsg);
+        await finishSyncLog(logId, synced, errMsg);
         throw e;
     } finally {
         await releaseSyncMutex(profileId);
@@ -361,8 +364,8 @@ export async function runShopifySyncForAllProfiles(): Promise<void> {
     for (const { profile_id } of integrations) {
         try {
             await backfillShopify(profile_id, 7);
-        } catch (e: any) {
-            console.error(`[ShopifySync] Cron sync failed for profile ${profile_id}:`, e.message);
+        } catch (e: unknown) {
+            console.error(`[ShopifySync] Cron sync failed for profile ${profile_id}:`, e instanceof Error ? e.message : String(e));
         }
     }
 

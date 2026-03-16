@@ -1,19 +1,101 @@
 import { supabase } from '../lib/supabase.js';
+import type { AcquisitionChannel } from '../types/index.js';
 import crypto from 'crypto';
+
+// ── Platform payload interfaces ──────────────────────────────────────────────
+
+// ── Platform payload interfaces ──────────────────────────────────────────────
+
+/** Stripe checkout.session.completed object */
+interface StripeCheckoutObject {
+    id: string;
+    customer_details?: { email?: string };
+    amount_total: number;
+    metadata?: Record<string, string>;
+}
+
+/** Stripe payment_intent.succeeded object */
+interface StripePaymentIntentObject {
+    id: string;
+    invoice?: string;
+    receipt_email?: string;
+    amount_received: number;
+    metadata?: Record<string, string>;
+}
+
+/** Stripe charge.refunded object */
+interface StripeChargeRefundedObject {
+    payment_intent?: string;
+    billing_details?: { email?: string };
+    amount_refunded: number;
+}
+
+/** Stripe customer.subscription.* object */
+interface StripeSubscriptionObject {
+    status: string;
+    customer?: string;
+    metadata?: Record<string, string>;
+}
+
+/** Stripe webhook event payload */
+interface StripeWebhookPayload {
+    type: string;
+    data?: {
+        object: Record<string, unknown>;
+    };
+}
+
+/** Hotmart webhook event payload */
+interface HotmartWebhookPayload {
+    event: string;
+    data: {
+        buyer: { email: string; name?: string };
+        purchase: {
+            transaction?: string;
+            full_price: { value: number };
+            hotmart_fee?: { total?: { value: number } };
+            src?: string;
+            hsrc?: string;
+            payment?: { type?: string };
+        };
+        subscription?: { subscriber_code?: string };
+        product?: { name?: string };
+        hsrc?: string;
+        src?: string;
+    };
+}
+
+/** Shopify webhook event payload */
+interface ShopifyWebhookPayload {
+    _topic?: string;
+    financial_status?: string;
+    email?: string;
+    customer?: { email?: string };
+    total_price?: string;
+    total_tax?: string;
+    id?: string | number;
+    note_attributes?: Array<{ name: string; value: string }>;
+    line_items?: Array<{ title?: string; variant_title?: string }>;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    order_id?: string | number;
+    transactions?: Array<{ amount?: string }>;
+}
 
 /**
  * Normalizes raw platform data into the Northie Schema (Transactions, Customers, etc.)
  */
-export async function normalizeData(rawId: string, platform: string, payload: any, profileId: string) {
+export async function normalizeData(rawId: string, platform: string, payload: unknown, profileId: string) {
     console.log(`Starting normalization for ${platform} - RawID: ${rawId}`);
 
     try {
         if (platform === 'stripe') {
-            await handleStripeNormalization(payload, profileId);
+            await handleStripeNormalization(payload as StripeWebhookPayload, profileId);
         } else if (platform === 'hotmart') {
-            await handleHotmartNormalization(payload, profileId);
+            await handleHotmartNormalization(payload as HotmartWebhookPayload, profileId);
         } else if (platform === 'shopify') {
-            await handleShopifyNormalization(payload, profileId);
+            await handleShopifyNormalization(payload as ShopifyWebhookPayload, profileId);
         } else {
             console.warn(`No normalization handler for platform: ${platform}`);
             return;
@@ -25,7 +107,7 @@ export async function normalizeData(rawId: string, platform: string, payload: an
             .update({ processed: true })
             .eq('id', rawId);
 
-    } catch (error) {
+    } catch (error: unknown) {
         console.error(`Error normalizing ${platform} data:`, error);
         throw error;
     }
@@ -35,12 +117,13 @@ export async function normalizeData(rawId: string, platform: string, payload: an
  * Specific handler for Stripe Webhooks.
  * Handles checkout.session.completed, payment_intent.succeeded, and charge.refunded.
  */
-async function handleStripeNormalization(payload: any, profileId: string) {
+async function handleStripeNormalization(payload: StripeWebhookPayload, profileId: string) {
     const eventType: string = payload.type;
-    const obj = payload.data?.object;
+    const rawObj = payload.data?.object;
 
     if (eventType === 'checkout.session.completed') {
-        const email: string = obj.customer_details?.email;
+        const obj = rawObj as unknown as StripeCheckoutObject;
+        const email: string = obj.customer_details?.email ?? '';
         const amount = obj.amount_total / 100;
         const visitorId: string | undefined = obj.metadata?.northie_vid || obj.metadata?.visitorId;
         if (!email) throw new Error('Customer email missing in Stripe checkout session');
@@ -49,6 +132,7 @@ async function handleStripeNormalization(payload: any, profileId: string) {
     }
 
     if (eventType === 'payment_intent.succeeded') {
+        const obj = rawObj as unknown as StripePaymentIntentObject;
         // Se veio de um checkout session, checkout.session.completed já criou a transação
         if (obj.invoice || obj.metadata?.checkout_session_id) {
             console.log(`[Stripe] payment_intent.succeeded ignorado (já processado via checkout/invoice)`);
@@ -62,6 +146,7 @@ async function handleStripeNormalization(payload: any, profileId: string) {
     }
 
     if (eventType === 'charge.refunded') {
+        const obj = rawObj as unknown as StripeChargeRefundedObject;
         const piId: string | null = typeof obj.payment_intent === 'string' ? obj.payment_intent : null;
         const email: string = obj.billing_details?.email || 'unknown@stripe.com';
         const refundAmount = obj.amount_refunded / 100;
@@ -73,6 +158,7 @@ async function handleStripeNormalization(payload: any, profileId: string) {
 
     // Subscription lifecycle — atualiza status do cliente para cálculo de MRR/churn
     if (eventType === 'customer.subscription.deleted' || eventType === 'customer.subscription.updated') {
+        const obj = rawObj as unknown as StripeSubscriptionObject;
         const status = obj.status; // active, canceled, past_due, unpaid
         // Stripe subscription object não tem email direto — busca via customer ID no nosso banco
         // O external_id da transação original contém o payment_intent/checkout que linkamos ao customer
@@ -88,7 +174,7 @@ async function handleStripeNormalization(payload: any, profileId: string) {
                 .eq('platform', 'stripe')
                 .limit(1)
                 .single();
-            customerEmail = (existingTx as any)?.customers?.email || null;
+            customerEmail = (existingTx as unknown as { customers?: { email?: string } })?.customers?.email || null;
         }
 
         if (customerEmail) {
@@ -121,7 +207,7 @@ const HOTMART_CANCELLED_EVENTS = new Set([
     'PURCHASE_CHARGEBACK',
 ]);
 
-async function handleHotmartNormalization(payload: any, profileId: string) {
+async function handleHotmartNormalization(payload: HotmartWebhookPayload, profileId: string) {
     const { event, data } = payload;
     const transactionId: string = data.purchase?.transaction ?? data.subscription?.subscriber_code ?? '';
 
@@ -216,19 +302,19 @@ async function handleHotmartNormalization(payload: any, profileId: string) {
  * Topics suportados: orders/paid, customers/create, customers/update.
  * O visitorId é injetado via note_attributes pelo pixel Northie no checkout.
  */
-async function handleShopifyNormalization(payload: any, profileId: string) {
+async function handleShopifyNormalization(payload: ShopifyWebhookPayload, profileId: string) {
     const topic: string = payload._topic ?? '';
 
     // ── orders/paid ──────────────────────────────────────────────────────────
     if (topic === 'orders/paid' || (!topic && payload.financial_status === 'paid')) {
         if (payload.financial_status !== 'paid') return;
 
-        const email: string = payload.email || payload.customer?.email;
+        const email = payload.email || payload.customer?.email || '';
         if (!email) {
             console.warn('[Shopify] orders/paid sem email — ignorando');
             return;
         }
-        const amountGross: number = parseFloat(payload.total_price);
+        const amountGross: number = parseFloat(payload.total_price || '0');
         // total_price já reflete descontos — fee_platform = apenas impostos para isolar o valor líquido real
         const tax: number = parseFloat(payload.total_tax || '0');
         const feePlatform = parseFloat(tax.toFixed(2));
@@ -236,10 +322,10 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
 
         // Pixel injeta visitorId como note_attribute { name: 'northie_vid', value: '...' }
         const noteAttrs: Array<{ name: string; value: string }> = payload.note_attributes || [];
-        const visitorId = noteAttrs.find((a: any) => a.name === 'northie_vid')?.value;
+        const visitorId = noteAttrs.find((a) => a.name === 'northie_vid')?.value;
 
         // Nome do produto principal (primeiro line item)
-        const lineItems: any[] = payload.line_items || [];
+        const lineItems: Array<{ title?: string; variant_title?: string }> = payload.line_items || [];
         const productName = lineItems[0]
             ? [lineItems[0].title, lineItems[0].variant_title].filter(Boolean).join(' — ')
             : undefined;
@@ -251,7 +337,7 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
 
     // ── customers/create | customers/update ──────────────────────────────────
     if (topic === 'customers/create' || topic === 'customers/update') {
-        const email: string = payload.email;
+        const email = payload.email ?? '';
         if (!email) return;
         const name = [payload.first_name, payload.last_name].filter(Boolean).join(' ') || undefined;
         const phone: string | undefined = payload.phone || undefined;
@@ -282,7 +368,7 @@ async function handleShopifyNormalization(payload: any, profileId: string) {
         }
         // Soma os amounts de todas as transações do reembolso
         const refundAmount: number = (payload.transactions || [])
-            .reduce((sum: number, t: any) => sum + parseFloat(t.amount || '0'), 0);
+            .reduce((sum: number, t: { amount?: string }) => sum + parseFloat(t.amount || '0'), 0);
         console.log(`[Shopify] Reembolso refund_id=${payload.id} order_id=${orderId} valor=${refundAmount}`);
         await syncRefund(profileId, `shopify-order-${orderId}`, orderId, refundAmount);
         return;
@@ -366,8 +452,6 @@ async function syncCancellation(profileId: string, externalId: string) {
         console.warn(`[Hotmart] Falha ao cancelar tx=${externalId}:`, error.message);
     }
 }
-
-type AcquisitionChannel = 'meta_ads' | 'google_ads' | 'organico' | 'email' | 'direto' | 'afiliado' | 'shopify' | 'stripe' | 'desconhecido';
 
 function mapUtmToChannel(utmSource?: string): AcquisitionChannel {
     if (!utmSource) return 'desconhecido';
@@ -503,7 +587,7 @@ export async function syncTransaction(
     // existingCustomer already fetched in parallel with visit lookup above
 
     const isNewCustomer = !existingCustomer;
-    const upsertPayload: Record<string, any> = { profile_id: profileId, email };
+    const upsertPayload: Record<string, string | number | boolean | null> = { profile_id: profileId, email };
     if (isNewCustomer) {
         upsertPayload.acquisition_channel = channel;
         if (extra?.customerName) upsertPayload.name = extra.customerName;

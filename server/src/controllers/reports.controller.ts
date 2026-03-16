@@ -228,7 +228,7 @@ export async function getReportPreview(req: Request, res: Response) {
             top_products: reportData.top_products,
             revenue_trend: reportData.revenue_trend,
         });
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Reports] preview error:', err);
         return res.status(500).json({ error: 'Failed to generate preview' });
     }
@@ -258,7 +258,7 @@ export async function getReportAIAnalysis(req: Request, res: Response) {
             proximos_passos: aiAnalysis.proximos_passos,
             is_ai_fallback: aiAnalysis.is_ai_fallback ?? false,
         });
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Reports] AI analysis error:', err);
         return res.status(500).json({ error: 'Failed to generate AI analysis' });
     }
@@ -305,8 +305,8 @@ export async function streamReportAIAnalysis(req: Request, res: Response) {
             send(event);
             if (event.type === 'done' || event.type === 'error') break;
         }
-    } catch (err: any) {
-        if (err?.name === 'AbortError') {
+    } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
             console.log('[Reports] streamReportAIAnalysis: cliente desconectou, geração interrompida');
         } else {
             console.error('[Reports] streamReportAIAnalysis error:', err);
@@ -454,7 +454,7 @@ export async function generateReport(req: Request, res: Response) {
         res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.json"`);
         return res.json(jsonBody);
 
-    } catch (err) {
+    } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
         const errStack = err instanceof Error ? err.stack : undefined;
         console.error('[PDF Generation Error]', {
@@ -511,7 +511,7 @@ export async function exportReport(req: Request, res: Response) {
         res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqLabel}-${dateStr}.pdf"`);
         return res.send(buf);
 
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Reports] exportReport error:', err);
         return res.status(500).json({ error: 'Failed to export report' });
     }
@@ -562,7 +562,7 @@ export async function downloadLogReport(req: Request, res: Response) {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="northie-report-${freqRaw}-${dateStr}.pdf"`);
         return res.send(buf);
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Reports] downloadLogReport error:', err);
         return res.status(500).json({ error: 'Failed to regenerate report' });
     }
@@ -672,7 +672,7 @@ export async function sendReportByEmail(req: Request, res: Response) {
         });
 
         return res.json({ ok: true, to: emailList, email_id: resendEmailId });
-    } catch (err) {
+    } catch (err: unknown) {
         console.error('[Reports] sendReportByEmail error:', err);
         return res.status(500).json({ error: 'Falha ao enviar relatório por email' });
     }

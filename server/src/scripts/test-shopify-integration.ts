@@ -15,7 +15,7 @@ import { dirname, resolve } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Setup ──────────────────────────────────────────────────────────────────────
@@ -187,16 +187,16 @@ if (!activeIntegrations || activeIntegrations.length === 0) {
                 shop
                     ? ok('API Shopify respondeu', `Loja: ${shop.name} | Moeda: ${shop.currency} | País: ${shop.country_name}`)
                     : fail('API Shopify', 'resposta vazia');
-            } catch (err: any) {
-                const status = err.response?.status;
-                const msg = err.response?.data?.errors ?? err.message;
+            } catch (err: unknown) {
+                const status = isAxiosError(err) ? err.response?.status : undefined;
+                const msg = isAxiosError(err) ? (err.response?.data?.errors ?? err.message) : (err instanceof Error ? err.message : String(err));
                 status === 401
                     ? fail('Token inválido ou expirado', 'reconecte a integração no AppStore')
                     : fail(`API Shopify erro ${status}`, String(msg));
             }
         }
-    } catch (err: any) {
-        fail('Leitura do token', err.message);
+    } catch (err: unknown) {
+        fail('Leitura do token', err instanceof Error ? err.message : String(err));
     }
 }
 
@@ -231,8 +231,8 @@ if (!shopToken || !shopDomain) {
         wrongEndpoint.length === 0
             ? ok('Todos os webhooks apontam para o backend correto')
             : warn(`${wrongEndpoint.length} webhook(s) com endpoint desatualizado`, wrongEndpoint.map((w: any) => w.address).join(', '));
-    } catch (err: any) {
-        fail('Query webhooks Shopify', err.response?.data?.errors ?? err.message);
+    } catch (err: unknown) {
+        fail('Query webhooks Shopify', isAxiosError(err) ? (err.response?.data?.errors ?? err.message) : (err instanceof Error ? err.message : String(err)));
     }
 }
 
@@ -279,8 +279,8 @@ if (!shopToken || !shopDomain) {
         );
         const totalPaid = countRes.data?.count ?? 0;
         ok('Endpoint /orders/count.json funciona', `${totalPaid} pedido(s) pagos no total`);
-    } catch (err: any) {
-        fail('Live API pedidos', err.response?.data?.errors ?? err.message);
+    } catch (err: unknown) {
+        fail('Live API pedidos', isAxiosError(err) ? (err.response?.data?.errors ?? err.message) : (err instanceof Error ? err.message : String(err)));
     }
 }
 

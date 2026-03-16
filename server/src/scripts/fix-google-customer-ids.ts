@@ -12,7 +12,7 @@ import { dirname, resolve } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
-import axios from 'axios';
+import axios, { isAxiosError } from 'axios';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -72,9 +72,9 @@ for (const cid of candidateIds) {
                 if (isManager) { mccId = cid; } else { leafIds.push(cid); }
             }
         }
-    } catch (err: any) {
-        const status = err.response?.status;
-        const msg = err.response?.data?.error?.message || err.message;
+    } catch (err: unknown) {
+        const status = isAxiosError(err) ? err.response?.status : undefined;
+        const msg = isAxiosError(err) ? (err.response?.data?.error?.message || err.message) : (err instanceof Error ? err.message : String(err));
         console.log(`  ${cid}: erro ${status} — ${msg} (assumindo leaf)`);
         leafIds.push(cid);
     }

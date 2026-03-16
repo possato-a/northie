@@ -120,9 +120,10 @@ async function reconcileProfile(profileId: string, accessToken: string): Promise
             getHotmartApiCount(accessToken, startMs, endMs),
             getDbCount(profileId, startIso, endIso),
         ]);
-    } catch (err: any) {
-        console.error(`[SafetyNet] Failed to fetch counts for ${profileId}:`, err.message);
-        await logResult(profileId, 0, 0, false, 0, err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[SafetyNet] Failed to fetch counts for ${profileId}:`, msg);
+        await logResult(profileId, 0, 0, false, 0, msg);
         return;
     }
 
@@ -142,9 +143,10 @@ async function reconcileProfile(profileId: string, accessToken: string): Promise
         const filled = result.synced ?? 0;
         console.log(`[SafetyNet] Backfill completo para ${profileId}: ${filled} transação(ões) recuperada(s)`);
         await logResult(profileId, apiCount, dbCount, true, filled);
-    } catch (err: any) {
-        console.error(`[SafetyNet] Backfill falhou para ${profileId}:`, err.message);
-        await logResult(profileId, apiCount, dbCount, true, 0, err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[SafetyNet] Backfill falhou para ${profileId}:`, msg);
+        await logResult(profileId, apiCount, dbCount, true, 0, msg);
     }
 }
 
@@ -180,7 +182,7 @@ async function reconcileShopifyProfile(profileId: string): Promise<void> {
     if (!integration) return;
 
     const token = integration.access_token;
-    const shop = (integration as any).shop_domain as string | undefined;
+    const shop = (integration as unknown as { shop_domain?: string }).shop_domain;
     if (!token || !shop) return;
 
     let apiCount = 0;
@@ -198,12 +200,13 @@ async function reconcileShopifyProfile(profileId: string): Promise<void> {
 
         dbCount = count ?? 0;
         apiCount = await getShopifyApiCount(shop, token, startIso, endIso);
-    } catch (err: any) {
-        console.error(`[SafetyNet/Shopify] Failed to fetch counts for ${profileId}:`, err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[SafetyNet/Shopify] Failed to fetch counts for ${profileId}:`, msg);
         await supabase.from('sync_logs').insert({
             profile_id: profileId, platform: 'shopify_safety_net',
             started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
-            status: 'error', rows_upserted: 0, error_message: err.message,
+            status: 'error', rows_upserted: 0, error_message: msg,
         });
         return;
     }
@@ -231,8 +234,8 @@ async function reconcileShopifyProfile(profileId: string): Promise<void> {
             status: 'success', rows_upserted: result.synced,
             meta: JSON.stringify({ apiCount, dbCount, backfillTriggered: true, gap }),
         });
-    } catch (err: any) {
-        console.error(`[SafetyNet/Shopify] Backfill falhou para ${profileId}:`, err.message);
+    } catch (err: unknown) {
+        console.error(`[SafetyNet/Shopify] Backfill falhou para ${profileId}:`, err instanceof Error ? err.message : String(err));
     }
 }
 
@@ -250,12 +253,13 @@ async function reconcileStripeProfile(profileId: string): Promise<void> {
         const result = await backfillStripe(profileId, DAYS);
         synced = result.synced;
         console.log(`[SafetyNet/Stripe] Profile ${profileId}: ${synced} recuperado(s), ${result.skipped} já existiam`);
-    } catch (err: any) {
-        console.error(`[SafetyNet/Stripe] Backfill falhou para ${profileId}:`, err.message);
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[SafetyNet/Stripe] Backfill falhou para ${profileId}:`, msg);
         await supabase.from('sync_logs').insert({
             profile_id: profileId, platform: 'stripe_safety_net',
             started_at: new Date().toISOString(), finished_at: new Date().toISOString(),
-            status: 'error', rows_upserted: 0, error_message: err.message,
+            status: 'error', rows_upserted: 0, error_message: msg,
         });
         return;
     }
@@ -281,8 +285,8 @@ async function runStripeReconciliation(): Promise<void> {
     for (const { profile_id } of integrations) {
         try {
             await reconcileStripeProfile(profile_id);
-        } catch (err: any) {
-            console.error(`[SafetyNet/Stripe] Unhandled error for profile ${profile_id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[SafetyNet/Stripe] Unhandled error for profile ${profile_id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 }
@@ -302,8 +306,8 @@ async function runShopifyReconciliation(): Promise<void> {
     for (const { profile_id } of integrations) {
         try {
             await reconcileShopifyProfile(profile_id);
-        } catch (err: any) {
-            console.error(`[SafetyNet/Shopify] Unhandled error for profile ${profile_id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[SafetyNet/Shopify] Unhandled error for profile ${profile_id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 }
@@ -329,16 +333,16 @@ async function runSafetyNet(): Promise<void> {
     let accessToken: string;
     try {
         accessToken = await getClientCredentialsToken();
-    } catch (err: any) {
-        console.error('[SafetyNet] Could not obtain Hotmart token:', err.message);
+    } catch (err: unknown) {
+        console.error('[SafetyNet] Could not obtain Hotmart token:', err instanceof Error ? err.message : String(err));
         return;
     }
 
     for (const { profile_id } of integrations) {
         try {
             await reconcileProfile(profile_id, accessToken);
-        } catch (err: any) {
-            console.error(`[SafetyNet] Unhandled error for profile ${profile_id}:`, err.message);
+        } catch (err: unknown) {
+            console.error(`[SafetyNet] Unhandled error for profile ${profile_id}:`, err instanceof Error ? err.message : String(err));
         }
     }
 

@@ -36,7 +36,7 @@ console.log(`  Período : últimos ${days ?? 365} dias\n`);
 try {
     const result = await backfillGoogleAds(profileId, days);
     console.log(`\n✅ Backfill concluído — ${result.rowsUpserted} dia(s) sincronizados.`);
-} catch (err: any) {
-    console.error('\n❌ Erro no backfill:', err.message);
+} catch (err: unknown) {
+    console.error('\n❌ Erro no backfill:', err instanceof Error ? err.message : String(err));
     process.exit(1);
 }

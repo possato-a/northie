@@ -1,6 +1,6 @@
 # Northie: Backend Architecture & Development Guide
-> Documento de referência para desenvolvimento contínuo. Reflete o produto v13.
-> Última atualização: Março 2026
+> Documento de referência para desenvolvimento contínuo. Reflete o produto v14.
+> Última atualização: 16 Março 2026
 
 ---
 
@@ -88,238 +88,77 @@ sync_logs              — log de execução de cada sync com status e rows
 
 ---
 
-## 2. O Que Precisa Ser Construído
+## 2. Estado de Implementação (atualizado 2026-03-16)
 
-### 2.1 Northie Growth — O produto central, Fase 1
+### 2.1 Northie Growth — ✅ IMPLEMENTADO
 
-O Growth é o diferencial técnico: **cruzar pelo menos duas fontes de dados para gerar uma recomendação que nenhuma plataforma isolada consegue fazer**. A IA não executa — ela recomenda. O founder aprova. O backend executa.
+Tabela `growth_recommendations` (migration `20260304000001`), com 10 tipos de recomendação e 10 detectores rodando a cada hora via `growth-correlations.job.ts`.
 
-**Tabelas novas necessárias:**
+**Serviços:**
+- `growth.service.ts` — dispatcher + 10 executores (Meta Custom Audience, pausa de campanha, etc.)
+- `growth-intelligence.service.ts` — pipeline multi-agente (4 agentes sequenciais)
+- `services/agents/` — 4 agentes IA: strategic-advisor, traffic-analyst, conversion-analyst, attribution
 
-```sql
--- Recomendações geradas pelo engine de correlação
-CREATE TABLE growth_actions (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    type            TEXT NOT NULL,  -- 'reactivation', 'campaign_pause', 'audience_sync', 'budget_reallocation', 'upsell'
-    status          TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'approved', 'rejected', 'executed', 'failed'
-    title           TEXT NOT NULL,
-    rationale       TEXT NOT NULL,  -- Explicação do cruzamento que gerou a ação
-    data_sources    TEXT[] NOT NULL, -- Ex: ['ad_campaigns', 'transactions'] — quais fontes foram cruzadas
-    payload         JSONB NOT NULL,  -- Parâmetros da ação (campaign_id, audience_size, etc.)
-    impact_estimate JSONB,          -- Estimativa de impacto (revenue, clientes reativados, etc.)
-    approved_at     TIMESTAMP WITH TIME ZONE,
-    executed_at     TIMESTAMP WITH TIME ZONE,
-    error_message   TEXT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-CREATE INDEX idx_growth_actions_profile_status ON growth_actions(profile_id, status, created_at DESC);
+**Rotas existentes:**
+```
+GET  /api/growth/recommendations              — lista pendentes + recentes (7d)
+POST /api/growth/recommendations/:id/approve  — aprova → execução async (202)
+POST /api/growth/recommendations/:id/dismiss  — "agora não"
+POST /api/growth/recommendations/:id/reject   — rejeição definitiva
+POST /api/growth/recommendations/:id/cancel   — cancela execução em andamento
+GET  /api/growth/recommendations/:id/status   — polling de status + execution_log
+GET  /api/growth/metrics                      — snapshot de métricas de correlação
+POST /api/growth/diagnostic                   — pipeline multi-agente (rate-limited)
+GET  /api/growth/diagnostic/latest            — último diagnóstico cached
 ```
 
-**Serviço novo: `growth-engine.service.ts`**
+**10 tipos de recomendação:** `reativacao_alto_ltv`, `pausa_campanha_ltv_baixo`, `audience_sync_champions`, `realocacao_budget`, `upsell_cohort`, `divergencia_roi_canal`, `queda_retencao_cohort`, `canal_alto_ltv_underinvested`, `cac_vs_ltv_deficit`, `em_risco_alto_valor`
 
-Responsável por rodar as correlações e gerar `growth_actions` com status `pending`. Deve ser chamado pelo `growth-engine.job.ts` a cada 24h e sob demanda via API.
+### 2.2 Capital Score — ✅ IMPLEMENTADO
 
-Correlações a implementar (em ordem de prioridade):
+Tabela `capital_score_history` (migration `20260303000001`) com 4 dimensões de score (0-25 cada). Tabela `card_applications` para lista de espera.
 
+**Serviço:** `capital.service.ts` — calcula score baseado em revenue consistency, customer quality, acquisition efficiency, platform tenure.
+
+**Rotas existentes:**
 ```
-1. ROAS alto + LTV baixo → recomendar pausa de campanha
-   Fontes: ad_campaigns (ROAS) × transactions cohort por campaign_id (LTV médio 90d)
-   Threshold: ROAS > 3x AND LTV médio dos clientes da campanha < LTV médio geral * 0.7
-
-2. Clientes Champions sem compra recente → recomendar reativação
-   Fontes: customers (rfm_score) × transactions (last_purchase_at)
-   Threshold: rfm_score LIKE '5%' AND last_purchase_at < NOW() - INTERVAL '60 days'
-
-3. Canal com melhor LTV/CAC → recomendar realocação de budget
-   Fontes: ad_campaigns (spend) × customers (total_ltv, acquisition_channel)
-   Lógica: comparar LTV médio por canal, recomendar shift de budget do pior pro melhor
-
-4. Clientes no momento de recompra do cohort → recomendar upsell
-   Fontes: customers (cohort) × transactions (padrão de frequência do cohort)
-   Lógica: identificar intervalo médio de recompra do cohort e notificar próximos a chegar nele
+GET  /api/card/score    — retorna Capital Score atual
+POST /api/card/apply    — aplica para o card (entra na lista)
 ```
 
-**Serviço de execução: `growth-executor.service.ts`**
+### 2.3 Relatórios Automáticos — ✅ IMPLEMENTADO
 
-Executado apenas após aprovação do founder. Implementações por tipo:
+Tabelas `report_configs` e `report_logs` (migration `20260306000001`). Sistema completo com PDF, XLSX, análise IA e envio por email via Resend.
 
-```typescript
-// campaign_pause: chama Meta Ads API para pausar campanha
-// audience_sync: exporta segmento de customers como Custom Audience no Meta
-// reactivation: dispara via integração de email/whatsapp (a definir)
-// budget_reallocation: ajusta budget via Meta Ads API
-// upsell: dispara via integração de email (a definir)
-```
+**Módulo:** `services/reports/` — 12 arquivos incluindo gerador, PDF, XLSX, email, AI analyst, business model analysis.
 
-**Rotas novas:**
-```
-GET  /api/growth/actions          — lista ações pendentes e histórico
-POST /api/growth/actions/:id/approve  — founder aprova → executor roda
-POST /api/growth/actions/:id/reject   — founder rejeita
-GET  /api/growth/actions/:id      — detalhes de uma ação (fontes, payload, impacto)
-```
+### 2.4 IA — ✅ IMPLEMENTADO
 
-**Evolução do `ai.service.ts`**
-
-O Claude precisa de function calling real para o Growth funcionar. Hoje o system prompt é genérico. Precisa:
-
-1. Trocar `claude-3-haiku` por `claude-sonnet-4-20250514` (Sonnet 4 como padrão)
-2. Adicionar tools para o Claude chamar ao analisar dados:
-   - `get_campaign_ltv_analysis(campaign_id)` — cruza ad_campaigns com transactions
-   - `get_reactivation_candidates()` — retorna Champions sem compra recente
-   - `get_channel_comparison()` — LTV/CAC por canal
-
-3. O resultado do function calling gera um `growth_action` com `pending` — não executa direto
-
-### 2.2 Capital Score — Fase 1 (preparação para Fase 2)
-
-O Capital Score deve aparecer desde o primeiro dia para o usuário, mesmo sem o Card lançado. Serve como engajamento e lista de espera qualificada.
-
-**Tabela nova:**
-
-```sql
-CREATE TABLE capital_scores (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
-    score           INTEGER NOT NULL DEFAULT 0,  -- 0-1000
-    eligible_limit  DECIMAL(12, 2) DEFAULT 0,    -- valor estimado de limite
-    eligible        BOOLEAN DEFAULT false,
-    breakdown       JSONB NOT NULL DEFAULT '{}', -- detalhamento dos fatores
-    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-CREATE TABLE card_waitlist (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
-    joined_at       TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
-    score_at_join   INTEGER NOT NULL,
-    notified        BOOLEAN DEFAULT false
-);
-```
-
-**Job novo: `capital-score.job.ts`**
-
-Roda mensalmente. Calcula score baseado em:
-- MRR dos últimos 3 meses (peso: 40%)
-- Taxa de churn média da base (peso: 25%)
-- LTV médio dos customers (peso: 20%)
-- Tempo de histórico na plataforma em meses (peso: 15%)
-
-Resultado: score 0-1000 e limite estimado.
-
-**Rotas novas:**
-```
-GET  /api/card/score       — retorna Capital Score atual do perfil
-POST /api/card/waitlist    — founder entra na lista de espera
-GET  /api/card/waitlist    — status na lista (posição, score atual, critérios faltantes)
-```
-
-### 2.3 Relatórios Automáticos — Feature transversal
-
-Presente em todos os produtos. O founder configura e os relatórios chegam sem precisar abrir a plataforma.
-
-**Tabelas novas:**
-
-```sql
-CREATE TABLE report_configs (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    name            TEXT NOT NULL,
-    frequency       TEXT NOT NULL,  -- 'weekly', 'monthly', 'quarterly'
-    sections        TEXT[] NOT NULL, -- ['growth', 'card']
-    format          TEXT NOT NULL DEFAULT 'pdf',  -- 'pdf', 'csv'
-    delivery        TEXT NOT NULL DEFAULT 'email', -- 'email', 'whatsapp'
-    active          BOOLEAN DEFAULT true,
-    next_run_at     TIMESTAMP WITH TIME ZONE,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-CREATE TABLE report_history (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    config_id       UUID REFERENCES report_configs(id) ON DELETE CASCADE NOT NULL,
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    generated_at    TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
-    file_url        TEXT,
-    status          TEXT DEFAULT 'success',
-    error_message   TEXT
-);
-```
-
-**Job novo: `reports.job.ts`**
-
-Roda a cada hora, verifica configs com `next_run_at <= NOW()`, gera o relatório e atualiza `next_run_at`.
+`ai.service.ts` já usa `claude-sonnet-4-6` como padrão. Growth AI tem 3 function calling tools (`get_recommendation_detail`, `get_segment_preview`, `explain_correlation`). General AI é chat puro (sem tools — intencional).
 
 ---
 
-## 3. Evoluções Necessárias no Que Já Existe
+## 3. Evoluções Pendentes
 
 ### 3.1 `rfm-calc.job.ts` → adicionar Audience Sync
 
-Após calcular RFM, o job deve exportar automaticamente o segmento "Champions" (rfm_score LIKE '5%' ou '4%5%') como Custom Audience no Meta via API. Isso é o "Audience Sync inteligente" do produto.
+Após calcular RFM, o job deve exportar automaticamente o segmento "Champions" como Custom Audience no Meta via API.
 
-Adicionar ao final do `calcRfmForProfile`:
-```typescript
-// Se o perfil tem integração Meta ativa, sincronizar Champions como Custom Audience
-await syncChampionsToMetaAudience(profileId);
-```
+### 3.2 Canais de execução nativos
 
-### 3.2 `alerts.job.ts` → adicionar correlações de Growth
+- **WhatsApp** (Meta Business API) — reativação, upsell, alertas
+- **Email** (Resend) — sequências de nurturing e reativação
 
-Os alertas atuais são simples (ROAS caiu, churn alto). Adicionar:
+### 3.3 Google Calendar + Google Meet
 
-```typescript
-// ROAS alto com LTV baixo — o insight central do produto
-async function checkRoasLtvMismatch(profileId: string): Promise<void>
-// Canal orgânico crescendo sem investimento correspondente
-async function checkOrganicGrowthOpportunity(profileId: string): Promise<void>
-// Cohort de clientes chegando no momento de recompra
-async function checkRepurchaseWindow(profileId: string): Promise<void>
-```
+- Integração de calendário para saber se houve reuniões antes do fechamento
+- Transcrição IA de Google Meet para enriquecer transações com contexto qualitativo
 
-### 3.3 `ai.service.ts` → trocar modelo e adicionar function calling
+### 3.4 Northie Pixel — atribuição determinística
 
-```typescript
-// Antes
-model: 'claude-3-haiku-20240307'
+O Pixel funciona (`POST /api/pixel/event`) mas ainda não está deployed em sites de clientes. Atribuição atual é heurística temporal.
 
-// Depois
-model: 'claude-sonnet-4-20250514'
-```
-
-Adicionar tools para o Claude usar ao responder perguntas de growth:
-
-```typescript
-const tools = [
-  {
-    name: 'get_campaign_ltv_analysis',
-    description: 'Retorna análise de LTV dos clientes adquiridos por uma campanha específica',
-    input_schema: { type: 'object', properties: { campaign_id: { type: 'string' } } }
-  },
-  {
-    name: 'get_reactivation_candidates',
-    description: 'Lista clientes Champions com alta probabilidade de reativação',
-    input_schema: { type: 'object', properties: { limit: { type: 'number' } } }
-  },
-  {
-    name: 'create_growth_action',
-    description: 'Cria uma ação de growth pendente de aprovação do founder',
-    input_schema: { /* type, payload, rationale */ }
-  }
-]
-```
-
-### 3.4 `normalization.service.ts` → adicionar campo `acquisition_channel` normalizado
-
-Atualmente o Hotmart sync grava `acquisition_channel: 'Hotmart'` mas o enum do banco espera `'desconhecido'` para plataformas sem atribuição UTM. Padronizar:
-
-```typescript
-// hotmart-sync.job.ts linha ~85
-acquisition_channel: 'desconhecido'  // Hotmart é a plataforma, não o canal de aquisição
-```
-
-O canal real só é determinado pelo Pixel + UTMs. Sem Pixel, fica `desconhecido`.
+> **Nota (2026-03-16):** As seções sobre upgrade do ai.service.ts (modelo + function calling), fix do acquisition_channel Hotmart, e alertas de Growth já foram implementadas.
 
 ---
 
@@ -352,27 +191,21 @@ O moat do produto é o histórico acumulado. Cada mês de dados torna as correla
 
 ## 5. Roadmap Técnico por Fase
 
-### Fase 1 — Growth (zero dependência de capital ou regulação)
+### Fase 1 — Growth + Card + Relatórios — ✅ CONCLUÍDA
 
-**Objetivo:** validar que founders pagam por inteligência contextual e execução baseada em dados.
+Todos os itens P0, P1 e P2 implementados: growth_recommendations (10 tipos), capital_score_history, card_applications, report_configs, report_logs, ai.service com Sonnet 4 + function calling.
 
-| O que construir | Arquivo/Serviço | Prioridade |
-|---|---|---|
-| `growth_actions` table + RLS | migration | P0 |
-| `growth-engine.service.ts` com correlações 1 e 2 | novo serviço | P0 |
-| `growth-engine.job.ts` (roda 24h) | novo job | P0 |
-| `growth-executor.service.ts` (campaign_pause) | novo serviço | P0 |
-| Rotas `/api/growth/*` | novo router | P0 |
-| Atualizar `ai.service.ts` com Sonnet 4 + function calling | editar existente | P0 |
-| `capital_scores` + `card_waitlist` tables | migration | P1 |
-| `capital-score.job.ts` | novo job | P1 |
-| Rotas `/api/card/score` e `/api/card/waitlist` | novo router | P1 |
-| Correlações 3 e 4 no growth engine | editar serviço | P2 |
-| `growth-executor.service.ts` (audience_sync) | editar serviço | P2 |
-| `report_configs` + `reports.job.ts` | novo job | P2 |
-| Fix normalização `acquisition_channel` Hotmart | editar existente | P2 |
+### Fase 2 — Em andamento (Fase C do produto)
 
-### Fase 2 — Northie Card (requer parceiro financeiro regulado)
+| O que construir | Prioridade |
+|---|---|
+| Canais de execução: WhatsApp Business API + Resend email | P0 |
+| Google Calendar + Google Meet (transcrição IA) | P1 |
+| Deploy do Northie Pixel em sites de clientes | P1 |
+| Audience Sync automático no rfm-calc.job.ts | P2 |
+| Testes e hardening das integrações existentes | P2 |
+
+### Fase 3 — Northie Card (requer parceiro financeiro regulado)
 
 Dependências técnicas que precisam estar prontas:
 - Capital Score calculado e histórico de pelo menos 3 meses por profile elegível
@@ -382,152 +215,82 @@ Dependências técnicas que precisam estar prontas:
 
 ---
 
-## 6. Schema Completo das Tabelas Novas
+## 6. Tabelas Implementadas (referência)
 
-```sql
--- ── FASE 1: GROWTH ────────────────────────────────────────────────────────────
+Todas as tabelas abaixo já existem no banco via migrations. Ver `supabase/migrations/` para schemas exatos.
 
-CREATE TABLE growth_actions (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    type            TEXT NOT NULL CHECK (type IN ('reactivation', 'campaign_pause', 'audience_sync', 'budget_reallocation', 'upsell')),
-    status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'executed', 'failed')),
-    title           TEXT NOT NULL,
-    rationale       TEXT NOT NULL,
-    data_sources    TEXT[] NOT NULL,
-    payload         JSONB NOT NULL,
-    impact_estimate JSONB,
-    approved_at     TIMESTAMP WITH TIME ZONE,
-    executed_at     TIMESTAMP WITH TIME ZONE,
-    error_message   TEXT,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
+| Tabela | Migration | Descrição |
+|--------|-----------|-----------|
+| `growth_recommendations` | `20260304000001` | 10 tipos de recomendação, status com RLS |
+| `capital_score_history` | `20260303000001` | Score mensal com 4 dimensões (0-25 cada) |
+| `card_applications` | `20260303000001` | Lista de espera + aplicações para o Card |
+| `report_configs` | `20260306000001` | Configuração de relatórios automáticos |
+| `report_logs` | `20260306000001` | Histórico de relatórios gerados |
+| `mv_campaign_ltv_performance` | `20260309000001` | View materializada: LTV/ROI por canal |
+| `mv_customer_campaign_attribution` | `20260309000001` | View materializada: atribuição |
+| `mv_cohort_retention` | `20260309000001` | View materializada: retenção por cohort |
+| `campaign_performance_snapshots` | `20260309000002` | Snapshots diários de performance |
 
-CREATE INDEX idx_growth_actions_profile_status ON growth_actions(profile_id, status, created_at DESC);
-
-ALTER TABLE growth_actions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "growth_actions: owner only" ON growth_actions FOR ALL USING (profile_id = auth.uid());
-
--- ── FASE 1: CAPITAL SCORE ─────────────────────────────────────────────────────
-
-CREATE TABLE capital_scores (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
-    score           INTEGER NOT NULL DEFAULT 0 CHECK (score BETWEEN 0 AND 1000),
-    eligible_limit  DECIMAL(12, 2) DEFAULT 0,
-    eligible        BOOLEAN DEFAULT false,
-    breakdown       JSONB NOT NULL DEFAULT '{}',
-    calculated_at   TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-ALTER TABLE capital_scores ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "capital_scores: owner only" ON capital_scores FOR ALL USING (profile_id = auth.uid());
-
-CREATE TABLE card_waitlist (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
-    joined_at       TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
-    score_at_join   INTEGER NOT NULL,
-    notified        BOOLEAN DEFAULT false
-);
-
-ALTER TABLE card_waitlist ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "card_waitlist: owner only" ON card_waitlist FOR ALL USING (profile_id = auth.uid());
-
--- ── FEATURE TRANSVERSAL: RELATÓRIOS ──────────────────────────────────────────
-
-CREATE TABLE report_configs (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    name            TEXT NOT NULL,
-    frequency       TEXT NOT NULL CHECK (frequency IN ('weekly', 'monthly', 'quarterly')),
-    sections        TEXT[] NOT NULL,
-    format          TEXT NOT NULL DEFAULT 'pdf' CHECK (format IN ('pdf', 'csv')),
-    delivery        TEXT NOT NULL DEFAULT 'email' CHECK (delivery IN ('email', 'whatsapp')),
-    active          BOOLEAN DEFAULT true,
-    next_run_at     TIMESTAMP WITH TIME ZONE,
-    created_at      TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
-);
-
-ALTER TABLE report_configs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "report_configs: owner only" ON report_configs FOR ALL USING (profile_id = auth.uid());
-
-CREATE TABLE report_history (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    config_id       UUID REFERENCES report_configs(id) ON DELETE CASCADE NOT NULL,
-    profile_id      UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-    generated_at    TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
-    file_url        TEXT,
-    status          TEXT DEFAULT 'success' CHECK (status IN ('success', 'error')),
-    error_message   TEXT
-);
-
-ALTER TABLE report_history ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "report_history: owner only" ON report_history FOR ALL USING (profile_id = auth.uid());
-```
+> **Nota:** O doc original chamava a tabela de `growth_actions` — nome real é `growth_recommendations`. Idem `capital_scores` → `capital_score_history`, `card_waitlist` → `card_applications`, `report_history` → `report_logs`.
 
 ---
 
-## 7. Estrutura de Arquivos Alvo
+## 7. Estrutura de Arquivos Atual
 
 ```
 server/src/
-├── controllers/
-│   ├── ai.controller.ts          ✅ existe — manter
-│   ├── campaign.controller.ts    ✅ existe — manter
-│   ├── customers.controller.ts   ✅ existe — manter
-│   ├── dashboard.controller.ts   ✅ existe — manter
-│   ├── alerts.controller.ts      ✅ existe — manter
-│   ├── growth.controller.ts      🔴 criar
-│   ├── card.controller.ts        🔴 criar
-│   ├── integration.controller.ts ✅ existe — manter
-│   ├── pixel.controller.ts       ✅ existe — manter
-│   ├── profile.controller.ts     ✅ existe — manter
-│   ├── reports.controller.ts     ✅ existe — manter
-│   ├── resend-webhook.controller.ts ✅ existe — manter
-│   ├── transactions.controller.ts ✅ existe — manter
-│   └── webhook.controller.ts     ✅ existe — manter
-├── jobs/
-│   ├── ads-sync.job.ts           ✅ existe — manter
-│   ├── alerts.job.ts             ⚠️  existe — adicionar correlações de growth
-│   ├── capital-score.job.ts      🔴 criar
-│   ├── chat-cleanup.job.ts       ✅ existe — manter
-│   ├── correlation-refresh.job.ts ✅ existe — manter
-│   ├── growth-engine.job.ts      🔴 criar
-│   ├── hotmart-sync.job.ts       ⚠️  existe — fix acquisition_channel
-│   ├── meta-lead-attribution.job.ts ✅ existe — manter
-│   ├── reports.job.ts            🔴 criar
-│   ├── rfm-calc.job.ts           ⚠️  existe — adicionar audience sync
-│   ├── stripe-sync.job.ts        ✅ existe — manter
-│   ├── shopify-sync.job.ts       ✅ existe — manter
-│   └── token-refresh.job.ts      ✅ existe — manter
-├── routes/
-│   ├── ai.routes.ts              ✅ existe — manter
-│   ├── alerts.routes.ts          ✅ existe — manter
-│   ├── campaign.routes.ts        ✅ existe — manter
-│   ├── card.routes.ts            🔴 criar
-│   ├── cron.routes.ts            ✅ existe — manter
-│   ├── dashboard.routes.ts       ✅ existe — manter
-│   ├── data.routes.ts            ✅ existe — manter
-│   ├── growth.routes.ts          🔴 criar
-│   ├── integration.routes.ts     ✅ existe — manter
-│   ├── pixel.routes.ts           ✅ existe — manter
-│   ├── profile.routes.ts         ✅ existe — manter
-│   ├── reports.routes.ts         ✅ existe — manter
-│   └── webhook.routes.ts         ✅ existe — manter
+├── controllers/        (14 arquivos)
+│   ├── ai.controller.ts
+│   ├── alerts.controller.ts
+│   ├── campaign.controller.ts
+│   ├── card.controller.ts
+│   ├── customers.controller.ts
+│   ├── dashboard.controller.ts
+│   ├── growth.controller.ts
+│   ├── integration.controller.ts
+│   ├── pixel.controller.ts
+│   ├── profile.controller.ts
+│   ├── reports.controller.ts
+│   ├── resend-webhook.controller.ts
+│   ├── transactions.controller.ts
+│   └── webhook.controller.ts
+├── jobs/               (14 arquivos)
+│   ├── ads-sync.job.ts              — Meta/Google Ads sync (6h)
+│   ├── alerts.job.ts                — Anomalias (1h)
+│   ├── capital-score.job.ts         — Capital Score (mensal)
+│   ├── chat-cleanup.job.ts          — Limpeza chat >30d (diário)
+│   ├── correlation-refresh.job.ts   — Refresh materialized views (24h)
+│   ├── growth-correlations.job.ts   — Motor de correlações (1h)
+│   ├── hotmart-sync.job.ts          — Hotmart backfill (6h)
+│   ├── meta-lead-attribution.job.ts — Atribuição retroativa Meta
+│   ├── reports.job.ts               — Relatórios automáticos (diário)
+│   ├── rfm-calc.job.ts              — RFM/CAC/churn (diário)
+│   ├── safety-net.job.ts            — Reconciliação dados (3h)
+│   ├── shopify-sync.job.ts          — Shopify sync (6h)
+│   ├── stripe-sync.job.ts           — Stripe sync (6h)
+│   └── token-refresh.job.ts         — OAuth token refresh (30min)
+├── routes/             (13 arquivos)
+│   ├── ai.routes.ts, alerts.routes.ts, campaign.routes.ts, card.routes.ts,
+│   ├── cron.routes.ts, dashboard.routes.ts, data.routes.ts, growth.routes.ts,
+│   ├── integration.routes.ts, pixel.routes.ts, profile.routes.ts,
+│   ├── reports.routes.ts, webhook.routes.ts
 ├── services/
-│   ├── ai.service.ts             ⚠️  existe — Sonnet 4 + function calling
-│   ├── capital-score.service.ts  🔴 criar
-│   ├── growth-engine.service.ts  🔴 criar
-│   ├── growth-executor.service.ts 🔴 criar
-│   ├── growth-intelligence.service.ts ✅ existe — manter
-│   ├── integration.service.ts    ✅ existe — manter
-│   └── normalization.service.ts  ⚠️  existe — fix acquisition_channel
+│   ├── ai.service.ts               — Claude Sonnet 4.6 + function calling
+│   ├── capital.service.ts           — Capital Score (4 dimensões)
+│   ├── growth.service.ts            — Dispatcher + 10 executores
+│   ├── growth-intelligence.service.ts — Pipeline multi-agente (4 agentes)
+│   ├── integration.service.ts       — OAuth state, tokens
+│   ├── normalization.service.ts     — Northie Schema
+│   ├── agents/                      — 4 agentes IA (strategic, traffic, conversion, attribution)
+│   └── reports/                     — 12 arquivos (PDF, XLSX, AI analyst, email)
+├── middleware/
+│   ├── auth.middleware.ts           — JWT local + Supabase fallback
+│   └── rate-limit.middleware.ts     — 3 tiers
 ├── lib/
-│   ├── supabase.ts               ✅ existe — manter
-│   ├── webhook-queue.ts          ✅ existe — manter
-│   └── webhook-schemas.ts        ✅ existe — manter
-└── index.ts                      ⚠️  existe — registrar novos routers
+│   ├── supabase.ts, webhook-queue.ts, webhook-schemas.ts
+├── utils/
+│   ├── encryption.ts, pixel-snippet.ts
+├── types/
+│   └── index.ts                     — Tipos compartilhados
+└── index.ts                         — Entry point Express
 ```
-
-Legenda: ✅ manter como está | ⚠️ modificar | 🔴 criar do zero

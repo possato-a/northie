@@ -21,8 +21,8 @@ export async function runCapitalScoreForAllProfiles(): Promise<void> {
             try {
                 await calculateCapitalScore(profile.id);
                 success++;
-            } catch (err: any) {
-                console.error(`[capital-score.job] Failed for profile ${profile.id}:`, err.message);
+            } catch (err: unknown) {
+                console.error(`[capital-score.job] Failed for profile ${profile.id}:`, err instanceof Error ? err.message : String(err));
                 failed++;
             }
         })
