@@ -90,7 +90,7 @@ const STAGE_BG: Record<string, string> = {
   'Perdido':           'var(--priority-high-bg)',
 }
 
-const _MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
+const MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
   agendada: 'Agendada',
   realizada: 'Realizada',
   cancelada: 'Cancelada',
@@ -707,7 +707,7 @@ function ReunioesView({ meetings: pipelineMeetings, leads: _leads, onNewMeeting 
             <div style={{ padding: '16px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)' }}>{m.title}</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>{m.status}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>{MEETING_STATUS_LABEL[m.status] || m.status}</span>
               </div>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
                 {new Date(m.scheduled_at).toLocaleDateString('pt-BR')} · {m.duration_minutes ? `${m.duration_minutes}min` : '—'}
