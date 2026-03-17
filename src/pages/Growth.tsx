@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { growthApi } from '../lib/api'
 import { KpiCard } from '../components/ui/KpiCard'
@@ -577,32 +577,7 @@ function SectionCard({ children, style }: { children: React.ReactNode; style?: R
   )
 }
 
-function fmtBR(v: number) {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v)
-}
 
-const MOCK_IMPACT_DATA = [
-  { label: 'Reativação de clientes', value: 12000 },
-  { label: 'Pausa de campanha',       value: 1640  },
-  { label: 'Audiência Lookalike',     value: 8400  },
-  { label: 'Realocação de budget',    value: 3200  },
-  { label: 'Upsell por cohort',       value: 5600  },
-]
-
-// Dados mock para heatmap — aprovações por dia (últimos ~16 semanas)
-const MOCK_APPROVAL_HEATMAP: Record<string, number> = (() => {
-  const result: Record<string, number> = {}
-  const today = new Date()
-  const seed = [0, 0, 1, 0, 2, 0, 0, 3, 0, 1, 0, 2, 0, 0, 1, 0, 4, 0, 0, 2, 1, 0, 0, 3, 0, 1, 0, 0, 2, 0]
-  for (let i = 111; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const dateStr = d.toISOString().split('T')[0]!
-    const val = seed[i % seed.length]!
-    if (val > 0) result[dateStr] = val
-  }
-  return result
-})()
 
 // Heatmap de aprovações — idêntico ao SalesHeatmap
 function GrowthApprovalHeatmap({ counts }: { counts: Record<string, number> }) {
@@ -695,12 +670,8 @@ function GrowthApprovalHeatmap({ counts }: { counts: Record<string, number> }) {
   )
 }
 
-// Dados mock para gráfico de linhas — aprovadas e rejeitadas (15 pontos = últimos 15 dias)
-const MOCK_LINE_APPROVED  = [0, 1, 0, 2, 1, 3, 0, 2, 4, 1, 3, 2, 4, 2, 3]
-const MOCK_LINE_DISMISSED = [0, 0, 1, 0, 2, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1]
-
 // Gráfico de linhas — idêntico ao DailyTrendChart do Canais
-function GrowthLineChart() {
+function GrowthLineChart({ approved, dismissed }: { approved: number[]; dismissed: number[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerW, setContainerW] = useState(600)
 
@@ -712,9 +683,9 @@ function GrowthLineChart() {
     return () => obs.disconnect()
   }, [])
 
-  const POINTS = MOCK_LINE_APPROVED.length
+  const POINTS = approved.length
   const H = 160, PAD_T = 10, PAD_B = 0
-  const allVals = [...MOCK_LINE_APPROVED, ...MOCK_LINE_DISMISSED].filter(v => v > 0)
+  const allVals = [...approved, ...dismissed].filter(v => v > 0)
   const rawMax = Math.max(...allVals, 1)
   const maxVal = rawMax * 1.18
 
@@ -756,8 +727,8 @@ function GrowthLineChart() {
   }
 
   const series = [
-    { key: 'approved',  values: MOCK_LINE_APPROVED,  color: '#FF5900',                    gradId: 'grad-growth-approved'  },
-    { key: 'dismissed', values: MOCK_LINE_DISMISSED, color: 'var(--color-text-tertiary)', gradId: 'grad-growth-dismissed' },
+    { key: 'approved',  values: approved,  color: '#FF5900',                    gradId: 'grad-growth-approved'  },
+    { key: 'dismissed', values: dismissed, color: 'var(--color-text-tertiary)', gradId: 'grad-growth-dismissed' },
   ]
 
   return (
@@ -837,10 +808,54 @@ function GrowthLineChart() {
 }
 
 function GrowthMetrics({ recommendations }: { recommendations: Recommendation[] }) {
-  const approvedCount = recommendations.filter(r => ['approved', 'executing', 'completed'].includes(r.status)).length || 6
-  const dismissedCount = recommendations.filter(r => r.status === 'dismissed').length || 4
-  const pendingCount = recommendations.filter(r => r.status === 'pending').length || 3
-  const totalImpact = MOCK_IMPACT_DATA.reduce((s, d) => s + d.value, 0)
+  const approvedCount  = recommendations.filter(r => ['approved', 'executing', 'completed'].includes(r.status)).length
+  const dismissedCount = recommendations.filter(r => r.status === 'dismissed').length
+  const pendingCount   = recommendations.filter(r => r.status === 'pending').length
+
+  // Heatmap de aprovações — derivado das recommendations reais
+  const approvalHeatmap = useMemo(() => {
+    const result: Record<string, number> = {}
+    recommendations
+      .filter(r => ['approved', 'executing', 'completed'].includes(r.status))
+      .forEach(r => {
+        const date = r.updated_at.split('T')[0]
+        if (date) result[date] = (result[date] || 0) + 1
+      })
+    return result
+  }, [recommendations])
+
+  // Ações por tipo — contagem real
+  const actionsByType = useMemo(() => {
+    const counts: Record<string, number> = {}
+    recommendations.forEach(r => {
+      const label = TYPE_LABELS[r.type] || r.type
+      counts[label] = (counts[label] || 0) + 1
+    })
+    return Object.entries(counts)
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+  }, [recommendations])
+
+  const totalActions = actionsByType.reduce((s, d) => s + d.count, 0)
+
+  // Linha — aprovadas e rejeitadas por dia (últimos 15 dias)
+  const lineData = useMemo(() => {
+    const approvedLine: number[] = []
+    const dismissedLine: number[] = []
+    for (let i = 14; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]!
+      approvedLine.push(recommendations.filter(r =>
+        ['approved', 'executing', 'completed'].includes(r.status) && r.updated_at.startsWith(dateStr)
+      ).length)
+      dismissedLine.push(recommendations.filter(r =>
+        r.status === 'dismissed' && r.updated_at.startsWith(dateStr)
+      ).length)
+    }
+    return { approved: approvedLine, dismissed: dismissedLine }
+  }, [recommendations])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -883,26 +898,30 @@ function GrowthMetrics({ recommendations }: { recommendations: Recommendation[] 
               112 dias
             </span>
           </div>
-          <GrowthApprovalHeatmap counts={MOCK_APPROVAL_HEATMAP} />
+          <GrowthApprovalHeatmap counts={approvalHeatmap} />
         </SectionCard>
 
-        {/* Chart: Impacto por tipo — lista estilo ChannelChart */}
+        {/* Ações por tipo — derivado das recommendations reais */}
         <SectionCard style={{ padding: '20px 24px' }}>
           <p style={{
             fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
             color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
             textTransform: 'uppercase', margin: '0 0 4px',
           }}>
-            Impacto estimado por tipo
+            Ações por tipo
           </p>
           <p style={{
             fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500,
             letterSpacing: '-0.4px', color: 'var(--color-text-primary)', margin: '0 0 16px',
           }}>
-            R$ {fmtBR(totalImpact)}
+            {totalActions} ação{totalActions !== 1 ? 'ões' : ''} identificada{totalActions !== 1 ? 's' : ''}
           </p>
-          {MOCK_IMPACT_DATA.map((row, i, arr) => {
-            const pct = Math.round((row.value / totalImpact) * 100)
+          {actionsByType.length === 0 ? (
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0 }}>
+              Sem dados ainda.
+            </p>
+          ) : actionsByType.map((row, i, arr) => {
+            const pct = totalActions > 0 ? Math.round((row.count / totalActions) * 100) : 0
             return (
               <motion.div
                 key={row.label}
@@ -925,8 +944,8 @@ function GrowthMetrics({ recommendations }: { recommendations: Recommendation[] 
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 400, color: 'var(--color-text-tertiary)', minWidth: 32, textAlign: 'right' as const }}>
                     {pct}%
                   </span>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', minWidth: 90, textAlign: 'right' as const }}>
-                    R$ {fmtBR(row.value)}
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-primary)', minWidth: 28, textAlign: 'right' as const }}>
+                    {row.count}
                   </span>
                 </div>
               </motion.div>
@@ -967,7 +986,7 @@ function GrowthMetrics({ recommendations }: { recommendations: Recommendation[] 
               ))}
             </div>
           </div>
-          <GrowthLineChart />
+          <GrowthLineChart approved={lineData.approved} dismissed={lineData.dismissed} />
         </SectionCard>
       </motion.div>
 
@@ -1201,8 +1220,8 @@ export default function Growth() {
                 <div style={{ height: 220, borderRadius: 'var(--radius-lg)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', opacity: 0.6 }} />
               </div>
             ) : (() => {
-              const completedCount = recommendations.filter(r => r.status === 'completed').length
-              const totalImpact = MOCK_IMPACT_DATA.reduce((s, d) => s + d.value, 0)
+              const completedCount  = recommendations.filter(r => r.status === 'completed').length
+              const dismissedCount2 = recommendations.filter(r => r.status === 'dismissed').length
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1214,10 +1233,10 @@ export default function Growth() {
                     transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
                     style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}
                   >
-                    <KpiCard label="Aguardando aprovação" value={pendingRecs.length} decimals={0} delay={0.05} />
-                    <KpiCard label="Em execução" value={activeRecs.length} decimals={0} delay={0.1} />
-                    <KpiCard label="Concluídas" value={completedCount} decimals={0} delay={0.15} />
-                    <KpiCard label="Impacto estimado" value={totalImpact} prefix="R$" decimals={0} delay={0.2} />
+                    <KpiCard label="Aguardando aprovação" value={pendingRecs.length}  decimals={0} delay={0.05} />
+                    <KpiCard label="Em execução"          value={activeRecs.length}   decimals={0} delay={0.1}  />
+                    <KpiCard label="Concluídas"           value={completedCount}      decimals={0} delay={0.15} />
+                    <KpiCard label="Ignoradas"            value={dismissedCount2}     decimals={0} delay={0.2}  />
                   </motion.div>
 
                   {/* Aguardando aprovação */}

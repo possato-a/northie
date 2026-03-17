@@ -68,7 +68,7 @@ const BENEFICIOS = [
 
 const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   waitlist:       { label: 'Lista de espera', color: 'var(--color-text-secondary)', bg: 'var(--color-bg-secondary)' },
-  pending_review: { label: 'Em análise',      color: '#b8860b',                       bg: 'rgba(184,134,11,0.1)' },
+  pending_review: { label: 'Em análise',      color: 'var(--accent-orange, #b8860b)', bg: 'var(--priority-medium-bg, rgba(184,134,11,0.1))' },
   approved:       { label: 'Aprovado',         color: 'var(--color-success, #22c55e)', bg: 'rgba(34,197,94,0.1)' },
   rejected:       { label: 'Não aprovado',     color: 'var(--color-error, #ef4444)',   bg: 'rgba(239,68,68,0.1)' },
 }

@@ -128,7 +128,7 @@ const btnPrimary: React.CSSProperties = {
   fontFamily: 'var(--font-sans)',
   fontSize: 'var(--text-sm)',
   fontWeight: 500,
-  color: '#fff',
+  color: 'var(--color-brand-text, #fff)',
   background: 'var(--color-primary)',
   border: 'none',
   borderRadius: 'var(--radius-md)',
@@ -512,7 +512,7 @@ function PipelineView({ leads, onLeadStatusChange, onNewLead }: {
               onClick={onNewLead}
               style={{
                 fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 500,
-                color: '#fff', background: 'var(--color-primary)',
+                color: 'var(--color-brand-text, #fff)', background: 'var(--color-primary)',
                 border: 'none', borderRadius: 'var(--radius-md)',
                 padding: '8px 20px', cursor: 'pointer',
               }}

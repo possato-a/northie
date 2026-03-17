@@ -5,9 +5,16 @@
  */
 export type Page =
     | 'visao-geral'
+    | 'growth'
+    | 'card'
     | 'vendas'
     | 'clientes'
     | 'canais'
+    | 'canais-meta'
+    | 'canais-google'
+    | 'conversas'
+    | 'contexto'
+    | 'relatorios'
     | 'creators'
     | 'app-store'
     | 'configuracoes'
@@ -127,7 +134,7 @@ export interface Purchase {
 
 // ── Transactions ─────────────────────────────────────────────────────────────
 
-export type TransactionStatus = 'Pago' | 'Pendente' | 'Reembolsado'
+export type TransactionStatus = 'Pago' | 'Pendente' | 'Reembolsado' | 'Cancelado' | 'Estorno'
 export type PaymentMethod = 'Pix' | 'Cartão' | 'Boleto'
 
 export interface Transaction {
