@@ -1018,13 +1018,56 @@ function NotificacoesPanel({ user }: { user?: User }) {
     )
 }
 
-function SegurancaPanel() {
+function SegurancaPanel({ user }: { user?: User }) {
     const [signingOut, setSigningOut] = useState(false)
+    const [showSessions, setShowSessions] = useState(false)
+    const [sessionInfo, setSessionInfo] = useState<{ created_at?: string } | null>(null)
+    const [exportingLog, setExportingLog] = useState(false)
 
     const handleSignOut = async () => {
         setSigningOut(true)
-        await supabase.auth.signOut()
+        await supabase.auth.signOut({ scope: 'global' })
     }
+
+    const handleViewSessions = async () => {
+        if (showSessions) { setShowSessions(false); return }
+        const { data } = await supabase.auth.getSession()
+        setSessionInfo(data.session ? { created_at: data.session.user?.created_at } : null)
+        setShowSessions(true)
+    }
+
+    const handleExportLog = async () => {
+        if (!user?.id) return
+        setExportingLog(true)
+        try {
+            const { data } = await supabase
+                .from('alerts')
+                .select('type, title, body, created_at')
+                .eq('profile_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(100)
+            if (!data || data.length === 0) return
+            const csv = [
+                'Data,Tipo,Titulo,Descricao',
+                ...data.map(a =>
+                    `${new Date(a.created_at).toLocaleString('pt-BR')},${a.type},${a.title.replace(/,/g, ';')},${a.body.replace(/,/g, ';')}`
+                ),
+            ].join('\n')
+            const blob = new Blob([csv], { type: 'text/csv' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'northie-log-atividade.csv'
+            a.click()
+            URL.revokeObjectURL(url)
+        } finally {
+            setExportingLog(false)
+        }
+    }
+
+    const ua = navigator.userAgent
+    const browser = ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Navegador'
+    const os = ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Desktop'
 
     return (
         <div>
@@ -1080,14 +1123,78 @@ function SegurancaPanel() {
                 title="Sessões ativas"
                 description="Gerencie onde sua conta está conectada."
             >
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Ver sessões
+                <button
+                    className="notion-btn"
+                    onClick={handleViewSessions}
+                    style={{ border: '1px solid var(--color-border)' }}
+                >
+                    {showSessions ? 'Fechar' : 'Ver sessões'}
                 </button>
             </SettingRow>
 
+            <AnimatePresence>
+                {showSessions && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div style={{
+                            marginBottom: 12,
+                            padding: '14px 16px',
+                            background: 'var(--color-bg-secondary)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 'var(--radius-md)',
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div>
+                                    <p style={{
+                                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
+                                        fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 4px',
+                                    }}>
+                                        Sessão atual
+                                    </p>
+                                    <p style={{
+                                        fontFamily: 'var(--font-sans)', fontSize: 12,
+                                        color: 'var(--color-text-secondary)', margin: '0 0 2px',
+                                    }}>
+                                        {browser} · {os}
+                                    </p>
+                                    <p style={{
+                                        fontFamily: 'var(--font-mono)', fontSize: 11,
+                                        color: 'var(--color-text-tertiary)', margin: 0,
+                                    }}>
+                                        {sessionInfo?.created_at
+                                            ? `Conta criada em ${new Date(sessionInfo.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                                            : 'Sessão ativa agora'
+                                        }
+                                    </p>
+                                </div>
+                                <span style={{
+                                    fontFamily: 'var(--font-sans)', fontSize: 11,
+                                    color: 'var(--color-text-tertiary)',
+                                    background: 'var(--color-bg-tertiary)',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: 6, padding: '2px 8px',
+                                }}>
+                                    Dispositivo atual
+                                </span>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <SettingRow title="Log de atividade" description="Histórico de acessos e ações da conta.">
-                <button className="notion-btn" style={{ border: '1px solid var(--color-border)' }}>
-                    Exportar log
+                <button
+                    className="notion-btn"
+                    onClick={handleExportLog}
+                    disabled={exportingLog}
+                    style={{ border: '1px solid var(--color-border)', opacity: exportingLog ? 0.6 : 1 }}
+                >
+                    {exportingLog ? 'Exportando...' : 'Exportar log'}
                 </button>
             </SettingRow>
 
@@ -1732,7 +1839,7 @@ export default function Configuracoes({ user, onGoToAppStore }: { user?: User; o
             case 'integracoes': return <IntegracoesPanel onGoToAppStore={onGoToAppStore} />
             case 'preferencias': return <PreferenciasPanel user={user} />
             case 'notificacoes': return <NotificacoesPanel user={user} />
-            case 'seguranca': return <SegurancaPanel />
+            case 'seguranca': return <SegurancaPanel user={user} />
             case 'workspace': return <WorkspacePanel user={user} />
             case 'membros': return <MembrosPanel user={user} />
             case 'planos': return <PlanosPanel user={user} />

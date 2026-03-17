@@ -8,7 +8,7 @@ const H = 210
 const PAD = { top: 16, right: 20, bottom: 38, left: 58 }
 const CW = W - PAD.left - PAD.right
 const CH = H - PAD.top - PAD.bottom
-const TOOLTIP_W = 136
+const TOOLTIP_W = 160
 const TOOLTIP_H = 52
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
               <text
                 x={PAD.left - 10} y={y}
                 textAnchor="end" dominantBaseline="middle"
-                fontFamily="Inter, -apple-system, sans-serif" fontSize={11}
+                fontFamily="var(--font-sans)" fontSize={11}
                 style={{ fill: 'var(--color-text-tertiary)' }}
               >
                 {Math.round(v / 1000)}k
@@ -120,18 +120,22 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
           )
         })}
 
-        {/* X labels */}
-        {data.map((d, i) => i % 2 === 0 && (
-          <text
-            key={i}
-            x={pts[i].x} y={H - 4}
-            textAnchor="middle"
-            fontFamily="Inter, -apple-system, sans-serif" fontSize={11}
-            style={{ fill: hovered === i ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)', transition: 'fill 0.15s' }}
-          >
-            {new Date(d.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-          </text>
-        ))}
+        {/* X labels — adaptive density to avoid overlap */}
+        {data.map((d, i) => {
+          const step = data.length <= 14 ? 2 : data.length <= 21 ? 3 : 4
+          if (i % step !== 0) return null
+          return (
+            <text
+              key={i}
+              x={pts[i].x} y={H - 4}
+              textAnchor="middle"
+              fontFamily="var(--font-sans)" fontSize={11}
+              style={{ fill: hovered === i ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)', transition: 'fill 0.15s' }}
+            >
+              {new Date(d.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+            </text>
+          )
+        })}
 
         {/* Gradient fill */}
         <motion.path
@@ -176,14 +180,14 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
               />
               <text
                 x={tx + 13} y={ty + 19}
-                fontFamily="Inter, -apple-system, sans-serif" fontSize={11}
+                fontFamily="var(--font-sans)" fontSize={11}
                 style={{ fill: 'var(--color-text-tertiary)' }}
               >
                 {new Date(hd.date + 'T00:00:00').toLocaleDateString('pt-BR')}
               </text>
               <text
                 x={tx + 13} y={ty + 37}
-                fontFamily="Inter, -apple-system, sans-serif" fontSize={14} fontWeight={600}
+                fontFamily="var(--font-sans)" fontSize={14} fontWeight={600}
                 style={{ fill: 'var(--color-text-primary)' }}
               >
                 R$ {fmtBR(hd.amount)}

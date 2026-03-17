@@ -6,142 +6,6 @@ import { dashboardApi } from '../lib/api'
 import { fmtBR } from '../lib/utils'
 import DateRangePicker, { type DateRange } from '../components/ui/DateRangePicker'
 
-// ── Mock data ────────────────────────────────────────────────────────────────────
-
-const MOCK_CAMPAIGNS = [
-  {
-    campaign_id: 'meta_1', campaign_name: 'ESCRITA-MEMÓRIAS | Conversão | Broad', platform: 'meta',
-    status: 'ACTIVE', objective: 'OUTCOME_SALES', account_name: 'Conta Northie Demo',
-    spend_brl: 3240, purchase_value: 9870, purchases: 27, leads: 0,
-    impressions: 184200, clicks: 2940, landing_page_views: 1820, roas: 3.05,
-    cac: 120, ctr: 1.60, reach: 92400, frequency: 2.0, cpm_brl: 17.6, cpc_brl: 1.10,
-    link_clicks: 2740, video_views: 0,
-  },
-  {
-    campaign_id: 'meta_2', campaign_name: 'ESCRITA-MEMÓRIAS | Retargeting | Visitantes 30d', platform: 'meta',
-    status: 'ACTIVE', objective: 'OUTCOME_SALES', account_name: 'Conta Northie Demo',
-    spend_brl: 890, purchase_value: 3560, purchases: 11, leads: 0,
-    impressions: 42100, clicks: 1240, landing_page_views: 980, roas: 4.00,
-    cac: 80.9, ctr: 2.95, reach: 18700, frequency: 2.25, cpm_brl: 21.1, cpc_brl: 0.72,
-    link_clicks: 1180, video_views: 0,
-  },
-  {
-    campaign_id: 'meta_3', campaign_name: 'ESCRITA-MEMÓRIAS | Leads | Lookalike 3%', platform: 'meta',
-    status: 'PAUSED', objective: 'OUTCOME_LEADS', account_name: 'Conta Northie Demo',
-    spend_brl: 520, purchase_value: 0, purchases: 0, leads: 94,
-    impressions: 61800, clicks: 680, landing_page_views: 490, roas: 0,
-    cac: 0, ctr: 1.10, reach: 34200, frequency: 1.81, cpm_brl: 8.4, cpc_brl: 0.76,
-    link_clicks: 640, video_views: 0,
-  },
-  {
-    campaign_id: 'meta_4', campaign_name: 'LANÇAMENTO JAN | Conversão | Interesses frios', platform: 'meta',
-    status: 'ARCHIVED', objective: 'OUTCOME_SALES', account_name: 'Conta Northie Demo',
-    spend_brl: 1640, purchase_value: 2460, purchases: 7, leads: 0,
-    impressions: 98400, clicks: 1180, landing_page_views: 740, roas: 1.50,
-    cac: 234.3, ctr: 1.20, reach: 61200, frequency: 1.61, cpm_brl: 16.7, cpc_brl: 1.39,
-    link_clicks: 1080, video_views: 0,
-  },
-  {
-    campaign_id: 'google_1', campaign_name: 'Escrita de Memórias | Search | Branded', platform: 'google',
-    status: 'ACTIVE', objective: 'CONVERSIONS', account_name: 'Google Ads Demo',
-    spend_brl: 740, purchase_value: 2960, purchases: 8, leads: 0,
-    impressions: 9200, clicks: 820, landing_page_views: 680, roas: 4.00,
-    cac: 92.5, ctr: 8.91, reach: 0, frequency: 0, cpm_brl: 80.4, cpc_brl: 0.90,
-    link_clicks: 820, video_views: 0,
-  },
-  {
-    campaign_id: 'google_2', campaign_name: 'Escrita de Memórias | Search | Genérico', platform: 'google',
-    status: 'ACTIVE', objective: 'CONVERSIONS', account_name: 'Google Ads Demo',
-    spend_brl: 1280, purchase_value: 2560, purchases: 7, leads: 0,
-    impressions: 28400, clicks: 1640, landing_page_views: 1240, roas: 2.00,
-    cac: 182.9, ctr: 5.77, reach: 0, frequency: 0, cpm_brl: 45.1, cpc_brl: 0.78,
-    link_clicks: 1640, video_views: 0,
-  },
-]
-
-const MOCK_TRENDS: Record<string, { roas: number[]; cac: number[] }> = {
-  meta: {
-    roas: [2.4, 2.8, 3.1, 2.9, 3.4, 3.2, 2.7, 3.8, 4.1, 3.6, 3.3, 2.9, 3.5, 3.7, 3.9],
-    cac:  [140, 125, 112, 118, 98,  105, 132, 88,  82,  95,  103, 120, 92,  88,  84],
-  },
-  google: {
-    roas: [3.2, 3.5, 3.8, 3.1, 4.0, 3.7, 3.3, 4.2, 3.9, 4.4, 3.8, 4.1, 3.5, 4.0, 4.2],
-    cac:  [110, 98,  92,  108, 84,  90,  102, 78,  88,  75,  86,  81,  94,  82,  79],
-  },
-}
-
-const MOCK_CREATIVES = [
-  {
-    ad_id: 'cr_1', campaign_id: 'meta_1',
-    ad_name: 'Depoimento — "Escrevi a história da minha família"',
-    campaign_name: 'ESCRITA-MEMÓRIAS | Conversão | Broad',
-    status: 'ACTIVE', creative_type: 'video' as const,
-    thumbnail_url: 'https://picsum.photos/seed/northie_cr1/480/360',
-    video_url: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    spend_brl: 1640, impressions: 91200, clicks: 1480, link_clicks: 1480,
-    ctr: 1.62, cpc_brl: 1.11, cpm_brl: 17.98, roas: 3.41, purchases: 16, leads: 0, reach: 48300, frequency: 1.89,
-  },
-  {
-    ad_id: 'cr_2', campaign_id: 'meta_2',
-    ad_name: 'Processo Criativo — Bastidores do livro | 30s',
-    campaign_name: 'ESCRITA-MEMÓRIAS | Retargeting | Visitantes 30d',
-    status: 'ACTIVE', creative_type: 'video' as const,
-    thumbnail_url: 'https://picsum.photos/seed/northie_cr2/480/360',
-    video_url: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    spend_brl: 890, impressions: 42100, clicks: 1180, link_clicks: 1180,
-    ctr: 2.80, cpc_brl: 0.75, cpm_brl: 21.14, roas: 4.00, purchases: 11, leads: 0, reach: 18700, frequency: 2.25,
-  },
-  {
-    ad_id: 'cr_3', campaign_id: 'meta_1',
-    ad_name: 'Capa do Livro — Produto físico | Estático',
-    campaign_name: 'ESCRITA-MEMÓRIAS | Conversão | Broad',
-    status: 'ACTIVE', creative_type: 'image' as const,
-    thumbnail_url: 'https://picsum.photos/seed/northie_cr3/480/360',
-    video_url: null,
-    spend_brl: 980, impressions: 53800, clicks: 820, link_clicks: 820,
-    ctr: 1.52, cpc_brl: 1.20, cpm_brl: 18.21, roas: 2.81, purchases: 9, leads: 0, reach: 28100, frequency: 1.91,
-  },
-  {
-    ad_id: 'cr_4', campaign_id: 'meta_3',
-    ad_name: 'Formulário Lead — "Guia gratuito: como preservar sua história"',
-    campaign_name: 'ESCRITA-MEMÓRIAS | Leads | Lookalike 3%',
-    status: 'PAUSED', creative_type: 'image' as const,
-    thumbnail_url: 'https://picsum.photos/seed/northie_cr4/480/360',
-    video_url: null,
-    spend_brl: 520, impressions: 61800, clicks: 680, link_clicks: 640,
-    ctr: 1.10, cpc_brl: 0.77, cpm_brl: 8.41, roas: 0, purchases: 0, leads: 94, reach: 34200, frequency: 1.81,
-  },
-  {
-    ad_id: 'cr_5', campaign_id: 'meta_4',
-    ad_name: 'Carrossel — 5 motivos para preservar sua história',
-    campaign_name: 'LANÇAMENTO JAN | Conversão | Interesses frios',
-    status: 'ARCHIVED', creative_type: 'carousel' as const,
-    thumbnail_url: 'https://picsum.photos/seed/northie_cr5/480/360',
-    video_url: null,
-    spend_brl: 1640, impressions: 98400, clicks: 1180, link_clicks: 1080,
-    ctr: 1.20, cpc_brl: 1.39, cpm_brl: 16.67, roas: 1.50, purchases: 7, leads: 0, reach: 61200, frequency: 1.61,
-  },
-  {
-    ad_id: 'cr_6', campaign_id: 'meta_1',
-    ad_name: 'UGC — Cliente mostrando o livro finalizado | 20s',
-    campaign_name: 'ESCRITA-MEMÓRIAS | Conversão | Broad',
-    status: 'ACTIVE', creative_type: 'video' as const,
-    thumbnail_url: 'https://picsum.photos/seed/northie_cr6/480/360',
-    video_url: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    spend_brl: 620, impressions: 41600, clicks: 760, link_clicks: 760,
-    ctr: 1.83, cpc_brl: 0.82, cpm_brl: 14.90, roas: 2.20, purchases: 5, leads: 0, reach: 22800, frequency: 1.82,
-  },
-]
-
-const MOCK_KEYWORDS = [
-  { keyword: 'escrita de memórias', campaign: 'Search | Branded', match: 'Exata' as const,  impressions: 4200,  clicks: 380, ctr: 9.05, cpc_brl: 0.82, conversions: 4, cpa_brl: 77.5,  quality_score: 9, impression_share: 82 },
-  { keyword: 'livro de memórias família', campaign: 'Search | Branded', match: 'Exata' as const,  impressions: 1800,  clicks: 190, ctr: 10.56, cpc_brl: 0.75, conversions: 3, cpa_brl: 47.5,  quality_score: 9, impression_share: 74 },
-  { keyword: 'como escrever história da família', campaign: 'Search | Genérico', match: 'Frase' as const,  impressions: 8400,  clicks: 420, ctr: 5.00, cpc_brl: 0.68, conversions: 2, cpa_brl: 143.0, quality_score: 7, impression_share: 54 },
-  { keyword: 'memórias da família', campaign: 'Search | Genérico', match: 'Ampla' as const,  impressions: 12600, clicks: 680, ctr: 5.40, cpc_brl: 0.80, conversions: 3, cpa_brl: 181.3, quality_score: 6, impression_share: 41 },
-  { keyword: 'autobiografia familiar personalizada', campaign: 'Search | Genérico', match: 'Frase' as const,  impressions: 3200,  clicks: 148, ctr: 4.63, cpc_brl: 0.90, conversions: 1, cpa_brl: 133.2, quality_score: 7, impression_share: 48 },
-  { keyword: 'preservar histórias da família', campaign: 'Search | Genérico', match: 'Ampla' as const,  impressions: 2800,  clicks: 194, ctr: 6.93, cpc_brl: 0.88, conversions: 1, cpa_brl: 170.7, quality_score: 5, impression_share: 37 },
-  { keyword: '+escrita +memória', campaign: 'Search | Genérico', match: 'Ampla' as const,  impressions: 5600,  clicks: 252, ctr: 4.50, cpc_brl: 1.02, conversions: 0, cpa_brl: 0,     quality_score: 4, impression_share: 29 },
-]
 
 // ── Local helpers ───────────────────────────────────────────────────────────────
 
@@ -1368,7 +1232,7 @@ function CreativesTable() {
     const [sortBy, setSortBy]             = useState<CreativeSortKey>('spend_brl')
     const [selectedCreative, setSelected] = useState<any>(null)
 
-    const sorted = [...MOCK_CREATIVES].sort((a, b) => b[sortBy] - a[sortBy])
+    const sorted: { ad_id: string; ad_name: string; campaign_name: string; status: string; creative_type: string; thumbnail_url: string; video_url: string | null; spend_brl: number; impressions: number; clicks: number; link_clicks: number; ctr: number; cpc_brl: number; cpm_brl: number; roas: number; purchases: number; leads: number; reach: number; frequency: number }[] = []
 
     const SORT_OPTS: { key: CreativeSortKey; label: string }[] = [
         { key: 'spend_brl',   label: 'Investimento' },
@@ -1784,8 +1648,8 @@ function SearchAccountHealth({ campaigns }: { campaigns: any[] }) {
         const totalImpressions = campaigns.reduce((s, c) => s + (c.impressions || 0), 0)
         const totalClicks      = campaigns.reduce((s, c) => s + (c.clicks || 0), 0)
         const totalSpend       = campaigns.reduce((s, c) => s + (c.spend_brl || 0), 0)
-        const avgQS            = MOCK_KEYWORDS.reduce((s, k) => s + k.quality_score, 0) / MOCK_KEYWORDS.length
-        const avgIS            = MOCK_KEYWORDS.reduce((s, k) => s + k.impression_share, 0) / MOCK_KEYWORDS.length
+        const avgQS            = 0
+        const avgIS            = 0
         const ctr              = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0
         const cpc              = totalClicks > 0 ? totalSpend / totalClicks : 0
         return { avgQS, avgIS, ctr, cpc, totalImpressions, totalClicks }
@@ -1865,8 +1729,9 @@ const KW_GRID = '1.8fr 78px 140px 88px 72px 58px 68px 72px 72px'
 function KeywordsMatrix() {
     const [sortBy, setSortBy] = useState<KwSortKey>('impressions')
 
+    const keywords: { keyword: string; campaign: string; match: 'Exata' | 'Frase' | 'Ampla'; impressions: number; clicks: number; ctr: number; cpc_brl: number; conversions: number; cpa_brl: number; quality_score: number; impression_share: number }[] = []
     const sorted = useMemo(() =>
-        [...MOCK_KEYWORDS].sort((a, b) => {
+        [...keywords].sort((a, b) => {
             if (sortBy === 'cpa_brl') {
                 // Zero-conversions go to bottom
                 if (a.cpa_brl === 0 && b.cpa_brl === 0) return 0
@@ -1896,7 +1761,7 @@ function KeywordsMatrix() {
                         Matriz de Palavras-chave
                     </p>
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-0.4px', margin: 0 }}>
-                        {MOCK_KEYWORDS.filter(k => k.conversions > 0).length} de {MOCK_KEYWORDS.length} palavras convertendo
+                        {keywords.filter(k => k.conversions > 0).length} de {keywords.length} palavras convertendo
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 4 }}>
@@ -2051,9 +1916,9 @@ function GoogleAdsContent({
     const searchKpis = useMemo(() => {
         const avgCtr = agg.impressions > 0 ? (agg.clicks / agg.impressions) * 100 : 0
         const avgCpc = agg.clicks > 0 ? agg.spend / agg.clicks : 0
-        const avgIS  = MOCK_KEYWORDS.reduce((s, k) => s + k.impression_share, 0) / MOCK_KEYWORDS.length
-        const avgQS  = MOCK_KEYWORDS.reduce((s, k) => s + k.quality_score, 0) / MOCK_KEYWORDS.length
-        const totalConv = MOCK_KEYWORDS.reduce((s, k) => s + k.conversions, 0)
+        const avgIS  = 0
+        const avgQS  = 0
+        const totalConv = 0
         return { avgCtr, avgCpc, avgIS, avgQS, totalConv }
     }, [agg])
 
@@ -2336,8 +2201,8 @@ function defaultRange(): DateRange {
 }
 
 export default function Canais({ onToggleChat, channelView }: { onToggleChat?: () => void; channelView?: 'meta' | 'google' }) {
-    const [rawCampaigns, setRawCampaigns] = useState<any[]>(MOCK_CAMPAIGNS)
-    const [trends, setTrends] = useState<Record<string, { roas: number[]; cac: number[] }>>(MOCK_TRENDS)
+    const [rawCampaigns, setRawCampaigns] = useState<any[]>([])
+    const [trends, setTrends] = useState<Record<string, { roas: number[]; cac: number[] }>>({})
     const [loading, setLoading] = useState(false)
     const [isRealData, setIsRealData] = useState(false)
     const [dateRange, setDateRange] = useState<DateRange>(defaultRange)
@@ -2355,11 +2220,10 @@ export default function Canais({ onToggleChat, channelView }: { onToggleChat?: (
             dashboardApi.getChannelTrends(),
         ])
             .then(([campRes, trendsRes]) => {
-                if (Array.isArray(campRes.data) && campRes.data.length > 0) {
-                    setRawCampaigns(campRes.data)
-                    setIsRealData(true)
-                }
-                if (trendsRes.data && Object.keys(trendsRes.data).length > 0) setTrends(trendsRes.data)
+                const campaigns = Array.isArray(campRes.data) ? campRes.data : []
+                setRawCampaigns(campaigns)
+                setIsRealData(campaigns.length > 0)
+                setTrends(trendsRes.data ?? {})
             })
             .catch(() => {})
             .finally(() => setLoading(false))
