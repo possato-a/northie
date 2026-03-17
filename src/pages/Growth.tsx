@@ -1344,7 +1344,7 @@ export default function Growth() {
                     </SectionCard>
                   </motion.div>
 
-                  {display.length === 0 && activeRecs.length === 0 && <GrowthEmptyState />}
+                  {activeRecs.length === 0 && <GrowthEmptyState />}
                 </div>
               )
             })()}
