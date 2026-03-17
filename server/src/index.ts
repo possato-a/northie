@@ -29,6 +29,9 @@ import { startShopifySyncJob } from './jobs/shopify-sync.job.js';
 import reportsRoutes from './routes/reports.routes.js';
 import profileRoutes from './routes/profile.routes.js';
 import alertsRoutes from './routes/alerts.routes.js';
+import agentsRoutes from './routes/agents.routes.js';
+import pipelineRoutes from './routes/pipeline.routes.js';
+import contextRoutes from './routes/context.routes.js';
 // @ts-ignore — plain JS modules without .d.ts (compiled separately)
 import whatsappRoutes from './routes/whatsapp.routes.js';
 // @ts-ignore
@@ -97,6 +100,9 @@ app.use('/api/profile', authMiddleware, profileRoutes);
 app.use('/api/alerts', authMiddleware, alertsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);          // webhook sem auth, demais com auth interno
 app.use('/api/calendar', authMiddleware, calendarRoutes);
+app.use('/api/agents', authMiddleware, agentsRoutes);
+app.use('/api/pipeline', authMiddleware, pipelineRoutes);
+app.use('/api/context', authMiddleware, contextRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {

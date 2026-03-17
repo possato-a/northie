@@ -1729,7 +1729,24 @@ const KW_GRID = '1.8fr 78px 140px 88px 72px 58px 68px 72px 72px'
 function KeywordsMatrix() {
     const [sortBy, setSortBy] = useState<KwSortKey>('impressions')
 
+    // Keywords not yet fetched from API — coming soon
     const keywords: { keyword: string; campaign: string; match: 'Exata' | 'Frase' | 'Ampla'; impressions: number; clicks: number; ctr: number; cpc_brl: number; conversions: number; cpa_brl: number; quality_score: number; impression_share: number }[] = []
+
+    if (keywords.length === 0) {
+        return (
+            <div style={{ padding: '8px 0' }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400, color: 'var(--color-text-secondary)', letterSpacing: '0.02em', textTransform: 'uppercase', margin: '0 0 4px' }}>
+                    Matriz de Palavras-chave
+                </p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500, color: 'var(--color-text-primary)', letterSpacing: '-0.4px', margin: '0 0 20px' }}>
+                    Em breve
+                </p>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.55 }}>
+                    A análise de palavras-chave por keyword estará disponível em breve. Use as métricas de campanha acima para acompanhar a performance.
+                </p>
+            </div>
+        )
+    }
     const sorted = useMemo(() =>
         [...keywords].sort((a, b) => {
             if (sortBy === 'cpa_brl') {

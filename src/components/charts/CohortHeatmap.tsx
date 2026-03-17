@@ -3,18 +3,6 @@ import { motion } from 'framer-motion'
 import { dashboardApi } from '../../lib/api'
 import type { CohortRow } from '../../types'
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-
-const MOCK_COHORT: CohortRow[] = [
-  { month: 'Set/25', n: 3,  retentions: { '30d': 67, '60d': 33, '90d': 33, '180d': 33 } },
-  { month: 'Out/25', n: 5,  retentions: { '30d': 60, '60d': 40, '90d': 20, '180d': 20 } },
-  { month: 'Nov/25', n: 4,  retentions: { '30d': 75, '60d': 50, '90d': 25, '180d': null } },
-  { month: 'Dez/25', n: 6,  retentions: { '30d': 67, '60d': 33, '90d': 17, '180d': null } },
-  { month: 'Jan/26', n: 7,  retentions: { '30d': 57, '60d': 29, '90d': null, '180d': null } },
-  { month: 'Fev/26', n: 8,  retentions: { '30d': 50, '60d': null, '90d': null, '180d': null } },
-  { month: 'Mar/26', n: 5,  retentions: { '30d': null, '60d': null, '90d': null, '180d': null } },
-]
-
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const PERIOD_COLS: { key: keyof CohortRow['retentions']; label: string }[] = [
@@ -45,19 +33,41 @@ function cellStyle(v: number | null): React.CSSProperties {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function CohortHeatmap({ initialData }: { initialData?: CohortRow[] } = {}) {
-  const [data, setData] = useState<CohortRow[]>(initialData ?? MOCK_COHORT)
-  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState<CohortRow[]>(initialData ?? [])
+  const [loading, setLoading] = useState(!initialData)
 
   useEffect(() => {
-    if (initialData) return
+    if (initialData !== undefined) {
+      setData(initialData)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
     dashboardApi.getRetention()
       .then(res => { if (res.data?.length > 0) setData(res.data) })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [initialData])
 
   if (loading) {
     return <div style={{ height: 240, background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-lg)' }} />
+  }
+
+  if (data.length === 0) {
+    return (
+      <div style={{
+        height: 140, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 8,
+        background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-lg)',
+      }}>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0 }}>
+          Dados insuficientes para calcular cohorts.
+        </p>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0, opacity: 0.7 }}>
+          Necessário pelo menos 2 meses de transações.
+        </p>
+      </div>
+    )
   }
 
   return (

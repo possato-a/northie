@@ -35,23 +35,30 @@ export default function RevenueChart({ initialData }: { initialData?: { date: st
   const [loading, setLoading] = useState(!initialData)
 
   useEffect(() => {
-    if (initialData) return
+    if (initialData !== undefined) {
+      setData(initialData)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
     dashboardApi.getChart()
       .then(res => setData(res.data))
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [initialData])
 
   const { pts, lineD, fillD, yTicks, minV, maxV } = useMemo(() => {
     if (data.length === 0) return { pts: [], lineD: '', fillD: '', yTicks: [], minV: 0, maxV: 0 }
 
     const amounts = data.map(d => d.amount)
-    const min = Math.min(...amounts) * 0.95
-    const max = Math.max(...amounts) * 1.05
-    const range = max - min
+    const rawMin = Math.min(...amounts)
+    const rawMax = Math.max(...amounts)
+    const min = rawMin === rawMax ? Math.max(0, rawMin * 0.95) : rawMin * 0.95
+    const max = rawMin === rawMax ? rawMax + 100 : rawMax * 1.05
+    const range = max - min || 1
 
     const xAt = (i: number) => data.length === 1 ? PAD.left + CW / 2 : PAD.left + (i / (data.length - 1)) * CW
-    const yAt = (v: number) => PAD.top + CH - ((v - min) / (max - min)) * CH
+    const yAt = (v: number) => PAD.top + CH - ((v - min) / range) * CH
 
     const pts = data.map((d, i) => ({ x: xAt(i), y: yAt(d.amount) }))
     const lineD = buildCurve(pts)
