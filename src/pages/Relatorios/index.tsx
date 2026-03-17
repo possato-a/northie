@@ -605,31 +605,31 @@ export default function Relatorios(_props: RelatoriosProps) {
                 )}
             </AnimatePresence>
 
-            {/* ── Tabs ────────────────────────────────────────────────────── */}
+            {/* ── Subnav ──────────────────────────────────────────────────── */}
             <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, delay: delay(1), ease: [0.25, 0.1, 0.25, 1] }}
                 style={{ paddingBottom: 40 }}
             >
-                <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--color-border)', marginBottom: 28 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 28, padding: '4px', background: 'var(--color-bg-secondary)', borderRadius: 10, width: 'fit-content', border: '1px solid var(--color-border)' }}>
                     {TABS.map(tab => (
                         <motion.button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             whileTap={{ scale: 0.97 }}
                             style={{
-                                padding: '8px 16px 10px',
-                                border: 'none',
-                                background: 'transparent',
-                                cursor: 'pointer',
                                 fontFamily: 'var(--font-sans)',
-                                fontSize: 14,
-                                fontWeight: activeTab === tab.id ? 600 : 400,
-                                color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                                borderBottom: activeTab === tab.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-                                marginBottom: -1,
-                                transition: 'color 0.15s, border-color 0.15s',
+                                fontSize: 13,
+                                fontWeight: activeTab === tab.id ? 500 : 400,
+                                color: activeTab === tab.id ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                                background: activeTab === tab.id ? 'var(--color-bg-primary)' : 'transparent',
+                                border: activeTab === tab.id ? '1px solid var(--color-border)' : '1px solid transparent',
+                                borderRadius: 7,
+                                padding: '6px 16px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                letterSpacing: '-0.1px',
                             }}
                         >
                             {tab.label}

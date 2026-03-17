@@ -1581,6 +1581,7 @@ function MetaAdsContent({
     days,
     onOpenDrawer,
     loading,
+    isRealData,
     dateRange,
     setDateRange,
 }: {
@@ -1590,6 +1591,7 @@ function MetaAdsContent({
     days: number
     onOpenDrawer: (c: any) => void
     loading: boolean
+    isRealData: boolean
     dateRange: DateRange
     setDateRange: (r: DateRange) => void
 }) {
@@ -1624,6 +1626,9 @@ function MetaAdsContent({
 
     const [metaTab, setMetaTab] = useState<'metricas' | 'gerenciador'>('metricas')
 
+    // When real data becomes available ensure we stay on a valid tab
+    const effectiveTab = !isRealData && metaTab === 'gerenciador' ? 'metricas' : metaTab
+
     // Ad manager aggregate metrics
     const adMgrKpis = useMemo(() => {
         const totalImpressions = campaigns.reduce((s, c) => s + (c.impressions || 0), 0)
@@ -1636,10 +1641,10 @@ function MetaAdsContent({
         return { totalImpressions, totalReach, totalClicks, avgCtr, avgCpm, avgCpc }
     }, [campaigns])
 
-    const TABS = [
+    const TABS: { key: 'metricas' | 'gerenciador'; label: string }[] = [
         { key: 'metricas',    label: 'Métricas'    },
-        { key: 'gerenciador', label: 'Gerenciador' },
-    ] as const
+        ...(isRealData ? [{ key: 'gerenciador' as const, label: 'Gerenciador' }] : []),
+    ]
 
     return (
         <div>
@@ -1667,15 +1672,15 @@ function MetaAdsContent({
                 {TABS.map(tab => (
                     <motion.button
                         key={tab.key}
-                        onClick={() => setMetaTab(tab.key)}
+                        onClick={() => setMetaTab(tab.key as 'metricas' | 'gerenciador')}
                         whileTap={{ scale: 0.97 }}
                         style={{
                             fontFamily: 'var(--font-sans)',
                             fontSize: 13,
-                            fontWeight: metaTab === tab.key ? 500 : 400,
-                            color: metaTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-                            background: metaTab === tab.key ? 'var(--color-bg-primary)' : 'transparent',
-                            border: metaTab === tab.key ? '1px solid var(--color-border)' : '1px solid transparent',
+                            fontWeight: effectiveTab === tab.key ? 500 : 400,
+                            color: effectiveTab === tab.key ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+                            background: effectiveTab === tab.key ? 'var(--color-bg-primary)' : 'transparent',
+                            border: effectiveTab === tab.key ? '1px solid var(--color-border)' : '1px solid transparent',
                             borderRadius: 7,
                             padding: '6px 16px',
                             cursor: 'pointer',
@@ -1689,8 +1694,8 @@ function MetaAdsContent({
             </motion.div>
 
             <AnimatePresence mode="wait">
-            {metaTab === 'metricas' ? (
-                <motion.div key="metricas" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
+            {effectiveTab === 'metricas' ? (
+                <motion.div key="meta-metricas" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
                     {/* KPIs */}
                     <div style={{ display: 'grid', gridTemplateColumns: `repeat(${kpis.length}, 1fr)`, gap: 10, marginBottom: 14 }}>
                         {kpis.map((k, i) => (
@@ -2334,6 +2339,7 @@ export default function Canais({ onToggleChat, channelView }: { onToggleChat?: (
     const [rawCampaigns, setRawCampaigns] = useState<any[]>(MOCK_CAMPAIGNS)
     const [trends, setTrends] = useState<Record<string, { roas: number[]; cac: number[] }>>(MOCK_TRENDS)
     const [loading, setLoading] = useState(false)
+    const [isRealData, setIsRealData] = useState(false)
     const [dateRange, setDateRange] = useState<DateRange>(defaultRange)
     const [drawerCamp, setDrawerCamp] = useState<any>(null)
 
@@ -2349,7 +2355,10 @@ export default function Canais({ onToggleChat, channelView }: { onToggleChat?: (
             dashboardApi.getChannelTrends(),
         ])
             .then(([campRes, trendsRes]) => {
-                if (Array.isArray(campRes.data) && campRes.data.length > 0) setRawCampaigns(campRes.data)
+                if (Array.isArray(campRes.data) && campRes.data.length > 0) {
+                    setRawCampaigns(campRes.data)
+                    setIsRealData(true)
+                }
                 if (trendsRes.data && Object.keys(trendsRes.data).length > 0) setTrends(trendsRes.data)
             })
             .catch(() => {})
@@ -2527,20 +2536,57 @@ export default function Canais({ onToggleChat, channelView }: { onToggleChat?: (
                                     days={periodDays}
                                     onOpenDrawer={setDrawerCamp}
                                     loading={loading}
+                                    isRealData={isRealData}
                                     dateRange={dateRange}
                                     setDateRange={setDateRange}
                                 />
                             ) : channelView === 'google' ? (
-                                <GoogleAdsContent
-                                    campaigns={googleCampaigns}
-                                    channelPerf={channelPerf}
-                                    trends={trends}
-                                    days={periodDays}
-                                    onOpenDrawer={setDrawerCamp}
-                                    loading={loading}
-                                    dateRange={dateRange}
-                                    setDateRange={setDateRange}
-                                />
+                                !isRealData ? (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 24px', gap: 16 }}
+                                    >
+                                        <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-tertiary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" /><path d="m4.93 4.93 14.14 14.14" />
+                                            </svg>
+                                        </div>
+                                        <div style={{ textAlign: 'center', maxWidth: 340 }}>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 8px', letterSpacing: '-0.2px' }}>
+                                                Google Ads não conectado
+                                            </p>
+                                            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-secondary)', margin: '0 0 20px', lineHeight: 1.5 }}>
+                                                Conecte sua conta do Google Ads na AppStore para ver suas campanhas aqui.
+                                            </p>
+                                            <motion.button
+                                                whileHover={{ scale: 1.02 }}
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={() => window.dispatchEvent(new CustomEvent('northie:navigate', { detail: 'appstore' }))}
+                                                style={{
+                                                    fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500,
+                                                    padding: '9px 20px', borderRadius: 8, border: '1px solid var(--color-border)',
+                                                    background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)',
+                                                    cursor: 'pointer', transition: 'background 0.15s',
+                                                }}
+                                            >
+                                                Ir para AppStore
+                                            </motion.button>
+                                        </div>
+                                    </motion.div>
+                                ) : (
+                                    <GoogleAdsContent
+                                        campaigns={googleCampaigns}
+                                        channelPerf={channelPerf}
+                                        trends={trends}
+                                        days={periodDays}
+                                        onOpenDrawer={setDrawerCamp}
+                                        loading={loading}
+                                        dateRange={dateRange}
+                                        setDateRange={setDateRange}
+                                    />
+                                )
                             ) : null}
                 </motion.div>
             </AnimatePresence>
