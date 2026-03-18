@@ -63,8 +63,8 @@ export const dataApi = {
 };
 
 export const aiApi = {
-    chat: (message: string, pageContext?: string, model?: string) => api.post('/ai/chat', { message, page_context: pageContext, model }),
-    growthChat: (message: string, model?: string) => api.post('/ai/growth-chat', { message, model }),
+    chat: (message: string, pageContext?: string, model?: string) => api.post('/ai/chat', { message, page_context: pageContext, model }, { timeout: 60000 }),
+    growthChat: (message: string, model?: string) => api.post('/ai/growth-chat', { message, model }, { timeout: 60000 }),
     clearHistory: () => api.delete('/ai/history'),
 };
 
@@ -145,7 +145,7 @@ export const alertsApi = {
 
 export const agentsApi = {
     chat: (agentId: string, message: string, conversationHistory: Array<{role: string, content: string}>) =>
-        api.post('/agents/chat', { agentId, message, conversationHistory }),
+        api.post('/agents/chat', { agentId, message, conversationHistory }, { timeout: 60000 }),
 };
 
 export const whatsappApi = {
