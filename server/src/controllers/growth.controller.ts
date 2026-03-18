@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { supabase } from '../lib/supabase.js';
 import { executeRecommendation } from '../services/growth.service.js';
 import { runDiagnostic, getLatestDiagnostic } from '../services/growth-intelligence.service.js';
+import { requiresCollaboration } from '../services/execution-agents/index.js';
 
 /**
  * GET /api/growth/recommendations
@@ -41,13 +42,22 @@ export async function approveRecommendation(req: Request, res: Response) {
 
     const { data: rec, error } = await supabase
         .from('growth_recommendations')
-        .select('id, status, profile_id')
+        .select('id, type, status, profile_id')
         .eq('id', id)
         .eq('profile_id', profileId)
         .single();
 
     if (error || !rec) return res.status(404).json({ error: 'Recommendation not found' });
     if (rec.status !== 'pending') return res.status(409).json({ error: 'Recommendation is not in pending status' });
+
+    // Recomendações que exigem colaboração interativa não podem ser aprovadas diretamente
+    if (requiresCollaboration(rec.type as string)) {
+        return res.status(200).json({
+            requires_collaboration: true,
+            message: 'Esta ação requer configuração colaborativa com a IA antes da execução.',
+            collaborate_url: `/api/growth/recommendations/${id}/collaborate`,
+        });
+    }
 
     await supabase
         .from('growth_recommendations')

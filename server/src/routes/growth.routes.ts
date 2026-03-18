@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as GrowthController from '../controllers/growth.controller.js';
 import { syncRateLimiter } from '../middleware/rate-limit.middleware.js';
+import growthCollaborationRoutes from './growth-collaboration.routes.js';
 
 const router = Router();
 
@@ -54,5 +55,10 @@ router.post('/recommendations/:id/cancel', GrowthController.cancelRecommendation
  * @desc Polling de status + execution_log
  */
 router.get('/recommendations/:id/status', GrowthController.getRecommendationStatus);
+
+/**
+ * Rotas de colaboração: /recommendations/:id/collaborate, /collaboration/:sessionId/...
+ */
+router.use('/', growthCollaborationRoutes);
 
 export default router;
