@@ -6,18 +6,18 @@ dotenv.config();
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 if (!ENCRYPTION_KEY) {
-    console.error('[encryption] ENCRYPTION_KEY is required. Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
-    process.exit(1);
+    console.warn('[encryption] ⚠️  ENCRYPTION_KEY não configurada — OAuth token storage desativado.');
 }
 
 // Detect hex encoding (64 hex chars = 32 bytes) vs raw UTF-8 (32 chars)
-const KEY = ENCRYPTION_KEY.length === 64 && /^[0-9a-f]+$/i.test(ENCRYPTION_KEY)
-    ? Buffer.from(ENCRYPTION_KEY, 'hex')
-    : Buffer.from(ENCRYPTION_KEY, 'utf8');
+const KEY = ENCRYPTION_KEY
+    ? (ENCRYPTION_KEY.length === 64 && /^[0-9a-f]+$/i.test(ENCRYPTION_KEY)
+        ? Buffer.from(ENCRYPTION_KEY, 'hex')
+        : Buffer.from(ENCRYPTION_KEY, 'utf8'))
+    : null;
 
-if (KEY.length !== 32) {
-    console.error('[encryption] ENCRYPTION_KEY must be exactly 32 bytes (or 64 hex characters). Current length:', KEY.length, 'bytes');
-    process.exit(1);
+if (KEY && KEY.length !== 32) {
+    console.warn('[encryption] ⚠️  ENCRYPTION_KEY deve ter exatamente 32 bytes. Current length:', KEY.length);
 }
 
 // ── AES-256-GCM (authenticated encryption) ─────────────────────────────────
@@ -28,6 +28,7 @@ const GCM_IV_LEN = 12;
  * Encrypts a string using AES-256-GCM (authenticated encryption).
  */
 export function encrypt(text: string): string {
+    if (!KEY) throw new Error('[encryption] ENCRYPTION_KEY não configurada');
     const iv = crypto.randomBytes(GCM_IV_LEN);
     const cipher = crypto.createCipheriv('aes-256-gcm', KEY, iv);
     const enc = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
@@ -40,6 +41,7 @@ export function encrypt(text: string): string {
  * Supports GCM (new tokens, "gcm:" prefix) and legacy CBC (existing tokens in DB).
  */
 export function decrypt(text: string): string {
+    if (!KEY) throw new Error('[encryption] ENCRYPTION_KEY não configurada');
     if (text.startsWith(GCM_PREFIX)) {
         // AES-256-GCM path
         const parts = text.slice(GCM_PREFIX.length).split(':');
