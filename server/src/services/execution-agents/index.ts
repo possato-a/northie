@@ -20,6 +20,13 @@ import { UpsellCohortAgent } from './upsell-cohort.agent.js';
 export { BaseExecutionAgent };
 export type { AgentSegmentItem, CollaborationMessage, OpenSessionResult, ExecutionPlanItem, GrowthRecommendation } from './base.agent.js';
 
+// ── Serviços de execução de plataforma (Sprint 3A) ────────────────────────────
+export { GoogleAdsExecutionService } from '../google-ads-execution.service.js';
+export type { GoogleAdsAudienceResult, GoogleAdsCampaignResult } from '../google-ads-execution.service.js';
+
+export { ShopifyExecutionService } from '../shopify-execution.service.js';
+export type { ShopifyDiscountResult, ShopifyTagResult, ShopifyCustomerResult } from '../shopify-execution.service.js';
+
 // ── Tipos de recomendação que exigem fluxo de colaboração ────────────────────
 
 export type CollaborationRequiredType =

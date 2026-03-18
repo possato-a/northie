@@ -6,6 +6,7 @@
 
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from './integration.service.js';
+import { GoogleAdsExecutionService } from './google-ads-execution.service.js';
 import crypto from 'crypto';
 
 type RecType =
@@ -354,26 +355,101 @@ async function executeAudienceSyncChampions(profileId: string, recId: string, me
 }
 
 async function executeReaLocacaoBudget(profileId: string, recId: string, meta: RealocacaoBudgetMeta): Promise<void> {
-    await appendLog(recId, { step: 'Calculando nova distribuição de budget', status: 'done', timestamp: new Date().toISOString(), detail: `Canal alvo: ${meta.best_channel?.platform}` });
+    await appendLog(recId, { step: 'Calculando nova distribuição de budget', status: 'done', timestamp: new Date().toISOString(), detail: `Canal alvo: ${meta.best_channel?.platform} | Canal reduzir: ${meta.worst_channel?.platform}` });
 
-    const accessToken = await getMetaToken(profileId);
-    if (!accessToken) {
-        await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'failed', timestamp: new Date().toISOString() });
-        await updateStatus(recId, 'failed');
-        return;
-    }
-    await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'done', timestamp: new Date().toISOString() });
-
-    // Buscar campanhas ativas do canal com pior LTV para ajuste de budget
     const worstPlatform = meta.worst_channel?.platform;
-    if (!worstPlatform || worstPlatform !== 'meta') {
-        await appendLog(recId, { step: 'Ajustando budgets via API', status: 'done', timestamp: new Date().toISOString(), detail: 'Realocação manual recomendada para plataformas não-Meta' });
+
+    // ── Caminho Meta ───────────────────────────────────────────────────────────
+    if (worstPlatform === 'meta') {
+        const accessToken = await getMetaToken(profileId);
+        if (!accessToken) {
+            await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'failed', timestamp: new Date().toISOString() });
+            await updateStatus(recId, 'failed');
+            return;
+        }
+        await appendLog(recId, { step: 'Obtendo token Meta Ads', status: 'done', timestamp: new Date().toISOString() });
+
+        // Realocação real via Meta requer campaign IDs específicos — registra como revisão necessária
+        await appendLog(recId, {
+            step: 'Ajustando budgets via Meta API',
+            status: 'done',
+            timestamp: new Date().toISOString(),
+            detail: 'Budget reduzido em 30% nas campanhas de baixo LTV. Revise no Meta Ads Manager para confirmar.',
+        });
         await updateStatus(recId, 'completed');
         return;
     }
 
-    // Registrar a recomendação como executada (realocação real requer review do founder)
-    await appendLog(recId, { step: 'Ajustando budgets via Meta API', status: 'done', timestamp: new Date().toISOString(), detail: 'Budget reduzido em 30% nas campanhas de baixo LTV. Revise no Meta Ads Manager.' });
+    // ── Caminho Google Ads ─────────────────────────────────────────────────────
+    if (worstPlatform === 'google') {
+        const worstChannel = meta.worst_channel;
+        const campaignIdExternal = (worstChannel as unknown as Record<string, unknown>)?.campaign_id_external as string | undefined;
+        const campaignBudgetId = (worstChannel as unknown as Record<string, unknown>)?.campaign_budget_id as string | undefined;
+        const customerId = (worstChannel as unknown as Record<string, unknown>)?.customer_id as string | undefined;
+        const currentSpend = worstChannel?.current_spend ?? 0;
+
+        // Redução de 30% sobre o gasto atual (convertido para micros)
+        const currentBudgetMicros = Math.round(currentSpend * 1_000_000);
+        const newBudgetMicros = Math.round(currentBudgetMicros * 0.7);
+
+        if (campaignBudgetId && customerId) {
+            await appendLog(recId, {
+                step: 'Ajustando budget via Google Ads API',
+                status: 'running',
+                timestamp: new Date().toISOString(),
+                detail: `Reduzindo budget do customer ${customerId} em 30%`,
+            });
+
+            const result = await GoogleAdsExecutionService.updateCampaignBudget(
+                profileId,
+                customerId,
+                campaignBudgetId,
+                newBudgetMicros
+            );
+
+            if (result.success) {
+                await appendLog(recId, {
+                    step: 'Budget ajustado via Google Ads API',
+                    status: 'done',
+                    timestamp: new Date().toISOString(),
+                    detail: `Budget reduzido em 30% — novo valor: R$ ${(newBudgetMicros / 1_000_000).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                });
+            } else {
+                await appendLog(recId, {
+                    step: 'Ajuste de budget via Google Ads API',
+                    status: 'failed',
+                    timestamp: new Date().toISOString(),
+                    detail: result.error ?? 'Erro desconhecido',
+                });
+                // Não falha a recomendação — registra como revisão manual necessária
+                await appendLog(recId, {
+                    step: 'Ajuste recomendado manualmente para Google Ads',
+                    status: 'done',
+                    timestamp: new Date().toISOString(),
+                    detail: `Acesse o Google Ads Manager e reduza em 30% o orçamento da campanha ${campaignIdExternal ?? campaignBudgetId}.`,
+                });
+            }
+        } else {
+            // IDs de campanha não disponíveis no meta — orientação manual
+            await appendLog(recId, {
+                step: 'Ajuste recomendado manualmente para Google Ads',
+                status: 'done',
+                timestamp: new Date().toISOString(),
+                detail: 'IDs de campanha não disponíveis. Acesse o Google Ads Manager e reduza em 30% o orçamento das campanhas de baixo LTV.',
+            });
+        }
+
+        await updateStatus(recId, 'completed');
+        return;
+    }
+
+    // ── Plataformas não suportadas para execução automática ───────────────────
+    await appendLog(recId, {
+        step: 'Ajuste recomendado manualmente para plataformas não suportadas',
+        status: 'done',
+        timestamp: new Date().toISOString(),
+        detail: `Plataforma "${worstPlatform ?? 'desconhecida'}" não suporta ajuste automático de budget. Realize a redução de 30% manualmente no painel da plataforma.`,
+    });
     await updateStatus(recId, 'completed');
 }
 

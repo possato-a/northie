@@ -38,14 +38,21 @@ export async function getAgentContext(userId: string, agentId: string): Promise<
         case 'anomalies':
             return getAnomaliesContext(userId);
         case 'creatives':
+            return getCreativesContext(userId);
         case 'ecommerce':
+            return getEcommerceContext(userId);
         case 'email':
+            return getEmailContext(userId);
         case 'pipeline':
+            return getPipelineContext(userId);
         case 'whatsapp':
+            return getWhatsAppContext(userId);
         case 'nps':
+            return getNpsContext(userId);
         case 'engagement':
+            return getEngagementContext(userId);
         case 'valuation':
-            return `// TODO: dados de ${agentId} não disponíveis ainda — as tabelas necessárias serão implementadas em fase futura.\nResponda com base nas informações que o founder fornecer na conversa e use benchmarks do mercado digital brasileiro.`;
+            return getValuationContext(userId);
         default:
             return 'Nenhum dado disponível para este agente.';
     }
@@ -968,6 +975,687 @@ async function getAnomaliesContext(userId: string): Promise<string> {
     } else if (!churnRiskError) {
         lines.push('Clientes com churn > 70%: nenhum identificado no momento.');
     }
+
+    return lines.join('\n');
+}
+
+async function getCreativesContext(_userId: string): Promise<string> {
+    const lines: string[] = [];
+    const twentyEightDaysAgoDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const { data: adMetrics, error: adError } = await supabase
+        .from('ad_metrics')
+        .select('campaign_id, platform, spend_brl, impressions, clicks, date')
+        .gte('date', twentyEightDaysAgoDate)
+        .order('spend_brl', { ascending: false })
+        .limit(50);
+
+    if (adError) {
+        console.error('[AgentData] creatives ad_metrics error:', adError.message);
+        lines.push('Dados de performance de campanhas (últimos 28 dias): indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!adMetrics || adMetrics.length === 0) {
+        lines.push('Dados de performance de campanhas (últimos 28 dias): nenhum dado registrado ainda.');
+        lines.push('Os dados de criativos aparecerão automaticamente após conectar Meta Ads ou Google Ads na página de Integrações.');
+        return lines.join('\n');
+    }
+
+    // Agregar por campaign_id + platform client-side
+    const aggregated: Record<string, { platform: string; spend: number; impressions: number; clicks: number }> = {};
+    for (const row of adMetrics) {
+        const key = `${row.campaign_id}|${row.platform}`;
+        if (!aggregated[key]) {
+            aggregated[key] = { platform: row.platform, spend: 0, impressions: 0, clicks: 0 };
+        }
+        aggregated[key].spend += Number(row.spend_brl) || 0;
+        aggregated[key].impressions += Number(row.impressions) || 0;
+        aggregated[key].clicks += Number(row.clicks) || 0;
+    }
+
+    const sorted = Object.entries(aggregated).sort((a, b) => b[1].spend - a[1].spend);
+
+    const fatiguedCampaigns: string[] = [];
+    const highSpendLowEngagement: string[] = [];
+
+    lines.push('Performance de campanhas (últimos 28 dias) — proxy de criativos:');
+    for (const [key, val] of sorted) {
+        const campaignId = key.split('|')[0];
+        const ctr = val.impressions > 0 ? (val.clicks / val.impressions) * 100 : 0;
+        const cpc = val.clicks > 0 ? val.spend / val.clicks : 0;
+        lines.push(`— Campanha ${campaignId} (${val.platform}): R$ ${val.spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} gasto | ${val.impressions.toLocaleString('pt-BR')} impressões | ${val.clicks.toLocaleString('pt-BR')} cliques | CTR ${ctr.toFixed(2)}% | CPC R$ ${cpc.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+
+        if (ctr < 0.5 && val.impressions > 1000) {
+            fatiguedCampaigns.push(`${campaignId} (${val.platform}) — CTR ${ctr.toFixed(2)}%`);
+        }
+        if (val.spend > 500 && val.clicks < 50) {
+            highSpendLowEngagement.push(`${campaignId} (${val.platform}) — R$ ${val.spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} com apenas ${val.clicks} cliques`);
+        }
+    }
+
+    lines.push('');
+
+    if (fatiguedCampaigns.length > 0) {
+        lines.push(`Campanhas com possível fadiga de criativo (CTR < 0,5% com volume expressivo): ${fatiguedCampaigns.length}`);
+        for (const c of fatiguedCampaigns) {
+            lines.push(`— ${c}`);
+        }
+    } else {
+        lines.push('Campanhas com possível fadiga de criativo (CTR < 0,5%): nenhuma identificada.');
+    }
+
+    lines.push('');
+
+    if (highSpendLowEngagement.length > 0) {
+        lines.push(`Campanhas com gasto alto e baixo engajamento (revisar criativos): ${highSpendLowEngagement.length}`);
+        for (const c of highSpendLowEngagement) {
+            lines.push(`— ${c}`);
+        }
+    } else {
+        lines.push('Campanhas com gasto alto e baixo volume de cliques: nenhuma identificada.');
+    }
+
+    lines.push('');
+    lines.push('Nota: IDs de criativos individuais não estão disponíveis ainda — a análise é feita em nível de campanha como proxy de desempenho criativo.');
+
+    return lines.join('\n');
+}
+
+async function getEcommerceContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const now = Date.now();
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const ninetyDaysAgo = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: shopifyTx, error: shopifyError } = await supabase
+        .from('transactions')
+        .select('amount_net, amount_gross, fee_platform, created_at, customer_id')
+        .eq('user_id', userId)
+        .eq('platform', 'shopify')
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+    if (shopifyError) {
+        console.error('[AgentData] ecommerce shopify transactions error:', shopifyError.message);
+        lines.push('Dados de e-commerce Shopify: indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!shopifyTx || shopifyTx.length === 0) {
+        lines.push('Dados de e-commerce Shopify: nenhuma transação registrada ainda.');
+        lines.push('Conecte sua loja Shopify na página de Integrações para que os pedidos comecem a aparecer aqui.');
+        return lines.join('\n');
+    }
+
+    // Segmentar por período
+    const tx30 = shopifyTx.filter(t => t.created_at >= thirtyDaysAgo);
+    const tx90 = shopifyTx.filter(t => t.created_at >= ninetyDaysAgo);
+
+    const totalAllTime = shopifyTx.reduce((s, t) => s + (Number(t.amount_net) || 0), 0);
+    const total90 = tx90.reduce((s, t) => s + (Number(t.amount_net) || 0), 0);
+    const total30 = tx30.reduce((s, t) => s + (Number(t.amount_net) || 0), 0);
+    const aov = shopifyTx.length > 0 ? totalAllTime / shopifyTx.length : 0;
+
+    const uniqueCustomersAll = new Set(shopifyTx.map(t => t.customer_id).filter(Boolean)).size;
+    const uniqueCustomers30 = new Set(tx30.map(t => t.customer_id).filter(Boolean)).size;
+
+    lines.push('Resumo Shopify — visão geral:');
+    lines.push(`— Receita líquida total (all time): R$ ${totalAllTime.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— Receita líquida (últimos 90 dias): R$ ${total90.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— Receita líquida (últimos 30 dias): R$ ${total30.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— Total de pedidos aprovados: ${shopifyTx.length}`);
+    lines.push(`— Pedidos nos últimos 30 dias: ${tx30.length}`);
+    lines.push(`— Ticket médio (AOV): R$ ${aov.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— Clientes únicos (all time): ${uniqueCustomersAll}`);
+    lines.push(`— Clientes únicos (últimos 30 dias): ${uniqueCustomers30}`);
+
+    // Tendência mensal — últimos 6 meses
+    const tx6m = shopifyTx.filter(t => t.created_at >= sixMonthsAgo);
+    if (tx6m.length > 0) {
+        const byMonth: Record<string, { net: number; count: number }> = {};
+        for (const t of tx6m) {
+            const d = new Date(t.created_at);
+            const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!byMonth[month]) byMonth[month] = { net: 0, count: 0 };
+            byMonth[month].net += Number(t.amount_net) || 0;
+            byMonth[month].count += 1;
+        }
+        const months = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+        lines.push('');
+        lines.push('Tendência de pedidos Shopify (últimos 6 meses):');
+        for (const [month, val] of months) {
+            lines.push(`— ${month}: R$ ${val.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | ${val.count} pedidos`);
+        }
+    }
+
+    // Taxa de recompra: clientes com mais de 1 pedido
+    const purchaseCount: Record<string, number> = {};
+    for (const t of shopifyTx) {
+        if (t.customer_id) purchaseCount[t.customer_id] = (purchaseCount[t.customer_id] || 0) + 1;
+    }
+    const returning = Object.values(purchaseCount).filter(n => n > 1).length;
+    const returnRate = uniqueCustomersAll > 0 ? ((returning / uniqueCustomersAll) * 100).toFixed(1) : '0.0';
+
+    lines.push('');
+    lines.push(`Taxa de recompra (clientes com 2+ pedidos): ${returnRate}% (${returning} de ${uniqueCustomersAll} clientes)`);
+
+    return lines.join('\n');
+}
+
+async function getEmailContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: emailData, error: emailError } = await supabase
+        .from('email_campaigns')
+        .select('status, subject, growth_action_id, created_at')
+        .eq('profile_id', userId)
+        .gte('created_at', ninetyDaysAgo)
+        .order('created_at', { ascending: false });
+
+    if (emailError) {
+        console.error('[AgentData] email campaigns error:', emailError.message);
+        lines.push('Dados de campanhas de email: indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!emailData || emailData.length === 0) {
+        lines.push('Campanhas de email (últimos 90 dias): nenhum email enviado via Northie ainda.');
+        lines.push('Os emails de reativação e upsell enviados pelo Growth Engine aparecerão aqui.');
+        lines.push('Para enviar emails via Northie, aprove uma ação de Growth que utilize o canal de email.');
+        return lines.join('\n');
+    }
+
+    const recent30 = emailData.filter(e => e.created_at >= thirtyDaysAgo);
+    const total90 = emailData.length;
+    const total30 = recent30.length;
+
+    // Contagem por status
+    const statusCount: Record<string, number> = {};
+    for (const e of emailData) {
+        const s = e.status || 'desconhecido';
+        statusCount[s] = (statusCount[s] || 0) + 1;
+    }
+
+    const sent90 = statusCount['sent'] || 0;
+    const failed90 = statusCount['failed'] || 0;
+    const successRate = total90 > 0 ? ((sent90 / total90) * 100).toFixed(1) : '0.0';
+
+    lines.push('Resumo de emails enviados via Northie:');
+    lines.push(`— Total de emails (últimos 90 dias): ${total90}`);
+    lines.push(`— Total de emails (últimos 30 dias): ${total30}`);
+    lines.push(`— Enviados com sucesso (90 dias): ${sent90}`);
+    lines.push(`— Falhas de envio (90 dias): ${failed90}`);
+    lines.push(`— Taxa de entrega: ${successRate}%`);
+
+    lines.push('');
+    lines.push('Distribuição por status (90 dias):');
+    for (const [status, count] of Object.entries(statusCount)) {
+        const pct = total90 > 0 ? ((count / total90) * 100).toFixed(1) : '0.0';
+        lines.push(`— ${status}: ${count} emails (${pct}%)`);
+    }
+
+    // Ações de growth únicas
+    const uniqueActions = new Set(emailData.map(e => e.growth_action_id).filter(Boolean));
+    lines.push('');
+    lines.push(`Campanhas de growth distintas que geraram emails: ${uniqueActions.size}`);
+
+    // Últimos 5 assuntos
+    const recentSubjects = emailData.slice(0, 5).map(e => e.subject).filter(Boolean);
+    if (recentSubjects.length > 0) {
+        lines.push('');
+        lines.push('Últimos assuntos enviados:');
+        for (const subject of recentSubjects) {
+            lines.push(`— "${subject}"`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function getPipelineContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: meetings, error: meetingError } = await supabase
+        .from('meetings')
+        .select('title, started_at, duration_minutes, ai_result, ai_objections, ai_summary, linked_customer_id')
+        .eq('profile_id', userId)
+        .gte('started_at', ninetyDaysAgo)
+        .order('started_at', { ascending: false });
+
+    if (meetingError) {
+        console.error('[AgentData] pipeline meetings error:', meetingError.message);
+        lines.push('Dados de pipeline e reuniões: indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!meetings || meetings.length === 0) {
+        lines.push('Dados de pipeline (últimos 90 dias): nenhuma reunião registrada ainda.');
+        lines.push('As reuniões aparecerão aqui automaticamente após conectar Google Calendar na página de Integrações.');
+        lines.push('Reuniões transcritas via Google Meet terão análise de objeções e sinais de fechamento.');
+        return lines.join('\n');
+    }
+
+    const total = meetings.length;
+    const linked = meetings.filter(m => m.linked_customer_id).length;
+
+    // Resultados de IA
+    const resultCount: Record<string, number> = {};
+    for (const m of meetings) {
+        const r = m.ai_result || 'sem_análise';
+        resultCount[r] = (resultCount[r] || 0) + 1;
+    }
+
+    const positiveCount = (resultCount['positivo'] || 0) + (resultCount['positive'] || 0);
+    const negativeCount = (resultCount['negativo'] || 0) + (resultCount['negative'] || 0);
+    const conversionRate = total > 0 ? ((positiveCount / total) * 100).toFixed(1) : '0.0';
+
+    const meetingsWithDuration = meetings.filter(m => m.duration_minutes);
+    const avgDuration = meetingsWithDuration.length > 0
+        ? meetingsWithDuration.reduce((sum, m) => sum + (Number(m.duration_minutes) || 0), 0) / meetingsWithDuration.length
+        : 0;
+
+    lines.push('Resumo do pipeline de reuniões (últimos 90 dias):');
+    lines.push(`— Total de reuniões: ${total}`);
+    lines.push(`— Reuniões vinculadas a clientes: ${linked}`);
+    lines.push(`— Resultado positivo (fechamento/avanço): ${positiveCount}`);
+    lines.push(`— Resultado negativo (perdido): ${negativeCount}`);
+    lines.push(`— Taxa de conversão estimada: ${conversionRate}%`);
+    lines.push(`— Duração média: ${avgDuration.toFixed(0)} minutos`);
+
+    lines.push('');
+    lines.push('Distribuição por resultado de IA:');
+    for (const [result, count] of Object.entries(resultCount)) {
+        const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+        lines.push(`— ${result}: ${count} reuniões (${pct}%)`);
+    }
+
+    // Objeções mais comuns (ai_objections é jsonb — array de strings)
+    const objectionCount: Record<string, number> = {};
+    for (const m of meetings) {
+        if (Array.isArray(m.ai_objections)) {
+            for (const obj of m.ai_objections as string[]) {
+                if (obj) objectionCount[obj] = (objectionCount[obj] || 0) + 1;
+            }
+        }
+    }
+    const topObjections = Object.entries(objectionCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (topObjections.length > 0) {
+        lines.push('');
+        lines.push('Objeções mais frequentes identificadas pela IA:');
+        for (const [obj, count] of topObjections) {
+            lines.push(`— "${obj}": ${count} ocorrências`);
+        }
+    }
+
+    // Reuniões mais recentes
+    lines.push('');
+    lines.push('Reuniões mais recentes:');
+    for (const m of meetings.slice(0, 5)) {
+        const date = m.started_at ? new Date(m.started_at).toLocaleDateString('pt-BR') : 'N/A';
+        const result = m.ai_result || 'sem análise';
+        const duration = m.duration_minutes ? `${m.duration_minutes}min` : 'N/A';
+        lines.push(`— ${date} | "${m.title || 'Sem título'}" | ${duration} | Resultado: ${result}`);
+    }
+
+    return lines.join('\n');
+}
+
+async function getWhatsAppContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: waData, error: waError } = await supabase
+        .from('whatsapp_messages')
+        .select('status, template_name, growth_action_id, created_at')
+        .eq('profile_id', userId)
+        .gte('created_at', ninetyDaysAgo)
+        .order('created_at', { ascending: false });
+
+    if (waError) {
+        console.error('[AgentData] whatsapp messages error:', waError.message);
+        lines.push('Dados de campanhas WhatsApp: indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!waData || waData.length === 0) {
+        lines.push('Campanhas WhatsApp via Northie (últimos 90 dias): nenhuma mensagem enviada ainda.');
+        lines.push('As mensagens de reativação e upsell via WhatsApp aparecerão aqui após aprovação de ações do Growth Engine.');
+        lines.push('WhatsApp é o canal prioritário no Brasil — configure a Meta Business API para ativar este canal.');
+        return lines.join('\n');
+    }
+
+    const recent30 = waData.filter(m => m.created_at >= thirtyDaysAgo);
+    const total90 = waData.length;
+    const total30 = recent30.length;
+
+    // Status breakdown
+    const statusCount: Record<string, number> = {};
+    for (const m of waData) {
+        const s = m.status || 'desconhecido';
+        statusCount[s] = (statusCount[s] || 0) + 1;
+    }
+
+    const delivered = statusCount['delivered'] || 0;
+    const sent = statusCount['sent'] || 0;
+    const failed = statusCount['failed'] || 0;
+    const deliveryRate = total90 > 0 ? (((delivered + sent) / total90) * 100).toFixed(1) : '0.0';
+
+    lines.push('Resumo de mensagens WhatsApp enviadas via Northie:');
+    lines.push(`— Total de mensagens (últimos 90 dias): ${total90}`);
+    lines.push(`— Total de mensagens (últimos 30 dias): ${total30}`);
+    lines.push(`— Entregues/enviadas: ${delivered + sent}`);
+    lines.push(`— Falhas: ${failed}`);
+    lines.push(`— Taxa de entrega: ${deliveryRate}%`);
+
+    lines.push('');
+    lines.push('Distribuição por status (90 dias):');
+    for (const [status, count] of Object.entries(statusCount)) {
+        const pct = total90 > 0 ? ((count / total90) * 100).toFixed(1) : '0.0';
+        lines.push(`— ${status}: ${count} mensagens (${pct}%)`);
+    }
+
+    // Templates mais usados
+    const templateCount: Record<string, number> = {};
+    for (const m of waData) {
+        if (m.template_name) templateCount[m.template_name] = (templateCount[m.template_name] || 0) + 1;
+    }
+    const topTemplates = Object.entries(templateCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (topTemplates.length > 0) {
+        lines.push('');
+        lines.push('Templates mais utilizados:');
+        for (const [template, count] of topTemplates) {
+            lines.push(`— "${template}": ${count} envios`);
+        }
+    }
+
+    // Ações de growth distintas
+    const uniqueActions = new Set(waData.map(m => m.growth_action_id).filter(Boolean));
+    lines.push('');
+    lines.push(`Campanhas de growth distintas que geraram mensagens WA: ${uniqueActions.size}`);
+
+    return lines.join('\n');
+}
+
+async function getNpsContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+
+    // Contexto de negócio fornecido pelo founder — pode conter dados de NPS manual
+    const { data: ctxData, error: ctxError } = await supabase
+        .from('business_context')
+        .select('content, context_type, updated_at')
+        .eq('profile_id', userId)
+        .order('updated_at', { ascending: false });
+
+    if (!ctxError && ctxData && ctxData.length > 0) {
+        const npsContext = ctxData.find(c =>
+            typeof c.content === 'string' &&
+            c.content.toLowerCase().includes('nps')
+        );
+        if (npsContext) {
+            lines.push('Dados de NPS fornecidos pelo founder (Contexto do Negócio):');
+            lines.push(npsContext.content.slice(0, 500));
+            lines.push('');
+        }
+    }
+
+    // Proxy de satisfação: distribuição de churn_probability como indicador de saúde
+    const { data: custHealth, error: healthError } = await supabase
+        .from('customers')
+        .select('churn_probability, total_ltv')
+        .eq('user_id', userId);
+
+    if (healthError) {
+        console.error('[AgentData] nps customer health error:', healthError.message);
+        lines.push('Saúde da base de clientes: dados indisponíveis.');
+        return lines.join('\n');
+    }
+
+    if (!custHealth || custHealth.length === 0) {
+        lines.push('Saúde da base de clientes: nenhum cliente registrado ainda.');
+        lines.push('O score de saúde será calculado automaticamente após as primeiras transações.');
+        return lines.join('\n');
+    }
+
+    const total = custHealth.length;
+    const satisfied = custHealth.filter(c => Number(c.churn_probability) < 0.2).length;
+    const neutral = custHealth.filter(c => Number(c.churn_probability) >= 0.2 && Number(c.churn_probability) <= 0.5).length;
+    const atRisk = custHealth.filter(c => Number(c.churn_probability) > 0.5 && Number(c.churn_probability) <= 0.7).length;
+    const critical = custHealth.filter(c => Number(c.churn_probability) > 0.7).length;
+    const noData = custHealth.filter(c => c.churn_probability === null || c.churn_probability === undefined).length;
+
+    const satisfiedPct = total > 0 ? ((satisfied / total) * 100).toFixed(1) : '0.0';
+    const criticalPct = total > 0 ? ((critical / total) * 100).toFixed(1) : '0.0';
+
+    // Proxy NPS = (promotores - detratores) / total × 100
+    const proxyNps = total > 0 ? Math.round(((satisfied - critical) / total) * 100) : 0;
+
+    const satisfiedLtv = custHealth
+        .filter(c => Number(c.churn_probability) < 0.2)
+        .reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+    const criticalLtv = custHealth
+        .filter(c => Number(c.churn_probability) > 0.7)
+        .reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+
+    lines.push('Saúde da base de clientes (proxy de satisfação via churn_probability):');
+    lines.push(`— Total de clientes analisados: ${total}`);
+    lines.push(`— Saudáveis (churn < 20%): ${satisfied} clientes (${satisfiedPct}%) | LTV R$ ${satisfiedLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— Neutros (churn 20–50%): ${neutral} clientes (${total > 0 ? ((neutral / total) * 100).toFixed(1) : '0.0'}%)`);
+    lines.push(`— Em risco (churn 50–70%): ${atRisk} clientes (${total > 0 ? ((atRisk / total) * 100).toFixed(1) : '0.0'}%)`);
+    lines.push(`— Críticos (churn > 70%): ${critical} clientes (${criticalPct}%) | LTV exposto R$ ${criticalLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    if (noData > 0) lines.push(`— Sem score calculado ainda: ${noData} clientes`);
+    lines.push('');
+    lines.push(`Proxy de NPS (promotores − detratores): ${proxyNps > 0 ? '+' : ''}${proxyNps} (referência: acima de +30 é positivo)`);
+    lines.push('');
+    lines.push('Nota: para NPS real, adicione dados de pesquisa no Contexto do Negócio ou integre com Hotmart (formulários pós-compra). O score acima é calculado a partir do modelo de churn da Northie como proxy de satisfação.');
+
+    return lines.join('\n');
+}
+
+async function getEngagementContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const now = Date.now();
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const sixtyDaysAgo = new Date(now - 60 * 24 * 60 * 60 * 1000).toISOString();
+    const ninetyDaysAgo = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const sixMonthsAgo = new Date(now - 180 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: customers, error: custError } = await supabase
+        .from('customers')
+        .select('total_ltv, last_purchase_at, created_at')
+        .eq('user_id', userId);
+
+    if (custError) {
+        console.error('[AgentData] engagement customers error:', custError.message);
+        lines.push('Dados de engajamento da base: indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!customers || customers.length === 0) {
+        lines.push('Dados de engajamento: nenhum cliente registrado ainda.');
+        return lines.join('\n');
+    }
+
+    const total = customers.length;
+
+    // Distribuição de recência
+    const recency0_30 = customers.filter(c => c.last_purchase_at && c.last_purchase_at >= thirtyDaysAgo).length;
+    const recency31_60 = customers.filter(c => {
+        if (!c.last_purchase_at) return false;
+        return c.last_purchase_at < thirtyDaysAgo && c.last_purchase_at >= sixtyDaysAgo;
+    }).length;
+    const recency61_90 = customers.filter(c => {
+        if (!c.last_purchase_at) return false;
+        return c.last_purchase_at < sixtyDaysAgo && c.last_purchase_at >= ninetyDaysAgo;
+    }).length;
+    const recency90plus = customers.filter(c => c.last_purchase_at && c.last_purchase_at < ninetyDaysAgo).length;
+    const neverPurchased = customers.filter(c => !c.last_purchase_at).length;
+
+    lines.push('Distribuição de recência da base de clientes:');
+    lines.push(`— Ativos (compra nos últimos 30 dias): ${recency0_30} clientes (${total > 0 ? ((recency0_30 / total) * 100).toFixed(1) : '0.0'}%)`);
+    lines.push(`— Recentes (31–60 dias): ${recency31_60} clientes (${total > 0 ? ((recency31_60 / total) * 100).toFixed(1) : '0.0'}%)`);
+    lines.push(`— Esfriando (61–90 dias): ${recency61_90} clientes (${total > 0 ? ((recency61_90 / total) * 100).toFixed(1) : '0.0'}%)`);
+    lines.push(`— Inativos (90+ dias): ${recency90plus} clientes (${total > 0 ? ((recency90plus / total) * 100).toFixed(1) : '0.0'}%)`);
+    if (neverPurchased > 0) lines.push(`— Sem compra registrada: ${neverPurchased} clientes`);
+
+    lines.push('');
+
+    // Clientes novos vs recorrentes nos últimos 30 dias
+    const { data: recentTx, error: txError } = await supabase
+        .from('transactions')
+        .select('customer_id, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', ninetyDaysAgo);
+
+    if (!txError && recentTx && recentTx.length > 0) {
+        const tx30 = recentTx.filter(t => t.created_at >= thirtyDaysAgo);
+        const allCustomerIds30 = new Set(tx30.map(t => t.customer_id).filter(Boolean));
+
+        const purchasedBefore30 = new Set(
+            recentTx
+                .filter(t => t.created_at < thirtyDaysAgo && t.customer_id)
+                .map(t => t.customer_id)
+        );
+        const returning30 = [...allCustomerIds30].filter(id => purchasedBefore30.has(id)).length;
+        const new30 = allCustomerIds30.size - returning30;
+
+        lines.push('Clientes ativos nos últimos 30 dias:');
+        lines.push(`— Total de clientes únicos com compra: ${allCustomerIds30.size}`);
+        lines.push(`— Novos compradores no período: ${new30}`);
+        lines.push(`— Compradores recorrentes no período: ${returning30}`);
+        const returnRatePct = allCustomerIds30.size > 0 ? ((returning30 / allCustomerIds30.size) * 100).toFixed(1) : '0.0';
+        lines.push(`— Taxa de recorrência no período: ${returnRatePct}%`);
+    }
+
+    lines.push('');
+
+    // Retenção de cohort: clientes adquiridos há 6+ meses ainda comprando
+    const oldCustomers = customers.filter(c => c.created_at && c.created_at < sixMonthsAgo);
+    const stillActive = oldCustomers.filter(c => c.last_purchase_at && c.last_purchase_at >= ninetyDaysAgo).length;
+    const retentionRate = oldCustomers.length > 0 ? ((stillActive / oldCustomers.length) * 100).toFixed(1) : 'N/A';
+
+    lines.push('Retenção de cohort (clientes adquiridos há 6+ meses ainda comprando nos últimos 90 dias):');
+    lines.push(`— Clientes na coorte (adquiridos há 6+ meses): ${oldCustomers.length}`);
+    lines.push(`— Ainda ativos (compra nos últimos 90 dias): ${stillActive}`);
+    lines.push(`— Taxa de retenção de longo prazo: ${retentionRate}%`);
+
+    return lines.join('\n');
+}
+
+async function getValuationContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+    const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: txData, error: txError } = await supabase
+        .from('transactions')
+        .select('amount_net, amount_gross, fee_platform, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'approved')
+        .gte('created_at', sixMonthsAgo)
+        .order('created_at', { ascending: true });
+
+    if (txError) {
+        console.error('[AgentData] valuation transactions error:', txError.message);
+        lines.push('Dados de valuation: indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!txData || txData.length === 0) {
+        lines.push('Dados de valuation (últimos 6 meses): nenhuma transação registrada ainda.');
+        lines.push('O valuation estimado do negócio será calculado automaticamente após os primeiros meses de dados.');
+        return lines.join('\n');
+    }
+
+    // Agrupar por mês
+    const byMonth: Record<string, { net: number; gross: number }> = {};
+    for (const t of txData) {
+        const d = new Date(t.created_at);
+        const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!byMonth[month]) byMonth[month] = { net: 0, gross: 0 };
+        byMonth[month].net += Number(t.amount_net) || 0;
+        byMonth[month].gross += Number(t.amount_gross) || 0;
+    }
+
+    const months = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+    const revenues = months.map(m => m[1].net);
+
+    // MRR = média dos últimos 3 meses disponíveis
+    const last3 = revenues.slice(-3);
+    const mrr = last3.length > 0 ? last3.reduce((a, b) => a + b, 0) / last3.length : 0;
+    const arr = mrr * 12;
+
+    // Crescimento MoM
+    const growthRates: number[] = [];
+    for (let i = 1; i < revenues.length; i++) {
+        const prev = revenues[i - 1] ?? 0;
+        const curr = revenues[i] ?? 0;
+        if (prev > 0) growthRates.push(((curr - prev) / prev) * 100);
+    }
+    const avgGrowth = growthRates.length > 0 ? growthRates.reduce((a, b) => a + b, 0) / growthRates.length : 0;
+
+    // Margem bruta = net/gross
+    const totalNet = txData.reduce((s, t) => s + (Number(t.amount_net) || 0), 0);
+    const totalGross = txData.reduce((s, t) => s + (Number(t.amount_gross) || 0), 0);
+    const grossMarginPct = totalGross > 0 ? (totalNet / totalGross) * 100 : 0;
+
+    // Rule of 40: crescimento MoM anualizado + margem
+    const growthAnnualized = avgGrowth * 12;
+    const ruleOf40 = growthAnnualized + grossMarginPct;
+
+    lines.push('Métricas de valuation do negócio (últimos 6 meses):');
+    lines.push('');
+    lines.push('Receita mensal:');
+    for (const [month, val] of months) {
+        lines.push(`— ${month}: R$ ${val.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} líquido | R$ ${val.gross.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} bruto`);
+    }
+
+    lines.push('');
+    lines.push('Indicadores financeiros principais:');
+    lines.push(`— MRR (média dos últimos 3 meses): R$ ${mrr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— ARR (MRR × 12): R$ ${arr.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— Crescimento MoM médio (${growthRates.length} meses): ${avgGrowth >= 0 ? '+' : ''}${avgGrowth.toFixed(1)}%`);
+    lines.push(`— Crescimento anualizado estimado: ${growthAnnualized >= 0 ? '+' : ''}${growthAnnualized.toFixed(1)}%`);
+    lines.push(`— Margem bruta (net/gross, 6 meses): ${grossMarginPct.toFixed(1)}%`);
+    lines.push(`— Rule of 40 (crescimento anual + margem): ${ruleOf40.toFixed(1)} (${ruleOf40 >= 40 ? 'saudável — acima de 40' : 'abaixo de 40 — foco em eficiência ou crescimento'})`);
+
+    lines.push('');
+    lines.push('Múltiplos de valuation estimados:');
+    lines.push(`— SaaS conservador (4× ARR): R$ ${(arr * 4).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— SaaS mediano (6× ARR): R$ ${(arr * 6).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— E-commerce conservador (1,5× ARR): R$ ${(arr * 1.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+    lines.push(`— E-commerce mediano (2,5× ARR): R$ ${(arr * 2.5).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+
+    lines.push('');
+
+    // Qualidade da base de clientes como fator de qualidade
+    const { data: custData, error: custError } = await supabase
+        .from('customers')
+        .select('rfm_score, churn_probability, total_ltv')
+        .eq('user_id', userId);
+
+    if (!custError && custData && custData.length > 0) {
+        const totalCust = custData.length;
+        const champions = custData.filter(c => c.rfm_score === 'Champions' || c.rfm_score === '555').length;
+        const lowChurn = custData.filter(c => Number(c.churn_probability) < 0.2).length;
+        const avgLtv = custData.reduce((s, c) => s + (Number(c.total_ltv) || 0), 0) / totalCust;
+        const avgChurn = custData.reduce((s, c) => s + (Number(c.churn_probability) || 0), 0) / totalCust;
+
+        lines.push('Qualidade da base de clientes (fatores de valuation):');
+        lines.push(`— Total de clientes: ${totalCust}`);
+        lines.push(`— LTV médio da base: R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`— Clientes Champions (RFM 555): ${champions} (${totalCust > 0 ? ((champions / totalCust) * 100).toFixed(1) : '0.0'}%)`);
+        lines.push(`— Clientes saudáveis (churn < 20%): ${lowChurn} (${totalCust > 0 ? ((lowChurn / totalCust) * 100).toFixed(1) : '0.0'}%)`);
+        lines.push(`— Churn médio da base: ${(avgChurn * 100).toFixed(1)}%`);
+    }
+
+    lines.push('');
+    lines.push('Nota: valuation estimado com base em múltiplos de mercado para negócios digitais brasileiros. Fatores qualitativos como produto, mercado endereçável e equipe não estão incluídos neste cálculo automatizado.');
 
     return lines.join('\n');
 }
