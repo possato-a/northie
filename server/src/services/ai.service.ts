@@ -123,20 +123,18 @@ REGRAS INVIOLÁVEIS:
 
         throw new Error('Unexpected response format from Claude');
     } catch (error: unknown) {
-        console.error('--- Anthropic API Error Detail ---');
-        if (error instanceof Error) {
-            const errObj = error as unknown as Record<string, unknown>;
-            if (errObj.status) console.error('Status:', errObj.status);
-            if (errObj.error) console.error('Error Body:', JSON.stringify(errObj.error, null, 2));
-            console.error('Message:', error.message);
-        } else {
-            console.error('Error:', error);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[AI Chat] Erro:', msg);
+        // Diagnóstico rápido da causa
+        if (msg.includes('credit') || msg.includes('balance')) {
+            console.error('[AI Chat] Causa: saldo Anthropic esgotado. Configure GROQ_API_KEY no servidor.');
+        } else if (msg.includes('GROQ_API_KEY') || msg.includes('provider') || msg.includes('configurada')) {
+            console.error('[AI Chat] Causa: nenhum provider de IA configurado. Adicione GROQ_API_KEY nas env vars.');
         }
-        console.error('---------------------------------');
 
         return {
             role: 'assistant',
-            content: 'Desculpe, tive um problema ao processar seu pedido agora. Verifique se minha chave API está ativa no servidor.',
+            content: 'Desculpe, tive um problema ao processar sua pergunta.',
             model: 'error'
         };
     }
@@ -354,7 +352,11 @@ REGRAS INVIOLÁVEIS:
 
         throw new Error('Unexpected response format');
     } catch (error: unknown) {
-        console.error('[AI Growth] Error:', error instanceof Error ? error.message : String(error));
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[AI Growth] Erro:', msg);
+        if (msg.includes('credit') || msg.includes('balance')) {
+            console.error('[AI Growth] Causa: saldo Anthropic esgotado. Configure GROQ_API_KEY nas env vars.');
+        }
         return {
             role: 'assistant',
             content: 'Desculpe, tive um problema ao processar sua pergunta. Tente novamente.',
