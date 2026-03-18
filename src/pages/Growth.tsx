@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { growthApi } from '../lib/api'
 import { KpiCard } from '../components/ui/KpiCard'
 import GrowthChatComponent from '../components/growth/GrowthChat'
+import CollaborationModal from '../components/growth/CollaborationModal'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type RecStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed' | 'rejected' | 'cancelled'
+type RecStatus = 'pending' | 'collaborating' | 'awaiting_confirmation' | 'approved' | 'executing' | 'completed' | 'failed' | 'dismissed' | 'rejected' | 'cancelled'
 type RecType =
   | 'reativacao_alto_ltv'
   | 'pausa_campanha_ltv_baixo'
@@ -54,6 +55,14 @@ const TYPE_LABELS: Record<RecType, string> = {
   cac_vs_ltv_deficit: 'Payback',
   em_risco_alto_valor: 'Em Risco',
 }
+
+const COLLABORATION_REQUIRED: RecType[] = [
+  'reativacao_alto_ltv',
+  'em_risco_alto_valor',
+  'upsell_cohort',
+  'queda_retencao_cohort',
+  'cac_vs_ltv_deficit',
+]
 
 const CHANNEL_LABELS: Record<string, string> = {
   meta_ads: 'Meta Ads',
@@ -323,6 +332,7 @@ function RecDetailDrawer({ rec, onClose, onApprove, onDismiss, onReject, onCance
 }) {
   const isActive = ['approved', 'executing', 'completed', 'failed', 'cancelled'].includes(rec.status)
   const ch = EXEC_CHANNEL[rec.type]
+  const requiresCollab = COLLABORATION_REQUIRED.includes(rec.type)
 
   return (
     <>
@@ -509,7 +519,7 @@ function RecDetailDrawer({ rec, onClose, onApprove, onDismiss, onReject, onCance
                         fontSize: 'var(--text-sm)', fontWeight: 500, cursor: 'pointer',
                       }}
                     >
-                      Aprovar
+                      {requiresCollab ? 'Ativar campanha' : 'Aprovar'}
                     </motion.button>
                     <motion.button
                       onClick={() => { onDismiss(rec.id); onClose() }}
@@ -1026,6 +1036,7 @@ export default function Growth() {
 
   const [growthTab, setGrowthTab] = useState<'metricas' | 'execucoes' | 'exploracao'>('metricas')
   const [selectedRec, setSelectedRec] = useState<Recommendation | null>(null)
+  const [collabRec, setCollabRec] = useState<Recommendation | null>(null)
   const pollingRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const pollingErrorCounts = useRef<Record<string, number>>({})
 
@@ -1090,7 +1101,16 @@ export default function Growth() {
     }, 2000)
   }, [stopPolling])
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = useCallback(async (id: string) => {
+    const rec = recommendations.find(r => r.id === id)
+    if (!rec) return
+
+    if (COLLABORATION_REQUIRED.includes(rec.type)) {
+      setCollabRec(rec)
+      setSelectedRec(null)
+      return
+    }
+
     setRecommendations(prev => prev.map(r =>
       r.id === id ? { ...r, status: 'executing', execution_log: [] } : r
     ))
@@ -1102,7 +1122,7 @@ export default function Growth() {
         r.id === id ? { ...r, status: 'failed', execution_log: [{ step: 'Falha ao conectar com o backend', status: 'failed', timestamp: new Date().toISOString() }] } : r
       ))
     }
-  }
+  }, [recommendations, startPolling])
 
   const handleDismiss = async (id: string) => {
     setRecommendations(prev => prev.filter(r => r.id !== id))
@@ -1381,6 +1401,23 @@ export default function Growth() {
             onDismiss={(id) => { handleDismiss(id); setSelectedRec(null) }}
             onReject={(id) => { handleReject(id); setSelectedRec(null) }}
             onCancel={(id) => { handleCancel(id); setSelectedRec(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Collaboration modal */}
+      <AnimatePresence>
+        {collabRec && (
+          <CollaborationModal
+            key={collabRec.id}
+            recommendationId={collabRec.id}
+            recommendationType={collabRec.type}
+            recommendationTitle={collabRec.title}
+            onClose={() => setCollabRec(null)}
+            onExecutionComplete={() => {
+              setCollabRec(null)
+              fetchData()
+            }}
           />
         )}
       </AnimatePresence>
