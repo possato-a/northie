@@ -4,15 +4,21 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-if (!ENCRYPTION_KEY || Buffer.from(ENCRYPTION_KEY).length !== 32) {
-    console.error(
-        '[encryption] ENCRYPTION_KEY deve ter exatamente 32 bytes. ' +
-        'Gere com: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
-    );
+
+if (!ENCRYPTION_KEY) {
+    console.error('[encryption] ENCRYPTION_KEY is required. Generate with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
     process.exit(1);
 }
 
-const KEY = Buffer.from(ENCRYPTION_KEY);
+// Detect hex encoding (64 hex chars = 32 bytes) vs raw UTF-8 (32 chars)
+const KEY = ENCRYPTION_KEY.length === 64 && /^[0-9a-f]+$/i.test(ENCRYPTION_KEY)
+    ? Buffer.from(ENCRYPTION_KEY, 'hex')
+    : Buffer.from(ENCRYPTION_KEY, 'utf8');
+
+if (KEY.length !== 32) {
+    console.error('[encryption] ENCRYPTION_KEY must be exactly 32 bytes (or 64 hex characters). Current length:', KEY.length, 'bytes');
+    process.exit(1);
+}
 
 // ── AES-256-GCM (authenticated encryption) ─────────────────────────────────
 const GCM_PREFIX = 'gcm:';

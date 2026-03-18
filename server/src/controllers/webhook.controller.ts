@@ -69,7 +69,9 @@ function verifyPlatformToken(platform: string, req: Request): boolean {
         console.warn('[Webhook] Hotmart: nenhum segredo configurado (HOTMART_WEBHOOK_SECRET ou HOTMART_WEBHOOK_TOKEN). Configure um dos dois para ativar o webhook.');
         return false;
     }
-    return true;
+    // Plataforma sem verificação configurada — rejeitar
+    console.warn(`[Webhook] Platform "${platform}" has no token verification configured — rejecting`);
+    return false;
 }
 
 /**
@@ -302,6 +304,11 @@ export async function handleWebhook(req: Request, res: Response) {
 
     if (!platform || typeof platform !== 'string') {
         return res.status(400).json({ error: 'Missing or invalid platform parameter' });
+    }
+
+    const ALLOWED_WEBHOOK_PLATFORMS = new Set(['hotmart', 'stripe', 'shopify', 'meta', 'google']);
+    if (!ALLOWED_WEBHOOK_PLATFORMS.has(platform)) {
+        return res.status(400).json({ error: `Unsupported platform: ${platform}` });
     }
 
     if (!profileId || typeof profileId !== 'string') {

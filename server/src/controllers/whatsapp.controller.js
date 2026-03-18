@@ -33,24 +33,46 @@ export async function verifyWebhook(req, res) {
 
 /**
  * POST /api/whatsapp/webhook
- * Recebe eventos de status e mensagens recebidas do Meta
+ * Recebe eventos de status e mensagens recebidas do Meta.
+ * Deve ser montado com express.raw({ type: 'application/json' }) — ANTES do express.json().
+ * req.body é um Buffer nesta rota.
  */
 export async function receiveWebhook(req, res) {
-    // Verificar assinatura HMAC
-    const signature = req.headers['x-hub-signature-256'];
-    if (signature && process.env.WHATSAPP_APP_SECRET) {
-        const expectedSig = 'sha256=' + crypto
-            .createHmac('sha256', process.env.WHATSAPP_APP_SECRET)
-            .update(JSON.stringify(req.body))
-            .digest('hex');
-
-        if (signature !== expectedSig) {
-            return res.status(401).json({ error: 'Assinatura inválida' });
-        }
+    // 1. Segredo não configurado → falha explícita (nunca aceitar sem verificação)
+    if (!process.env.WHATSAPP_APP_SECRET) {
+        console.error('[WhatsApp] WHATSAPP_APP_SECRET não configurado — webhook rejeitado');
+        return res.status(500).json({ error: 'Configuração de segurança ausente no servidor' });
     }
 
-    // Processar eventos
-    const body = req.body;
+    // 2. Header ausente → rejeitar
+    const signature = req.headers['x-hub-signature-256'];
+    if (!signature) {
+        return res.status(401).json({ error: 'Assinatura ausente' });
+    }
+
+    // 3. HMAC sobre raw body (Buffer) + comparação timing-safe
+    const rawBody = req.body; // Buffer, graças ao express.raw() montado antes do express.json()
+    const expectedSig = 'sha256=' + crypto
+        .createHmac('sha256', process.env.WHATSAPP_APP_SECRET)
+        .update(rawBody)
+        .digest('hex');
+
+    const sigBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSig);
+
+    // Buffers de tamanhos diferentes causam exceção em timingSafeEqual
+    if (sigBuffer.length !== expectedBuffer.length ||
+        !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        return res.status(401).json({ error: 'Assinatura inválida' });
+    }
+
+    // Processar eventos — parsear o raw body manualmente (express.json() não rodou nesta rota)
+    let body;
+    try {
+        body = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+        return res.status(400).json({ error: 'Payload inválido' });
+    }
     if (body.object === 'whatsapp_business_account') {
         for (const entry of body.entry || []) {
             for (const change of entry.changes || []) {

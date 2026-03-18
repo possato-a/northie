@@ -32,7 +32,7 @@ function validateShopDomain(shop: string): string | null {
  */
 export async function connectPlatform(req: Request, res: Response) {
     const { platform } = req.params;
-    const profileId = req.query.profileId as string;
+    const profileId = req.headers['x-profile-id'] as string;
 
     if (!platform || !profileId) {
         return res.status(400).json({ error: 'Missing platform or profileId' });
@@ -64,6 +64,11 @@ export async function handleCallback(req: Request, res: Response) {
     const { platform: rawPlatform } = req.params;
     const { code, state } = req.query;
     const platform = String(rawPlatform || '').toLowerCase().trim();
+
+    const ALLOWED_PLATFORMS = new Set(['meta', 'google', 'hotmart', 'stripe', 'shopify']);
+    if (!ALLOWED_PLATFORMS.has(platform)) {
+        return res.status(400).json({ error: 'Unsupported platform' });
+    }
 
     if (!code || !state) {
         return res.status(400).json({ error: 'OAuth failed: Missing code or state' });

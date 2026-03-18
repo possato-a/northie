@@ -47,6 +47,8 @@ import { handleResendWebhook } from './controllers/resend-webhook.controller.js'
 import { startMeetEnrichmentJob } from './jobs/meet-enrichment.job.js';
 import { startExecutionLearningJob } from './jobs/execution-learning.job.js';
 import { validateAnthropicConfig } from './lib/anthropic.js';
+// @ts-ignore
+import { receiveWebhook as receiveWhatsAppWebhook } from './controllers/whatsapp.controller.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -86,6 +88,9 @@ app.post('/api/webhooks/resend', express.raw({ type: 'application/json' }), (req
     (req as unknown as { rawBody: Buffer }).rawBody = req.body as Buffer;
     next();
 }, handleResendWebhook);
+// WhatsApp POST webhook: raw body obrigatório para HMAC correto (ANTES do express.json())
+// O GET /api/whatsapp/webhook (verificação Meta) segue pelo router normal abaixo
+app.post('/api/whatsapp/webhook', express.raw({ type: 'application/json' }), receiveWhatsAppWebhook);
 
 app.use(express.json({ limit: '1mb' }));
 

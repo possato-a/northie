@@ -83,7 +83,9 @@ export async function handleChatMessage(req: Request, res: Response) {
             .sort((a, b) => Number(b.total_ltv) - Number(a.total_ltv))
             .slice(0, 30)
             .map(c => ({
-                email: c.email ? (c.email as string).replace(/@.+$/, '@***.***') : 'unknown',
+                email: c.email
+                    ? (c.email as string).replace(/^(.{2}).*(@).*$/, '$1***$2***.***')
+                    : 'unknown',
                 ltv: Number(c.total_ltv),
                 rfm: c.rfm_score as string,
                 churn: Number(c.churn_probability || 0),

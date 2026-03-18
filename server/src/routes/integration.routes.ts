@@ -14,9 +14,9 @@ router.get('/status', authMiddleware, IntegrationController.getIntegrationStatus
 /**
  * @route GET /api/integrations/connect/:platform
  * @desc Start OAuth flow for a platform (meta, google, etc.)
- * Public — profileId is embedded in signed state token, not a header.
+ * Protected — requires valid JWT. profileId is read from x-profile-id header set by authMiddleware.
  */
-router.get('/connect/:platform', IntegrationController.connectPlatform);
+router.get('/connect/:platform', authMiddleware, IntegrationController.connectPlatform);
 
 /**
  * @route GET /api/integrations/callback/:platform
