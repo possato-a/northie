@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { generateReportData } from './report-generator.js';
+import { getAnthropicClient } from '../../lib/anthropic.js';
 import { runOrchestratorPipeline } from './report-ai-orchestrator.js';
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
@@ -25,15 +26,8 @@ export interface ReportAIAnalysis {
     is_ai_fallback?: boolean;
 }
 
-// ── Anthropic client ──────────────────────────────────────────────────────────
-
-let _anthropic: Anthropic | null = null;
-
 function getAnthropic(): Anthropic {
-    if (!_anthropic) {
-        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    }
-    return _anthropic;
+    return getAnthropicClient() as Anthropic;
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────

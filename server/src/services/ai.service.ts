@@ -1,17 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
-import dotenv from 'dotenv';
+import { getAnthropicClient } from '../lib/anthropic.js';
 
-dotenv.config();
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-    if (!_anthropic) {
-        if (!process.env.ANTHROPIC_API_KEY) {
-            throw new Error('ANTHROPIC_API_KEY não configurada.');
-        }
-        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    }
-    return _anthropic;
+function getAnthropic() {
+    return getAnthropicClient();
 }
 
 export interface CustomerEntry {
@@ -126,7 +117,7 @@ REGRAS INVIOLÁVEIS:
             return {
                 role: 'assistant',
                 content: content.text,
-                model: response.model
+                model: modelId
             };
         }
 
@@ -351,14 +342,14 @@ REGRAS INVIOLÁVEIS:
 
                 const followUpText = followUp.content.find(b => b.type === 'text');
                 if (followUpText && followUpText.type === 'text') {
-                    return { role: 'assistant', content: followUpText.text, model: followUp.model };
+                    return { role: 'assistant', content: followUpText.text, model: growthModelId };
                 }
             }
         }
 
         const content = response.content[0];
         if (content?.type === 'text') {
-            return { role: 'assistant', content: content.text, model: response.model };
+            return { role: 'assistant', content: content.text, model: growthModelId };
         }
 
         throw new Error('Unexpected response format');

@@ -1,19 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
-import dotenv from 'dotenv';
 import { AGENT_DEFINITIONS } from '../agents/agentDefinitions.js';
 import type { AgentId } from '../agents/agentDefinitions.js';
+import { getAnthropicClient } from '../lib/anthropic.js';
 
-dotenv.config({ path: '.env.local' });
-
-let _anthropic: Anthropic | null = null;
-function getAnthropic(): Anthropic {
-    if (!_anthropic) {
-        if (!process.env.ANTHROPIC_API_KEY) {
-            throw new Error('ANTHROPIC_API_KEY não configurada.');
-        }
-        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    }
-    return _anthropic;
+function getAnthropic() {
+    return getAnthropicClient();
 }
 
 export function buildSystemPrompt(agentId: string, dataContext: string): string {

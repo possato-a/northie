@@ -3,16 +3,12 @@ import type { generateReportData } from './report-generator.js';
 import type { ReportAIAnalysis } from './report-ai-analyst.js';
 import { runDataAnalystAgent } from './agents/data-analyst.agent.js';
 import { runStrategistAgent } from './agents/strategist.agent.js';
+import { getAnthropicClient } from '../../lib/anthropic.js';
 
 type ReportData = Awaited<ReturnType<typeof generateReportData>>;
 
-// ── Singleton Anthropic client ────────────────────────────────────────────────
-
-let _anthropic: Anthropic | null = null;
-
 function getAnthropic(): Anthropic {
-    if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    return _anthropic;
+    return getAnthropicClient() as Anthropic;
 }
 
 // ── Fallback ──────────────────────────────────────────────────────────────────
