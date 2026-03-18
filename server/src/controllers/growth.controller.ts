@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase.js';
 import { executeRecommendation } from '../services/growth.service.js';
 import { runDiagnostic, getLatestDiagnostic } from '../services/growth-intelligence.service.js';
 import { requiresCollaboration } from '../services/execution-agents/index.js';
+import { runAIAlertAnalyst } from '../services/ai-alert-analyst.service.js';
 
 /**
  * GET /api/growth/recommendations
@@ -391,4 +392,29 @@ export async function getRecommendationStatus(req: Request, res: Response) {
 
     if (error || !data) return res.status(404).json({ error: 'Recommendation not found' });
     res.json(data);
+}
+
+/**
+ * POST /api/growth/ai-analysis
+ * Aciona analise on-demand pelo AI Alert Analyst.
+ * Retorna os findings estruturados (alertas + recomendacoes).
+ */
+export async function runAIAnalysis(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    try {
+        console.log(`[Growth] AI Analysis on-demand para profile ${profileId}`);
+        const output = await runAIAlertAnalyst(profileId);
+        res.json({
+            profile_id: profileId,
+            findings: output.findings,
+            findings_count: output.findings.length,
+            generated_at: new Date().toISOString(),
+        });
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+        console.error('[Growth] runAIAnalysis error:', msg);
+        res.status(500).json({ error: msg });
+    }
 }

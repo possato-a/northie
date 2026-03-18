@@ -20,6 +20,14 @@ router.post('/diagnostic', syncRateLimiter, GrowthController.runGrowthDiagnostic
 router.get('/diagnostic/latest', GrowthController.getGrowthDiagnosticLatest);
 
 /**
+ * @route POST /api/growth/ai-analysis
+ * @desc Aciona analise on-demand pelo AI Alert Analyst com function calling.
+ *       Retorna findings estruturados (alertas + recomendacoes contextuais).
+ *       Rate-limited: maximo 10 execucoes por 5 minutos.
+ */
+router.post('/ai-analysis', syncRateLimiter, GrowthController.runAIAnalysis);
+
+/**
  * @route GET /api/growth/metrics
  * @route GET /api/growth/recommendations
  * @route GET /api/growth/execution-history

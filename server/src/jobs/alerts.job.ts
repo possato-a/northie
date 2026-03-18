@@ -15,13 +15,15 @@
 import { supabase } from '../lib/supabase.js';
 import { getResend } from '../services/reports/report-email.js';
 import { createAlertRecommendation } from '../services/alert-recommendation-bridge.service.js';
+import { runAIAlertAnalyst } from '../services/ai-alert-analyst.service.js';
+import type { AIAnalystFinding } from '../services/ai-alert-analyst.service.js';
 
 // ── Mutex — impede execução simultânea ────────────────────────────────────────
 let isRunning = false;
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
-type AlertType = 'roas_drop' | 'high_churn' | 'revenue_zero' | 'organic_spike' | 'high_cac' | 'budget_spike';
+type AlertType = 'roas_drop' | 'high_churn' | 'revenue_zero' | 'organic_spike' | 'high_cac' | 'budget_spike' | 'ai_insight';
 type AlertSeverity = 'info' | 'warning' | 'critical';
 
 interface AlertPayload {
@@ -118,10 +120,11 @@ async function createAlert(alert: AlertPayload): Promise<void> {
     console.log(`[Alerts] ⚡ ${alert.severity.toUpperCase()} — ${alert.title} (profile: ${alert.profileId})`);
 
     // Para alertas warning/critical, cria growth_recommendation correspondente (fire-and-forget)
-    if (alert.severity === 'warning' || alert.severity === 'critical') {
+    // Pula 'ai_insight' porque o AI Analyst cria recomendacoes diretamente
+    if ((alert.severity === 'warning' || alert.severity === 'critical') && alert.type !== 'ai_insight') {
         createAlertRecommendation({
             profileId: alert.profileId,
-            alertType: alert.type,
+            alertType: alert.type as Parameters<typeof createAlertRecommendation>[0]['alertType'],
             alertMeta: alert.meta || {},
             alertSeverity: alert.severity,
         }).catch((err: unknown) => {
@@ -374,6 +377,99 @@ async function checkBudgetSpike(profileId: string, notifyEmail?: string): Promis
     }
 }
 
+// ── AI Analyst — camada de inteligência adicional ────────────────────────────
+
+/**
+ * Roda o agente de IA para um profile e persiste os findings como alertas
+ * e/ou growth_recommendations. Falha graciosamente sem quebrar o job.
+ */
+async function runAIAnalystForProfile(profileId: string, notifyEmail?: string): Promise<void> {
+    console.log(`[Alerts] AI Analyst iniciando para profile ${profileId}...`);
+
+    const output = await runAIAlertAnalyst(profileId);
+
+    if (output.findings.length === 0) {
+        console.log(`[Alerts] AI Analyst: nenhum finding para profile ${profileId}`);
+        return;
+    }
+
+    console.log(`[Alerts] AI Analyst: ${output.findings.length} finding(s) para profile ${profileId}`);
+
+    for (const finding of output.findings) {
+        await processAIFinding(profileId, finding, notifyEmail);
+    }
+}
+
+async function processAIFinding(
+    profileId: string,
+    finding: AIAnalystFinding,
+    notifyEmail?: string
+): Promise<void> {
+    if (finding.type === 'alert') {
+        // Persistir como alerta usando createAlert (que ja tem dedup por 24h)
+        // Usar tipo generico 'ai_insight' para findings da IA
+        const alertPayload: AlertPayload = {
+            profileId,
+            type: 'ai_insight' as AlertType,
+            severity: finding.severity || 'info',
+            title: finding.title,
+            body: `${finding.body}\n\nRaciocinio: ${finding.rationale}`,
+            meta: {
+                source: 'ai_analyst',
+                rationale: finding.rationale,
+                ...(finding.rec_meta || {}),
+            },
+            notifyEmail,
+        };
+
+        await createAlert(alertPayload);
+    }
+
+    if (finding.type === 'recommendation' && finding.rec_type) {
+        // Verificar dedup: nao criar recomendacao se ja existe uma pendente do mesmo tipo nas ultimas 24h
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data: existing } = await supabase
+            .from('growth_recommendations')
+            .select('id')
+            .eq('profile_id', profileId)
+            .eq('type', finding.rec_type)
+            .eq('status', 'pending')
+            .gte('created_at', since)
+            .limit(1)
+            .single();
+
+        if (existing) {
+            console.log(`[Alerts] AI Analyst: recomendacao "${finding.rec_type}" ja existe para profile ${profileId} — pulando`);
+            return;
+        }
+
+        const insertPayload: Record<string, unknown> = {
+            profile_id: profileId,
+            type: finding.rec_type,
+            status: 'pending',
+            title: finding.title,
+            narrative: `${finding.body}\n\nRaciocinio da IA: ${finding.rationale}`,
+            sources: ['ai_analyst', 'transactions', 'customers', 'ad_metrics'],
+            meta: {
+                generated_by: 'ai_alert_analyst',
+                rationale: finding.rationale,
+                severity: finding.severity,
+                ...(finding.rec_meta || {}),
+            },
+        };
+
+        const { error } = await supabase
+            .from('growth_recommendations')
+            .insert(insertPayload);
+
+        if (error) {
+            console.error(`[Alerts] AI Analyst: falha ao criar recomendacao "${finding.rec_type}" para profile ${profileId}:`, error.message);
+        } else {
+            console.log(`[Alerts] AI Analyst: recomendacao "${finding.rec_type}" criada para profile ${profileId}`);
+        }
+    }
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 async function runAlertsForAllProfiles(): Promise<void> {
@@ -411,6 +507,17 @@ async function runAlertsForAllProfiles(): Promise<void> {
                     console.error(`[Alerts] ${checks[i]!.name} failed for ${profile.id}:`, r.reason?.message);
                 }
             });
+
+            // ── Camada adicional: AI Analyst (roda APOS detectores hardcoded) ──
+            try {
+                await runAIAnalystForProfile(profile.id, notifyEmail);
+            } catch (aiErr: unknown) {
+                // Falha no AI Analyst nao deve quebrar o job inteiro
+                console.error(
+                    `[Alerts] AI Analyst failed for ${profile.id}:`,
+                    aiErr instanceof Error ? aiErr.message : String(aiErr)
+                );
+            }
         } catch (err: unknown) {
             console.error(`[Alerts] Error for profile ${profile.id}:`, err instanceof Error ? err.message : String(err));
         }
