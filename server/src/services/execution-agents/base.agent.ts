@@ -13,6 +13,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../../lib/supabase.js';
+import { getAnthropicClient, ANTHROPIC_MODELS } from '../../lib/anthropic.js';
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 
@@ -118,18 +119,10 @@ const BASE_TOOLS: Anthropic.Tool[] = [
     },
 ];
 
-// ── Singleton do cliente Anthropic ───────────────────────────────────────────
-
-let _anthropic: Anthropic | null = null;
+// ── Cliente Anthropic centralizado ───────────────────────────────────────────
 
 function getAnthropic(): Anthropic {
-    if (!_anthropic) {
-        if (!process.env.ANTHROPIC_API_KEY) {
-            throw new Error('[ExecutionAgent] ANTHROPIC_API_KEY não configurada.');
-        }
-        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    }
-    return _anthropic;
+    return getAnthropicClient();
 }
 
 // ── Classe base ───────────────────────────────────────────────────────────────
@@ -450,7 +443,7 @@ export abstract class BaseExecutionAgent {
             turns++;
 
             const response = await client.messages.create({
-                model: 'claude-sonnet-4-6',
+                model: ANTHROPIC_MODELS.SONNET,
                 max_tokens: 4096,
                 system: systemPrompt,
                 messages: currentMessages,

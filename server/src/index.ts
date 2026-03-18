@@ -45,6 +45,8 @@ import { startCalendarSyncJob } from './jobs/calendar-sync.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
 import { startMeetEnrichmentJob } from './jobs/meet-enrichment.job.js';
+import { startExecutionLearningJob } from './jobs/execution-learning.job.js';
+import { validateAnthropicConfig } from './lib/anthropic.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -126,6 +128,9 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 
 
+// Valida configuração da Anthropic API antes de subir (não faz request à API)
+validateAnthropicConfig();
+
 // Start server only if not in Vercel (Production)
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(PORT, () => {
@@ -173,6 +178,9 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
 
         // 27min: meet enrichment — analisa transcrições pendentes (leve, IA por reunião)
         delay(27 * 60_000, () => startMeetEnrichmentJob());
+
+        // 42min: execution learning — detecta conversões pós-execução do Growth Engine
+        delay(42 * 60_000, () => startExecutionLearningJob());
 
         // SafetyNet já tem delay interno de 3h
         startSafetyNetJob();

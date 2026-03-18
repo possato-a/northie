@@ -154,6 +154,12 @@ export async function updateMessageStatus(wamid, status) {
         .eq('wamid', wamid);
 
     if (error) console.error('[WhatsApp] Falha ao atualizar status:', error.message);
+
+    // Propaga status de delivery para growth_execution_items (fire-and-forget)
+    const { syncDeliveryToExecutionItem } = await import('./execution-delivery-bridge.service.js');
+    syncDeliveryToExecutionItem(wamid, status).catch(err =>
+        console.warn('[WhatsApp] Delivery bridge error:', err.message)
+    );
 }
 
 /**

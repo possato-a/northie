@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../lib/supabase.js';
+import { getAnthropicClient as getCentralClient } from '../lib/anthropic.js';
 import { runTrafficAnalyst } from './agents/traffic-analyst.agent.js';
 import { runConversionAnalyst } from './agents/conversion-analyst.agent.js';
 import { runAttributionAgent } from './agents/attribution.agent.js';
@@ -17,13 +18,8 @@ export interface DateRange {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-let _anthropicClient: Anthropic | null = null;
 function getAnthropicClient(): Anthropic {
-    if (_anthropicClient) return _anthropicClient;
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('[GrowthIntelligence] ANTHROPIC_API_KEY não configurada');
-    _anthropicClient = new Anthropic({ apiKey });
-    return _anthropicClient;
+    return getCentralClient();
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────

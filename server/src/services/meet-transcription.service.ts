@@ -11,8 +11,8 @@
  * - Processar em lote reuniões pendentes de análise
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../lib/supabase.js';
+import { getAnthropicClient, ANTHROPIC_MODELS } from '../lib/anthropic.js';
 
 // ── Tipos públicos ─────────────────────────────────────────────────────────────
 
@@ -26,20 +26,6 @@ export interface MeetingAnalysis {
     nextStepsSuggested: string[];
     summary: string;
     analyzedAt: string;
-}
-
-// ── Singleton Anthropic (lazy) ────────────────────────────────────────────────
-
-let _anthropic: Anthropic | null = null;
-
-function getAnthropic(): Anthropic {
-    if (!_anthropic) {
-        if (!process.env.ANTHROPIC_API_KEY) {
-            throw new Error('[MeetTranscription] ANTHROPIC_API_KEY não configurada.');
-        }
-        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    }
-    return _anthropic;
 }
 
 // ── Prompt de análise ─────────────────────────────────────────────────────────
@@ -112,9 +98,9 @@ export class MeetTranscriptionService {
         }
 
         try {
-            const client = getAnthropic();
+            const client = getAnthropicClient();
             const response = await client.messages.create({
-                model: 'claude-haiku-4-5-20251001',
+                model: ANTHROPIC_MODELS.HAIKU,
                 max_tokens: 1024,
                 messages: [
                     {
