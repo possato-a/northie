@@ -22,9 +22,11 @@ router.get('/diagnostic/latest', GrowthController.getGrowthDiagnosticLatest);
 /**
  * @route GET /api/growth/metrics
  * @route GET /api/growth/recommendations
+ * @route GET /api/growth/execution-history
  */
 router.get('/metrics', GrowthController.getGrowthMetrics);
 router.get('/recommendations', GrowthController.listRecommendations);
+router.get('/execution-history', GrowthController.getExecutionHistory);
 
 /**
  * @route POST /api/growth/recommendations/:id/approve

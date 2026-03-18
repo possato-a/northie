@@ -78,6 +78,7 @@ export const growthApi = {
     getMetrics: () => api.get('/growth/metrics'),
     runDiagnostic: (days = 30) => api.post('/growth/diagnostic', { days }, { timeout: 180000 }),
     getLatestDiagnostic: () => api.get('/growth/diagnostic/latest', { timeout: 10000 }),
+    getExecutionHistory: () => api.get('/growth/execution-history'),
     collaborate: (id: string) => api.post(`/growth/recommendations/${id}/collaborate`),
     sendCollabMessage: (sessionId: string, message: string) =>
         api.post(`/growth/collaboration/${sessionId}/message`, { message }),

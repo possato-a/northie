@@ -4,6 +4,7 @@ import { growthApi } from '../lib/api'
 import { KpiCard } from '../components/ui/KpiCard'
 import GrowthChatComponent from '../components/growth/GrowthChat'
 import CollaborationModal from '../components/growth/CollaborationModal'
+import ExecutionHistory, { type ExecutionHistoryItem } from '../components/growth/ExecutionHistory'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1033,6 +1034,8 @@ function GrowthEmptyState() {
 export default function Growth() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [loading, setLoading] = useState(true)
+  const [executionHistory, setExecutionHistory] = useState<ExecutionHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
 
   const [growthTab, setGrowthTab] = useState<'metricas' | 'execucoes' | 'exploracao'>('metricas')
   const [selectedRec, setSelectedRec] = useState<Recommendation | null>(null)
@@ -1055,6 +1058,14 @@ export default function Growth() {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  // Histórico de campanhas — carregado uma vez na montagem
+  useEffect(() => {
+    growthApi.getExecutionHistory()
+      .then(res => setExecutionHistory(res.data ?? []))
+      .catch(() => setExecutionHistory([]))
+      .finally(() => setHistoryLoading(false))
   }, [])
 
   useEffect(() => {
@@ -1339,47 +1350,33 @@ export default function Growth() {
                     </motion.div>
                   )}
 
-                  {/* Histórico de execução */}
+                  {/* Histórico de campanhas */}
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+                    style={{ paddingTop: 18 }}
                   >
                     <SectionCard style={{ padding: '20px 24px' }}>
-                      <p style={{
-                        fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
-                        color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
-                        textTransform: 'uppercase' as const, margin: '0 0 4px',
-                      }}>
-                        Histórico de execução
-                      </p>
-                      <p style={{
-                        fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 500,
-                        letterSpacing: '-0.4px', color: 'var(--color-text-primary)', margin: '0 0 20px',
-                      }}>
-                        {completedCount > 0 ? `${completedCount} ${completedCount > 1 ? 'ações concluídas' : 'ação concluída'}` : 'Nenhuma execução ainda'}
-                      </p>
-                      {completedCount === 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '24px 0' }}>
-                          <div style={{
-                            width: 40, height: 40, borderRadius: 'var(--radius-lg)',
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                        <p style={{
+                          fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 400,
+                          color: 'var(--color-text-secondary)', letterSpacing: '0.02em',
+                          textTransform: 'uppercase' as const, margin: 0,
+                        }}>
+                          Histórico de campanhas
+                        </p>
+                        {!historyLoading && executionHistory.length > 0 && (
+                          <span style={{
+                            fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)',
                             background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+                            borderRadius: 'var(--radius-full)', padding: '1px 7px', fontWeight: 400,
                           }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.35 }}>
-                              <rect x="3" y="3" width="18" height="18" rx="2" />
-                              <line x1="9" y1="9" x2="15" y2="9" />
-                              <line x1="9" y1="12" x2="12" y2="12" />
-                            </svg>
-                          </div>
-                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500, color: 'var(--color-text-secondary)', margin: 0 }}>
-                            Nenhuma ação executada ainda
-                          </p>
-                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0, maxWidth: 360, textAlign: 'center' as const }}>
-                            Aprove recomendações acima para começar. O impacto de cada ação será medido em reais.
-                          </p>
-                        </div>
-                      ) : null}
+                            {executionHistory.length} {executionHistory.length > 1 ? 'campanhas' : 'campanha'}
+                          </span>
+                        )}
+                      </div>
+                      <ExecutionHistory items={executionHistory} loading={historyLoading} />
                     </SectionCard>
                   </motion.div>
 

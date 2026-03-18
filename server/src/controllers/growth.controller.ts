@@ -275,6 +275,105 @@ export async function getGrowthDiagnosticLatest(req: Request, res: Response) {
 }
 
 /**
+ * GET /api/growth/execution-history
+ * Retorna os últimos 20 growth_recommendations com status completed|failed|executing,
+ * com counts agregados de growth_execution_items por status.
+ */
+export async function getExecutionHistory(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    try {
+        // Busca as últimas 20 recomendações nos status relevantes
+        const { data: recs, error: recsError } = await supabase
+            .from('growth_recommendations')
+            .select('id, type, title, status, created_at')
+            .eq('profile_id', profileId)
+            .in('status', ['completed', 'failed', 'executing'])
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (recsError) {
+            console.error('[Growth] getExecutionHistory recs error:', recsError);
+            return res.status(500).json({ error: 'Failed to fetch execution history' });
+        }
+
+        if (!recs || recs.length === 0) {
+            return res.json([]);
+        }
+
+        const recIds = recs.map(r => r.id);
+
+        // Busca todos os execution items desses recommendations de uma vez
+        const { data: items, error: itemsError } = await supabase
+            .from('growth_execution_items')
+            .select('recommendation_id, status, updated_at')
+            .in('recommendation_id', recIds);
+
+        if (itemsError) {
+            console.error('[Growth] getExecutionHistory items error:', itemsError);
+            return res.status(500).json({ error: 'Failed to fetch execution items' });
+        }
+
+        // Agrega counts por recommendation_id no Node (evita raw SQL)
+        type ItemAgg = {
+            total_items: number;
+            sent_count: number;
+            delivered_count: number;
+            failed_count: number;
+            converted_count: number;
+            last_activity: string | null;
+        };
+
+        const agg = new Map<string, ItemAgg>();
+        for (const recId of recIds) {
+            agg.set(recId, {
+                total_items: 0,
+                sent_count: 0,
+                delivered_count: 0,
+                failed_count: 0,
+                converted_count: 0,
+                last_activity: null,
+            });
+        }
+
+        for (const item of (items ?? [])) {
+            const entry = agg.get(item.recommendation_id);
+            if (!entry) continue;
+            entry.total_items++;
+            if (item.status === 'sent')      entry.sent_count++;
+            if (item.status === 'delivered') entry.delivered_count++;
+            if (item.status === 'failed')    entry.failed_count++;
+            if (item.status === 'converted') entry.converted_count++;
+            if (!entry.last_activity || item.updated_at > entry.last_activity) {
+                entry.last_activity = item.updated_at;
+            }
+        }
+
+        const result = recs.map(rec => ({
+            recommendation_id: rec.id,
+            type:              rec.type,
+            title:             rec.title,
+            rec_status:        rec.status,
+            rec_created_at:    rec.created_at,
+            ...(agg.get(rec.id) ?? {
+                total_items: 0,
+                sent_count: 0,
+                delivered_count: 0,
+                failed_count: 0,
+                converted_count: 0,
+                last_activity: null,
+            }),
+        }));
+
+        res.json(result);
+    } catch (err: unknown) {
+        console.error('[Growth] getExecutionHistory error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+}
+
+/**
  * GET /api/growth/recommendations/:id/status
  * Retorna status atual + execution_log (usado no polling do frontend a cada 2s).
  */
