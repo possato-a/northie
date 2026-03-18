@@ -167,12 +167,15 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
             }
             setMessages(prev => [...prev, aiMsg])
             setAnimatingId(newId)
-        } catch {
+        } catch (err: unknown) {
             if (!mountedRef.current) return
+            const status = (err as any)?.response?.status
+            const errorMsg = (err as any)?.response?.data?.error || (err as any)?.message || String(err)
+            console.error('[ChatSidebar] Erro ao chamar IA:', { status, errorMsg, err })
             setMessages(prev => [...prev, {
                 id: Date.now().toString(),
                 role: 'assistant',
-                content: 'Desculpe, tive um problema. Verifique se o servidor está rodando.'
+                content: `Erro ao conectar com a IA. Status: ${status || 'sem resposta'}. Verifique o console (F12).`
             }])
         } finally {
             if (mountedRef.current) setIsThinking(false)
