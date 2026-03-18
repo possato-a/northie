@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import crypto from 'crypto';
 import { IntegrationService } from '../services/integration.service.js';
 import { supabase } from '../lib/supabase.js';
 import axios from 'axios';
@@ -535,8 +536,15 @@ export async function getIntegrationStatus(req: Request, res: Response) {
  * Cron endpoint — relatórios automáticos (a cada 4h via Vercel Cron)
  */
 export async function cronReports(req: Request, res: Response) {
-    const secret = req.headers['authorization'];
-    if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+        console.error('[Cron] CRON_SECRET not configured — rejecting request');
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const authHeader = req.headers['authorization'] ?? '';
+    const expected = Buffer.from(`Bearer ${cronSecret}`, 'utf8');
+    const received = Buffer.from(authHeader as string, 'utf8');
+    if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
@@ -553,8 +561,15 @@ export async function cronReports(req: Request, res: Response) {
  * Cron endpoint — sync completo diário
  */
 export async function cronSync(req: Request, res: Response) {
-    const secret = req.headers['authorization'];
-    if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+        console.error('[Cron] CRON_SECRET not configured — rejecting request');
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const authHeader = req.headers['authorization'] ?? '';
+    const expected = Buffer.from(`Bearer ${cronSecret}`, 'utf8');
+    const received = Buffer.from(authHeader as string, 'utf8');
+    if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     try {

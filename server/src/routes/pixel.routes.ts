@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as PixelController from '../controllers/pixel.controller.js';
+import { authMiddleware } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -8,14 +9,14 @@ const router = Router();
  * @desc Retorna o snippet JS do Northie Pixel gerado com o profileId do founder
  * @header x-profile-id (injetado pelo authMiddleware via JWT Bearer)
  */
-router.get('/snippet', PixelController.getPixelSnippet);
+router.get('/snippet', authMiddleware, PixelController.getPixelSnippet);
 
 /**
  * @route GET /api/pixel/stats
  * @desc Retorna estatísticas de rastreamento do pixel (total_visits, unique_visitors, top_sources)
  * @header x-profile-id (injetado pelo authMiddleware via JWT Bearer)
  */
-router.get('/stats', PixelController.getPixelStats);
+router.get('/stats', authMiddleware, PixelController.getPixelStats);
 
 /**
  * @route POST /api/pixel/event

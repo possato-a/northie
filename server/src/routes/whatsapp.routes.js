@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { verifyWebhook, receiveWebhook, sendMessage, testWhatsApp, getStatus } from '../controllers/whatsapp.controller.js';
+import { authMiddleware } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -7,9 +8,9 @@ const router = Router();
 router.get('/webhook', verifyWebhook);
 router.post('/webhook', receiveWebhook);
 
-// Autenticados
-router.get('/status', getStatus);
-router.post('/send', sendMessage);
-router.post('/test', testWhatsApp);
+// Autenticados — requerem JWT válido
+router.get('/status', authMiddleware, getStatus);
+router.post('/send', authMiddleware, sendMessage);
+router.post('/test', authMiddleware, testWhatsApp);
 
 export default router;

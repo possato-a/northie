@@ -44,10 +44,4 @@ router.post('/sync/:platform', authMiddleware, syncRateLimiter, IntegrationContr
  */
 router.post('/meta/retroactive-attribution', authMiddleware, IntegrationController.metaRetroactiveAttribution);
 
-/**
- * @route GET /api/integrations/cron/sync
- * @desc Called by Vercel Cron every 6h. Protected by CRON_SECRET internally.
- */
-router.get('/cron/sync', IntegrationController.cronSync);
-
 export default router;

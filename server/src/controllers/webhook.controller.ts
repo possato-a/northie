@@ -59,6 +59,7 @@ function verifyPlatformToken(platform: string, req: Request): boolean {
                     console.warn('[Webhook] Hotmart: token hottok inválido');
                     return false;
                 }
+                return true;
             } catch {
                 return false;
             }

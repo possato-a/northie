@@ -122,7 +122,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[Express] Unhandled error:', message);
     if (!res.headersSent) {
-        res.status(500).json({ error: 'Internal server error', debug: { message } });
+        res.status(500).json({ error: 'Internal server error', ...(process.env.NODE_ENV !== 'production' && { debug: { message } }) });
     }
 });
 
