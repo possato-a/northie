@@ -19,7 +19,7 @@ export interface DateRange {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getAnthropicClient(): Anthropic {
-    return getCentralClient();
+    return getCentralClient() as Anthropic;
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────

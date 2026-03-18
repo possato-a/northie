@@ -13,6 +13,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../../lib/supabase.js';
+import type { AiClient } from '../../lib/ai-adapter.js';
 import { getAnthropicClient, ANTHROPIC_MODELS } from '../../lib/anthropic.js';
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
@@ -121,8 +122,8 @@ const BASE_TOOLS: Anthropic.Tool[] = [
 
 // ── Cliente Anthropic centralizado ───────────────────────────────────────────
 
-function getAnthropic(): Anthropic {
-    return getAnthropicClient();
+function getAnthropic(): AiClient {
+    return getAnthropicClient() as AiClient;
 }
 
 // ── Classe base ───────────────────────────────────────────────────────────────

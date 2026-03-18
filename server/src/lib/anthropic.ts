@@ -1,12 +1,19 @@
 /**
  * @file lib/anthropic.ts
  *
- * Cliente Anthropic centralizado — singleton lazy com validação de configuração.
- * Todos os serviços que precisam de Claude devem importar daqui em vez de
- * instanciar `new Anthropic()` diretamente.
+ * Cliente de IA centralizado — singleton lazy com suporte a múltiplos providers.
+ *
+ * Providers suportados (em ordem de prioridade):
+ *   1. Groq       — GROQ_API_KEY   — gratuito, llama-3.3-70b-versatile
+ *   2. Gemini     — GEMINI_API_KEY — gratuito, gemini-2.0-flash
+ *   3. Anthropic  — ANTHROPIC_API_KEY — pago, claude-sonnet-4-6
+ *
+ * Todos os serviços que usam IA importam getAnthropicClient() daqui.
+ * A interface retornada é compatível com o Anthropic SDK.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { createAiAdapter, type AiClient } from './ai-adapter.js';
 
 // ── Modelos disponíveis ───────────────────────────────────────────────────────
 
@@ -23,40 +30,56 @@ export type AnthropicModel = typeof ANTHROPIC_MODELS[keyof typeof ANTHROPIC_MODE
 
 // ── Singleton lazy ────────────────────────────────────────────────────────────
 
-let _client: Anthropic | null = null;
+// Pode ser Anthropic nativo ou adaptador (Groq/Gemini)
+let _client: Anthropic | AiClient | null = null;
 
-export function getAnthropicClient(): Anthropic {
-    if (!_client) {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
-        if (!apiKey) {
-            throw new Error(
-                '[Anthropic] ANTHROPIC_API_KEY não configurada. Acesse server/.env.local e adicione a chave.'
-            );
-        }
-        _client = new Anthropic({ apiKey });
+export function getAnthropicClient(): Anthropic | AiClient {
+    if (_client) return _client;
+
+    // 1. Tenta providers gratuitos primeiro (Groq, Gemini)
+    const adapter = createAiAdapter();
+    if (adapter) {
+        _client = adapter;
+        return _client;
     }
+
+    // 2. Fallback: Anthropic pago
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+        throw new Error(
+            '[AI] Nenhum provider configurado. Adicione GROQ_API_KEY (grátis em console.groq.com) ou ANTHROPIC_API_KEY em server/.env.local'
+        );
+    }
+    _client = new Anthropic({ apiKey });
     return _client;
 }
 
 // ── Validação no startup ──────────────────────────────────────────────────────
 
 /**
- * Valida que a API key existe e o cliente consegue ser criado.
- * Chame no boot do servidor. Não faz request à API — apenas valida formato.
+ * Detecta qual provider está disponível e loga no boot.
+ * Não faz request à API — apenas valida variáveis de ambiente.
  */
 export function validateAnthropicConfig(): void {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-        console.warn(
-            '[Anthropic] ANTHROPIC_API_KEY não configurada — recursos de IA estarão desabilitados.'
-        );
+    if (process.env.GROQ_API_KEY) {
+        console.log('[AI] ✅ Provider: Groq — modelo padrão: llama-3.3-70b-versatile (gratuito)');
         return;
     }
-    if (!apiKey.startsWith('sk-ant-')) {
-        console.warn(
-            '[Anthropic] ANTHROPIC_API_KEY parece inválida (deve começar com sk-ant-).'
-        );
+
+    if (process.env.GEMINI_API_KEY) {
+        console.log('[AI] ✅ Provider: Google Gemini — modelo padrão: gemini-2.0-flash (gratuito)');
         return;
     }
-    console.log(`[Anthropic] API Key configurada — modelo padrão: ${ANTHROPIC_MODELS.SONNET}`);
+
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) {
+        console.warn('[AI] ⚠️  Nenhum provider configurado. Adicione GROQ_API_KEY em server/.env.local');
+        console.warn('[AI]    Chave gratuita: https://console.groq.com');
+        return;
+    }
+    if (!anthropicKey.startsWith('sk-ant-')) {
+        console.warn('[AI] ⚠️  ANTHROPIC_API_KEY parece inválida (deve começar com sk-ant-).');
+        return;
+    }
+    console.log(`[AI] ✅ Provider: Anthropic — modelo padrão: ${ANTHROPIC_MODELS.SONNET}`);
 }
