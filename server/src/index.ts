@@ -32,16 +32,19 @@ import alertsRoutes from './routes/alerts.routes.js';
 import agentsRoutes from './routes/agents.routes.js';
 import pipelineRoutes from './routes/pipeline.routes.js';
 import contextRoutes from './routes/context.routes.js';
+import valuationRoutes from './routes/valuation.routes.js';
 // @ts-ignore — plain JS modules without .d.ts (compiled separately)
 import whatsappRoutes from './routes/whatsapp.routes.js';
 // @ts-ignore
 import calendarRoutes from './routes/calendar.routes.js';
 import { startReportsJob } from './jobs/reports.job.js';
 import { startChatCleanupJob } from './jobs/chat-cleanup.job.js';
+import { startValuationCalcJob } from './jobs/valuation-calc.job.js';
 // @ts-ignore
 import { startCalendarSyncJob } from './jobs/calendar-sync.job.js';
 import { handleStripeWebhook, handleHotmartWebhook, handleShopifyWebhook } from './controllers/webhook.controller.js';
 import { handleResendWebhook } from './controllers/resend-webhook.controller.js';
+import { startMeetEnrichmentJob } from './jobs/meet-enrichment.job.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -103,6 +106,7 @@ app.use('/api/calendar', authMiddleware, calendarRoutes);
 app.use('/api/agents', authMiddleware, agentsRoutes);
 app.use('/api/pipeline', authMiddleware, pipelineRoutes);
 app.use('/api/context', authMiddleware, contextRoutes);
+app.use('/api/valuation', authMiddleware, valuationRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {
@@ -167,11 +171,17 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
         // 25min: calendar sync
         delay(25 * 60_000, () => startCalendarSyncJob());
 
+        // 27min: meet enrichment — analisa transcrições pendentes (leve, IA por reunião)
+        delay(27 * 60_000, () => startMeetEnrichmentJob());
+
         // SafetyNet já tem delay interno de 3h
         startSafetyNetJob();
 
         // Capital Score: mensal, não precisa rodar no boot
         delay(30 * 60_000, () => startCapitalScoreJob());
+
+        // Valuation: mensal, verifica diariamente se é dia 1 às 03:00 UTC
+        delay(35 * 60_000, () => startValuationCalcJob());
     });
 }
 

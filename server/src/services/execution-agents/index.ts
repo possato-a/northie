@@ -8,7 +8,7 @@
  * - reativacao_alto_ltv → ReativacaoAltoLtvAgent (WhatsApp)
  * - em_risco_alto_valor → EmRiscoAgent (WhatsApp)
  * - upsell_cohort → UpsellCohortAgent (Email)
- * - queda_retencao_cohort → UpsellCohortAgent (Email — reutilizado)
+ * - queda_retencao_cohort → QuedaRetencaoCohortAgent (Email — segmento de retenção)
  * - cac_vs_ltv_deficit → ReativacaoAltoLtvAgent (reutilizado)
  */
 
@@ -16,6 +16,7 @@ import { BaseExecutionAgent } from './base.agent.js';
 import { ReativacaoAltoLtvAgent } from './reativacao-alto-ltv.agent.js';
 import { EmRiscoAgent } from './em-risco.agent.js';
 import { UpsellCohortAgent } from './upsell-cohort.agent.js';
+import { QuedaRetencaoCohortAgent } from './queda-retencao-cohort.agent.js';
 
 export { BaseExecutionAgent };
 export type { AgentSegmentItem, CollaborationMessage, OpenSessionResult, ExecutionPlanItem, GrowthRecommendation } from './base.agent.js';
@@ -50,7 +51,7 @@ const agentRegistry: Record<CollaborationRequiredType, BaseExecutionAgent> = {
     reativacao_alto_ltv: new ReativacaoAltoLtvAgent(),
     em_risco_alto_valor: new EmRiscoAgent(),
     upsell_cohort: new UpsellCohortAgent(),
-    queda_retencao_cohort: new UpsellCohortAgent(),   // reutiliza agente de email
+    queda_retencao_cohort: new QuedaRetencaoCohortAgent(),
     cac_vs_ltv_deficit: new ReativacaoAltoLtvAgent(), // reutiliza agente WhatsApp
 };
 

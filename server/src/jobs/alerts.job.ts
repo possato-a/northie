@@ -14,6 +14,7 @@
 
 import { supabase } from '../lib/supabase.js';
 import { getResend } from '../services/reports/report-email.js';
+import { createAlertRecommendation } from '../services/alert-recommendation-bridge.service.js';
 
 // ── Mutex — impede execução simultânea ────────────────────────────────────────
 let isRunning = false;
@@ -115,6 +116,21 @@ async function createAlert(alert: AlertPayload): Promise<void> {
     }
 
     console.log(`[Alerts] ⚡ ${alert.severity.toUpperCase()} — ${alert.title} (profile: ${alert.profileId})`);
+
+    // Para alertas warning/critical, cria growth_recommendation correspondente (fire-and-forget)
+    if (alert.severity === 'warning' || alert.severity === 'critical') {
+        createAlertRecommendation({
+            profileId: alert.profileId,
+            alertType: alert.type,
+            alertMeta: alert.meta || {},
+            alertSeverity: alert.severity,
+        }).catch((err: unknown) => {
+            console.warn(
+                `[Alerts] Falha ao criar recomendação para alerta ${alert.type} (profile: ${alert.profileId}):`,
+                err instanceof Error ? err.message : String(err)
+            );
+        });
+    }
 
     // Envia email se o usuário optou por receber notificações por email
     if (alert.notifyEmail) {
