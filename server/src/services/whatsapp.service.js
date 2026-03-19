@@ -17,7 +17,7 @@ function getToken() {
     return process.env.WHATSAPP_TOKEN;
 }
 
-function isConfigured() {
+export function isConfigured() {
     return !!(getToken() && getPhoneNumberId());
 }
 

@@ -72,6 +72,7 @@ export function useAgentChat(): UseAgentChatReturn {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
+      const userId = session?.user?.id
 
       const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }))
 
@@ -80,6 +81,7 @@ export function useAgentChat(): UseAgentChatReturn {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(userId ? { 'x-profile-id': userId } : {}),
         },
         body: JSON.stringify({
           agentId,
