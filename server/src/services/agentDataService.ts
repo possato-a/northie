@@ -22,7 +22,7 @@ export async function getAgentContext(userId: string, agentId: string): Promise<
         case 'cac':
             return getCacContext(userId);
         case 'rfm':
-            return getAudienceContext(userId);
+            return getRfmContext(userId);
         case 'cohort':
             return getCohortContext(userId);
         case 'mrr':
@@ -292,6 +292,108 @@ async function getAudienceContext(userId: string): Promise<string> {
     return lines.join('\n');
 }
 
+async function getRfmContext(userId: string): Promise<string> {
+    const lines: string[] = [];
+
+    // Distribuição completa de scores RFM com LTV por segmento
+    const { data: rfmData, error: rfmError } = await supabase
+        .from('customers')
+        .select('rfm_score, total_ltv, last_purchase_at, churn_probability')
+        .eq('user_id', userId);
+
+    if (rfmError) {
+        console.error('[AgentData] rfm customers error:', rfmError.message);
+        lines.push('Distribuição RFM: dados indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!rfmData || rfmData.length === 0) {
+        lines.push('Distribuição RFM: nenhum cliente registrado ainda.');
+        lines.push('O score RFM é calculado automaticamente após as primeiras transações.');
+        return lines.join('\n');
+    }
+
+    const total = rfmData.length;
+
+    // Distribuição por segmento RFM nominal (Champions, Loyal, etc.)
+    const bySegment: Record<string, { count: number; sumLtv: number; sumChurn: number }> = {};
+    for (const c of rfmData) {
+        const seg = c.rfm_score || 'Sem score';
+        if (!bySegment[seg]) bySegment[seg] = { count: 0, sumLtv: 0, sumChurn: 0 };
+        bySegment[seg].count += 1;
+        bySegment[seg].sumLtv += Number(c.total_ltv) || 0;
+        bySegment[seg].sumChurn += Number(c.churn_probability) || 0;
+    }
+
+    const sortedSegments = Object.entries(bySegment).sort((a, b) => {
+        const avgA = a[1].count > 0 ? a[1].sumLtv / a[1].count : 0;
+        const avgB = b[1].count > 0 ? b[1].sumLtv / b[1].count : 0;
+        return avgB - avgA;
+    });
+
+    lines.push(`Distribuição RFM da base (${total} clientes no total):`);
+    lines.push('');
+
+    for (const [segment, val] of sortedSegments) {
+        const avgLtv = val.count > 0 ? val.sumLtv / val.count : 0;
+        const avgChurn = val.count > 0 ? (val.sumChurn / val.count) * 100 : 0;
+        const pct = total > 0 ? ((val.count / total) * 100).toFixed(1) : '0.0';
+        lines.push(`Segmento: ${segment}`);
+        lines.push(`— Clientes: ${val.count} (${pct}% da base)`);
+        lines.push(`— LTV médio: R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`— LTV total do segmento: R$ ${val.sumLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`— Churn médio do segmento: ${avgChurn.toFixed(1)}%`);
+        lines.push('');
+    }
+
+    // Oportunidades de upsell por score — clientes de alto LTV com RFM médio
+    const upsellCandidates = rfmData.filter(c => {
+        const seg = (c.rfm_score || '').toLowerCase();
+        return (
+            seg.includes('potential') ||
+            seg.includes('loyal') ||
+            seg.includes('promising') ||
+            seg === 'at_risk' ||
+            seg === 'need_attention'
+        );
+    });
+
+    if (upsellCandidates.length > 0) {
+        const upsellLtv = upsellCandidates.reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+        const avgUpsellLtv = upsellLtv / upsellCandidates.length;
+        lines.push(`Oportunidades de upsell identificadas (segmentos com potencial de upgrade):`);
+        lines.push(`— Total de clientes elegíveis: ${upsellCandidates.length}`);
+        lines.push(`— LTV médio deste grupo: R$ ${avgUpsellLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`— LTV total em jogo: R$ ${upsellLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push('');
+    }
+
+    // Clientes Champions — melhor segmento
+    const champions = rfmData.filter(c =>
+        c.rfm_score === 'Champions' ||
+        c.rfm_score === '555' ||
+        (c.rfm_score || '').toLowerCase() === 'champions'
+    );
+
+    if (champions.length > 0) {
+        const championsLtv = champions.reduce((s, c) => s + (Number(c.total_ltv) || 0), 0);
+        const champPct = ((champions.length / total) * 100).toFixed(1);
+        lines.push(`Clientes Champions (top do RFM):`);
+        lines.push(`— Quantidade: ${champions.length} (${champPct}% da base)`);
+        lines.push(`— LTV total: R$ ${championsLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push(`— LTV médio: R$ ${(championsLtv / champions.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        lines.push('');
+    }
+
+    // Clientes sem score calculado
+    const noScore = rfmData.filter(c => !c.rfm_score).length;
+    if (noScore > 0) {
+        lines.push(`Clientes sem score RFM calculado ainda: ${noScore} (serão pontuados no próximo ciclo diário)`);
+    }
+
+    return lines.join('\n');
+}
+
 async function getUpsellContext(userId: string): Promise<string> {
     const lines: string[] = [];
 
@@ -415,6 +517,71 @@ async function getHealthSnapshotContext(userId: string): Promise<string> {
         for (const [platform, spend] of Object.entries(byPlatform)) {
             lines.push(`— ${platform}: R$ ${spend.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
         }
+    }
+
+    lines.push('');
+
+    // Top 3 canais de aquisição por receita líquida (últimos 30 dias)
+    const { data: channelRevData, error: channelRevError } = await supabase
+        .from('customers')
+        .select('acquisition_channel, total_ltv')
+        .eq('user_id', userId);
+
+    if (!channelRevError && channelRevData && channelRevData.length > 0) {
+        const byChannel: Record<string, number> = {};
+        for (const c of channelRevData) {
+            const ch = c.acquisition_channel || 'desconhecido';
+            byChannel[ch] = (byChannel[ch] || 0) + (Number(c.total_ltv) || 0);
+        }
+        const top3 = Object.entries(byChannel)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
+        lines.push('Top 3 canais de aquisição por LTV total acumulado:');
+        for (const [channel, ltv] of top3) {
+            lines.push(`— ${channel}: R$ ${ltv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
+        }
+    } else if (channelRevError) {
+        console.error('[AgentData] health channel revenue error:', channelRevError.message);
+        lines.push('Top canais por receita: dados indisponíveis.');
+    }
+
+    lines.push('');
+
+    // Recomendações de growth pendentes
+    const { data: pendingRecs, error: pendingRecsError } = await supabase
+        .from('growth_recommendations')
+        .select('id, title, action_type')
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+    if (pendingRecsError) {
+        console.error('[AgentData] health growth_recommendations error:', pendingRecsError.message);
+        lines.push('Recomendações de growth pendentes: dados indisponíveis.');
+    } else if (!pendingRecs || pendingRecs.length === 0) {
+        lines.push('Recomendações de growth pendentes de aprovação: nenhuma no momento.');
+    } else {
+        lines.push(`Recomendações de growth aguardando aprovação do founder: ${pendingRecs.length}`);
+        for (const rec of pendingRecs) {
+            lines.push(`— [${rec.action_type || 'ação'}] ${rec.title || rec.id}`);
+        }
+    }
+
+    lines.push('');
+
+    // Clientes em risco de churn
+    const { count: riskCount, error: riskCountError } = await supabase
+        .from('customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .gt('churn_probability', 0.5);
+
+    if (riskCountError) {
+        console.error('[AgentData] health churn risk count error:', riskCountError.message);
+        lines.push('Clientes em risco de churn: dados indisponíveis.');
+    } else {
+        lines.push(`Clientes em risco de churn (prob > 50%): ${riskCount ?? 0}`);
     }
 
     return lines.join('\n');
@@ -979,13 +1146,34 @@ async function getAnomaliesContext(userId: string): Promise<string> {
     return lines.join('\n');
 }
 
-async function getCreativesContext(_userId: string): Promise<string> {
+async function getCreativesContext(userId: string): Promise<string> {
     const lines: string[] = [];
     const twentyEightDaysAgoDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Buscar campaign_ids do usuário para filtrar ad_metrics com segurança
+    const { data: userCampaigns, error: campaignsError } = await supabase
+        .from('ad_campaigns')
+        .select('id')
+        .eq('user_id', userId);
+
+    if (campaignsError) {
+        console.error('[AgentData] creatives ad_campaigns error:', campaignsError.message);
+        lines.push('Dados de performance de campanhas (últimos 28 dias): indisponíveis no momento.');
+        return lines.join('\n');
+    }
+
+    if (!userCampaigns || userCampaigns.length === 0) {
+        lines.push('Dados de performance de campanhas (últimos 28 dias): nenhuma campanha registrada ainda.');
+        lines.push('Os dados de criativos aparecerão automaticamente após conectar Meta Ads ou Google Ads na página de Integrações.');
+        return lines.join('\n');
+    }
+
+    const campaignIds = userCampaigns.map(c => c.id);
 
     const { data: adMetrics, error: adError } = await supabase
         .from('ad_metrics')
         .select('campaign_id, platform, spend_brl, impressions, clicks, date')
+        .in('campaign_id', campaignIds)
         .gte('date', twentyEightDaysAgoDate)
         .order('spend_brl', { ascending: false })
         .limit(50);
