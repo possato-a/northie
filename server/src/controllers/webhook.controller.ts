@@ -177,8 +177,9 @@ export async function handleHotmartWebhook(req: Request, res: Response) {
     const payload = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString()) : req.body;
     const validation = validateWebhookPayload('hotmart', payload);
     if (!validation.success) {
-        console.warn(`[Webhook] Hotmart: invalid payload for profile ${profileId}:`, validation.errors);
-        return res.status(400).json({ error: 'Invalid payload', details: validation.errors });
+        const errs = (validation as { errors?: string[] }).errors ?? [];
+        console.warn(`[Webhook] Hotmart: invalid payload for profile ${profileId}:`, errs);
+        return res.status(400).json({ error: 'Invalid payload', details: errs });
     }
 
     try {
@@ -323,9 +324,9 @@ export async function handleWebhook(req: Request, res: Response) {
     // 2. Validar estrutura do payload antes de qualquer persistência
     const validation = validateWebhookPayload(platform, payload);
     if (!validation.success) {
-        const errors = !validation.success ? validation.errors : [];
-        console.warn(`[Webhook] Invalid payload for ${platform}:`, errors);
-        return res.status(400).json({ error: 'Invalid payload', details: errors });
+        const errs = (validation as { errors?: string[] }).errors ?? [];
+        console.warn(`[Webhook] Invalid payload for ${platform}:`, errs);
+        return res.status(400).json({ error: 'Invalid payload', details: errs });
     }
 
     try {
