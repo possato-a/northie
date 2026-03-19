@@ -8,8 +8,7 @@
     ],
     "functions": {
         "api/main.ts": {
-            "maxDuration": 300,
-            "includeFiles": "server/src/**"
+            "maxDuration": 300
         }
     },
     "headers": [

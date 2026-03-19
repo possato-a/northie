@@ -111,7 +111,7 @@ async function resolveAccessToken(profileId: string): Promise<string> {
  */
 async function resolveCustomerId(profileId: string, accessToken: string): Promise<string | null> {
     const tokens = await IntegrationService.getIntegration(profileId, 'google');
-    const meta = tokens as unknown as Record<string, unknown> | null;
+    const meta = tokens as Record<string, unknown> | null;
 
     // 1. Tentar customer_ids salvo no metadata
     if (meta) {

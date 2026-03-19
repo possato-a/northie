@@ -1,67 +1,32 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { getAnthropicClient } from '../lib/anthropic.js';
-
+import dotenv from 'dotenv';
+dotenv.config();
+let _anthropic = null;
 function getAnthropic() {
-    return getAnthropicClient();
+    if (!_anthropic) {
+        if (!process.env.ANTHROPIC_API_KEY) {
+            throw new Error('ANTHROPIC_API_KEY não configurada.');
+        }
+        _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    }
+    return _anthropic;
 }
-
-export interface CustomerEntry {
-    email: string;
-    ltv: number;
-    rfm: string;
-    churn: number;
-    channel: string;
-    lastPurchase: string;
-}
-
-export interface ChatContext {
-    profileId: string;
-    pageContext?: string;
-    model?: string;
-    stats: {
-        total_revenue: number;
-        total_customers: number;
-        total_transactions: number;
-        avg_ticket: number;
-        revenue_30d: number;
-        transactions_30d: number;
-    };
-    rfmSegments: {
-        Champions: { count: number; avg_ltv: number; revenue: number };
-        'Em Risco': { count: number; avg_ltv: number; revenue: number };
-        'Novos Promissores': { count: number; avg_ltv: number; revenue: number };
-        Inativos: { count: number; avg_ltv: number; revenue: number };
-    };
-    channelBreakdown: Array<{ channel: string; customers: number; avg_ltv: number; revenue: number }>;
-    pendingGrowthRecs: number;
-    customerList?: CustomerEntry[];
-    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
-}
-
-const MODEL_MAP: Record<string, string> = {
+const MODEL_MAP = {
     sonnet: 'claude-sonnet-4-6',
     opus: 'claude-opus-4-6',
     haiku: 'claude-haiku-4-5-20251001',
 };
-
-export async function generateAIResponse(message: string, context: ChatContext) {
+export async function generateAIResponse(message, context) {
     const modelId = MODEL_MAP[context.model || 'sonnet'] ?? 'claude-sonnet-4-6';
     console.log(`[AI] Generating response for profile ${context.profileId} — model: ${modelId}`);
-
-    const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-
+    const fmt = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const channelLines = context.channelBreakdown.length > 0
         ? context.channelBreakdown.map(c => `— ${c.channel}: ${c.customers} clientes | LTV médio R$ ${fmt(c.avg_ltv)} | receita R$ ${fmt(c.revenue)}`).join('\n')
         : '— Sem dados de canal disponíveis ainda';
-
     const rfm = context.rfmSegments;
-
     const customerLines = (context.customerList || []).length > 0
-        ? (context.customerList || []).map((c, i) =>
-            `${i + 1}. ${c.email} | LTV R$ ${fmt(c.ltv)} | RFM ${c.rfm || 'N/A'} | Churn ${c.churn.toFixed(0)}% | ${c.channel} | última compra ${c.lastPurchase ? new Date(c.lastPurchase).toLocaleDateString('pt-BR') : 'N/A'}`
-          ).join('\n')
+        ? (context.customerList || []).map((c, i) => `${i + 1}. ${c.email} | LTV R$ ${fmt(c.ltv)} | RFM ${c.rfm || 'N/A'} | Churn ${c.churn.toFixed(0)}% | ${c.channel} | última compra ${c.lastPurchase ? new Date(c.lastPurchase).toLocaleDateString('pt-BR') : 'N/A'}`).join('\n')
         : '— Sem clientes cadastrados ainda';
-
     const systemPrompt = `Você é a Northie AI — a inteligência financeira e estratégica do sistema Northie, infraestrutura de receita para founders de negócios digitais.
 
 IDENTIDADE:
@@ -97,13 +62,11 @@ REGRAS INVIOLÁVEIS:
 6. Se a pergunta puder virar ação executável, mencione que há ações prontas na página Growth.
 7. Termine com 1 próximo passo concreto.
 8. Responda SEMPRE em português brasileiro.`;
-
     // Montar mensagens com histórico + mensagem atual
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    const messages = [
         ...(context.history || []),
         { role: 'user', content: message },
     ];
-
     try {
         const response = await getAnthropic().messages.create({
             model: modelId,
@@ -111,94 +74,41 @@ REGRAS INVIOLÁVEIS:
             system: systemPrompt,
             messages,
         });
-
         const content = response.content[0];
         if (content?.type === 'text') {
             return {
                 role: 'assistant',
                 content: content.text,
-                model: modelId
+                model: response.model
             };
         }
-
         throw new Error('Unexpected response format from Claude');
-    } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        console.error('[AI Chat] Erro:', msg);
-        // Diagnóstico rápido da causa
-        if (msg.includes('credit') || msg.includes('balance')) {
-            console.error('[AI Chat] Causa: saldo Anthropic esgotado. Configure GROQ_API_KEY no servidor.');
-        } else if (msg.includes('GROQ_API_KEY') || msg.includes('provider') || msg.includes('configurada')) {
-            console.error('[AI Chat] Causa: nenhum provider de IA configurado. Adicione GROQ_API_KEY nas env vars.');
-        }
-
+    }
+    catch (error) {
+        console.error('--- Anthropic API Error Detail ---');
+        if (error.status)
+            console.error('Status:', error.status);
+        if (error.error)
+            console.error('Error Body:', JSON.stringify(error.error, null, 2));
+        console.error('Message:', error.message);
+        console.error('---------------------------------');
         return {
             role: 'assistant',
-            content: 'Desculpe, tive um problema ao processar sua pergunta.',
+            content: 'Desculpe, tive um problema ao processar seu pedido agora. Verifique se minha chave API está ativa no servidor.',
             model: 'error'
         };
     }
 }
-
-export interface GrowthChatContext {
-    profileId: string;
-    model?: string;
-    businessStats?: {
-        total_revenue: number;
-        avg_ltv: number;
-        avg_churn: number;
-        active_channels: string[];
-    };
-    rfmSegments?: {
-        Champions: number;
-        'Em Risco': number;
-        'Novos Promissores': number;
-        Inativos: number;
-    };
-    channelPerformance?: Array<{
-        channel: string;
-        customers_acquired: number;
-        avg_ltv_brl: number;
-        total_spend_brl: number;
-        true_roi: number | null;
-    }>;
-    pendingRecs?: Array<{
-        id: string;
-        type: string;
-        title: string;
-        narrative: string;
-        impact_estimate: string;
-        meta: Record<string, unknown>;
-    }>;
-    recentRecs?: Array<{
-        id: string;
-        type: string;
-        title: string;
-        status: string;
-    }>;
-    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
-}
-
-export async function generateGrowthAIResponse(message: string, context: GrowthChatContext) {
+export async function generateGrowthAIResponse(message, context) {
     const growthModelId = MODEL_MAP[context.model || 'sonnet'] ?? 'claude-sonnet-4-6';
     console.log(`[AI] Generating Growth response for profile ${context.profileId} — model: ${growthModelId}`);
-
-    const pendingRecsText = (context.pendingRecs || []).map(r =>
-        `- [${r.type}] "${r.title}"\n  Narrativa: ${r.narrative}\n  Impacto: ${r.impact_estimate}`
-    ).join('\n') || 'Nenhuma recomendação pendente no momento.';
-
-    const recentRecsText = (context.recentRecs || []).map(r =>
-        `- [${r.status}] "${r.title}"`
-    ).join('\n') || 'Nenhuma ação recente.';
-
-    const fmtG = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const pendingRecsText = (context.pendingRecs || []).map(r => `- [${r.type}] "${r.title}"\n  Narrativa: ${r.narrative}\n  Impacto: ${r.impact_estimate}`).join('\n') || 'Nenhuma recomendação pendente no momento.';
+    const recentRecsText = (context.recentRecs || []).map(r => `- [${r.status}] "${r.title}"`).join('\n') || 'Nenhuma ação recente.';
+    const fmtG = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const rfm = context.rfmSegments;
     const channelPerfLines = (context.channelPerformance || []).length > 0
-        ? (context.channelPerformance || []).map(c =>
-            `— ${c.channel}: ${c.customers_acquired} clientes | LTV médio R$ ${fmtG(c.avg_ltv_brl)} | gasto R$ ${fmtG(c.total_spend_brl)} | ROI real ${c.true_roi != null ? c.true_roi.toFixed(2) + 'x' : 'N/A'}`
-          ).join('\n')
+        ? (context.channelPerformance || []).map(c => `— ${c.channel}: ${c.customers_acquired} clientes | LTV médio R$ ${fmtG(c.avg_ltv_brl)} | gasto R$ ${fmtG(c.total_spend_brl)} | ROI real ${c.true_roi != null ? c.true_roi.toFixed(2) + 'x' : 'N/A'}`).join('\n')
         : '— Dados de performance por canal ainda não disponíveis';
-
     const systemPrompt = `Você é o Northie Growth — o motor de crescimento inteligente que cruza dados de múltiplas fontes para identificar e executar ações de alto impacto.
 
 COMO VOCÊ OPERA:
@@ -232,18 +142,16 @@ REGRAS INVIOLÁVEIS:
 4. Se o founder quiser executar algo, ele precisa clicar em "Aprovar e executar" no card. NUNCA execute ou simule execução via chat.
 5. Nunca use linguagem vaga. "Seus 12 clientes Champions têm LTV 3x acima da média" é correto. "Você tem clientes valiosos" não é.
 6. Responda sempre em português brasileiro.`;
-
-    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    const messages = [
         ...(context.history || []),
         { role: 'user', content: message },
     ];
-
     const tools = [
         {
             name: 'get_recommendation_detail',
             description: 'Retorna detalhes completos de uma recomendação de growth específica, incluindo métricas do segmento e dados de contexto.',
             input_schema: {
-                type: 'object' as const,
+                type: 'object',
                 properties: {
                     recommendation_type: {
                         type: 'string',
@@ -258,7 +166,7 @@ REGRAS INVIOLÁVEIS:
             name: 'get_segment_preview',
             description: 'Retorna preview agregado (sem PII) do segmento de uma recomendação — quantidade, LTV médio, etc.',
             input_schema: {
-                type: 'object' as const,
+                type: 'object',
                 properties: {
                     recommendation_type: {
                         type: 'string',
@@ -273,7 +181,7 @@ REGRAS INVIOLÁVEIS:
             name: 'explain_correlation',
             description: 'Explica em detalhes a correlação entre fontes de dados que gerou uma recomendação específica.',
             input_schema: {
-                type: 'object' as const,
+                type: 'object',
                 properties: {
                     recommendation_type: {
                         type: 'string',
@@ -284,7 +192,6 @@ REGRAS INVIOLÁVEIS:
             },
         },
     ];
-
     try {
         const response = await getAnthropic().messages.create({
             model: growthModelId,
@@ -293,36 +200,33 @@ REGRAS INVIOLÁVEIS:
             messages,
             tools,
         });
-
         // Handle tool use
         if (response.stop_reason === 'tool_use') {
             const toolUseBlock = response.content.find(b => b.type === 'tool_use');
             if (toolUseBlock && toolUseBlock.type === 'tool_use') {
-                const toolInput = toolUseBlock.input as Record<string, unknown>;
-                const recType = toolInput.recommendation_type as string;
+                const toolInput = toolUseBlock.input;
+                const recType = toolInput.recommendation_type;
                 const matchingRec = (context.pendingRecs || []).find(r => r.type === recType);
-
                 let toolResult = '';
                 if (toolUseBlock.name === 'get_recommendation_detail') {
                     toolResult = matchingRec
                         ? `Detalhes de "${matchingRec.title}":\n${matchingRec.narrative}\nImpacto: ${matchingRec.impact_estimate}\nMeta: ${JSON.stringify(matchingRec.meta, null, 2)}`
                         : `Nenhuma recomendação ativa do tipo ${recType}.`;
-                } else if (toolUseBlock.name === 'get_segment_preview') {
+                }
+                else if (toolUseBlock.name === 'get_segment_preview') {
                     if (matchingRec?.meta) {
                         const m = matchingRec.meta;
-                        const campaignsArr = Array.isArray(m.campaigns) ? m.campaigns : [];
-                        const total = m.segment_count || m.champion_count || campaignsArr.length || 'N/A';
-                        const avgLtv = Number(m.avg_ltv || 0);
-                        toolResult = `Preview do segmento (${recType}):\n- Total: ${total}\n- LTV médio: R$ ${avgLtv.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n- Fontes: ${matchingRec.impact_estimate}`;
-                    } else {
+                        toolResult = `Preview do segmento (${recType}):\n- Total: ${m.segment_count || m.champion_count || m.campaigns?.length || 'N/A'}\n- LTV médio: R$ ${(m.avg_ltv || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n- Fontes: ${matchingRec.impact_estimate}`;
+                    }
+                    else {
                         toolResult = `Sem dados de segmento para ${recType}.`;
                     }
-                } else if (toolUseBlock.name === 'explain_correlation') {
+                }
+                else if (toolUseBlock.name === 'explain_correlation') {
                     toolResult = matchingRec
-                        ? `Correlação para "${matchingRec.title}":\nEssa recomendação cruzou as seguintes fontes: ${(Array.isArray(matchingRec.meta?.sources) ? (matchingRec.meta.sources as string[]).join(', ') : 'N/A')}.\n${matchingRec.narrative}`
+                        ? `Correlação para "${matchingRec.title}":\nEssa recomendação cruzou as seguintes fontes: ${matchingRec.sources?.join(', ') || 'N/A'}.\n${matchingRec.narrative}`
                         : `Nenhuma recomendação ativa do tipo ${recType}.`;
                 }
-
                 // Segunda chamada com resultado da tool
                 const followUp = await getAnthropic().messages.create({
                     model: growthModelId,
@@ -330,33 +234,27 @@ REGRAS INVIOLÁVEIS:
                     system: systemPrompt,
                     messages: [
                         ...messages,
-                        { role: 'assistant' as const, content: response.content },
+                        { role: 'assistant', content: response.content },
                         {
-                            role: 'user' as const,
-                            content: [{ type: 'tool_result' as const, tool_use_id: toolUseBlock.id, content: toolResult }],
+                            role: 'user',
+                            content: [{ type: 'tool_result', tool_use_id: toolUseBlock.id, content: toolResult }],
                         },
-                    ] as Anthropic.MessageParam[],
+                    ],
                 });
-
                 const followUpText = followUp.content.find(b => b.type === 'text');
                 if (followUpText && followUpText.type === 'text') {
-                    return { role: 'assistant', content: followUpText.text, model: growthModelId };
+                    return { role: 'assistant', content: followUpText.text, model: followUp.model };
                 }
             }
         }
-
         const content = response.content[0];
         if (content?.type === 'text') {
-            return { role: 'assistant', content: content.text, model: growthModelId };
+            return { role: 'assistant', content: content.text, model: response.model };
         }
-
         throw new Error('Unexpected response format');
-    } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        console.error('[AI Growth] Erro:', msg);
-        if (msg.includes('credit') || msg.includes('balance')) {
-            console.error('[AI Growth] Causa: saldo Anthropic esgotado. Configure GROQ_API_KEY nas env vars.');
-        }
+    }
+    catch (error) {
+        console.error('[AI Growth] Error:', error.message);
         return {
             role: 'assistant',
             content: 'Desculpe, tive um problema ao processar sua pergunta. Tente novamente.',
@@ -364,3 +262,4 @@ REGRAS INVIOLÁVEIS:
         };
     }
 }
+//# sourceMappingURL=ai.service.js.map

@@ -1,62 +1,56 @@
 import { supabase } from '../lib/supabase.js';
 import { encrypt, decrypt } from '../utils/encryption.js';
-import axios, { isAxiosError } from 'axios';
+import axios from 'axios';
 import crypto from 'crypto';
-import type { OAuthTokens } from '../types/index.js';
-
 // ─── OAuth CSRF helpers ────────────────────────────────────────────────────
 // The `state` parameter encodes: <profileId>.<timestamp>.<hmac>
 // The HMAC is computed over "profileId:timestamp" using OAUTH_STATE_SECRET.
 // Tokens expire after 10 minutes to limit replay window.
-
-const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || '';
+const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.CRON_SECRET || '';
 if (!OAUTH_STATE_SECRET) {
-    console.error('[IntegrationService] OAUTH_STATE_SECRET deve ser configurado para proteger tokens de estado OAuth CSRF.');
+    console.error('[IntegrationService] OAUTH_STATE_SECRET (ou CRON_SECRET) deve ser configurado para proteger tokens de estado OAuth CSRF.');
     process.exit(1);
 }
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-function hmacState(profileId: string, ts: number): string {
+function hmacState(profileId, ts) {
     return crypto.createHmac('sha256', OAUTH_STATE_SECRET).update(`${profileId}:${ts}`).digest('hex');
 }
-
 /**
  * Core service to manage external platform integrations (Meta, Google, etc.)
  */
 export class IntegrationService {
-
     /**
      * Generates a signed CSRF-safe state token: "<profileId>.<ts>.<hmac>"
      */
-    static generateOAuthState(profileId: string): string {
+    static generateOAuthState(profileId) {
         const ts = Date.now();
         const sig = hmacState(profileId, ts);
         return `${profileId}.${ts}.${sig}`;
     }
-
     /**
      * Validates the state token and returns the embedded profileId,
      * or throws if tampered / expired.
      */
-    static validateOAuthState(state: string): string {
+    static validateOAuthState(state) {
         const parts = state.split('.');
-        if (parts.length < 3) throw new Error('Invalid OAuth state format');
-        const sig = parts.pop()!;
-        const ts = Number(parts.pop()!);
+        if (parts.length < 3)
+            throw new Error('Invalid OAuth state format');
+        const sig = parts.pop();
+        const ts = Number(parts.pop());
         const profileId = parts.join('.'); // handle UUIDs with dots (none, but safe)
-        if (Date.now() - ts > STATE_TTL_MS) throw new Error('OAuth state expired');
+        if (Date.now() - ts > STATE_TTL_MS)
+            throw new Error('OAuth state expired');
         const expected = hmacState(profileId, ts);
         if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
             throw new Error('OAuth state signature invalid');
         }
         return profileId;
     }
-
     /**
      * Centralized helper to build the redirect URI for OAuth callbacks.
      * Prevents issues with trailing slashes in BACKEND_URL.
      */
-    static getRedirectUri(platform: string): string {
+    static getRedirectUri(platform) {
         const baseUrl = process.env.BACKEND_URL
             ? process.env.BACKEND_URL.replace(/\/+$/, '')
             : process.env.VERCEL_URL
@@ -64,38 +58,34 @@ export class IntegrationService {
                 : 'http://localhost:3001';
         return `${baseUrl}/api/integrations/callback/${platform}`;
     }
-
     /**
      * Generates the OAuth authorization URL for a specific platform
      */
-    static getAuthorizationUrl(platform: string, profileId: string, options?: Record<string, string>): string {
+    static getAuthorizationUrl(platform, profileId, options) {
         const redirectUri = this.getRedirectUri(platform);
         const state = this.generateOAuthState(profileId);
-
         switch (platform) {
             case 'meta':
                 const appId = process.env.META_APP_ID;
                 return `https://www.facebook.com/v25.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=ads_management,ads_read,business_management&state=${encodeURIComponent(state)}`;
-
             case 'google':
                 const clientId = process.env.GOOGLE_CLIENT_ID;
-                if (!clientId) throw new Error('GOOGLE_CLIENT_ID não configurado no servidor. Adicione a variável de ambiente no Vercel.');
+                if (!clientId)
+                    throw new Error('GOOGLE_CLIENT_ID não configurado no servidor. Adicione a variável de ambiente no Vercel.');
                 const googleRedirectUri = this.getRedirectUri('google');
                 return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(googleRedirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/adwords&access_type=offline&state=${encodeURIComponent(state)}&prompt=consent`;
-
             case 'hotmart':
                 const hotmartClientId = process.env.HOTMART_CLIENT_ID;
                 return `https://api-sec-vlc.hotmart.com/security/oauth/authorize?client_id=${hotmartClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${encodeURIComponent(state)}`;
-
             case 'stripe':
                 return `https://connect.stripe.com/oauth/authorize?` +
                     `response_type=code&client_id=${process.env.STRIPE_CLIENT_ID}` +
                     `&scope=read_write&state=${encodeURIComponent(state)}` +
                     `&redirect_uri=${encodeURIComponent(this.getRedirectUri('stripe'))}`;
-
             case 'shopify': {
-                const shop = options?.shop as string | undefined;
-                if (!shop) throw new Error('Parâmetro shop obrigatório para Shopify');
+                const shop = options?.shop;
+                if (!shop)
+                    throw new Error('Parâmetro shop obrigatório para Shopify');
                 const shopDomain = shop.includes('.myshopify.com') ? shop : `${shop}.myshopify.com`;
                 const shopifyRedirectUri = this.getRedirectUri('shopify');
                 return `https://${shopDomain}/admin/oauth/authorize`
@@ -104,75 +94,67 @@ export class IntegrationService {
                     + `&redirect_uri=${encodeURIComponent(shopifyRedirectUri)}`
                     + `&state=${encodeURIComponent(state)}`;
             }
-
             default:
                 throw new Error(`Platform ${platform} not supported for OAuth`);
         }
     }
-
     /**
      * Stores encrypted tokens in the database.
      * Calculates expires_at from expires_in if not already set.
      */
-    static async saveIntegration(profileId: string, platform: string, tokens: OAuthTokens) {
+    static async saveIntegration(profileId, platform, tokens) {
         // Derive absolute expiry timestamp from expires_in (seconds)
         const expiresAt = tokens.expires_at
             ?? (tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined);
-
-        const tokensWithExpiry: OAuthTokens = { ...tokens };
-        if (expiresAt !== undefined) tokensWithExpiry.expires_at = expiresAt;
-
+        const tokensWithExpiry = { ...tokens };
+        if (expiresAt !== undefined)
+            tokensWithExpiry.expires_at = expiresAt;
         const encryptedConfig = encrypt(JSON.stringify(tokensWithExpiry));
-
         const { error } = await supabase
             .from('integrations')
             .upsert({
-                profile_id: profileId,
-                platform,
-                config_encrypted: { data: encryptedConfig },
-                status: 'active',
-                last_sync_at: new Date().toISOString()
-            }, { onConflict: 'profile_id,platform' });
-
+            profile_id: profileId,
+            platform,
+            config_encrypted: { data: encryptedConfig },
+            status: 'active',
+            last_sync_at: new Date().toISOString()
+        }, { onConflict: 'profile_id,platform' });
         if (error) {
             console.error(`[IntegrationService] Error saving ${platform} integration:`, error);
             throw error;
         }
-
         console.log(`[IntegrationService] Successfully saved/updated ${platform} for profile ${profileId}`);
     }
-
     /**
      * Retrieves and decrypts integration tokens
      */
-    static async getIntegration(profileId: string, platform: string): Promise<OAuthTokens | null> {
+    static async getIntegration(profileId, platform) {
         const { data, error } = await supabase
             .from('integrations')
             .select('config_encrypted')
             .eq('profile_id', profileId)
             .eq('platform', platform)
             .single();
-
-        if (error || !data) return null;
-
+        if (error || !data)
+            return null;
         try {
-            const decrypted = decrypt((data.config_encrypted as unknown as { data: string }).data);
+            const decrypted = decrypt(data.config_encrypted.data);
             return JSON.parse(decrypted);
-        } catch (e) {
+        }
+        catch (e) {
             console.error(`[IntegrationService] Failed to decrypt ${platform} tokens:`, e);
             return null;
         }
     }
-
     /**
      * Returns true if the stored token expires within the next `bufferMs` milliseconds.
      * Defaults to 7-day buffer (tokens expiring in < 7 days are considered "near expiry").
      */
-    static isNearExpiry(tokens: OAuthTokens, bufferMs = 7 * 24 * 60 * 60 * 1000): boolean {
-        if (!tokens.expires_at) return false; // unknown — assume still valid
+    static isNearExpiry(tokens, bufferMs = 7 * 24 * 60 * 60 * 1000) {
+        if (!tokens.expires_at)
+            return false; // unknown — assume still valid
         return tokens.expires_at - Date.now() < bufferMs;
     }
-
     /**
      * Refreshes / re-exchanges a token for the given platform.
      *
@@ -182,12 +164,11 @@ export class IntegrationService {
      *
      * Google: Standard OAuth refresh_token flow.
      */
-    static async refreshTokens(profileId: string, platform: string): Promise<OAuthTokens> {
+    static async refreshTokens(profileId, platform) {
         const tokens = await this.getIntegration(profileId, platform);
         if (!tokens) {
             throw new Error(`[IntegrationService] No tokens stored for ${platform} / ${profileId}`);
         }
-
         // ── Meta ──────────────────────────────────────────────────────────
         if (platform === 'meta') {
             // Meta long-lived tokens last ~60 days and cannot be refreshed with
@@ -196,7 +177,6 @@ export class IntegrationService {
                 console.log(`[IntegrationService] Meta token still valid for profile ${profileId}, skipping.`);
                 return tokens;
             }
-
             console.log(`[IntegrationService] Meta token near expiry for profile ${profileId} — re-exchanging.`);
             try {
                 const res = await axios.get('https://graph.facebook.com/v25.0/oauth/access_token', {
@@ -209,7 +189,7 @@ export class IntegrationService {
                 });
                 // Drop expires_at so saveIntegration recalculates it from expires_in
                 const { expires_at: _drop, ...rest } = tokens;
-                const newTokens: OAuthTokens = {
+                const newTokens = {
                     ...rest,
                     access_token: res.data.access_token,
                     expires_in: res.data.expires_in,
@@ -217,29 +197,26 @@ export class IntegrationService {
                 await this.saveIntegration(profileId, platform, newTokens);
                 console.log(`[IntegrationService] Meta token renewed for profile ${profileId}.`);
                 return newTokens;
-            } catch (error: unknown) {
-                const detail = isAxiosError(error) ? error.response?.data ?? error.message : (error instanceof Error ? error.message : String(error));
+            }
+            catch (error) {
+                const detail = error.response?.data ?? error.message;
                 console.error(`[IntegrationService] Meta re-exchange failed for ${profileId}:`, detail);
-                if (isAxiosError(error)) {
-                    const httpStatus = error.response?.status;
-                    const errCode = error.response?.data?.error?.code;
-                    const errType = error.response?.data?.error?.type;
-                    const isPermanent =
-                        (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
-                        (httpStatus === 400 && errType === 'OAuthException' && [190, 102, 467, 458].includes(errCode)) ||
-                        (httpStatus === 401);
-                    if (isPermanent) {
-                        await supabase
-                            .from('integrations')
-                            .update({ status: 'inactive' })
-                            .eq('profile_id', profileId)
-                            .eq('platform', 'meta');
-                    }
+                const httpStatus = error.response?.status;
+                const errCode = error.response?.data?.error?.code;
+                const errType = error.response?.data?.error?.type;
+                const isPermanent = (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
+                    (httpStatus === 400 && errType === 'OAuthException' && [190, 102, 467, 458].includes(errCode)) ||
+                    (httpStatus === 401);
+                if (isPermanent) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'inactive' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'meta');
                 }
                 throw error;
             }
         }
-
         // ── Google ────────────────────────────────────────────────────────
         if (platform === 'google') {
             if (!tokens.refresh_token) {
@@ -250,7 +227,6 @@ export class IntegrationService {
                 console.log(`[IntegrationService] Google token still valid for profile ${profileId}, skipping.`);
                 return tokens;
             }
-
             console.log(`[IntegrationService] Refreshing Google token for profile ${profileId}.`);
             try {
                 const res = await axios.post('https://oauth2.googleapis.com/token', {
@@ -260,7 +236,7 @@ export class IntegrationService {
                     grant_type: 'refresh_token',
                 });
                 const { expires_at: _dropG, ...restG } = tokens;
-                const newTokens: OAuthTokens = {
+                const newTokens = {
                     ...restG,
                     access_token: res.data.access_token,
                     expires_in: res.data.expires_in,
@@ -268,26 +244,22 @@ export class IntegrationService {
                 };
                 await this.saveIntegration(profileId, platform, newTokens);
                 return newTokens;
-            } catch (error: unknown) {
-                const detail = isAxiosError(error) ? error.response?.data ?? error.message : (error instanceof Error ? error.message : String(error));
-                console.error(`[IntegrationService] Google refresh failed for ${profileId}:`, detail);
-                if (isAxiosError(error)) {
-                    const httpStatus = error.response?.status;
-                    const isPermanent =
-                        (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
-                        (httpStatus === 401);
-                    if (isPermanent) {
-                        await supabase
-                            .from('integrations')
-                            .update({ status: 'inactive' })
-                            .eq('profile_id', profileId)
-                            .eq('platform', 'google');
-                    }
+            }
+            catch (error) {
+                console.error(`[IntegrationService] Google refresh failed for ${profileId}:`, error.response?.data ?? error.message);
+                const httpStatus = error.response?.status;
+                const isPermanent = (httpStatus === 400 && error.response?.data?.error === 'invalid_grant') ||
+                    (httpStatus === 401);
+                if (isPermanent) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'inactive' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'google');
                 }
                 throw error;
             }
         }
-
         // ── Hotmart ───────────────────────────────────────────────────────────
         if (platform === 'hotmart') {
             if (!tokens.refresh_token) {
@@ -297,22 +269,15 @@ export class IntegrationService {
                 console.log(`[IntegrationService] Hotmart token still valid for profile ${profileId}, skipping.`);
                 return tokens;
             }
-
             console.log(`[IntegrationService] Refreshing Hotmart token for profile ${profileId}.`);
             try {
-                const credentials = Buffer.from(
-                    `${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`
-                ).toString('base64');
-                const res = await axios.post(
-                    'https://api-sec-vlc.hotmart.com/security/oauth/token',
-                    new URLSearchParams({
-                        grant_type: 'refresh_token',
-                        refresh_token: tokens.refresh_token,
-                    }),
-                    { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
-                );
+                const credentials = Buffer.from(`${process.env.HOTMART_CLIENT_ID}:${process.env.HOTMART_CLIENT_SECRET}`).toString('base64');
+                const res = await axios.post('https://api-sec-vlc.hotmart.com/security/oauth/token', new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    refresh_token: tokens.refresh_token,
+                }), { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
                 const { expires_at: _drop, ...rest } = tokens;
-                const newTokens: OAuthTokens = {
+                const newTokens = {
                     ...rest,
                     access_token: res.data.access_token,
                     expires_in: res.data.expires_in,
@@ -320,41 +285,36 @@ export class IntegrationService {
                 };
                 await this.saveIntegration(profileId, platform, newTokens);
                 return newTokens;
-            } catch (error: unknown) {
-                const detail = isAxiosError(error) ? error.response?.data ?? error.message : (error instanceof Error ? error.message : String(error));
-                console.error(`[IntegrationService] Hotmart refresh failed for ${profileId}:`, detail);
-                if (isAxiosError(error)) {
-                    const httpStatus = error.response?.status;
-                    const errData = error.response?.data;
-                    const isPermanent =
-                        (httpStatus === 400 && (errData?.error === 'invalid_grant' || errData?.error === 'invalid_token')) ||
-                        (httpStatus === 401);
-                    if (isPermanent) {
-                        await supabase
-                            .from('integrations')
-                            .update({ status: 'inactive' })
-                            .eq('profile_id', profileId)
-                            .eq('platform', 'hotmart');
-                    }
+            }
+            catch (error) {
+                console.error(`[IntegrationService] Hotmart refresh failed for ${profileId}:`, error.response?.data ?? error.message);
+                const httpStatus = error.response?.status;
+                const errData = error.response?.data;
+                const isPermanent = (httpStatus === 400 && (errData?.error === 'invalid_grant' || errData?.error === 'invalid_token')) ||
+                    (httpStatus === 401);
+                if (isPermanent) {
+                    await supabase
+                        .from('integrations')
+                        .update({ status: 'inactive' })
+                        .eq('profile_id', profileId)
+                        .eq('platform', 'hotmart');
                 }
                 throw error;
             }
         }
-
         // ── Stripe ────────────────────────────────────────────────────────────
         if (platform === 'stripe') {
             // Stripe Connect Standard tokens don't expire — nothing to refresh.
             console.log(`[IntegrationService] Stripe token is permanent for profile ${profileId}, skipping refresh.`);
             return tokens;
         }
-
         // ── Shopify ───────────────────────────────────────────────────────────
         if (platform === 'shopify') {
             // Shopify access tokens are permanent — no expiry, no refresh needed.
             console.log(`[IntegrationService] Shopify token is permanent for profile ${profileId}, skipping refresh.`);
             return tokens;
         }
-
         throw new Error(`[IntegrationService] refreshTokens not implemented for platform: ${platform}`);
     }
 }
+//# sourceMappingURL=integration.service.js.map
