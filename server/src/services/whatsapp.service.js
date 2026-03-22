@@ -184,5 +184,3 @@ export async function testConnection() {
         return { ok: false, error: err.message };
     }
 }
-
-export { isConfigured };
