@@ -501,15 +501,9 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             const height = 700
             const left = window.screen.width / 2 - width / 2
             const top = window.screen.height / 2 - height / 2
-            // Use relative URL in production, absolute only in localhost (backend runs on port 3001)
-            const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
-            const shopParam = pluginId === 'shopify' ? `&shop=${encodeURIComponent(shopifyDomain.trim())}` : ''
-            fetch(`${apiBase}/api/integrations/connect/${platform}?profileId=${user?.id}${shopParam}`)
-                .then(r => {
-                    if (!r.ok) throw new Error(`Server error: ${r.status}`)
-                    return r.json()
-                })
-                .then(({ authUrl }) => {
+            const shopArg = pluginId === 'shopify' ? shopifyDomain.trim() : undefined
+            integrationApi.connect(platform, shopArg)
+                .then(({ data: { authUrl } }) => {
                     if (!authUrl) throw new Error('authUrl não retornado pelo servidor')
                     window.open(
                         authUrl,
@@ -764,14 +758,12 @@ function DetailView({ plugin, onBack, onInstall, onDisconnect, onSync, onSyncFul
         setShopifyDomainError('')
         setShopifyConnecting(true)
 
-        const apiBase = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin
         const width = 600, height = 700
         const left = window.screen.width / 2 - width / 2
         const top = window.screen.height / 2 - height / 2
 
-        fetch(`${apiBase}/api/integrations/connect/shopify?profileId=${userId}&shop=${encodeURIComponent(domain)}`)
-            .then(r => { if (!r.ok) throw new Error(`Server error ${r.status}`); return r.json() })
-            .then(({ authUrl }) => {
+        integrationApi.connect('shopify', domain)
+            .then(({ data: { authUrl } }) => {
                 if (!authUrl) throw new Error('authUrl não retornado')
                 window.open(authUrl, 'NorthieShopifyAuth', `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`)
             })

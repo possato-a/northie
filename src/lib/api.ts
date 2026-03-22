@@ -45,6 +45,7 @@ export const dashboardApi = {
 
 export const integrationApi = {
     getStatus: () => api.get('/integrations/status'),
+    connect: (platform: string, shop?: string) => api.get(`/integrations/connect/${platform}`, { params: shop ? { shop } : {} }),
     disconnect: (platform: string) => api.post(`/integrations/disconnect/${platform}`),
     sync: (platform: string, days = 2) => api.post(`/integrations/sync/${platform}`, { days }),
 };
