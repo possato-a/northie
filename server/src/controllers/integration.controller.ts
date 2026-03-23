@@ -32,7 +32,21 @@ function validateShopDomain(shop: string): string | null {
  */
 export async function connectPlatform(req: Request, res: Response) {
     const { platform } = req.params;
-    const profileId = (res.locals.profileId as string) || (req.headers['x-profile-id'] as string);
+
+    // Tenta obter profileId em ordem de confiabilidade:
+    // 1. res.locals (set pelo authMiddleware via Express)
+    // 2. x-profile-id header (set pelo authMiddleware ou pelo client)
+    // 3. Decodifica diretamente do Bearer token (JWT já foi verificado pelo authMiddleware)
+    let profileId: string = (res.locals.profileId as string) || (req.headers['x-profile-id'] as string) || '';
+    if (!profileId) {
+        const bearer = (req.headers['authorization'] as string | undefined)?.slice(7);
+        if (bearer) {
+            try {
+                const payload = JSON.parse(Buffer.from(bearer.split('.')[1]!, 'base64').toString());
+                profileId = payload.sub ?? '';
+            } catch { /* fallback falhou */ }
+        }
+    }
 
     if (!platform || !profileId) {
         return res.status(400).json({ error: 'Missing platform or profileId' });
