@@ -22,7 +22,7 @@ import { backfillStripe } from './stripe-sync.job.js';
 import { IntegrationService } from '../services/integration.service.js';
 
 const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
-const HOTMART_API_BASE = 'https://developers.hotmart.com';
+const HOTMART_API_BASE = 'https://api-hot-connect.hotmart.com';
 
 // ── Auth client credentials ────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ import axios from 'axios';
 import { supabase } from '../lib/supabase.js';
 import { IntegrationService } from '../services/integration.service.js';
 
-const HOTMART_API_BASE = 'https://developers.hotmart.com';
+const HOTMART_API_BASE = 'https://api-hot-connect.hotmart.com';
 const HOTMART_AUTH_URL = 'https://api-sec-vlc.hotmart.com/security/oauth/token';
 
 // Taxa padrão Hotmart para produtores (9,9%). Usada no backfill pois a API
