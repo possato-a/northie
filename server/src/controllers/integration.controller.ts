@@ -34,8 +34,11 @@ export async function connectPlatform(req: Request, res: Response) {
     const { platform } = req.params;
     const profileId = req.headers['x-profile-id'] as string;
 
+    console.log(`[connectPlatform] platform=${platform} profileId=${profileId || '(vazio)'} auth=${req.headers['authorization'] ? 'presente' : 'ausente'}`);
+
     if (!platform || !profileId) {
-        return res.status(400).json({ error: 'Missing platform or profileId' });
+        console.error(`[connectPlatform] Bloqueado: platform=${platform} profileId=${profileId}`);
+        return res.status(400).json({ error: `Missing platform or profileId (platform=${platform}, profileId=${profileId || 'vazio'})` });
     }
 
     try {
