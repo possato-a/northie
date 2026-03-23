@@ -52,8 +52,9 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     try {
         const userId = JWT_SECRET ? verifyLocal(token) : await verifyRemote(token);
 
-        // Sobrescreve x-profile-id com o userId extraído do JWT verificado.
-        // Qualquer valor enviado pelo cliente é descartado aqui.
+        // Passa o userId verificado via res.locals (Express-safe, imutável no Vercel)
+        // e também via header por compatibilidade com controllers legados.
+        res.locals.profileId = userId;
         req.headers['x-profile-id'] = userId;
 
         next();

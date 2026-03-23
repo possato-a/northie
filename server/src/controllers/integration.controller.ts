@@ -32,9 +32,9 @@ function validateShopDomain(shop: string): string | null {
  */
 export async function connectPlatform(req: Request, res: Response) {
     const { platform } = req.params;
-    const profileId = req.headers['x-profile-id'] as string;
+    const profileId = (res.locals.profileId as string) || (req.headers['x-profile-id'] as string);
 
-    console.log(`[connectPlatform] platform=${platform} profileId=${profileId || '(vazio)'} auth=${req.headers['authorization'] ? 'presente' : 'ausente'}`);
+    console.log(`[connectPlatform] platform=${platform} profileId=${profileId || '(vazio)'} locals=${res.locals.profileId || 'vazio'} auth=${req.headers['authorization'] ? 'presente' : 'ausente'}`);
 
     if (!platform || !profileId) {
         console.error(`[connectPlatform] Bloqueado: platform=${platform} profileId=${profileId}`);
