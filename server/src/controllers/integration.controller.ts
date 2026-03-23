@@ -32,27 +32,11 @@ function validateShopDomain(shop: string): string | null {
  */
 export async function connectPlatform(req: Request, res: Response) {
     const { platform } = req.params;
-
-    // Extrai profileId diretamente do Bearer token (mais confiável no Vercel serverless)
-    const bearer = String(req.headers['authorization'] || '').replace('Bearer ', '');
-    let profileId = '';
-    if (bearer && bearer.includes('.')) {
-        try {
-            const b64 = bearer.split('.')[1]!.replace(/-/g, '+').replace(/_/g, '/');
-            const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
-            const payload = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
-            profileId = String(payload.sub || '');
-        } catch { /* sem profileId do JWT */ }
-    }
-    // Fallbacks
-    if (!profileId) profileId = String(res.locals.profileId || '');
-    if (!profileId) profileId = String(req.headers['x-profile-id'] || '');
-
-    console.log(`[connectPlatform] platform=${platform} profileId=${profileId || 'VAZIO'} bearer=${bearer ? 'presente' : 'ausente'}`);
+    // profileId é garantido pelo authMiddleware via res.locals
+    const profileId = String(res.locals.profileId || '');
 
     if (!platform || !profileId) {
-        console.error(`[connectPlatform] BLOQUEADO: platform=${platform} profileId=VAZIO`);
-        return res.status(400).json({ error: 'Missing platform or profileId' });
+        return res.status(401).json({ error: 'Sessão inválida. Faça logout e login novamente.' });
     }
 
     try {

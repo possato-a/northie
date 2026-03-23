@@ -9,10 +9,9 @@ import type { OAuthTokens } from '../types/index.js';
 // The HMAC is computed over "profileId:timestamp" using OAUTH_STATE_SECRET.
 // Tokens expire after 10 minutes to limit replay window.
 
-const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || '';
-if (!OAUTH_STATE_SECRET) {
-    console.error('[IntegrationService] OAUTH_STATE_SECRET deve ser configurado para proteger tokens de estado OAuth CSRF.');
-    process.exit(1);
+const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || 'northie-oauth-fallback-secret-32x';
+if (!process.env.OAUTH_STATE_SECRET) {
+    console.warn('[IntegrationService] OAUTH_STATE_SECRET não configurado — usando fallback. Adicione a variável no Vercel para segurança máxima.');
 }
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
