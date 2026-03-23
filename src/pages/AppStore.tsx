@@ -513,7 +513,15 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
                 })
                 .catch((err) => {
                     console.error('[AppStore] Erro ao iniciar OAuth:', err)
-                    showToast('Não foi possível conectar. Verifique sua conexão e tente novamente.', 'error')
+                    const status = err?.response?.status
+                    const serverMsg = err?.response?.data?.error || err?.response?.data?.message
+                    if (status === 401) {
+                        showToast('Sessão expirada. Faça logout e login novamente para reconectar.', 'error')
+                    } else if (serverMsg) {
+                        showToast(`Erro ao conectar: ${serverMsg}`, 'error')
+                    } else {
+                        showToast('Não foi possível conectar. Tente novamente ou faça logout e login.', 'error')
+                    }
                 })
         } else if (pluginId === 'northie-pixel') {
             // Pixel doesn't need OAuth — snippet is shown in detail view
