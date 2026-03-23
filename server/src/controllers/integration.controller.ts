@@ -42,7 +42,7 @@ export async function connectPlatform(req: Request, res: Response) {
         const bearer = (req.headers['authorization'] as string | undefined)?.slice(7);
         if (bearer) {
             try {
-                const payload = JSON.parse(Buffer.from(bearer.split('.')[1]!, 'base64').toString());
+                const payload = JSON.parse(Buffer.from(bearer.split('.')[1]!, 'base64url').toString());
                 profileId = payload.sub ?? '';
             } catch { /* fallback falhou */ }
         }
