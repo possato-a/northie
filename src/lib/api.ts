@@ -30,7 +30,7 @@ export const setProfileId = (profileId: string) => {
 };
 
 export const dashboardApi = {
-    getStats: () => api.get('/dashboard/stats'),
+    getStats: (days = 30) => api.get('/dashboard/stats', { params: { days } }),
     getAttribution: () => api.get('/dashboard/attribution'),
     getGrowth: () => api.get('/dashboard/growth'),
     getChart: () => api.get('/dashboard/chart'),

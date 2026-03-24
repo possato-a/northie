@@ -22,8 +22,8 @@ function defaultRange(): DateRange {
   const end = new Date()
   end.setHours(0, 0, 0, 0)
   const start = new Date(end)
-  start.setDate(start.getDate() - 29)
-  return { start, end, label: 'Últimos 30 dias' }
+  start.setDate(start.getDate() - 89)
+  return { start, end, label: 'Últimos 90 dias' }
 }
 
 function SectionCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -95,7 +95,7 @@ function StatusDistributionBar({ transactions }: { transactions: Transaction[] }
 
 // ── Filter Buttons ────────────────────────────────────────────────────────────
 
-const STATUS_FILTERS: Array<TransactionStatus | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'Reembolsado']
+const STATUS_FILTERS: Array<TransactionStatus | 'Todos'> = ['Todos', 'Pago', 'Pendente', 'Reembolsado', 'Cancelado', 'Estorno']
 
 function FilterButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -403,7 +403,7 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
     setLoading(true)
 
     const txPromise = dataApi.getTransactions(days).catch(() => ({ data: [] }))
-    const statsPromise = dashboardApi.getStats().catch(() => ({ data: {} }))
+    const statsPromise = dashboardApi.getStats(days).catch(() => ({ data: {} }))
     const campaignsPromise = dashboardApi.getAdCampaigns(days).catch(() => ({ data: [] }))
 
     Promise.all([txPromise, statsPromise, campaignsPromise]).then(([txRes, statsRes, campaignsRes]) => {
@@ -418,7 +418,7 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
         status: (({ approved: 'Pago', pending: 'Pendente', refunded: 'Reembolsado', cancelled: 'Cancelado', chargeback: 'Estorno' } as Record<string, string>)[t.status] ?? 'Pendente') as TransactionStatus,
         channel: (t.customers?.acquisition_channel || 'Direto') as any,
       }))
-      if (mapped.length > 0) setTransactions(mapped)
+      setTransactions(mapped)
 
       const campaigns: any[] = Array.isArray(campaignsRes.data) ? campaignsRes.data : []
       const totalLeads = campaigns.reduce((s: number, c: any) => s + (c.leads || 0), 0)
@@ -492,7 +492,7 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
       >
         <KpiCard label="Faturamento" value={stats?.total_revenue || 0} prefix="R$ " decimals={0} delay={0.08} />
         <KpiCard label="Ticket Médio" value={stats?.average_ticket || 0} prefix="R$ " decimals={0} delay={0.13} />
-        <KpiCard label="Transações" value={transactions.length} decimals={0} delay={0.18} />
+        <KpiCard label="Transações" value={filtered.length} decimals={0} delay={0.18} />
         <KpiCard label="Taxa Conversão" value={stats?.convRate ?? 0} suffix="%" decimals={1} delay={0.23} />
       </motion.div>
 
@@ -611,11 +611,11 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
 
           {/* Table header */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr 80px 72px 90px',
+            display: 'grid', gridTemplateColumns: '1fr 1fr 80px 72px 80px 90px',
             gap: '0 16px', paddingBottom: 10,
             borderBottom: '1px solid var(--color-border)', marginBottom: 0,
           }}>
-            {(['Cliente', 'Produto', 'Valor', 'Método', 'Status'] as const).map((h, i) => (
+            {(['Cliente', 'Produto', 'Valor líq.', 'Método', 'Canal', 'Status'] as const).map((h, i) => (
               <span key={h} style={{
                 fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 500,
                 color: 'var(--color-text-tertiary)', letterSpacing: '0.02em',
@@ -667,7 +667,7 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
                       key={t.id}
                       whileHover={{ background: 'var(--color-bg-secondary)' }}
                       style={{
-                        display: 'grid', gridTemplateColumns: '1fr 1fr 80px 72px 90px',
+                        display: 'grid', gridTemplateColumns: '1fr 1fr 80px 72px 80px 90px',
                         gap: '0 16px', padding: '11px 6px',
                         borderBottom: '1px solid var(--color-border)',
                         borderRadius: 'var(--radius-sm)',
@@ -695,6 +695,7 @@ export default function Vendas({ onToggleChat, user }: { onToggleChat?: () => vo
                         R$ {fmtBR(t.value)}
                       </span>
                       <span className="tag tag-neutral">{t.method}</span>
+                      <span className="tag tag-neutral">{t.channel}</span>
                       <StatusTag status={t.status} />
                     </motion.div>
                   ))}
