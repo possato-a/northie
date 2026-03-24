@@ -26,9 +26,10 @@ function validateShopDomain(shop) {
  */
 export async function connectPlatform(req, res) {
     const { platform } = req.params;
-    const profileId = req.query.profileId;
+    // profileId vem do authMiddleware via x-profile-id header (req.headers) ou res.locals
+    const profileId = res.locals.profileId || req.headers['x-profile-id'] || req.query.profileId;
     if (!platform || !profileId) {
-        return res.status(400).json({ error: 'Missing platform or profileId' });
+        return res.status(401).json({ error: 'Sessão inválida. Faça logout e login novamente.' });
     }
     try {
         const rawShop = req.query.shop;
