@@ -355,6 +355,14 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
     const [shopifyDomain, setShopifyDomain] = useState('')
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null)
     const toastTimer = useRef<ReturnType<typeof setTimeout>>()
+    const oauthPopup = useRef<Window | null>(null)
+    const popupPollTimer = useRef<ReturnType<typeof setInterval>>()
+
+    useEffect(() => {
+        return () => {
+            if (popupPollTimer.current) clearInterval(popupPollTimer.current)
+        }
+    }, [])
 
     const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
         if (toastTimer.current) clearTimeout(toastTimer.current)
@@ -362,47 +370,47 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
         toastTimer.current = setTimeout(() => setToast(null), 5000)
     }, [])
 
-    useEffect(() => {
+    const fetchIntegrations = useCallback(async () => {
         if (!user?.id) return
-        const fetchIntegrations = async () => {
-            setStatusLoading(true)
-            try {
-                setProfileId(user.id)
-                const { data } = await integrationApi.getStatus()
-                if (Array.isArray(data)) {
-                    interface IntegrationItem {
-                        platform: string
-                        status: string
-                        google_customer_ids?: string[]
-                    }
-                    const active = (data as IntegrationItem[])
-                        .filter(item => item.status === 'active')
-                        .map(item => PLATFORM_TO_PLUGIN[item.platform] ?? item.platform)
-                    const expired = (data as IntegrationItem[])
-                        .filter(item => item.status === 'expired' || item.status === 'inactive')
-                        .map(item => PLATFORM_TO_PLUGIN[item.platform] ?? item.platform)
-
-                    // Metadados extras — ex: número de contas Google conectadas
-                    const meta: Record<string, { connectedAccounts?: number }> = {}
-                    for (const item of data as IntegrationItem[]) {
-                        const pluginId = PLATFORM_TO_PLUGIN[item.platform] ?? item.platform
-                        if (item.google_customer_ids?.length) {
-                            meta[pluginId] = { connectedAccounts: item.google_customer_ids.length }
-                        }
-                    }
-
-                    setInstalledPlugins(active)
-                    setExpiredPlugins(expired)
-                    setPluginMeta(meta)
+        setStatusLoading(true)
+        try {
+            setProfileId(user.id)
+            const { data } = await integrationApi.getStatus()
+            if (Array.isArray(data)) {
+                interface IntegrationItem {
+                    platform: string
+                    status: string
+                    google_customer_ids?: string[]
                 }
-            } catch (err) {
-                console.error('[AppStore] fetchIntegrations error:', err)
-            } finally {
-                setStatusLoading(false)
+                const active = (data as IntegrationItem[])
+                    .filter(item => item.status === 'active')
+                    .map(item => PLATFORM_TO_PLUGIN[item.platform] ?? item.platform)
+                const expired = (data as IntegrationItem[])
+                    .filter(item => item.status === 'expired' || item.status === 'inactive')
+                    .map(item => PLATFORM_TO_PLUGIN[item.platform] ?? item.platform)
+
+                const meta: Record<string, { connectedAccounts?: number }> = {}
+                for (const item of data as IntegrationItem[]) {
+                    const pluginId = PLATFORM_TO_PLUGIN[item.platform] ?? item.platform
+                    if (item.google_customer_ids?.length) {
+                        meta[pluginId] = { connectedAccounts: item.google_customer_ids.length }
+                    }
+                }
+
+                setInstalledPlugins(active)
+                setExpiredPlugins(expired)
+                setPluginMeta(meta)
             }
+        } catch (err) {
+            console.error('[AppStore] fetchIntegrations error:', err)
+        } finally {
+            setStatusLoading(false)
         }
-        fetchIntegrations()
     }, [user?.id])
+
+    useEffect(() => {
+        fetchIntegrations()
+    }, [fetchIntegrations])
 
     const handleSync = useCallback(async (pluginId: string, days = 30) => {
         const platform = PLUGIN_TO_PLATFORM[pluginId] ?? pluginId
@@ -505,11 +513,20 @@ export default function AppStore({ onToggleChat, user }: { onToggleChat?: () => 
             integrationApi.connect(platform, shopArg)
                 .then(({ data: { authUrl } }) => {
                     if (!authUrl) throw new Error('authUrl não retornado pelo servidor')
-                    window.open(
+                    const popup = window.open(
                         authUrl,
                         `Northie${platform}Auth`,
                         `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
                     )
+                    oauthPopup.current = popup
+                    if (popupPollTimer.current) clearInterval(popupPollTimer.current)
+                    popupPollTimer.current = setInterval(() => {
+                        if (!oauthPopup.current || oauthPopup.current.closed) {
+                            clearInterval(popupPollTimer.current)
+                            oauthPopup.current = null
+                            fetchIntegrations()
+                        }
+                    }, 1000)
                 })
                 .catch((err) => {
                     console.error('[AppStore] Erro ao iniciar OAuth:', err)
