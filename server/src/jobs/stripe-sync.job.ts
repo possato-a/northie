@@ -49,7 +49,7 @@ async function processPaymentIntent(
                     profile_id: profileId,
                     email,
                     name,
-                    acquisition_channel: 'Stripe',
+                    acquisition_channel: 'direto',
                 },
                 { onConflict: 'profile_id, email' }
             )
@@ -73,7 +73,6 @@ async function processPaymentIntent(
             amount_gross: amountGross,
             amount_net: amountNet,
             status: 'approved',
-            acquisition_channel: 'Stripe',
             created_at: new Date(pi.created * 1000).toISOString(),
         });
 
@@ -150,7 +149,7 @@ export async function backfillStripe(
         throw new Error(`[StripeSync] No Stripe integration for profile ${profileId}`);
     }
 
-    const { access_token, stripe_user_id } = integration as unknown as { access_token?: string; stripe_user_id?: string };
+    const { access_token } = integration as unknown as { access_token?: string };
     if (!access_token) {
         throw new Error(`[StripeSync] Missing access_token for profile ${profileId}`);
     }
