@@ -99,7 +99,7 @@ function ImagePanel() {
             overflow: 'hidden',
         }}>
             <motion.img
-                src="/login-hero.png"
+                src="/login-hero.webp"
                 alt="Northie"
                 initial={{ opacity: 0, scale: 1.02 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -195,7 +195,7 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
         >
             {/* Logo */}
             <motion.img
-                src="/logo-northie.png"
+                src="/logo-northie.webp"
                 alt="Northie"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -388,7 +388,7 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
             }}
         >
             <motion.img
-                src="/logo-northie.png"
+                src="/logo-northie.webp"
                 alt="Northie"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

@@ -298,7 +298,7 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
               }}
             >
               <img
-                src="/logo-northie.png"
+                src="/logo-northie.webp"
                 alt="Northie"
                 style={{ height: 20, width: 'auto', objectFit: 'contain' }}
               />
