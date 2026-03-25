@@ -1,12 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
-type Theme = 'light' | 'dark'
-
 interface ThemeContextValue {
-    theme: Theme
-    isDark: boolean
-    toggleTheme: () => void
-    setTheme: (t: Theme) => void
     isCompact: boolean
     setCompact: (v: boolean) => void
     language: string
@@ -18,10 +12,6 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-    theme: 'light',
-    isDark: false,
-    toggleTheme: () => {},
-    setTheme: () => {},
     isCompact: false,
     setCompact: () => {},
     language: 'Português (Brasil)',
@@ -33,14 +23,6 @@ const ThemeContext = createContext<ThemeContextValue>({
 })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setThemeState] = useState<Theme>(() => {
-        try {
-            const stored = localStorage.getItem('northie-theme')
-            if (stored === 'dark' || stored === 'light') return stored
-        } catch {}
-        return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    })
-
     const [isCompact, setIsCompact] = useState<boolean>(() => {
         try { return localStorage.getItem('northie-compact') === 'true' } catch {}
         return false
@@ -62,11 +44,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     })
 
     useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme)
-        localStorage.setItem('northie-theme', theme)
-    }, [theme])
-
-    useEffect(() => {
         document.documentElement.setAttribute('data-compact', String(isCompact))
         localStorage.setItem('northie-compact', String(isCompact))
     }, [isCompact])
@@ -83,8 +60,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('northie-startweekmonday', String(startWeekMonday))
     }, [startWeekMonday])
 
-    const toggleTheme = () => setThemeState(t => (t === 'light' ? 'dark' : 'light'))
-    const setTheme = (t: Theme) => setThemeState(t)
     const setCompact = (v: boolean) => setIsCompact(v)
     const setLanguage = (v: string) => setLanguageState(v)
     const setDateFormat = (v: string) => setDateFormatState(v)
@@ -92,7 +67,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     return (
         <ThemeContext.Provider value={{
-            theme, isDark: theme === 'dark', toggleTheme, setTheme,
             isCompact, setCompact,
             language, setLanguage,
             dateFormat, setDateFormat,

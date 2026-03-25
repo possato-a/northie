@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useTheme } from '../ThemeContext'
 import { supabase } from '../lib/supabase'
 
 type AuthView = 'login' | 'signup'
@@ -93,12 +92,11 @@ function PasswordInput({
 // ── Left Image Panel ──────────────────────────────────────────────────────────
 
 function ImagePanel() {
-    const { isDark } = useTheme()
     return (
         <div style={{
             flex: '0 0 55%',
             position: 'relative',
-            background: isDark ? '#000' : 'var(--color-bg-secondary)',
+            background: 'var(--color-bg-secondary)',
             overflow: 'hidden',
             borderRight: '1px solid var(--color-border)',
             display: 'flex',
@@ -106,7 +104,7 @@ function ImagePanel() {
             justifyContent: 'center',
         }}>
             <motion.img
-                src={isDark ? "/northie-bussola-dark.png" : "/bussola-northie.png"}
+                src="/bussola-northie.png"
                 alt="Bússola Northie"
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -115,7 +113,7 @@ function ImagePanel() {
                     width: '100%',
                     height: '100%',
                     objectFit: 'contain',
-                    mixBlendMode: isDark ? 'screen' : 'multiply',
+                    mixBlendMode: 'multiply',
                     display: 'block',
                     marginTop: '-40px',
                     zIndex: 1,

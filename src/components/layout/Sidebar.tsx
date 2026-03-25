@@ -14,7 +14,6 @@ import {
   ConversasIcon,
   ContextoIcon,
 } from '../../icons'
-import { useTheme } from '../../ThemeContext'
 
 export type Page =
   | 'visao-geral'
@@ -38,70 +37,69 @@ interface NavItemProps {
   activePage: Page
   onPageChange: (page: Page) => void
   collapsed: boolean
-  delay?: number
   onClick?: () => void
+  showIndicator?: boolean
 }
 
-function NavItem({ icon, label, pageId, activePage, onPageChange, collapsed, delay = 0, onClick }: NavItemProps) {
+function NavItem({ icon, label, pageId, activePage, onPageChange, collapsed, onClick, showIndicator }: NavItemProps) {
   const isActive = activePage === pageId
 
   return (
-    <motion.button
+    <button
       onClick={() => onClick ? onClick() : onPageChange(pageId)}
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay, ease: [0.25, 0.1, 0.25, 1] }}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: collapsed ? 0 : 10,
-        background: isActive ? 'var(--color-primary-light)' : 'transparent',
+        background: isActive ? 'var(--sidebar-item-active)' : 'transparent',
         border: 'none',
-        borderRadius: 'var(--radius-lg)',
+        borderRadius: 6,
         cursor: 'pointer',
         padding: collapsed ? '7px' : '7px 10px',
-        color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+        color: isActive ? 'var(--color-primary)' : 'var(--sidebar-text)',
         width: '100%',
         justifyContent: collapsed ? 'center' : 'flex-start',
         fontFamily: 'var(--font-sans)',
-        fontSize: 'var(--text-base)',
+        fontSize: 13.5,
         fontWeight: isActive ? 500 : 400,
-        transition: 'background var(--transition-base), color var(--transition-base)',
+        transition: 'background 0.15s, color 0.15s',
         position: 'relative',
       }}
       onMouseEnter={e => {
-        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)'
+        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'var(--sidebar-item-hover)'
       }}
       onMouseLeave={e => {
         if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
       }}
     >
-      <motion.span
-        style={{ display: 'flex', flexShrink: 0, opacity: isActive ? 1 : 0.55 }}
-        animate={{ scale: isActive ? 1.02 : 1 }}
-        transition={{ duration: 0.15 }}
-      >
+      <span style={{ display: 'flex', flexShrink: 0, color: isActive ? 'var(--color-primary)' : 'inherit', opacity: isActive ? 1 : 0.5 }}>
         {icon}
-      </motion.span>
+      </span>
       <AnimatePresence>
         {!collapsed && (
           <motion.span
             initial={{ opacity: 0, width: 0 }}
             animate={{ opacity: 1, width: 'auto' }}
             exit={{ opacity: 0, width: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            style={{
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              display: 'block',
-              letterSpacing: '-0.1px',
-            }}
+            transition={{ duration: 0.15 }}
+            style={{ whiteSpace: 'nowrap', overflow: 'hidden', display: 'block' }}
           >
             {label}
           </motion.span>
         )}
       </AnimatePresence>
-    </motion.button>
+      {/* Active indicator dot */}
+      {showIndicator && isActive && !collapsed && (
+        <span style={{
+          position: 'absolute',
+          right: 10,
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'var(--color-primary)',
+        }} />
+      )}
+    </button>
   )
 }
 
@@ -112,7 +110,6 @@ interface SidebarProps {
   onToggle: () => void
 }
 
-// Platform icons for channel sub-pages
 function MetaIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -149,24 +146,29 @@ function SubNavItem({
 }) {
   const isActive = activePage === pageId
   return (
-    <motion.button
+    <button
       onClick={() => onPageChange(pageId)}
-      whileHover={!isActive ? { background: 'var(--color-bg-tertiary)' } : {}}
       style={{
         display: 'flex', alignItems: 'center',
-        gap: collapsed ? 0 : 9,
-        padding: collapsed ? '6px 7px' : '6px 10px 6px 26px',
-        borderRadius: 'var(--radius-md)', border: 'none',
-        background: isActive ? 'var(--color-primary-light)' : 'transparent',
+        gap: collapsed ? 0 : 8,
+        padding: collapsed ? '5px 7px' : '5px 10px 5px 30px',
+        borderRadius: 5, border: 'none',
+        background: isActive ? 'var(--sidebar-subitem-active)' : 'transparent',
         cursor: 'pointer', width: '100%',
         justifyContent: collapsed ? 'center' : 'flex-start',
-        transition: 'background var(--transition-fast)',
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={e => {
+        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = 'var(--sidebar-item-hover)'
+      }}
+      onMouseLeave={e => {
+        if (!isActive) (e.currentTarget as HTMLButtonElement).style.background = isActive ? 'var(--sidebar-subitem-active)' : 'transparent'
       }}
     >
       <span style={{
         display: 'flex', flexShrink: 0,
-        color: isActive ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
-        opacity: isActive ? 1 : 0.7,
+        color: isActive ? 'var(--color-primary)' : 'var(--sidebar-text)',
+        opacity: isActive ? 0.8 : 0.4,
       }}>
         {icon}
       </span>
@@ -176,19 +178,19 @@ function SubNavItem({
             initial={{ opacity: 0, width: 0 }}
             animate={{ opacity: 1, width: 'auto' }}
             exit={{ opacity: 0, width: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             style={{
               fontFamily: 'var(--font-sans)', fontSize: 13,
               fontWeight: isActive ? 500 : 400,
-              color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-              whiteSpace: 'nowrap', overflow: 'hidden', letterSpacing: '-0.1px',
+              color: isActive ? 'var(--color-primary)' : 'var(--sidebar-text)',
+              whiteSpace: 'nowrap', overflow: 'hidden',
             }}
           >
             {label}
           </motion.span>
         )}
       </AnimatePresence>
-    </motion.button>
+    </button>
   )
 }
 
@@ -224,274 +226,209 @@ const contextNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
 ]
 
 const bottomNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
-  { icon: <RelatoriosIcon size={20} />, label: 'Relatórios', pageId: 'relatorios' },
+  { icon: <RelatoriosIcon size={16} />, label: 'Relatórios', pageId: 'relatorios' },
   { icon: <AppStoreIcon />, label: 'App Store', pageId: 'app-store' },
   { icon: <SettingsIcon />, label: 'Configurações', pageId: 'configuracoes' },
 ]
 
 export default function Sidebar({ activePage, onPageChange, collapsed, onToggle }: SidebarProps) {
-  const { isDark, toggleTheme } = useTheme()
-
   const canaisActive = activePage === 'canais' || activePage === 'canais-meta' || activePage === 'canais-google'
   const [canaisExpanded, setCanaisExpanded] = useState(canaisActive)
 
-  // Auto-collapse sub-nav when leaving canais pages
   useEffect(() => {
     if (!canaisActive) setCanaisExpanded(false)
   }, [canaisActive])
 
+  const SectionLabel = ({ children }: { children: string }) => (
+    !collapsed ? (
+      <div style={{
+        fontFamily: 'var(--font-sans)',
+        fontSize: 11,
+        fontWeight: 500,
+        letterSpacing: '0.04em',
+        color: 'var(--sidebar-section)',
+        textTransform: 'uppercase',
+        padding: '16px 10px 6px',
+      }}>
+        {children}
+      </div>
+    ) : <div style={{ height: 12 }} />
+  )
+
   return (
     <motion.aside
-      animate={{ width: collapsed ? 58 : 240 }}
-      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      animate={{ width: collapsed ? 52 : 220 }}
+      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
         height: '100vh',
-        borderRight: '1px solid var(--color-border)',
-        background: 'var(--color-bg-primary)',
-        boxShadow: '1px 0 4px rgba(0, 0, 0, 0.03)',
+        background: 'var(--sidebar-bg)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 100,
         overflow: 'hidden',
+        borderRight: '1px solid var(--sidebar-border)',
       }}
     >
-      {/* Top: logo + toggle */}
+      {/* Logo area */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: collapsed ? '18px 12px' : '18px 16px',
+          justifyContent: collapsed ? 'center' : 'space-between',
+          padding: collapsed ? '16px 10px' : '16px 14px',
           flexShrink: 0,
-          minHeight: 56,
         }}
       >
         <AnimatePresence>
           {!collapsed && (
-            <motion.span
+            <motion.button
+              onClick={() => onPageChange('visao-geral')}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
+              whileHover={{ opacity: 0.7 }}
+              whileTap={{ scale: 0.97 }}
               style={{
-                fontFamily: 'var(--font-serif)',
-                fontWeight: 400,
-                fontSize: 20,
-                letterSpacing: '-0.5px',
-                color: 'var(--color-text-primary)',
-                lineHeight: 1,
-                whiteSpace: 'nowrap',
+                background: 'none', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', padding: 0,
               }}
             >
-              Northie
-            </motion.span>
+              <img
+                src="/logo-northie.png"
+                alt="Northie"
+                style={{ height: 20, width: 'auto', objectFit: 'contain' }}
+              />
+            </motion.button>
           )}
         </AnimatePresence>
 
         <motion.button
           onClick={onToggle}
-          whileHover={{ opacity: 0.7 }}
+          whileHover={{ opacity: 0.6 }}
           whileTap={{ scale: 0.9 }}
           animate={{ rotate: collapsed ? 180 : 0 }}
-          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          transition={{ duration: 0.25 }}
           className="notion-btn-icon"
-          style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }}
+          style={{ color: 'var(--sidebar-text)', flexShrink: 0, opacity: 0.5 }}
         >
           <SidebarToggleIcon />
         </motion.button>
       </div>
 
-      {/* Divider */}
-      <div style={{ height: 1, background: 'var(--color-border)', flexShrink: 0, margin: '0 8px' }} />
-
-      {/* Main nav */}
+      {/* Sections */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
-          padding: collapsed ? '12px 6px' : '12px 10px',
           flex: 1,
           overflowY: 'auto',
+          padding: collapsed ? '0 6px' : '0 8px',
         }}
       >
-        {mainNav.map((item, i) => {
-          const isCanais = item.pageId === 'canais'
+        <SectionLabel>Módulos</SectionLabel>
 
-          return (
-            <div key={item.pageId}>
-              <div style={{ position: 'relative' }}>
-                <NavItem
-                  {...item}
-                  activePage={canaisActive && isCanais ? 'canais' : activePage}
-                  onPageChange={onPageChange}
-                  collapsed={collapsed}
-                  delay={i * 0.03}
-                  onClick={isCanais ? () => {
-                    setCanaisExpanded(e => !e)
-                    if (!canaisActive) onPageChange('canais')
-                  } : undefined}
-                />
-                {/* Chevron: outer span handles CSS positioning, inner motion.span handles rotation only */}
-                {isCanais && !collapsed && (
-                  <span
-                    style={{
-                      position: 'absolute', right: 10, top: 0, bottom: 0,
-                      display: 'flex', alignItems: 'center', pointerEvents: 'none',
-                    }}
-                  >
-                    <motion.span
-                      animate={{ rotate: canaisExpanded ? 90 : 0 }}
-                      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                      style={{
-                        display: 'flex',
-                        color: canaisActive ? 'var(--color-primary)' : 'var(--color-text-tertiary)',
-                        opacity: 0.6,
-                      }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {mainNav.map((item) => {
+            const isCanais = item.pageId === 'canais'
+
+            return (
+              <div key={item.pageId}>
+                <div style={{ position: 'relative' }}>
+                  <NavItem
+                    {...item}
+                    activePage={canaisActive && isCanais ? 'canais' : activePage}
+                    onPageChange={onPageChange}
+                    collapsed={collapsed}
+                    showIndicator
+                    onClick={isCanais ? () => {
+                      setCanaisExpanded(e => !e)
+                      if (!canaisActive) onPageChange('canais')
+                    } : undefined}
+                  />
+                </div>
+                <AnimatePresence>
+                  {isCanais && canaisExpanded && (
+                    <motion.div
+                      key="canais-subnav"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.15 }}
+                      style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 1, paddingTop: 2 }}
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="9 18 15 12 9 6" />
-                      </svg>
-                    </motion.span>
-                  </span>
-                )}
+                      {canaisSubNav.map(sub => (
+                        <SubNavItem
+                          key={sub.pageId}
+                          label={sub.label}
+                          pageId={sub.pageId}
+                          activePage={activePage}
+                          onPageChange={onPageChange}
+                          collapsed={collapsed}
+                          icon={sub.icon}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-              <AnimatePresence>
-                {isCanais && canaisExpanded && (
-                  <motion.div
-                    key="canais-subnav"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
-                    style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 3, paddingTop: 2 }}
-                  >
-                    {canaisSubNav.map(sub => (
-                      <SubNavItem
-                        key={sub.pageId}
-                        label={sub.label}
-                        pageId={sub.pageId}
-                        activePage={activePage}
-                        onPageChange={onPageChange}
-                        collapsed={collapsed}
-                        icon={sub.icon}
-                      />
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
 
-        {/* Divisor dos produtos */}
-        <div style={{ height: 1, background: 'var(--color-border)', margin: '8px 0' }} />
+        <SectionLabel>Produtos</SectionLabel>
 
-        {!collapsed && (
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            letterSpacing: '0.12em',
-            color: 'var(--color-text-tertiary)',
-            textTransform: 'uppercase',
-            padding: '2px 10px 6px',
-          }}>
-            Produtos
-          </span>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {productsNav.map((item) => (
+            <NavItem
+              key={item.pageId}
+              {...item}
+              activePage={activePage}
+              onPageChange={onPageChange}
+              collapsed={collapsed}
+              showIndicator
+            />
+          ))}
+        </div>
 
-        {productsNav.map((item, i) => (
-          <NavItem
-            key={item.pageId}
-            {...item}
-            activePage={activePage}
-            onPageChange={onPageChange}
-            collapsed={collapsed}
-            delay={(mainNav.length + i) * 0.03}
-          />
-        ))}
+        <SectionLabel>Contexto</SectionLabel>
 
-        {/* Divisor do contexto */}
-        <div style={{ height: 1, background: 'var(--color-border)', margin: '8px 0' }} />
-
-        {!collapsed && (
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 9,
-            letterSpacing: '0.12em',
-            color: 'var(--color-text-tertiary)',
-            textTransform: 'uppercase',
-            padding: '2px 10px 6px',
-          }}>
-            Contexto
-          </span>
-        )}
-
-        {contextNav.map((item, i) => (
-          <NavItem
-            key={item.pageId}
-            {...item}
-            activePage={activePage}
-            onPageChange={onPageChange}
-            collapsed={collapsed}
-            delay={(mainNav.length + productsNav.length + i) * 0.03}
-          />
-        ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {contextNav.map((item) => (
+            <NavItem
+              key={item.pageId}
+              {...item}
+              activePage={activePage}
+              onPageChange={onPageChange}
+              collapsed={collapsed}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Bottom divider */}
-      <div style={{ height: 1, background: 'var(--color-border)', flexShrink: 0, margin: '0 8px' }} />
-
-      {/* Bottom nav */}
+      {/* Bottom */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           gap: 2,
-          padding: collapsed ? '10px 6px' : '10px 10px',
+          padding: collapsed ? '8px 6px' : '8px 8px',
           flexShrink: 0,
         }}
       >
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className="notion-btn"
-          style={{
-            width: '100%',
-            justifyContent: collapsed ? 'center' : 'flex-start',
-            padding: collapsed ? '7px' : '7px 10px',
-            gap: collapsed ? 0 : 10,
-          }}
-        >
-          {isDark ? (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-            </svg>
-          ) : (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          )}
-          {!collapsed && (
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', whiteSpace: 'nowrap', letterSpacing: '-0.1px' }}>
-              {isDark ? 'Modo Claro' : 'Modo Escuro'}
-            </span>
-          )}
-        </button>
-
-        {bottomNav.map((item, i) => (
+        {bottomNav.map((item) => (
           <NavItem
             key={item.pageId}
             {...item}
             activePage={activePage}
             onPageChange={onPageChange}
             collapsed={collapsed}
-            delay={(mainNav.length + i) * 0.03}
           />
         ))}
+
       </div>
     </motion.aside>
   )

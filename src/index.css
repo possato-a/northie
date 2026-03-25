@@ -42,6 +42,16 @@ body,
   --color-bg-tertiary: #EAEAEE;
   --color-border: rgba(66, 87, 138, 0.12);
 
+  /* Sidebar */
+  --sidebar-bg: #FFFFFF;
+  --sidebar-border: rgba(0, 0, 0, 0.06);
+  --sidebar-text: #6B6B6B;
+  --sidebar-text-active: #37352F;
+  --sidebar-section: #A0A0A0;
+  --sidebar-item-active: rgba(255, 89, 0, 0.08);
+  --sidebar-item-hover: rgba(0, 0, 0, 0.03);
+  --sidebar-subitem-active: rgba(255, 89, 0, 0.05);
+
   /* Colors - Action (Northie orange) */
   --color-primary: #FF5900;
   --color-primary-hover: #E64E00;
@@ -132,33 +142,6 @@ body,
   --transition-fast: 60ms ease;
   --transition-base: 120ms ease;
   --transition-slow: 200ms ease;
-}
-
-/* ── Dark Mode ────────────────────────────────────────────────────────────── */
-
-[data-theme="dark"] {
-  --bg: #131110;
-  --surface: #1D1A17;
-  --surface-glass: rgba(29, 26, 23, 0.9);
-
-  --fg: #EDE9E4;
-  --fg-rgb: 237, 233, 228;
-
-  --inv: #EDE9E4;
-  --on-inv: #131110;
-
-  /* Notion tokens — dark overrides */
-  --color-text-primary: rgba(255, 255, 255, 0.87);
-  --color-text-secondary: rgba(255, 255, 255, 0.62);
-  --color-text-tertiary: rgba(255, 255, 255, 0.37);
-  --color-bg-primary: #2F3437;
-  --color-bg-secondary: #25282A;
-  --color-bg-tertiary: #373C3F;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 /* ── Base Styles ──────────────────────────────────────────────────────────── */

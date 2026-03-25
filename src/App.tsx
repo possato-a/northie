@@ -48,7 +48,7 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [isChatFull, setIsChatFull] = useState(false)
-  const { setTheme, setCompact, setLanguage, setDateFormat, setStartWeekMonday, isCompact } = useTheme()
+  const { setCompact, setLanguage, setDateFormat, setStartWeekMonday, isCompact } = useTheme()
 
   // Sync preferences from DB when user logs in
   useEffect(() => {
@@ -58,7 +58,6 @@ export default function App() {
       .then(({ data }) => {
         const prefs = data?.workspace_config?.preferences
         if (!prefs) return
-        if (prefs.theme === 'light' || prefs.theme === 'dark') setTheme(prefs.theme)
         if (prefs.compactMode !== undefined) setCompact(prefs.compactMode)
         if (prefs.language) setLanguage(prefs.language)
         if (prefs.dateFormat) setDateFormat(prefs.dateFormat)
@@ -100,7 +99,7 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const sidebarWidth = collapsed ? 70 : 250
+  const sidebarWidth = collapsed ? 52 : 220
   const chatPadding = chatOpen && !isChatFull ? 380 : 0
 
   const pageTitle = useMemo(() => {

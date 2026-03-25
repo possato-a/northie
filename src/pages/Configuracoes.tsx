@@ -643,7 +643,7 @@ function PerfilPanel({ user }: { user?: User }) {
 }
 
 function PreferenciasPanel({ user }: { user?: User }) {
-    const { isDark, setTheme, isCompact, setCompact, language, setLanguage, dateFormat, setDateFormat, startWeekMonday, setStartWeekMonday } = useTheme()
+    const { isCompact, setCompact, language, setLanguage, dateFormat, setDateFormat, startWeekMonday, setStartWeekMonday } = useTheme()
     const [autoTimezone, setAutoTimezone] = useState(true)
     const [detectedTz, setDetectedTz] = useState('')
     const [saving, setSaving] = useState(false)
@@ -677,12 +677,6 @@ function PreferenciasPanel({ user }: { user?: User }) {
         } finally {
             setSaving(false)
         }
-    }
-
-    const handleTheme = (label: string) => {
-        const t = label === 'Escuro' ? 'dark' : 'light'
-        setTheme(t)
-        savePrefs({ theme: t })
     }
 
     const handleCompact = (v: boolean) => {
@@ -730,34 +724,6 @@ function PreferenciasPanel({ user }: { user?: User }) {
                     </span>
                 )}
             </div>
-
-            <SettingRow
-                title="Tema"
-                description="Escolha entre modo claro e escuro para a plataforma."
-            >
-                <div style={{ display: 'flex', gap: 4 }}>
-                    {['Claro', 'Escuro'].map(t => (
-                        <button
-                            key={t}
-                            onClick={() => handleTheme(t)}
-                            style={{
-                                padding: '6px 14px',
-                                borderRadius: 'var(--radius-md)',
-                                border: '1px solid var(--color-border)',
-                                background: (t === 'Escuro') === isDark ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
-                                color: (t === 'Escuro') === isDark ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                                fontFamily: 'var(--font-sans)',
-                                fontSize: 'var(--text-sm)',
-                                fontWeight: (t === 'Escuro') === isDark ? 500 : 400,
-                                cursor: 'pointer',
-                                transition: 'all var(--transition-base)',
-                            }}
-                        >
-                            {t}
-                        </button>
-                    ))}
-                </div>
-            </SettingRow>
 
             <SettingRow
                 title="Modo compacto"
