@@ -26,26 +26,26 @@ function EyeIcon({ open }: { open: boolean }) {
 function getInputStyle(focused: boolean): React.CSSProperties {
     return {
         width: '100%',
-        padding: '9px 12px',
-        background: 'var(--color-bg-primary)',
-        border: `1px solid ${focused ? 'var(--color-primary)' : 'var(--color-border)'}`,
-        borderRadius: 'var(--radius-md)',
-        color: 'var(--color-text-primary)',
+        padding: '10px 12px',
+        background: '#FFFFFF',
+        border: `1px solid ${focused ? '#FF5900' : 'rgba(0,0,0,0.1)'}`,
+        borderRadius: 6,
+        color: '#37352F',
         fontFamily: 'var(--font-sans)',
-        fontSize: 'var(--text-base)',
+        fontSize: 14,
         outline: 'none',
         boxSizing: 'border-box' as const,
-        boxShadow: focused ? '0 0 0 2px var(--color-primary-light)' : 'none',
-        transition: 'border-color var(--transition-base), box-shadow var(--transition-base)',
+        boxShadow: focused ? '0 0 0 3px rgba(255,89,0,0.08)' : 'none',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
     }
 }
 
 const labelStyle: React.CSSProperties = {
     display: 'block',
     fontFamily: 'var(--font-sans)',
-    fontSize: 'var(--text-sm)',
+    fontSize: 13,
     fontWeight: 500,
-    color: 'var(--color-text-secondary)',
+    color: '#6B6B6B',
     marginBottom: 6,
 }
 
@@ -77,11 +77,11 @@ function PasswordInput({
                 style={{
                     position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--color-text-tertiary)', padding: 0, display: 'flex',
-                    transition: 'color var(--transition-base)',
+                    color: '#9B9A97', padding: 0, display: 'flex',
+                    transition: 'color 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-text-secondary)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-text-tertiary)')}
+                onMouseEnter={e => (e.currentTarget.style.color = '#6B6B6B')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#9B9A97')}
             >
                 <EyeIcon open={show} />
             </button>
@@ -96,72 +96,21 @@ function ImagePanel() {
         <div style={{
             flex: '0 0 55%',
             position: 'relative',
-            background: 'var(--color-bg-secondary)',
             overflow: 'hidden',
-            borderRight: '1px solid var(--color-border)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
         }}>
             <motion.img
-                src="/bussola-northie.png"
-                alt="Bússola Northie"
-                initial={{ opacity: 0, scale: 0.96 }}
+                src="/login-hero.png"
+                alt="Northie"
+                initial={{ opacity: 0, scale: 1.02 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 1.3, ease: [0.25, 0.1, 0.25, 1] }}
+                transition={{ duration: 1, ease: [0.25, 0.1, 0.25, 1] }}
                 style={{
                     width: '100%',
                     height: '100%',
-                    objectFit: 'contain',
-                    mixBlendMode: 'multiply',
+                    objectFit: 'cover',
                     display: 'block',
-                    marginTop: '-40px',
-                    zIndex: 1,
                 }}
             />
-
-            {/* Glass card */}
-            <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.7, delay: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-                style={{
-                    position: 'absolute',
-                    bottom: 22,
-                    left: 20,
-                    right: 20,
-                    zIndex: 3,
-                    background: 'var(--surface-glass)',
-                    backdropFilter: 'blur(22px) saturate(1.6)',
-                    WebkitBackdropFilter: 'blur(22px) saturate(1.6)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-xl)',
-                    padding: '20px 26px',
-                    boxShadow: 'var(--shadow-md)',
-                }}
-            >
-                <p style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 17,
-                    fontWeight: 400,
-                    color: 'var(--color-text-primary)',
-                    letterSpacing: '-0.3px',
-                    lineHeight: 1.5,
-                    margin: '0 0 10px',
-                }}>
-                    Dados que revelam,<br />decisões que constroem.
-                </p>
-                <p style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 'var(--text-xs)',
-                    color: 'var(--color-text-tertiary)',
-                    letterSpacing: '0.08em',
-                    margin: 0,
-                    textTransform: 'uppercase',
-                }}>
-                    Northie — Sua central de inteligência
-                </p>
-            </motion.div>
         </div>
     )
 }
@@ -230,56 +179,49 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
     return (
         <motion.div
             key="login"
-            initial={{ opacity: 0, x: 24 }}
+            initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -24 }}
-            transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             style={{
                 flex: '0 0 45%',
-                background: 'var(--color-bg-primary)',
+                background: '#FFFFFF',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                padding: '52px 56px',
+                padding: '48px 56px',
                 overflowY: 'auto',
             }}
         >
             {/* Logo */}
-            <motion.div
+            <motion.img
+                src="/logo-northie.png"
+                alt="Northie"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.05 }}
-                style={{
-                    fontFamily: 'var(--font-serif)',
-                    fontSize: 20,
-                    fontWeight: 400,
-                    color: 'var(--color-text-primary)',
-                    marginBottom: 'var(--space-12)',
-                    letterSpacing: '-0.5px',
-                }}
-            >
-                Northie
-            </motion.div>
+                transition={{ duration: 0.4, delay: 0.05 }}
+                style={{ height: 22, width: 'auto', objectFit: 'contain', marginBottom: 40, alignSelf: 'flex-start' }}
+            />
 
             {/* Heading */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
                 <h1 style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 28,
-                    fontWeight: 400,
-                    color: 'var(--color-text-primary)',
-                    letterSpacing: '-0.8px',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 26,
+                    fontWeight: 600,
+                    color: '#37352F',
+                    letterSpacing: '-0.5px',
                     margin: '0 0 6px',
-                    lineHeight: 1.15,
+                    lineHeight: 1.2,
                 }}>
                     Bem-vindo de volta
                 </h1>
                 <p style={{
                     fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--text-base)',
-                    color: 'var(--color-text-secondary)',
-                    margin: '0 0 var(--space-8)',
-                    lineHeight: 1.55,
+                    fontSize: 14,
+                    color: '#9B9A97',
+                    margin: '0 0 28px',
+                    lineHeight: 1.5,
                 }}>
                     Entre com seus dados para acessar o painel.
                 </p>
@@ -287,21 +229,21 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
 
             {/* Form */}
             <motion.form
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.18 }}
+                transition={{ duration: 0.35, delay: 0.15 }}
                 onSubmit={handleLogin}
-                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
             >
                 {error && (
                     <div style={{
-                        padding: 'var(--space-3)',
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--priority-high-bg)',
-                        color: 'var(--priority-high)',
+                        padding: '10px 12px',
+                        borderRadius: 6,
+                        background: '#FFF0F0',
+                        color: '#DC2626',
                         fontFamily: 'var(--font-sans)',
-                        fontSize: 'var(--text-sm)',
-                        border: '1px solid var(--priority-high)',
+                        fontSize: 13,
+                        border: '1px solid rgba(220,38,38,0.2)',
                     }}>
                         {error}
                     </div>
@@ -335,11 +277,11 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                 <div style={{ textAlign: 'right', marginTop: -8 }}>
                     <button type="button" onClick={handleForgotPassword} disabled={resetState === 'sending'} style={{
                         background: 'none', border: 'none', cursor: resetState === 'sending' ? 'default' : 'pointer',
-                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                        color: resetState === 'sent' ? 'var(--color-success, #22c55e)' : 'var(--color-text-tertiary)',
+                        fontFamily: 'var(--font-sans)', fontSize: 13,
+                        color: resetState === 'sent' ? '#22c55e' : '#9B9A97',
                         textDecoration: 'underline', textUnderlineOffset: 3, padding: 0,
                         opacity: resetState === 'sending' ? 0.6 : 1,
-                        transition: 'color 0.2s, opacity 0.2s',
+                        transition: 'color 0.15s, opacity 0.15s',
                     }}>
                         {resetState === 'sending' ? 'Enviando...' : resetState === 'sent' ? 'Email enviado!' : 'Esqueceu a senha?'}
                     </button>
@@ -352,18 +294,17 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
                     whileTap={loading ? {} : { scale: 0.985 }}
                     style={{
                         width: '100%',
-                        padding: '10px',
-                        background: loading ? 'var(--color-border)' : 'var(--color-primary)',
-                        color: 'white',
+                        padding: '11px',
+                        background: loading ? 'rgba(0,0,0,0.08)' : '#FF5900',
+                        color: '#FFFFFF',
                         border: 'none',
-                        borderRadius: 'var(--radius-md)',
+                        borderRadius: 6,
                         fontFamily: 'var(--font-sans)',
-                        fontSize: 'var(--text-base)',
+                        fontSize: 14,
                         fontWeight: 500,
                         cursor: loading ? 'default' : 'pointer',
                         marginTop: 4,
-                        letterSpacing: '-0.1px',
-                        transition: 'background var(--transition-base)',
+                        transition: 'background 0.15s',
                     }}
                 >
                     {loading ? 'Entrando...' : 'Entrar'}
@@ -371,18 +312,18 @@ function LoginForm({ onLogin, onSwitchToSignup }: { onLogin: () => void; onSwitc
             </motion.form>
 
             {/* Footer */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }} style={{ marginTop: 'var(--space-8)', textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: 0.25 }} style={{ marginTop: 28, textAlign: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#9B9A97', margin: 0 }}>
                     Não tem conta?{' '}
                     <button
                         onClick={onSwitchToSignup}
                         style={{
                             background: 'none', border: 'none', cursor: 'pointer',
-                            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                            color: 'var(--color-primary)', fontWeight: 500, padding: 0,
+                            fontFamily: 'var(--font-sans)', fontSize: 13,
+                            color: '#FF5900', fontWeight: 500, padding: 0,
                         }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-primary-hover)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-primary)')}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#E64E00')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#FF5900')}
                     >
                         Criar conta
                     </button>
@@ -432,72 +373,65 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
     return (
         <motion.div
             key="signup"
-            initial={{ opacity: 0, x: 24 }}
+            initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -24 }}
-            transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             style={{
                 flex: '0 0 45%',
-                background: 'var(--color-bg-primary)',
+                background: '#FFFFFF',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
-                padding: '52px 56px',
+                padding: '48px 56px',
                 overflowY: 'auto',
             }}
         >
-            <motion.div
+            <motion.img
+                src="/logo-northie.png"
+                alt="Northie"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.05 }}
-                style={{
-                    fontFamily: 'var(--font-serif)',
-                    fontSize: 20,
-                    fontWeight: 400,
-                    color: 'var(--color-text-primary)',
-                    marginBottom: 'var(--space-10)',
-                    letterSpacing: '-0.5px',
-                }}
-            >
-                Northie
-            </motion.div>
+                transition={{ duration: 0.4, delay: 0.05 }}
+                style={{ height: 22, width: 'auto', objectFit: 'contain', marginBottom: 36, alignSelf: 'flex-start' }}
+            />
 
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.1 }}>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
                 <h1 style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 28,
-                    fontWeight: 400,
-                    color: 'var(--color-text-primary)',
-                    letterSpacing: '-0.8px',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 26,
+                    fontWeight: 600,
+                    color: '#37352F',
+                    letterSpacing: '-0.5px',
                     margin: '0 0 6px',
-                    lineHeight: 1.15,
+                    lineHeight: 1.2,
                 }}>
                     Criar sua conta
                 </h1>
                 <p style={{
                     fontFamily: 'var(--font-sans)',
-                    fontSize: 'var(--text-base)',
-                    color: 'var(--color-text-secondary)',
-                    margin: '0 0 var(--space-6)',
-                    lineHeight: 1.55,
+                    fontSize: 14,
+                    color: '#9B9A97',
+                    margin: '0 0 24px',
+                    lineHeight: 1.5,
                 }}>
                     Junte-se à Northie e transforme dados em decisões.
                 </p>
             </motion.div>
 
             <motion.form
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.18 }}
+                transition={{ duration: 0.35, delay: 0.15 }}
                 onSubmit={handleSignup}
-                style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
             >
                 {error && (
                     <div style={{
-                        padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-                        background: 'var(--priority-high-bg)', color: 'var(--priority-high)',
-                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                        border: '1px solid var(--priority-high)',
+                        padding: '10px 12px', borderRadius: 6,
+                        background: '#FFF0F0', color: '#DC2626',
+                        fontFamily: 'var(--font-sans)', fontSize: 13,
+                        border: '1px solid rgba(220,38,38,0.2)',
                     }}>
                         {error}
                     </div>
@@ -533,8 +467,8 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                 </div>
 
                 <p style={{
-                    fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)',
-                    color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6,
+                    fontFamily: 'var(--font-sans)', fontSize: 12,
+                    color: '#9B9A97', margin: 0, lineHeight: 1.5,
                 }}>
                     Mínimo 8 caracteres, incluindo um número e um caractere especial.
                 </p>
@@ -543,26 +477,26 @@ function SignupForm({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
                     type="submit" disabled={loading}
                     whileHover={loading ? {} : { opacity: 0.9 }} whileTap={loading ? {} : { scale: 0.985 }}
                     style={{
-                        width: '100%', padding: '10px',
-                        background: loading ? 'var(--color-border)' : 'var(--color-primary)',
-                        color: 'white', border: 'none', borderRadius: 'var(--radius-md)',
-                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', fontWeight: 500,
+                        width: '100%', padding: '11px',
+                        background: loading ? 'rgba(0,0,0,0.08)' : '#FF5900',
+                        color: '#FFFFFF', border: 'none', borderRadius: 6,
+                        fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500,
                         cursor: loading ? 'default' : 'pointer', marginTop: 4,
-                        transition: 'background var(--transition-base)',
+                        transition: 'background 0.15s',
                     }}
                 >
                     {loading ? 'Criando conta...' : 'Criar conta'}
                 </motion.button>
             </motion.form>
 
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.3 }}
-                style={{ marginTop: 'var(--space-6)', textAlign: 'center' }}>
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', margin: 0 }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, delay: 0.25 }}
+                style={{ marginTop: 24, textAlign: 'center' }}>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: '#9B9A97', margin: 0 }}>
                     Já tem conta?{' '}
                     <button onClick={onSwitchToLogin} style={{
                         background: 'none', border: 'none', cursor: 'pointer',
-                        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-                        color: 'var(--color-primary)', fontWeight: 500, padding: 0,
+                        fontFamily: 'var(--font-sans)', fontSize: 13,
+                        color: '#FF5900', fontWeight: 500, padding: 0,
                     }}>
                         Entrar
                     </button>
