@@ -157,7 +157,7 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
         setIsThinking(true)
 
         try {
-            const response = await aiApi.chat(messageText, context, model)
+            const response = await aiApi.chat(messageText, context, model as 'general' | 'growth')
             if (!mountedRef.current) return
             const newId = Date.now().toString()
             const aiMsg: Message = {

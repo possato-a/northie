@@ -99,11 +99,6 @@ function demoGet(url: string, config?: Parameters<typeof api.get>[1]): Promise<a
     return api.get(url, config);
 }
 
-// Wrap api.post for demo mode (no-op for mutations)
-function demoPost(url: string, _data?: any, _config?: any): Promise<any> {
-    if (DEMO_MODE) return Promise.resolve({ data: { success: true } });
-    return api.post(url, _data, _config);
-}
 
 export const integrationApi = {
     getStatus: () => demoGet('/integrations/status'),
