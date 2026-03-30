@@ -210,7 +210,7 @@ function DailyTrendChart({ trends }: { trends: Record<string, { roas: number[]; 
         return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
     })
 
-    const platformColors: Record<string, string> = { meta: '#FF5900', google: '#D9730D' }
+    const platformColors: Record<string, string> = { meta: '#FF5900', google: '#D9730D', 'meta ads': '#FF5900', 'google ads': '#D9730D', 'meta_ads': '#FF5900', 'google_ads': '#D9730D' }
 
     const H = 160
     const PAD_T = 10
@@ -285,17 +285,20 @@ function DailyTrendChart({ trends }: { trends: Record<string, { roas: number[]; 
             {!hasData ? (
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', textAlign: 'center', padding: '24px 0' }}>Sem dados no período</p>
             ) : (
-                <div ref={containerRef} style={{ position: 'relative' }}>
+                <div ref={containerRef} style={{ position: 'relative', overflow: 'hidden', borderRadius: 4 }}>
                     {containerW > 0 && (
-                        <svg width={containerW} height={H} style={{ display: 'block', overflow: 'visible' }}>
+                        <svg width={containerW} height={H} style={{ display: 'block', overflow: 'hidden' }}>
                             <defs>
-                                {displayPlatforms.map(p => (
-                                    <linearGradient key={p} id={`grad-dt-${p}`} x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor={platformColors[p] || '#888'} stopOpacity="0.2" />
-                                        <stop offset="85%" stopColor={platformColors[p] || '#888'} stopOpacity="0.04" />
-                                        <stop offset="100%" stopColor={platformColors[p] || '#888'} stopOpacity="0" />
-                                    </linearGradient>
-                                ))}
+                                {displayPlatforms.map(p => {
+                                    const safeId = p.replace(/\s+/g, '-')
+                                    return (
+                                        <linearGradient key={p} id={`grad-dt-${safeId}`} x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stopColor={platformColors[p] || '#888'} stopOpacity="0.2" />
+                                            <stop offset="85%" stopColor={platformColors[p] || '#888'} stopOpacity="0.04" />
+                                            <stop offset="100%" stopColor={platformColors[p] || '#888'} stopOpacity="0" />
+                                        </linearGradient>
+                                    )
+                                })}
                             </defs>
 
                             {/* Horizontal grid lines */}
@@ -334,11 +337,12 @@ function DailyTrendChart({ trends }: { trends: Record<string, { roas: number[]; 
                                 const vals = trends[p]?.[mode] || []
                                 const isActive = activePlatform === null || activePlatform === p
                                 const color = platformColors[p] || '#888'
+                                const safeId = p.replace(/\s+/g, '-')
                                 return (
                                     <g key={p} style={{ opacity: isActive ? 1 : 0.08, transition: 'opacity 0.25s' }}>
                                         <motion.path
                                             d={smoothArea(vals)}
-                                            fill={`url(#grad-dt-${p})`}
+                                            fill={`url(#grad-dt-${safeId})`}
                                             initial={{ opacity: 0 }}
                                             animate={{ opacity: 1 }}
                                             transition={{ duration: 0.5 }}

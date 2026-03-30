@@ -1,31 +1,21 @@
 /**
  * @file middleware/auth.middleware.ts
  *
- * Verifica o JWT do Supabase em toda requisição protegida.
- * Extrai o userId do token verificado e sobrescreve req.headers['x-profile-id']
- * — controllers não precisam mudar, mas o profileId agora vem do token, nunca do cliente.
+ * Estratégias de verificação JWT (em ordem de preferência):
  *
- * Estratégia de verificação (em ordem de preferência):
- *
- * 1. JWT local com SUPABASE_JWT_SECRET → síncrono, 0 latência extra.
- *    Configure via: Dashboard Supabase → Settings → API → JWT Settings → JWT Secret.
- *
- * 2. Supabase auth.getUser(token) → valida via rede (~100ms), mas não exige o secret.
- *    Funciona imediatamente com SERVICE_ROLE_KEY já configurado.
- *
- * Em produção, prefira a opção 1 — adicione SUPABASE_JWT_SECRET no Vercel.
+ * 1. SUPABASE_JWT_SECRET configurada → verifyLocal (HS256, síncrono, sem rede).
+ * 2. NODE_ENV !== 'production' → verifyLocalDev: decodifica sem checar assinatura,
+ *    mas valida exp e iss. Usado em dev local onde o Supabase auth pode ser lento/inacessível.
+ * 3. Produção sem secret → verifyRemote via supabase.auth.getUser() (rede, ~100ms no Vercel).
  */
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { supabase } from '../lib/supabase.js';
 
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
+const IS_PROD = process.env.NODE_ENV === 'production';
 
-if (!JWT_SECRET) {
-    console.warn('[Auth] SUPABASE_JWT_SECRET não configurada — usando validação via Supabase API (adicione a variável para melhor performance).');
-}
-
-// ── Verificação local (rápida, sem rede) ──────────────────────────────────────
+// ── Verificação local HS256 (rápida, sem rede) ────────────────────────────────
 function verifyLocal(token: string): string {
     const payload = jwt.verify(token, JWT_SECRET!) as jwt.JwtPayload;
     const userId = payload?.sub;
@@ -33,7 +23,23 @@ function verifyLocal(token: string): string {
     return userId;
 }
 
-// ── Verificação via Supabase API (fallback sem secret configurado) ─────────────
+// ── Dev local: decodifica sem verificar assinatura (ES256 sem JWKS disponível) ─
+// Valida exp, iss e sub. NÃO é seguro para produção.
+function verifyLocalDev(token: string): string {
+    const decoded = jwt.decode(token) as jwt.JwtPayload | null;
+    if (!decoded?.sub) throw new Error('invalid token format');
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded.exp && decoded.exp < now) {
+        const err = new Error('jwt expired');
+        (err as unknown as Record<string, string>).name = 'TokenExpiredError';
+        throw err;
+    }
+    const expectedIss = (process.env.SUPABASE_URL ?? '') + '/auth/v1';
+    if (decoded.iss !== expectedIss) throw new Error('invalid issuer');
+    return decoded.sub;
+}
+
+// ── Produção: valida via Supabase API (requer rede, rápido no Vercel) ──────────
 async function verifyRemote(token: string): Promise<string> {
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error ?? !user?.id) throw new Error(error?.message ?? 'invalid token');
@@ -50,16 +56,20 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     const token = authHeader.slice(7);
 
     try {
-        const userId = JWT_SECRET ? verifyLocal(token) : await verifyRemote(token);
+        let userId: string;
+        if (JWT_SECRET) {
+            userId = verifyLocal(token);
+        } else if (!IS_PROD) {
+            userId = verifyLocalDev(token);
+        } else {
+            userId = await verifyRemote(token);
+        }
 
-        // Passa o userId verificado via res.locals (Express-safe, imutável no Vercel)
-        // e também via header por compatibilidade com controllers legados.
         res.locals.profileId = userId;
         req.headers['x-profile-id'] = userId;
-
         next();
     } catch (err: unknown) {
-        const isExpired = (err as jwt.JsonWebTokenError)?.name === 'TokenExpiredError';
+        const isExpired = err instanceof Error && (err.name === 'TokenExpiredError' || err.message === 'jwt expired');
         console.warn('[Auth] JWT verification failed:', err instanceof Error ? err.message : String(err));
         res.status(401).json({
             error: isExpired ? 'Token expirado. Faça login novamente.' : 'Token inválido.',

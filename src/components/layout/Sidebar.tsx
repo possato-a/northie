@@ -226,7 +226,7 @@ const contextNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
 ]
 
 const bottomNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
-  { icon: <RelatoriosIcon size={16} />, label: 'Relatórios', pageId: 'relatorios' },
+  { icon: <RelatoriosIcon />, label: 'Relatórios', pageId: 'relatorios' },
   { icon: <AppStoreIcon />, label: 'App Store', pageId: 'app-store' },
   { icon: <SettingsIcon />, label: 'Configurações', pageId: 'configuracoes' },
 ]

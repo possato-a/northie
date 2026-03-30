@@ -1,5 +1,9 @@
 import axios from 'axios';
 import { supabase } from './supabase';
+import { matchMockRoute } from './mock-data';
+
+// ── DEMO MODE — set to true for screenshots, false for real data ──
+const DEMO_MODE = true;
 
 const API_BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:3001/api'
@@ -16,6 +20,10 @@ const CACHE_TTL = 30_000; // 30s
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function cachedGet(url: string, config?: Parameters<typeof api.get>[1], ttl = CACHE_TTL): Promise<any> {
+    if (DEMO_MODE) {
+        const mock = matchMockRoute(url, config?.params);
+        if (mock !== null) return Promise.resolve({ data: mock });
+    }
     const key = url + (config?.params ? '?' + new URLSearchParams(config.params).toString() : '');
     const now = Date.now();
     const entry = cache.get(key);
@@ -82,8 +90,23 @@ export const dashboardApi = {
     getFull: (days = 30) => cachedGet('/dashboard/full', { params: { days } }),
 };
 
+// Wrap api.get for demo mode
+function demoGet(url: string, config?: Parameters<typeof api.get>[1]): Promise<any> {
+    if (DEMO_MODE) {
+        const mock = matchMockRoute(url);
+        if (mock !== null) return Promise.resolve({ data: mock });
+    }
+    return api.get(url, config);
+}
+
+// Wrap api.post for demo mode (no-op for mutations)
+function demoPost(url: string, _data?: any, _config?: any): Promise<any> {
+    if (DEMO_MODE) return Promise.resolve({ data: { success: true } });
+    return api.post(url, _data, _config);
+}
+
 export const integrationApi = {
-    getStatus: () => api.get('/integrations/status'),
+    getStatus: () => demoGet('/integrations/status'),
     connect: (platform: string, shop?: string) => api.get(`/integrations/connect/${platform}`, { params: shop ? { shop } : {} }),
     disconnect: (platform: string) => api.post(`/integrations/disconnect/${platform}`),
     sync: (platform: string, days = 2) => api.post(`/integrations/sync/${platform}`, { days }),
@@ -103,9 +126,12 @@ export const dataApi = {
 };
 
 export const aiApi = {
-    chat: (message: string, pageContext?: string, model?: string) => api.post('/ai/chat', { message, page_context: pageContext, model }, { timeout: 60000 }),
-    growthChat: (message: string, model?: string) => api.post('/ai/growth-chat', { message, model }, { timeout: 60000 }),
-    clearHistory: () => api.delete('/ai/history'),
+    chat: (message: string, pageContext?: string, mode: 'general' | 'growth' = 'general') =>
+        api.post('/ai/chat', { message, page_context: pageContext, mode }, { timeout: 90000 }),
+    growthChat: (message: string) =>
+        api.post('/ai/chat', { message, page_context: 'Growth', mode: 'growth' }, { timeout: 90000 }),
+    clearHistory: (mode?: 'general' | 'growth') =>
+        api.delete('/ai/history', { params: mode ? { mode } : undefined }),
 };
 
 export const growthApi = {

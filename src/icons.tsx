@@ -87,11 +87,13 @@ export const AskNorthieIcon = () => (
 
 export const GrowthIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M2 14L7 9L11 13L18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M14 6H18V10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <circle cx="2" cy="14" r="1.5" fill="currentColor"/>
-    <circle cx="7" cy="9" r="1.5" fill="currentColor"/>
-    <circle cx="11" cy="13" r="1.5" fill="currentColor"/>
+    <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5"/>
+    <circle cx="10" cy="10" r="1" fill="currentColor"/>
+    <line x1="10" y1="1" x2="10" y2="4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="10" y1="16" x2="10" y2="19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="1" y1="10" x2="4" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="16" y1="10" x2="19" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
   </svg>
 )
 
@@ -106,19 +108,21 @@ export const ConversasIcon = () => (
 
 export const ContextoIcon = () => (
   <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M10 2a6 6 0 0 1 5.66 8.04l.34.96h-2a4 4 0 1 0-8 0H4l.34-.96A6 6 0 0 1 10 2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M7 14h6M8 17h4M9 14v3M11 14v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M14 3.5C14 3.5 12.5 5 10 5S6 3.5 6 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M15.5 6.5C15.5 6.5 13.5 8.5 10 8.5S4.5 6.5 4.5 6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M16.5 10C16.5 10 14 12 10 12S3.5 10 3.5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M15.5 13.5C15.5 13.5 13.5 11.5 10 11.5S4.5 13.5 4.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    <path d="M14 16.5C14 16.5 12.5 15 10 15S6 16.5 6 16.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
   </svg>
 )
 
-export function RelatoriosIcon({ size = 16 }: { size?: number }) {
+export function RelatoriosIcon() {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2H5.5A1.5 1.5 0 0 0 4 3.5v13A1.5 1.5 0 0 0 5.5 18h9a1.5 1.5 0 0 0 1.5-1.5V7L12 2z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 2v5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="7.5" y1="11" x2="12.5" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="7.5" y1="14" x2="12.5" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   )
 }

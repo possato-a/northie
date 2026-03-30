@@ -1,8 +1,8 @@
+import './env.js';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import webhookRoutes from './routes/webhook.routes.js';
 import pixelRoutes from './routes/pixel.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
@@ -50,8 +50,6 @@ import { validateAnthropicConfig } from './lib/anthropic.js';
 // @ts-ignore
 import { receiveWebhook as receiveWhatsAppWebhook } from './controllers/whatsapp.controller.js';
 
-dotenv.config({ path: '.env.local' });
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -69,8 +67,9 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow server-to-server requests (no origin) and known origins
-        if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+        // Allow server-to-server requests (no origin), known origins, and any localhost port in dev
+        const isLocalhost = origin && /^http:\/\/localhost:\d+$/.test(origin);
+        if (!origin || allowedOrigins.includes(origin) || isLocalhost) callback(null, true);
         else callback(new Error('Not allowed by CORS'));
     },
     credentials: true,

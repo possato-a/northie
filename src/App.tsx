@@ -9,6 +9,14 @@ import { setProfileId } from './lib/api'
 import { useTheme } from './ThemeContext'
 import { ErrorBoundary } from './components/ui/shared'
 
+// ── DEMO MODE — must match api.ts ──
+const DEMO_MODE = true
+const DEMO_USER = DEMO_MODE ? {
+  id: 'demo-user-001',
+  email: 'francisco@northie.com.br',
+  user_metadata: { full_name: 'Francisco' },
+} : null
+
 // ── Lazy-loaded pages ──────────────────────────────────────────────────────────
 const Dashboard    = lazy(() => import('./pages/Dashboard'))
 const Vendas       = lazy(() => import('./pages/Vendas'))
@@ -42,8 +50,8 @@ function PageSkeleton() {
 }
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [session, setSession] = useState<Session | null>(null)
+  const [isLoggedIn, setIsLoggedIn] = useState(!!DEMO_MODE)
+  const [session, setSession] = useState<Session | null>(DEMO_MODE ? { user: DEMO_USER } as any : null)
   const [activePage, setActivePage] = useState<Page>('visao-geral')
   const [collapsed, setCollapsed] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
