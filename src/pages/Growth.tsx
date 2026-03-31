@@ -802,9 +802,8 @@ export default function Growth() {
   const handleNewChat = () => {
     setMessages([])
     setInput('')
-    // Don't wipe history list — just start fresh conversation
-    // clearHistory on backend so next AI call doesn't use old context
-    aiApi.clearHistory('growth').catch(() => {})
+    // Don't call clearHistory — that deletes from DB and wipes Recentes
+    // Just clear in-memory messages so the user starts a fresh conversation
   }
 
   const handleApprove = async (id: string) => {
