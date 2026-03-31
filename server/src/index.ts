@@ -34,10 +34,6 @@ import pipelineRoutes from './routes/pipeline.routes.js';
 import contextRoutes from './routes/context.routes.js';
 import valuationRoutes from './routes/valuation.routes.js';
 import skillsRoutes from './routes/skills.routes.js';
-import financeiroRoutes from './routes/financeiro.routes.js';
-import caixaRoutes from './routes/caixa.routes.js';
-import fornecedoresRoutes from './routes/fornecedores.routes.js';
-import agentesFinanceirosRoutes from './routes/agentes-financeiros.routes.js';
 // @ts-ignore — plain JS modules without .d.ts (compiled separately)
 import whatsappRoutes from './routes/whatsapp.routes.js';
 // @ts-ignore
@@ -52,10 +48,6 @@ import { handleResendWebhook } from './controllers/resend-webhook.controller.js'
 import { startMeetEnrichmentJob } from './jobs/meet-enrichment.job.js';
 import { startExecutionLearningJob } from './jobs/execution-learning.job.js';
 import { validateAnthropicConfig } from './lib/anthropic.js';
-import { startAgenteReceitaJob } from './jobs/agente-receita.job.js';
-import { startAgenteCaixaJob } from './jobs/agente-caixa.job.js';
-import { startAgenteGastosJob } from './jobs/agente-gastos.job.js';
-import { startAgenteOportunidadeJob } from './jobs/agente-oportunidade.job.js';
 // @ts-ignore
 import { receiveWebhook as receiveWhatsAppWebhook } from './controllers/whatsapp.controller.js';
 
@@ -123,10 +115,6 @@ app.use('/api/pipeline', authMiddleware, pipelineRoutes);
 app.use('/api/context', authMiddleware, contextRoutes);
 app.use('/api/valuation', authMiddleware, valuationRoutes);
 app.use('/api/skills', authMiddleware, skillsRoutes);
-app.use('/api/financeiro', authMiddleware, financeiroRoutes);
-app.use('/api/caixa', authMiddleware, caixaRoutes);
-app.use('/api/fornecedores', authMiddleware, fornecedoresRoutes);
-app.use('/api/agentes-financeiros', authMiddleware, agentesFinanceirosRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {
@@ -208,12 +196,6 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
 
         // Valuation: mensal, verifica diariamente se é dia 1 às 03:00 UTC
         delay(35 * 60_000, () => startValuationCalcJob());
-
-        // Agentes financeiros
-        delay(38 * 60_000, () => startAgenteReceitaJob());
-        delay(39 * 60_000, () => startAgenteCaixaJob());
-        delay(40 * 60_000, () => startAgenteGastosJob());
-        delay(41 * 60_000, () => startAgenteOportunidadeJob());
     });
 }
 

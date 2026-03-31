@@ -29,10 +29,6 @@ const Growth       = lazy(() => import('./pages/Growth'))
 const Conversas    = lazy(() => import('./pages/Conversas'))
 const Contexto     = lazy(() => import('./pages/Contexto'))
 const Relatorios   = lazy(() => import('./pages/Relatorios'))
-const Financeiro   = lazy(() => import('./pages/Financeiro'))
-const Caixa        = lazy(() => import('./pages/Caixa'))
-const Fornecedores = lazy(() => import('./pages/Fornecedores'))
-const Agentes      = lazy(() => import('./pages/Agentes'))
 
 // ── Page loader fallback ───────────────────────────────────────────────────────
 function PageSkeleton() {
@@ -124,10 +120,6 @@ export default function App() {
       case 'canais-google': return 'Google Ads'
       case 'growth': return 'Northie Growth'
       case 'card': return 'Northie Card'
-      case 'financeiro': return 'Financeiro'
-      case 'caixa': return 'Caixa'
-      case 'fornecedores': return 'Fornecedores'
-      case 'agentes': return 'Agentes Financeiros'
       case 'conversas': return 'Conversas'
       case 'contexto': return 'Contexto do Negócio'
       case 'relatorios': return 'Relatórios'
@@ -224,17 +216,13 @@ export default function App() {
                   />
                 )}
                 {activePage === 'card' && <Card onToggleChat={() => setChatOpen(!chatOpen)} />}
-                {activePage === 'financeiro' && <Financeiro onToggleChat={() => setChatOpen(!chatOpen)} />}
-                {activePage === 'caixa' && <Caixa onToggleChat={() => setChatOpen(!chatOpen)} />}
-                {activePage === 'fornecedores' && <Fornecedores onToggleChat={() => setChatOpen(!chatOpen)} />}
-                {activePage === 'agentes' && <Agentes onToggleChat={() => setChatOpen(!chatOpen)} />}
                 {activePage === 'conversas' && <Conversas onToggleChat={() => setChatOpen(!chatOpen)} />}
                 {activePage === 'contexto' && <Contexto onToggleChat={() => setChatOpen(!chatOpen)} />}
                 {activePage === 'relatorios' && <Relatorios onToggleChat={() => setChatOpen(!chatOpen)} user={session?.user} />}
                 {activePage === 'configuracoes' && (
                   <Configuracoes user={session?.user} onGoToAppStore={() => setActivePage('app-store')} />
                 )}
-                {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'canais-meta' && activePage !== 'canais-google' && activePage !== 'card' && activePage !== 'financeiro' && activePage !== 'caixa' && activePage !== 'fornecedores' && activePage !== 'agentes' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
+                {activePage !== 'visao-geral' && activePage !== 'vendas' && activePage !== 'clientes' && activePage !== 'canais' && activePage !== 'canais-meta' && activePage !== 'canais-google' && activePage !== 'card' && activePage !== 'conversas' && activePage !== 'contexto' && activePage !== 'relatorios' && activePage !== 'app-store' && activePage !== 'configuracoes' && (
                   <motion.div
                     key={activePage}
                     initial={{ opacity: 0, y: 10 }}
