@@ -1,23 +1,28 @@
-import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { growthApi, aiApi, skillsApi } from '../lib/api'
-import { supabase } from '../lib/supabase'
 
-// ── AI Models ─────────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 type AIModel = 'haiku' | 'sonnet' | 'opus'
 interface ModelDef { id: AIModel; label: string; description: string; tag: string }
 const MODELS: ModelDef[] = [
-  { id: 'haiku',  label: 'Haiku',  description: 'Rápido — perguntas simples', tag: 'Fast'  },
-  { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado — uso geral',    tag: 'Std'   },
-  { id: 'opus',   label: 'Opus',   description: 'Análise profunda',           tag: 'Pro'   },
+  { id: 'haiku',  label: 'Haiku',  description: 'Rápido — perguntas simples', tag: 'Fast' },
+  { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado — uso geral',    tag: 'Std'  },
+  { id: 'opus',   label: 'Opus',   description: 'Análise profunda',           tag: 'Pro'  },
 ]
 
 interface SlashCmd { id: string; label: string; description: string }
 const SLASH_COMMANDS: SlashCmd[] = [
-  { id: 'skills', label: 'Skills',          description: 'Aplicar uma skill especializada' },
-  { id: 'clear',  label: 'Limpar conversa', description: 'Iniciar uma nova conversa'       },
+  { id: 'skills',    label: 'Skills',          description: 'Aplicar uma skill especializada'             },
+  { id: 'clear',     label: 'Limpar conversa', description: 'Iniciar uma nova conversa'                   },
+  { id: 'insights',  label: 'Ver insights',    description: 'Listar insights pendentes do Growth Engine'  },
+  { id: 'executar',  label: 'Forçar análise',  description: 'Rodar o Growth Engine agora'                 },
+  { id: 'automacoes',label: 'Automações',      description: 'Ver status das automações'                   },
+  { id: 'memoria',   label: 'Memória',         description: 'Ver decisões anteriores registradas'         },
+  { id: 'instrucao', label: 'Instrução',       description: 'Registrar instrução permanente para a IA'    },
 ]
+
 interface SkillItem { id: string; name: string; description?: string; is_global: boolean }
 
 export interface Message {
@@ -26,37 +31,7 @@ export interface Message {
   content: string
 }
 
-const ContextoPage = lazy(() => import('./Contexto'))
-
-type ActiveView = 'insights' | 'execucoes' | 'exploracao'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type RecStatus =
-  | 'pending' | 'collaborating' | 'awaiting_confirmation'
-  | 'approved' | 'executing' | 'completed'
-  | 'failed' | 'dismissed' | 'rejected' | 'cancelled'
-
-interface Recommendation {
-  id: string
-  type: string
-  status: RecStatus
-  title: string
-  narrative: string
-  impact_estimate: string
-  sources: string[]
-  created_at: string
-}
-
-interface ConvItem {
-  id: string
-  title: string | null
-  updated_at: string
-  startTime: string
-  endTime: string
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function greeting(name: string) {
   const h = new Date().getHours()
@@ -64,38 +39,10 @@ function greeting(name: string) {
   return `${period}, ${name}`
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
+const ERROR_MESSAGE = 'Desculpe, tive um problema ao processar sua pergunta.'
 
-const ISearch = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-    <circle cx="9" cy="9" r="6" /><path d="M15 15l-3-3" />
-  </svg>
-)
-const ISliders = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-    <path d="M4 5h12M4 10h12M4 15h12" /><circle cx="7" cy="5" r="1.5" fill="currentColor" stroke="none" /><circle cx="13" cy="10" r="1.5" fill="currentColor" stroke="none" /><circle cx="8" cy="15" r="1.5" fill="currentColor" stroke="none" />
-  </svg>
-)
-const IChat = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 13a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9z" />
-  </svg>
-)
-const IBolt = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 2L4 11h7l-2 7 9-10h-7l2-6z" />
-  </svg>
-)
-const IPlug = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M7 7v-4M13 7v-4M5 7h10v4a5 5 0 0 1-10 0V7z" /><path d="M10 15v2" />
-  </svg>
-)
-const IPlus = () => (
-  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M10 4v12M4 10h12" />
-  </svg>
-)
+// ── Icons ──────────────────────────────────────────────────────────────────────
+
 const ISend = () => (
   <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M19 1L9.5 10.5M19 1L13 19l-3.5-8.5L1 7l18-6z" />
@@ -106,14 +53,40 @@ const IVoice = () => (
     <rect x="7" y="1" width="6" height="10" rx="3" /><path d="M3 10a7 7 0 0 0 14 0M10 17v2M7 19h6" />
   </svg>
 )
-const ICheck = () => (
-  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 8l3.5 3.5L13 4" />
+const IAttach = () => (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <path d="M15 9l-6 6a3 3 0 0 1-4.24-4.24l7-7a2 2 0 0 1 2.83 2.83l-7 7a1 1 0 0 1-1.41-1.41L13 5" />
   </svg>
 )
-const IClose = () => (
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <path d="M4 4l8 8M12 4l-8 8" />
+const ISkill = () => (
+  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="10,2 12.9,7.6 19,8.5 14.5,12.9 15.6,19 10,16 4.4,19 5.5,12.9 1,8.5 7.1,7.6" />
+  </svg>
+)
+const IClear = () => (
+  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <path d="M4 6h12M7 6V4h6v2M8 10v5M12 10v5M5 6l1 11h8l1-11" />
+  </svg>
+)
+const IChevronDown = () => (
+  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+    <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
+const ICheckMark = () => (
+  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+    <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+const IClipX = () => (
+  <svg width="9" height="9" viewBox="0 0 14 14" fill="none">
+    <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+)
+const IPlus = () => (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M10 4v12M4 10h12" />
   </svg>
 )
 const ISpin = () => (
@@ -122,331 +95,28 @@ const ISpin = () => (
     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
   </svg>
 )
-const ILightbulb = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10 2a6 6 0 0 1 4.33 10.16c-.48.5-.83 1.14-.83 1.84H6.5c0-.7-.35-1.34-.83-1.84A6 6 0 0 1 10 2z" />
-    <path d="M7.5 17h5M8.5 19h3" />
-  </svg>
-)
-const IHistory = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 10a7 7 0 1 0 1.5-4.33" /><path d="M3 5v5h5" /><path d="M10 7v3l2 2" />
-  </svg>
-)
-const IRefresh = () => (
-  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 10a7 7 0 1 1-1.5-4.33" /><path d="M17 5v5h-5" />
-  </svg>
-)
 
-// ── Sidebar nav item ──────────────────────────────────────────────────────────
-
-function NavItem({ icon, label, badge, active, onClick }: {
-  icon: React.ReactNode
-  label: string
-  badge?: number
-  active?: boolean
-  onClick?: () => void
-}) {
-  const [hovered, setHovered] = useState(false)
+// Slash command icon dispatcher
+function CmdIcon({ id }: { id: string }) {
+  if (id === 'skills')    return <ISkill />
+  if (id === 'clear')     return <IClear />
+  // Generic bolt for the rest
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-        padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-        background: active || hovered ? 'var(--color-bg-tertiary)' : 'transparent',
-        fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: active ? 500 : 400,
-        color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-        transition: 'background 0.12s, color 0.12s',
-        textAlign: 'left',
-      }}
-    >
-      <span style={{ flexShrink: 0, opacity: active ? 1 : 0.75 }}>{icon}</span>
-      <span style={{ flex: 1 }}>{label}</span>
-      {badge != null && badge > 0 && (
-        <span style={{
-          fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 700,
-          background: 'var(--color-primary)', color: 'white',
-          borderRadius: 99, padding: '1px 6px', lineHeight: 1.5,
-        }}>{badge}</span>
-      )}
-    </button>
+    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 2L4 11h7l-2 7 9-10h-7l2-6z" />
+    </svg>
   )
 }
 
-// ── Execution card (drawer) ───────────────────────────────────────────────────
-
-function ExecCard({ rec, onApprove, onDismiss }: {
-  rec: Recommendation
-  onApprove: (id: string) => void
-  onDismiss: (id: string) => void
-}) {
-  const isPending = rec.status === 'pending' || rec.status === 'awaiting_confirmation'
-  const isRunning = rec.status === 'approved' || rec.status === 'executing'
-  const isDone = rec.status === 'completed'
-  const isFailed = rec.status === 'failed'
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
-      transition={{ duration: 0.18 }}
-      style={{
-        background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
-        borderRadius: 10, padding: '12px 13px', display: 'flex', flexDirection: 'column', gap: 7,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          {(rec.type ?? 'growth').replace(/_/g, ' ')}
-        </span>
-        {isDone && <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, color: '#16a34a', background: '#f0fdf4', borderRadius: 99, padding: '2px 7px' }}><ICheck /> Concluída</span>}
-        {isFailed && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, color: '#dc2626', background: '#fef2f2', borderRadius: 99, padding: '2px 7px' }}>Falhou</span>}
-        {isRunning && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, color: 'var(--color-primary)' }}><ISpin /> Executando</span>}
-      </div>
-      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 500, color: 'var(--color-text-primary)', lineHeight: 1.45 }}>{rec.title}</span>
-      {rec.impact_estimate && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>{rec.impact_estimate}</span>}
-      {isPending && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={() => onApprove(rec.id)}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500, padding: '5px 0', borderRadius: 7, border: 'none', cursor: 'pointer', background: 'var(--color-primary)', color: 'white' }}>
-            <ICheck /> Aprovar
-          </motion.button>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={() => onDismiss(rec.id)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 28, borderRadius: 7, cursor: 'pointer', background: 'transparent', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)', flexShrink: 0 }}>
-            <IClose />
-          </motion.button>
-        </div>
-      )}
-    </motion.div>
-  )
-}
-
-// ── Executions drawer ─────────────────────────────────────────────────────────
-
-function ExecDrawer({ recs, onApprove, onDismiss, onClose }: {
-  recs: Recommendation[]
-  onApprove: (id: string) => void
-  onDismiss: (id: string) => void
-  onClose: () => void
-}) {
-  const pending = recs.filter(r => r.status === 'pending' || r.status === 'awaiting_confirmation')
-  const running = recs.filter(r => r.status === 'approved' || r.status === 'executing')
-  const done = recs.filter(r => r.status === 'completed' || r.status === 'failed')
-  return (
-    <motion.div
-      initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 300, opacity: 0 }}
-      transition={{ duration: 0.26, ease: [0.4, 0, 0.2, 1] }}
-      style={{
-        position: 'fixed', top: 0, right: 0, width: 300, height: '100vh',
-        background: 'var(--color-bg-secondary)', borderLeft: '1px solid var(--color-border)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 300,
-        boxShadow: '-4px 0 32px rgba(0,0,0,0.07)',
-      }}
-    >
-      <div style={{ padding: '16px 16px 13px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 600, color: 'var(--color-text-primary)' }}>Automações</span>
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={onClose}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', transition: 'background 0.12s' }}>
-          <IClose />
-        </motion.button>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', scrollbarWidth: 'thin', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {pending.length > 0 && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pendente</span>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 700, color: 'var(--color-primary)', background: 'rgba(255,89,0,0.08)', borderRadius: 99, padding: '1px 7px' }}>{pending.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <AnimatePresence>{pending.map(r => <ExecCard key={r.id} rec={r} onApprove={onApprove} onDismiss={onDismiss} />)}</AnimatePresence>
-            </div>
-          </div>
-        )}
-        {running.length > 0 && (
-          <div>
-            <span style={{ display: 'block', marginBottom: 8, fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Executando</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {running.map(r => <ExecCard key={r.id} rec={r} onApprove={onApprove} onDismiss={onDismiss} />)}
-            </div>
-          </div>
-        )}
-        {done.length > 0 && (
-          <div>
-            <span style={{ display: 'block', marginBottom: 8, fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Concluídas</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {done.slice(0, 6).map(r => <ExecCard key={r.id} rec={r} onApprove={onApprove} onDismiss={onDismiss} />)}
-            </div>
-          </div>
-        )}
-        {recs.length === 0 && (
-          <div style={{ paddingTop: 32, textAlign: 'center' }}>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--color-text-tertiary)', lineHeight: 1.6 }}>
-              Nenhuma automação ainda.<br />Converse para identificar ações.
-            </span>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  )
-}
-
-// ── InsightCard ───────────────────────────────────────────────────────────────
-
-interface InsightCardProps {
-  insight: Recommendation
-  onApprove: (id: string) => void
-  onDismiss: (id: string, reason?: string) => void
-  index: number
-}
-
-function InsightCard({ insight, onApprove, onDismiss, index }: InsightCardProps) {
-  const typeIconMap: Record<string, React.ReactNode> = {
-    reactivation: <IBolt />,
-    budget_reallocation: <ISliders />,
-    audience_sync: <ISearch />,
-    upsell: <ILightbulb />,
-    pause_campaign: <IClose />,
-  }
-  const typeIcon = typeIconMap[insight.type] ?? <ILightbulb />
-  const typeLabel = (insight.type ?? 'growth').replace(/_/g, ' ')
-
-  // Replace numbers in narrative with mono-styled spans
-  const renderNarrative = (text: string) => {
-    const parts = text.split(/(\b\d[\d.,]*%?(?:\s*(?:R\$|BRL))?\b|R\$\s*[\d.,]+)/g)
-    return parts.map((part, i) =>
-      /\d/.test(part)
-        ? <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#37352F' }}>{part}</span>
-        : part
-    )
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1], delay: index * 0.06 }}
-      style={{
-        background: '#FFFFFF',
-        border: '1px solid rgba(66,87,138,0.12)',
-        borderRadius: 10,
-        padding: 20,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-      }}
-    >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-          background: 'rgba(255,89,0,0.08)', color: '#FF5900',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {typeIcon}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>
-            {typeLabel}
-          </span>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: '#37352F', lineHeight: 1.4 }}>
-            {insight.title}
-          </span>
-        </div>
-      </div>
-
-      {/* Narrative */}
-      {insight.narrative && (
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: '#37352F', lineHeight: 1.65, margin: 0, opacity: 0.85 }}>
-          {renderNarrative(insight.narrative)}
-        </p>
-      )}
-
-      {/* Footer */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 2 }}>
-        {/* Sources */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-          {(insight.sources ?? []).map((src, i) => (
-            <span key={i} style={{
-              fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500,
-              color: 'var(--color-text-tertiary)',
-              background: 'rgba(66,87,138,0.06)',
-              border: '1px solid rgba(66,87,138,0.1)',
-              borderRadius: 4, padding: '2px 7px',
-              letterSpacing: '0.04em',
-            }}>
-              {src.replace(/_/g, ' ')}
-            </span>
-          ))}
-          {(insight.sources ?? []).length >= 2 && (
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', padding: '2px 4px', alignSelf: 'center' }}>
-              cruzamento
-            </span>
-          )}
-        </div>
-
-        {/* Impact + actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {insight.impact_estimate && (
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--color-text-tertiary)', maxWidth: 160, textAlign: 'right', lineHeight: 1.35 }}>
-              {insight.impact_estimate}
-            </span>
-          )}
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
-            onClick={() => onDismiss(insight.id)}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              height: 32, padding: '0 12px', borderRadius: 7,
-              border: '1px solid rgba(66,87,138,0.15)',
-              background: 'transparent', cursor: 'pointer',
-              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
-              color: 'var(--color-text-secondary)',
-              transition: 'background 0.12s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-          >
-            Ignorar
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
-            onClick={() => onApprove(insight.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              height: 32, padding: '0 14px', borderRadius: 7,
-              border: 'none', background: '#0F7B6C', cursor: 'pointer',
-              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
-              color: 'white',
-            }}
-          >
-            <ICheck /> Aprovar
-          </motion.button>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-// ── Chat message ──────────────────────────────────────────────────────────────
-
-const ERROR_MESSAGE = 'Desculpe, tive um problema ao processar sua pergunta.'
+// ── ChatMessage ────────────────────────────────────────────────────────────────
 
 function ChatMessage({ msg }: { msg: Message }) {
   const isUser = msg.role === 'user'
   const isError = !isUser && msg.content === ERROR_MESSAGE
   return (
     <motion.div
-      initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
       style={{ display: 'flex', gap: 12, justifyContent: isUser ? 'flex-end' : 'flex-start' }}
     >
@@ -484,7 +154,7 @@ function ChatMessage({ msg }: { msg: Message }) {
   )
 }
 
-// ── Typing dots ───────────────────────────────────────────────────────────────
+// ── TypingDots ─────────────────────────────────────────────────────────────────
 
 function TypingDots() {
   return (
@@ -503,51 +173,21 @@ function TypingDots() {
   )
 }
 
-// ── Inline SVG icons for menus ────────────────────────────────────────────────
-const ISkill = () => (
-  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="10,2 12.9,7.6 19,8.5 14.5,12.9 15.6,19 10,16 4.4,19 5.5,12.9 1,8.5 7.1,7.6" />
-  </svg>
-)
-const IClear = () => (
-  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-    <path d="M4 6h12M7 6V4h6v2M8 10v5M12 10v5M5 6l1 11h8l1-11" />
-  </svg>
-)
-const IChevronDown = () => (
-  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-    <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-  </svg>
-)
-const ICheckMark = () => (
-  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
-    <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-)
-const IClipX = () => (
-  <svg width="9" height="9" viewBox="0 0 14 14" fill="none">
-    <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-    <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-  </svg>
-)
-const IAttach = () => (
-  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-    <path d="M15 9l-6 6a3 3 0 0 1-4.24-4.24l7-7a2 2 0 0 1 2.83 2.83l-7 7a1 1 0 0 1-1.41-1.41L13 5" />
-  </svg>
-)
+// ── ChatInput ──────────────────────────────────────────────────────────────────
 
-// ── Chat input box ────────────────────────────────────────────────────────────
-
-function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelChange, onClear }: {
+interface ChatInputProps {
   value: string
   onChange: (v: string) => void
   onSend: (files: File[], skillId?: string) => void
+  onSlashCommand: (cmd: SlashCmd, arg?: string) => void
   inputRef: React.RefObject<HTMLTextAreaElement>
   loading: boolean
   model: AIModel
   onModelChange: (m: AIModel) => void
   onClear: () => void
-}) {
+}
+
+function ChatInput({ value, onChange, onSend, onSlashCommand, inputRef, loading, model, onModelChange, onClear }: ChatInputProps) {
   const canSend = value.trim() && !loading
   const [slashMenuOpen, setSlashMenuOpen] = useState(false)
   const [slashIndex, setSlashIndex] = useState(0)
@@ -586,13 +226,22 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
   }
 
   const selectCmd = async (cmd: SlashCmd) => {
-    setSlashMenuOpen(false); onChange('')
-    if (cmd.id === 'clear') { onClear() }
-    else if (cmd.id === 'skills') {
+    setSlashMenuOpen(false)
+    onChange('')
+    if (cmd.id === 'clear') {
+      onClear()
+    } else if (cmd.id === 'skills') {
       setSkillsLoading(true)
       try { const res = await skillsApi.list(); setSkills(res.data ?? []) } catch { setSkills([]) }
       finally { setSkillsLoading(false) }
       setSkillsPickerOpen(true)
+    } else if (cmd.id === 'instrucao') {
+      // Prompt the user to type the instruction after selecting
+      onChange('/instrucao ')
+      setTimeout(() => inputRef.current?.focus(), 50)
+      return
+    } else {
+      onSlashCommand(cmd)
     }
     setTimeout(() => inputRef.current?.focus(), 50)
   }
@@ -605,8 +254,20 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
       if (e.key === 'Escape')    { setSlashMenuOpen(false); return }
       return
     }
-    if (e.key === 'Enter' && !e.shiftKey && value.trim() && !loading) {
-      e.preventDefault(); onSend(attachedFiles, attachedSkill?.id); setAttachedFiles([]); return
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (!value.trim() || loading) return
+      e.preventDefault()
+      // Handle /instrucao inline
+      if (value.startsWith('/instrucao ')) {
+        const arg = value.slice('/instrucao '.length).trim()
+        if (arg) {
+          onSlashCommand(SLASH_COMMANDS.find(c => c.id === 'instrucao')!, arg)
+          onChange('')
+        }
+        return
+      }
+      onSend(attachedFiles, attachedSkill?.id)
+      setAttachedFiles([])
     }
   }
 
@@ -632,7 +293,6 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
     background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
     borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', zIndex: 600,
   }
-
   const iconBtnStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 28, height: 28, borderRadius: 7, background: 'none', border: 'none',
@@ -643,7 +303,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
 
-      {/* ── Slash menu ── */}
+      {/* Slash menu */}
       <AnimatePresence>
         {slashMenuOpen && filteredCmds.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }} style={menuBase}>
@@ -655,7 +315,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
                 onMouseEnter={() => setSlashIndex(i)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: i === slashIndex ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const, transition: 'background 0.08s' }}>
                 <div style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', flexShrink: 0 }}>
-                  {cmd.id === 'skills' ? <ISkill /> : <IClear />}
+                  <CmdIcon id={cmd.id} />
                 </div>
                 <div>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block', lineHeight: 1.3 }}>{cmd.label}</span>
@@ -664,13 +324,13 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
               </button>
             ))}
             <div style={{ padding: '4px 12px 7px', borderTop: '1px solid var(--color-border)' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', opacity: 0.7 }}>↑↓ navegar  ·  Enter selecionar  ·  Esc fechar</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', opacity: 0.7 }}>↑↓ navegar · Enter selecionar · Esc fechar</span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Skills picker ── */}
+      {/* Skills picker */}
       <AnimatePresence>
         {skillsPickerOpen && (
           <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
@@ -686,7 +346,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
                 <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <input value={newSkillName} onChange={e => setNewSkillName(e.target.value)} placeholder="Nome da skill"
                     style={{ fontFamily: 'var(--font-sans)', fontSize: 13, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }} />
-                  <textarea value={newSkillContent} onChange={e => setNewSkillContent(e.target.value)} placeholder="Instrucoes para a IA (ex: sempre responda em formato de lista...)"
+                  <textarea value={newSkillContent} onChange={e => setNewSkillContent(e.target.value)} placeholder="Instruções para a IA..."
                     rows={3} style={{ fontFamily: 'var(--font-sans)', fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none', resize: 'vertical' }} />
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button onMouseDown={e => { e.preventDefault(); handleCreateSkill() }}
@@ -736,7 +396,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
         )}
       </AnimatePresence>
 
-      {/* ── Model dropdown ── */}
+      {/* Model dropdown */}
       <AnimatePresence>
         {modelMenuOpen && (
           <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
@@ -761,7 +421,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
         )}
       </AnimatePresence>
 
-      {/* ── Context chips (skill + files) ── */}
+      {/* Context chips */}
       <AnimatePresence>
         {(attachedSkill || attachedFiles.length > 0) && (
           <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -784,7 +444,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
         )}
       </AnimatePresence>
 
-      {/* ── Input box ── */}
+      {/* Input box */}
       <input ref={fileInputRef} type="file" multiple accept=".pdf,.csv,.txt,.xlsx,.png,.jpg,.jpeg" onChange={handleFileChange} style={{ display: 'none' }} />
 
       <div style={{ background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 14, boxShadow: '0 1px 12px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
@@ -800,16 +460,13 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', padding: '4px 8px 8px', gap: 2 }}>
-          {/* Attach */}
           <motion.button whileTap={{ scale: 0.93 }}
             onClick={() => fileInputRef.current?.click()}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)' }}
-            title="Anexar arquivo"
-            style={iconBtnStyle}>
+            title="Anexar arquivo" style={iconBtnStyle}>
             <IAttach />
           </motion.button>
-          {/* Model selector */}
           <motion.button whileTap={{ scale: 0.95 }}
             onMouseDown={e => { e.preventDefault(); setModelMenuOpen(v => !v); setSlashMenuOpen(false); setSkillsPickerOpen(false) }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 400, color: 'var(--color-text-tertiary)', padding: '3px 8px', borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', transition: 'background 0.1s, color 0.1s', marginLeft: 2 }}
@@ -820,15 +477,16 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
             <IChevronDown />
           </motion.button>
           <div style={{ flex: 1 }} />
-          {/* Voice */}
           <motion.button whileTap={{ scale: 0.95 }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)' }}
             style={iconBtnStyle}>
             <IVoice />
           </motion.button>
-          {/* Send */}
-          <motion.button whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={() => { onSend(attachedFiles, attachedSkill?.id); setAttachedFiles([]) }} disabled={!canSend}
+          <motion.button
+            whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }}
+            onClick={() => { onSend(attachedFiles, attachedSkill?.id); setAttachedFiles([]) }}
+            disabled={!canSend}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: 'none', cursor: canSend ? 'pointer' : 'default', background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', color: canSend ? 'white' : 'var(--color-text-tertiary)', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>
             <ISend />
           </motion.button>
@@ -838,122 +496,37 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Suggestion chips ───────────────────────────────────────────────────────────
 
-const EXPLORACAO_CHIPS = [
+const SUGGESTION_CHIPS = [
   'Qual campanha está destruindo margem?',
   'Quem são meus clientes prontos para recomprar?',
   'Qual canal devo escalar agora?',
-  'Por que meu LTV caiu esse mês?',
+  'Analise meu ROAS vs LTV por canal',
 ]
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function Growth() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [input, setInput] = useState('')
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
-  const [insights, setInsights] = useState<Recommendation[]>([])
-  const [executionHistory, setExecutionHistory] = useState<Recommendation[]>([])
-  const [insightsLoading, setInsightsLoading] = useState(false)
-  const [engineRunning, setEngineRunning] = useState(false)
-  const [history, setHistory] = useState<ConvItem[]>([])
-  const [execOpen, setExecOpen] = useState(false)
-  const [activeView, setActiveView] = useState<ActiveView>('insights')
   const [model, setModel] = useState<AIModel>(() => (localStorage.getItem('northie:ai-model') as AIModel) || 'sonnet')
-  const [userName, setUserName] = useState('Francisco')
-  const [userInitial, setUserInitial] = useState('F')
+  const [userName, setUserName] = useState('você')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const userIdRef = useRef<string | null>(null)
 
   useEffect(() => { localStorage.setItem('northie:ai-model', model) }, [model])
 
-  const SESSION_GAP_MS = 30 * 60 * 1000
-
-  const buildConversations = useCallback((rows: { id: string; content: string; created_at: string }[]): ConvItem[] => {
-    if (rows.length === 0) return []
-    const sorted = [...rows].reverse()
-    const convs: ConvItem[] = []
-    let groupStart = sorted[0]
-    let groupEnd = sorted[0]
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = new Date(groupEnd.created_at).getTime()
-      const curr = new Date(sorted[i].created_at).getTime()
-      if (curr - prev > SESSION_GAP_MS) {
-        convs.push({ id: groupStart.id, title: (groupStart.content as string)?.slice(0, 60) ?? null, updated_at: groupEnd.created_at, startTime: groupStart.created_at, endTime: groupEnd.created_at })
-        groupStart = sorted[i]
-      }
-      groupEnd = sorted[i]
-    }
-    convs.push({ id: groupStart.id, title: (groupStart.content as string)?.slice(0, 60) ?? null, updated_at: groupEnd.created_at, startTime: groupStart.created_at, endTime: groupEnd.created_at })
-    return convs.reverse()
-  }, [SESSION_GAP_MS])
-
-  const refreshHistory = useCallback(async () => {
-    const uid = userIdRef.current
-    if (!uid) return
-    const { data } = await supabase
-      .from('ai_chat_history')
-      .select('id, content, created_at')
-      .eq('profile_id', uid)
-      .eq('role', 'user')
-      .order('created_at', { ascending: false })
-      .limit(100)
-    setHistory(buildConversations(data ?? []))
-  }, [buildConversations])
-
-  const loadInsights = useCallback(async () => {
-    setInsightsLoading(true)
-    try {
-      const res = await growthApi.listInsights()
-      setInsights(res.data ?? [])
-    } catch {
-      setInsights([])
-    } finally {
-      setInsightsLoading(false)
-    }
-  }, [])
-
-  const loadExecutionHistory = useCallback(async () => {
-    try {
-      const res = await growthApi.getExecutionHistory()
-      setExecutionHistory(res.data ?? [])
-    } catch {
-      setExecutionHistory([])
-    }
-  }, [])
-
-  const sendMessage = useCallback(async (text: string, skillId?: string) => {
-    if (!text.trim() || isLoading) return
-    const isFirstMessage = messages.length === 0
-    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
-    setMessages(prev => [...prev, userMsg])
-    setIsLoading(true)
-    try {
-      const res = await aiApi.chat(text, 'Growth', 'growth', model, skillId)
-      const content: string = res.data?.content ?? res.data?.message ?? 'Sem resposta.'
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content }])
-      if (isFirstMessage) refreshHistory()
-    } catch {
-      setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: ERROR_MESSAGE }])
-    } finally {
-      setIsLoading(false)
-    }
-  }, [isLoading, model, messages.length, refreshHistory])
-
   useEffect(() => {
-    growthApi.listRecommendations().then(res => setRecommendations(res.data ?? [])).catch(() => {})
-    loadInsights()
-    loadExecutionHistory()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      userIdRef.current = user.id
-      const name = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Você'
-      setUserName(name)
-      setUserInitial(name[0]?.toUpperCase() ?? 'U')
-      refreshHistory()
+    import('../lib/supabase').then(({ supabase }) => {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return
+        const name = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'você'
+        setUserName(name.split(' ')[0])
+      })
     })
-  }, [refreshHistory, loadInsights, loadExecutionHistory])
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -965,6 +538,26 @@ export default function Growth() {
     el.style.height = '0px'
     el.style.height = Math.min(Math.max(el.scrollHeight, 22), 140) + 'px'
   }, [input])
+
+  const addAssistantMessage = useCallback((content: string) => {
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content }])
+  }, [])
+
+  const sendMessage = useCallback(async (text: string, skillId?: string) => {
+    if (!text.trim() || isLoading) return
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
+    setMessages(prev => [...prev, userMsg])
+    setIsLoading(true)
+    try {
+      const res = await aiApi.chat(text, 'Growth', 'growth', model, skillId)
+      const content: string = res.data?.content ?? res.data?.message ?? 'Sem resposta.'
+      addAssistantMessage(content)
+    } catch {
+      addAssistantMessage(ERROR_MESSAGE)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [isLoading, model, addAssistantMessage])
 
   const handleSend = useCallback(async (files: File[] = [], skillId?: string) => {
     if (!input.trim() || isLoading) return
@@ -978,512 +571,205 @@ export default function Growth() {
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage])
 
-  const loadConversation = useCallback(async (conv: ConvItem) => {
-    const uid = userIdRef.current
-    if (!uid) return
-    const startIso = conv.startTime
-    const endDate = new Date(new Date(conv.endTime).getTime() + 5 * 60 * 1000)
-    const { data } = await supabase
-      .from('ai_chat_history')
-      .select('id, role, content, created_at')
-      .eq('profile_id', uid)
-      .gte('created_at', startIso)
-      .lte('created_at', endDate.toISOString())
-      .order('created_at', { ascending: true })
-    if (data && data.length > 0) {
-      setMessages(data.map(row => ({ id: row.id as string, role: row.role as 'user' | 'assistant', content: row.content as string })))
+  const handleSlashCommand = useCallback(async (cmd: SlashCmd, arg?: string) => {
+    switch (cmd.id) {
+      case 'insights': {
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: '/insights' }])
+        setIsLoading(true)
+        try {
+          const res = await growthApi.listInsights()
+          const items: { title: string; impact_estimate?: string }[] = res.data ?? []
+          if (items.length === 0) {
+            addAssistantMessage('Nenhum insight pendente no momento. Os agentes estão analisando seus dados continuamente.')
+          } else {
+            const text = `Insights pendentes (${items.length}):\n\n` + items.map((r, i) =>
+              `${i + 1}. ${r.title}${r.impact_estimate ? `\n   ${r.impact_estimate}` : ''}`
+            ).join('\n\n')
+            addAssistantMessage(text)
+          }
+        } catch {
+          addAssistantMessage('Não foi possível carregar os insights agora.')
+        } finally {
+          setIsLoading(false)
+        }
+        break
+      }
+      case 'executar': {
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: '/executar' }])
+        setIsLoading(true)
+        try {
+          await growthApi.runEngine()
+          addAssistantMessage('Growth Engine iniciado. Os resultados aparecerão em insights em instantes.')
+        } catch {
+          addAssistantMessage('Não foi possível iniciar o Growth Engine agora.')
+        } finally {
+          setIsLoading(false)
+        }
+        break
+      }
+      case 'automacoes': {
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: '/automacoes' }])
+        setIsLoading(true)
+        try {
+          const res = await growthApi.listRecommendations()
+          const items: { title: string; status: string }[] = res.data ?? []
+          if (items.length === 0) {
+            addAssistantMessage('Nenhuma automação registrada ainda.')
+          } else {
+            const text = `Automações (${items.length}):\n\n` + items.map((r, i) =>
+              `${i + 1}. ${r.title} — ${r.status}`
+            ).join('\n')
+            addAssistantMessage(text)
+          }
+        } catch {
+          addAssistantMessage('Não foi possível carregar as automações agora.')
+        } finally {
+          setIsLoading(false)
+        }
+        break
+      }
+      case 'memoria': {
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: '/memoria' }])
+        setIsLoading(true)
+        try {
+          const res = await growthApi.getExecutionHistory()
+          const items: { title: string; status: string; created_at: string }[] = res.data ?? []
+          if (items.length === 0) {
+            addAssistantMessage('Nenhuma decisão registrada ainda.')
+          } else {
+            const text = `Histórico de decisões (${items.length}):\n\n` + items.slice(0, 10).map((r, i) =>
+              `${i + 1}. ${r.title} — ${r.status} (${new Date(r.created_at).toLocaleDateString('pt-BR')})`
+            ).join('\n')
+            addAssistantMessage(text)
+          }
+        } catch {
+          addAssistantMessage('Não foi possível carregar o histórico agora.')
+        } finally {
+          setIsLoading(false)
+        }
+        break
+      }
+      case 'instrucao': {
+        if (!arg?.trim()) {
+          addAssistantMessage('Use /instrucao seguido do texto. Exemplo: /instrucao Sempre analise pelo ângulo do LTV.')
+          return
+        }
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: `/instrucao ${arg}` }])
+        setIsLoading(true)
+        try {
+          await growthApi.addInstruction(arg.trim())
+          addAssistantMessage(`Instrução registrada: "${arg.trim()}"\n\nVou considerar isso em todas as análises futuras.`)
+        } catch {
+          addAssistantMessage('Não foi possível registrar a instrução agora.')
+        } finally {
+          setIsLoading(false)
+        }
+        break
+      }
     }
-    setActiveView('exploracao')
-  }, [])
+  }, [addAssistantMessage])
 
-  const handleNewChat = () => {
-    setMessages([])
-    setInput('')
-  }
-
-  const handleApproveInsight = async (id: string) => {
-    setInsights(prev => prev.filter(r => r.id !== id))
-    setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'executing' as RecStatus } : r))
-    try {
-      await growthApi.approve(id)
-      loadExecutionHistory()
-    } catch {
-      setInsights(prev => {
-        const rec = recommendations.find(r => r.id === id)
-        return rec ? [...prev, { ...rec, status: 'failed' as RecStatus }] : prev
-      })
-    }
-  }
-
-  const handleDismissInsight = async (id: string, reason?: string) => {
-    setInsights(prev => prev.filter(r => r.id !== id))
-    try {
-      await growthApi.dismissWithReason(id, reason)
-    } catch { /* ok */ }
-  }
-
-  const handleApprove = async (id: string) => {
-    setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'executing' as RecStatus } : r))
-    try { await growthApi.approve(id) } catch { setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'failed' as RecStatus } : r)) }
-  }
-
-  const handleDismiss = async (id: string) => {
-    setRecommendations(prev => prev.filter(r => r.id !== id))
-    try { await growthApi.dismiss(id) } catch { /* ok */ }
-  }
-
-  const handleRunEngine = async () => {
-    if (engineRunning) return
-    setEngineRunning(true)
-    try {
-      await growthApi.runEngine()
-      await loadInsights()
-    } catch { /* ok */ } finally {
-      setEngineRunning(false)
-    }
-  }
-
-  const pendingCount = recommendations.filter(r => r.status === 'pending' || r.status === 'awaiting_confirmation').length
-  const insightCount = insights.length
   const hasMessages = messages.length > 0
 
-  const todayStr = new Date().toDateString()
-  const yesterdayStr = new Date(Date.now() - 86400000).toDateString()
-  const histToday = history.filter(c => new Date(c.updated_at).toDateString() === todayStr)
-  const histYesterday = history.filter(c => new Date(c.updated_at).toDateString() === yesterdayStr)
-  const histOlder = history.filter(c => {
-    const d = new Date(c.updated_at).toDateString()
-    return d !== todayStr && d !== yesterdayStr
-  })
-  const histGroups = [
-    { label: 'Hoje', items: histToday },
-    { label: 'Ontem', items: histYesterday },
-    { label: 'Anteriores', items: histOlder },
-  ].filter(g => g.items.length > 0)
-
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-bg)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--color-bg)' }}>
 
-      {/* ══════════════════════════════════════════════════════
-          SIDEBAR
-      ══════════════════════════════════════════════════════ */}
-      <div style={{
-        width: 280, flexShrink: 0, height: '100vh',
-        display: 'flex', flexDirection: 'column',
-        background: 'var(--color-bg-secondary)',
-        borderRight: '1px solid var(--color-border)',
-        overflow: 'hidden',
-      }}>
-
-        {/* Primary tabs */}
-        <div style={{ padding: '14px 8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <NavItem
-            icon={<ILightbulb />}
-            label="Insights"
-            badge={insightCount}
-            active={activeView === 'insights'}
-            onClick={() => setActiveView('insights')}
-          />
-          <NavItem
-            icon={<IHistory />}
-            label="Execuções"
-            active={activeView === 'execucoes'}
-            onClick={() => setActiveView('execucoes')}
-          />
-          <NavItem
-            icon={<IChat />}
-            label="Exploração"
-            active={activeView === 'exploracao'}
-            onClick={() => setActiveView('exploracao')}
-          />
-        </div>
-
-        <div style={{ height: 1, background: 'var(--color-border)', margin: '2px 12px 6px' }} />
-
-        {/* Utility nav */}
-        <div style={{ padding: '0 8px 6px' }}>
-          <NavItem icon={<ISearch />} label="Procurar" onClick={() => {}} />
-          <NavItem icon={<ISliders />} label="Personalizar" onClick={() => setActiveView('exploracao')} />
-        </div>
-
-        <div style={{ height: 1, background: 'var(--color-border)', margin: '0 12px 6px' }} />
-
-        {/* Section: Navegação */}
-        <div style={{ padding: '0 8px' }}>
-          <span style={{ display: 'block', padding: '4px 12px 4px', fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Navegação
-          </span>
-          <NavItem icon={<IBolt />} label="Automações" badge={pendingCount} active={execOpen} onClick={() => setExecOpen(o => !o)} />
-          <NavItem icon={<IPlug />} label="Integrações" onClick={() => window.dispatchEvent(new CustomEvent('northie:navigate', { detail: 'app-store' }))} />
-        </div>
-
-        <div style={{ height: 1, background: 'var(--color-border)', margin: '6px 12px' }} />
-
-        {/* Section: Conversas recentes */}
-        <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin', padding: '0 8px' }}>
-          <span style={{ display: 'block', padding: '2px 12px 4px', fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            Recentes
-          </span>
-
-          {histGroups.length === 0 && (
-            <div style={{ padding: '10px 12px' }}>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-tertiary)' }}>
-                Nenhuma conversa ainda
-              </span>
-            </div>
-          )}
-
-          {histGroups.map(group => (
-            <div key={group.label} style={{ marginBottom: 8 }}>
-              {histGroups.length > 1 && (
-                <span style={{ display: 'block', padding: '3px 12px 2px', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 500, color: 'var(--color-text-tertiary)', opacity: 0.7 }}>
-                  {group.label}
-                </span>
-              )}
-              {group.items.map(conv => (
-                <button
-                  key={conv.id}
-                  onClick={() => loadConversation(conv)}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
-                  style={{
-                    width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    background: 'transparent',
-                    fontFamily: 'var(--font-sans)', fontSize: 13,
-                    color: 'var(--color-text-secondary)',
-                    transition: 'background 0.12s', overflow: 'hidden',
-                  }}
-                >
-                  <IChat />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                    {conv.title ?? 'Nova conversa'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* Footer: user */}
-        <div style={{
-          flexShrink: 0, borderTop: '1px solid var(--color-border)',
-          padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-            background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: 'white',
-          }}>
-            {userInitial}
+      {/* Header */}
+      <div style={{ flexShrink: 0, padding: '16px 24px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--color-bg-primary)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="3.5" fill="white" />
+              <circle cx="10" cy="10" r="6.5" stroke="white" strokeWidth="1.2" />
+            </svg>
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {userName}
-            </div>
-            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 1 }}>
-              Northie Pro
-            </div>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.2px' }}>
+            Northie Growth
+          </span>
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={() => { setMessages([]); setInput(''); setTimeout(() => inputRef.current?.focus(), 50) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-tertiary)', padding: '5px 10px', borderRadius: 7, border: '1px solid var(--color-border)', background: 'transparent', cursor: 'pointer', transition: 'background 0.1s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
+          <ISpin />
+          Nova conversa
+        </motion.button>
+      </div>
+
+      {/* Messages area */}
+      <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px 16px' }}>
+
+          {/* Empty state */}
+          <AnimatePresence>
+            {!hasMessages && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+                style={{ paddingTop: 48, paddingBottom: 32 }}
+              >
+                <h2 style={{ fontFamily: 'var(--font-sans)', fontSize: 26, fontWeight: 600, color: 'var(--color-text-primary)', letterSpacing: '-0.5px', margin: '0 0 8px' }}>
+                  {greeting(userName)}
+                </h2>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--color-text-secondary)', margin: '0 0 28px', lineHeight: 1.6 }}>
+                  O que você quer entender sobre seu negócio hoje?
+                </p>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {SUGGESTION_CHIPS.map((chip, i) => (
+                    <motion.button
+                      key={i}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => { setInput(chip); setTimeout(() => inputRef.current?.focus(), 50) }}
+                      style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-secondary)', padding: '8px 14px', borderRadius: 20, border: '1px solid var(--color-border)', background: 'var(--color-bg-primary)', cursor: 'pointer', transition: 'background 0.12s, color 0.12s', lineHeight: 1.4 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-primary)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-primary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)' }}
+                    >
+                      {chip}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Message list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {messages.map(msg => (
+              <ChatMessage key={msg.id} msg={msg} />
+            ))}
+            <AnimatePresence>
+              {isLoading && <TypingDots />}
+            </AnimatePresence>
+            <div ref={messagesEndRef} />
           </div>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          MAIN AREA
-      ══════════════════════════════════════════════════════ */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
-
-        <AnimatePresence mode="wait">
-
-          {/* ── VIEW: Insights ── */}
-          {activeView === 'insights' && (
-            <motion.div key="insights"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' }}
-            >
-              <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 40px 60px' }}>
-                {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16 }}>
-                  <div>
-                    <h1 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-                      Insights
-                    </h1>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
-                      Recomendações identificadas pelos agentes. Aprove para executar.
-                    </p>
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                    onClick={handleRunEngine}
-                    disabled={engineRunning}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                      fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 500,
-                      color: engineRunning ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
-                      padding: '7px 14px', borderRadius: 8,
-                      background: 'var(--color-bg-primary)',
-                      border: '1px solid var(--color-border)',
-                      cursor: engineRunning ? 'default' : 'pointer',
-                      transition: 'background 0.12s',
-                    }}
-                    onMouseEnter={e => { if (!engineRunning) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-primary)' }}
-                  >
-                    {engineRunning
-                      ? <><ISpin /> Analisando...</>
-                      : <><IRefresh /> Forçar análise</>
-                    }
-                  </motion.button>
-                </div>
-
-                {/* Feed */}
-                {insightsLoading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {[0, 1, 2].map(i => (
-                      <motion.div key={i}
-                        animate={{ opacity: [0.4, 0.7, 0.4] }}
-                        transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-                        style={{ height: 120, background: '#FFFFFF', border: '1px solid rgba(66,87,138,0.12)', borderRadius: 10 }}
-                      />
-                    ))}
-                  </div>
-                ) : insights.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-                    style={{
-                      padding: '48px 32px', textAlign: 'center',
-                      background: '#FFFFFF', border: '1px solid rgba(66,87,138,0.12)',
-                      borderRadius: 12,
-                    }}
-                  >
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 12, margin: '0 auto 16px',
-                      background: 'rgba(255,89,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#FF5900',
-                    }}>
-                      <ILightbulb />
-                    </div>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
-                      Nenhum insight pendente
-                    </p>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6 }}>
-                      Os agentes estão analisando seus dados.<br />Insights aparecem aqui automaticamente.
-                    </p>
-                  </motion.div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <AnimatePresence>
-                      {insights.map((insight, i) => (
-                        <InsightCard
-                          key={insight.id}
-                          insight={insight}
-                          index={i}
-                          onApprove={handleApproveInsight}
-                          onDismiss={handleDismissInsight}
-                        />
-                      ))}
-                    </AnimatePresence>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── VIEW: Execuções ── */}
-          {activeView === 'execucoes' && (
-            <motion.div key="execucoes"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' }}
-            >
-              <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 40px 60px' }}>
-                <div style={{ marginBottom: 28 }}>
-                  <h1 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
-                    Execuções
-                  </h1>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
-                    Histórico de ações aprovadas e executadas.
-                  </p>
-                </div>
-
-                {executionHistory.length === 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-                    style={{
-                      padding: '48px 32px', textAlign: 'center',
-                      background: '#FFFFFF', border: '1px solid rgba(66,87,138,0.12)',
-                      borderRadius: 12,
-                    }}
-                  >
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 12, margin: '0 auto 16px',
-                      background: 'rgba(66,87,138,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'var(--color-text-tertiary)',
-                    }}>
-                      <IHistory />
-                    </div>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
-                      Nenhuma execução ainda
-                    </p>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6 }}>
-                      Aprove um insight para começar.
-                    </p>
-                  </motion.div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <AnimatePresence>
-                      {executionHistory.map((rec, i) => {
-                        const isDone = rec.status === 'completed'
-                        const isFailed = rec.status === 'failed'
-                        const isRunning = rec.status === 'approved' || rec.status === 'executing'
-                        return (
-                          <motion.div
-                            key={rec.id}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2, delay: i * 0.04 }}
-                            style={{
-                              background: '#FFFFFF',
-                              border: '1px solid rgba(66,87,138,0.12)',
-                              borderRadius: 10,
-                              padding: '16px 20px',
-                              display: 'flex', flexDirection: 'column', gap: 8,
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                                  {(rec.type ?? 'growth').replace(/_/g, ' ')}
-                                </span>
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: '#37352F', lineHeight: 1.4 }}>
-                                  {rec.title}
-                                </span>
-                              </div>
-                              <div style={{ flexShrink: 0 }}>
-                                {isDone && (
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', borderRadius: 6, padding: '3px 9px' }}>
-                                    <ICheck /> Concluída
-                                  </span>
-                                )}
-                                {isFailed && (
-                                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: '#dc2626', background: '#fef2f2', borderRadius: 6, padding: '3px 9px' }}>
-                                    Falhou
-                                  </span>
-                                )}
-                                {isRunning && (
-                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-primary)' }}>
-                                    <ISpin /> Executando
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                              {rec.impact_estimate && (
-                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
-                                  {rec.impact_estimate}
-                                </span>
-                              )}
-                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>
-                                {new Date(rec.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                              </span>
-                            </div>
-                          </motion.div>
-                        )
-                      })}
-                    </AnimatePresence>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── VIEW: Exploração (chat) ── */}
-          {activeView === 'exploracao' && (
-            <motion.div key="exploracao"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-            >
-              {/* Empty state */}
-              {!hasMessages && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 32px 80px' }}>
-                  <motion.h1
-                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-                    style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 34, letterSpacing: '-0.8px', color: 'var(--color-text-primary)', margin: '0 0 32px', textAlign: 'center' }}
-                  >
-                    {greeting(userName)}
-                  </motion.h1>
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, delay: 0.06, ease: [0.25, 0.1, 0.25, 1] }}
-                    style={{ width: '100%', maxWidth: 680 }}
-                  >
-                    <ChatInput value={input} onChange={setInput} onSend={handleSend} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                    transition={{ duration: 0.3, delay: 0.14 }}
-                    style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, justifyContent: 'center', maxWidth: 680 }}
-                  >
-                    {EXPLORACAO_CHIPS.map(chip => (
-                      <motion.button key={chip} whileTap={{ scale: 0.97 }}
-                        onClick={() => { setInput(chip); inputRef.current?.focus() }}
-                        onMouseEnter={e => { const el = e.currentTarget as HTMLButtonElement; el.style.background = 'var(--color-bg-tertiary)'; el.style.borderColor = 'var(--color-text-tertiary)' }}
-                        onMouseLeave={e => { const el = e.currentTarget as HTMLButtonElement; el.style.background = 'var(--color-bg-secondary)'; el.style.borderColor = 'var(--color-border)' }}
-                        style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--color-text-secondary)', padding: '6px 14px', borderRadius: 99, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', cursor: 'pointer', transition: 'background 0.15s, border-color 0.15s', whiteSpace: 'nowrap' }}
-                      >
-                        {chip}
-                      </motion.button>
-                    ))}
-                  </motion.div>
-                </div>
-              )}
-
-              {/* Messages */}
-              {hasMessages && (
-                <>
-                  <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' }}>
-                    <div style={{ maxWidth: 680, width: '100%', margin: '0 auto', padding: '40px 28px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                      {messages.map(msg => <ChatMessage key={msg.id} msg={msg} />)}
-                      <AnimatePresence>{isLoading && <TypingDots />}</AnimatePresence>
-                      <div ref={messagesEndRef} />
-                    </div>
-                  </div>
-                  <div style={{ flexShrink: 0, padding: '10px 32px 22px' }}>
-                    <div style={{ maxWidth: 680, margin: '0 auto' }}>
-                      <ChatInput value={input} onChange={setInput} onSend={handleSend} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
-                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 8, marginBottom: 0 }}>
-                        A Northie recomenda — você decide. Nenhuma ação é executada sem aprovação.
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </motion.div>
-          )}
-
-        </AnimatePresence>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════
-          EXECUTIONS DRAWER (fixed overlay from right)
-      ══════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {execOpen && (
-          <ExecDrawer
-            recs={recommendations}
-            onApprove={handleApprove}
-            onDismiss={handleDismiss}
-            onClose={() => setExecOpen(false)}
+      {/* Input */}
+      <div style={{ flexShrink: 0, padding: '12px 24px 20px', background: 'var(--color-bg)' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSend={handleSend}
+            onSlashCommand={handleSlashCommand}
+            inputRef={inputRef}
+            loading={isLoading}
+            model={model}
+            onModelChange={setModel}
+            onClear={() => { setMessages([]); setInput('') }}
           />
-        )}
-      </AnimatePresence>
-
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center', margin: '10px 0 0', opacity: 0.7 }}>
+            Use <span style={{ fontFamily: 'var(--font-mono)' }}>/</span> para comandos — skills, insights, automações e mais
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
