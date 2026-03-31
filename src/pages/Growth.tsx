@@ -52,6 +52,8 @@ interface ConvItem {
   id: string
   title: string | null
   updated_at: string
+  startTime: string   // ISO timestamp of first message in this conversation
+  endTime: string     // ISO timestamp of last message in this conversation
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -706,6 +708,46 @@ export default function Growth() {
 
   useEffect(() => { localStorage.setItem('northie:ai-model', model) }, [model])
 
+  // ── Group user messages into conversations by time proximity ──
+  // Messages within SESSION_GAP_MS of each other belong to the same conversation.
+  const SESSION_GAP_MS = 30 * 60 * 1000 // 30 minutes
+
+  const buildConversations = useCallback((rows: { id: string; content: string; created_at: string }[]): ConvItem[] => {
+    if (rows.length === 0) return []
+    // rows arrive DESC (newest first) — reverse for chronological grouping
+    const sorted = [...rows].reverse()
+    const convs: ConvItem[] = []
+    let groupStart = sorted[0]
+    let groupEnd = sorted[0]
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(groupEnd.created_at).getTime()
+      const curr = new Date(sorted[i].created_at).getTime()
+      if (curr - prev > SESSION_GAP_MS) {
+        // Gap detected — close current group, start new one
+        convs.push({
+          id: groupStart.id,
+          title: (groupStart.content as string)?.slice(0, 60) ?? null,
+          updated_at: groupEnd.created_at,
+          startTime: groupStart.created_at,
+          endTime: groupEnd.created_at,
+        })
+        groupStart = sorted[i]
+      }
+      groupEnd = sorted[i]
+    }
+    // Push final group
+    convs.push({
+      id: groupStart.id,
+      title: (groupStart.content as string)?.slice(0, 60) ?? null,
+      updated_at: groupEnd.created_at,
+      startTime: groupStart.created_at,
+      endTime: groupEnd.created_at,
+    })
+    // Return newest first for display
+    return convs.reverse()
+  }, [SESSION_GAP_MS])
+
   // ── Refresh history from DB ──
   const refreshHistory = useCallback(async () => {
     const uid = userIdRef.current
@@ -716,17 +758,14 @@ export default function Growth() {
       .eq('profile_id', uid)
       .eq('role', 'user')
       .order('created_at', { ascending: false })
-      .limit(30)
-    setHistory((data ?? []).map(row => ({
-      id: row.id as string,
-      title: (row.content as string)?.slice(0, 50) ?? null,
-      updated_at: row.created_at as string,
-    })))
-  }, [])
+      .limit(100)
+    setHistory(buildConversations(data ?? []))
+  }, [buildConversations])
 
   // ── Send message (passes model to backend) ──
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return
+    const isFirstMessage = messages.length === 0
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setIsLoading(true)
@@ -734,16 +773,16 @@ export default function Growth() {
       const res = await aiApi.chat(text, 'Growth', 'growth', model)
       const content: string = res.data?.content ?? res.data?.message ?? 'Sem resposta.'
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content }])
-      // Refresh history sidebar after successful exchange
-      refreshHistory()
+      // Only refresh sidebar when starting a new conversation
+      if (isFirstMessage) refreshHistory()
     } catch {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: ERROR_MESSAGE }])
     } finally {
       setIsLoading(false)
     }
-  }, [isLoading, model, refreshHistory])
+  }, [isLoading, model, messages.length, refreshHistory])
 
-  // ── Initial load: user info + history + recommendations (once) ──
+  // ── Initial load (once) ──
   useEffect(() => {
     growthApi.listRecommendations().then(res => setRecommendations(res.data ?? [])).catch(() => {})
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -781,14 +820,20 @@ export default function Growth() {
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage])
 
-  // ── Load full conversation from DB ──
-  const loadConversation = useCallback(async () => {
+  // ── Load a specific conversation's messages ──
+  const loadConversation = useCallback(async (conv: ConvItem) => {
     const uid = userIdRef.current
     if (!uid) return
+    // Fetch all messages (user + assistant) within the conversation's time window
+    // Use a small buffer to include the assistant reply after the last user message
+    const startIso = conv.startTime
+    const endDate = new Date(new Date(conv.endTime).getTime() + 5 * 60 * 1000) // +5min buffer
     const { data } = await supabase
       .from('ai_chat_history')
-      .select('id, role, content')
+      .select('id, role, content, created_at')
       .eq('profile_id', uid)
+      .gte('created_at', startIso)
+      .lte('created_at', endDate.toISOString())
       .order('created_at', { ascending: true })
     if (data && data.length > 0) {
       setMessages(data.map(row => ({
@@ -911,7 +956,7 @@ export default function Growth() {
               {group.items.map(conv => (
                 <button
                   key={conv.id}
-                  onClick={() => loadConversation()}
+                  onClick={() => loadConversation(conv)}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                   style={{
@@ -1002,7 +1047,7 @@ export default function Growth() {
                     {history.map(conv => (
                       <button
                         key={conv.id}
-                        onClick={() => loadConversation()}
+                        onClick={() => loadConversation(conv)}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-secondary)'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                         style={{
