@@ -387,7 +387,7 @@ const IAttach = () => (
 function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, model, onModelChange, onClear }: {
   value: string
   onChange: (v: string) => void
-  onSend: () => void
+  onSend: (files: File[]) => void
   onKeyDown: (e: React.KeyboardEvent) => void
   inputRef: React.RefObject<HTMLTextAreaElement>
   loading: boolean
@@ -448,6 +448,9 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
       if (e.key === 'Enter')     { e.preventDefault(); if (filteredCmds[slashIndex]) selectCmd(filteredCmds[slashIndex]); return }
       if (e.key === 'Escape')    { setSlashMenuOpen(false); return }
       return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && value.trim() && !loading) {
+      e.preventDefault(); onSend(attachedFiles); setAttachedFiles([]); return
     }
     onKeyDown(e)
   }
@@ -638,7 +641,7 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
             <IVoice />
           </motion.button>
           {/* Send */}
-          <motion.button whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={onSend} disabled={!canSend}
+          <motion.button whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={() => { onSend(attachedFiles); setAttachedFiles([]) }} disabled={!canSend}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: 'none', cursor: canSend ? 'pointer' : 'default', background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', color: canSend ? 'white' : 'var(--color-text-tertiary)', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>
             <ISend />
           </motion.button>
@@ -698,7 +701,6 @@ export default function Growth() {
         .from('ai_chat_history')
         .select('id, content, created_at')
         .eq('profile_id', user.id)
-        .eq('mode', 'growth')
         .eq('role', 'user')
         .order('created_at', { ascending: false })
         .limit(30)
@@ -726,17 +728,20 @@ export default function Growth() {
     el.style.height = Math.min(Math.max(el.scrollHeight, 22), 140) + 'px'
   }, [input, messages.length])
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(async (files: File[] = []) => {
     if (!input.trim() || isLoading) return
-    const text = input.trim()
+    let text = input.trim()
+    if (files.length > 0) {
+      const fileList = files.map(f => f.name).join(', ')
+      text = `[Arquivos anexados: ${fileList}]\n\n${text}`
+    }
     setInput('')
     await sendMessage(text)
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage, inputRef])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-  }
+  // Enter is handled inside ChatInput (so it can pass attached files)
+  const handleKeyDown = (_e: React.KeyboardEvent) => {}
 
   const handleNewChat = () => {
     setMessages([])

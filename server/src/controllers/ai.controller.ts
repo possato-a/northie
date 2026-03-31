@@ -56,12 +56,8 @@ export async function clearChatHistory(req: Request, res: Response) {
 
   const mode = req.query['mode'] as string | undefined;
 
-  let query = supabase.from('ai_chat_history').delete().eq('user_id', profileId);
-  if (mode === 'general' || mode === 'growth') {
-    query = query.eq('mode', mode);
-  }
-
-  const { error } = await query;
+  // Table has no 'mode' column — delete all history for this profile
+  const { error } = await supabase.from('ai_chat_history').delete().eq('profile_id', profileId);
   if (error) {
     console.error('[AI Controller] clearChatHistory erro:', error.message);
     return res.status(500).json({ error: 'Falha ao limpar histórico.' });
