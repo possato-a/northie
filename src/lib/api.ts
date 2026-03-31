@@ -233,6 +233,45 @@ export const calendarApi = {
         api.post(`/calendar/link/${meetingId}/${customerId}`),
 };
 
+export const financeiroApi = {
+    getPL: (inicio?: string, fim?: string) => cachedGet('/financeiro/pl', { params: { inicio, fim } }),
+    getExtrato: (inicio?: string, fim?: string) => cachedGet('/financeiro/extrato', { params: { inicio, fim } }),
+    exportCSV: (inicio?: string, fim?: string) => api.get('/financeiro/export', { params: { inicio, fim }, responseType: 'blob' }),
+    listGastosFixos: () => cachedGet('/financeiro/gastos-fixos'),
+    createGastoFixo: (data: { name: string; supplier_name?: string; category?: string; monthly_cost_brl: number; notes?: string }) =>
+        api.post('/financeiro/gastos-fixos', data),
+    updateGastoFixo: (id: string, data: Record<string, unknown>) => api.patch(`/financeiro/gastos-fixos/${id}`, data),
+    deleteGastoFixo: (id: string) => api.delete(`/financeiro/gastos-fixos/${id}`),
+};
+
+export const caixaApi = {
+    getPosicao: () => cachedGet('/caixa/posicao'),
+    getForecast: () => cachedGet('/caixa/forecast'),
+    getEntradasSaidas: () => cachedGet('/caixa/entradas-saidas'),
+    getRunway: () => cachedGet('/caixa/runway'),
+};
+
+export const fornecedoresApi = {
+    list: () => cachedGet('/fornecedores'),
+    detail: (id: string) => cachedGet(`/fornecedores/${id}`),
+    roi: (id: string) => cachedGet(`/fornecedores/${id}/roi`),
+    create: (data: { name: string; supplier_name?: string; category?: string; monthly_cost_brl: number; notes?: string }) =>
+        api.post('/fornecedores', data),
+    update: (id: string, data: Record<string, unknown>) => api.patch(`/fornecedores/${id}`, data),
+    remove: (id: string) => api.delete(`/fornecedores/${id}`),
+};
+
+export const agentesFinanceirosApi = {
+    list: () => cachedGet('/agentes-financeiros'),
+    alertas: (status?: string) => cachedGet('/agentes-financeiros/alertas', { params: status ? { status } : {} }),
+    log: (type: string) => cachedGet(`/agentes-financeiros/${type}/log`),
+    configurar: (type: string, data: { thresholds?: Record<string, number>; is_active?: boolean }) =>
+        api.post(`/agentes-financeiros/${type}/configurar`, data),
+    resolver: (id: string) => api.post(`/agentes-financeiros/alertas/${id}/resolver`),
+    ignorar: (id: string) => api.post(`/agentes-financeiros/alertas/${id}/ignorar`),
+    executar: (type: string) => api.post(`/agentes-financeiros/${type}/executar`),
+};
+
 export const profileApi = {
     deleteAccount: () => api.delete('/profile'),
 };

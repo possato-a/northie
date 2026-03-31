@@ -24,6 +24,10 @@ export type Page =
   | 'canais-google'
   | 'growth'
   | 'card'
+  | 'financeiro'
+  | 'caixa'
+  | 'fornecedores'
+  | 'agentes'
   | 'conversas'
   | 'contexto'
   | 'relatorios'
@@ -220,6 +224,43 @@ const productsNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
   { icon: <CardIcon />, label: 'Northie Card', pageId: 'card' },
 ]
 
+// ── Financeiro icons ──────────────────────────────────────────────────────────
+function FinanceiroIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+    </svg>
+  )
+}
+function CaixaIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+    </svg>
+  )
+}
+function FornecedoresIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  )
+}
+function AgentesIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 8V4H8"/><rect x="8" y="2" width="8" height="4" rx="1"/><rect x="4" y="8" width="16" height="14" rx="2"/><path d="M9 15h6"/><path d="M9 18h6"/>
+    </svg>
+  )
+}
+
+const financeiroNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
+  { icon: <FinanceiroIcon />, label: 'Financeiro', pageId: 'financeiro' },
+  { icon: <CaixaIcon />, label: 'Caixa', pageId: 'caixa' },
+  { icon: <FornecedoresIcon />, label: 'Fornecedores', pageId: 'fornecedores' },
+  { icon: <AgentesIcon />, label: 'Agentes', pageId: 'agentes' },
+]
+
 const contextNav: { icon: React.ReactNode; label: string; pageId: Page }[] = [
   { icon: <ConversasIcon />, label: 'Conversas', pageId: 'conversas' },
   { icon: <ContextoIcon />, label: 'Contexto', pageId: 'contexto' },
@@ -390,6 +431,20 @@ export default function Sidebar({ activePage, onPageChange, collapsed, onToggle 
               onPageChange={onPageChange}
               collapsed={collapsed}
               showIndicator
+            />
+          ))}
+        </div>
+
+        <SectionLabel>Financeiro</SectionLabel>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {financeiroNav.map((item) => (
+            <NavItem
+              key={item.pageId}
+              {...item}
+              activePage={activePage}
+              onPageChange={onPageChange}
+              collapsed={collapsed}
             />
           ))}
         </div>

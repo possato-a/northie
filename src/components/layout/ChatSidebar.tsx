@@ -131,6 +131,10 @@ export default function ChatSidebar({ isOpen, onClose, context, isFull, onToggle
             case 'Vendas':        return ['Previsão Mensal', 'Canal mais lucrativo', 'Ticket Médio']
             case 'Visão Geral':   return ['Resumo Growth', 'Alerta de CAC', 'Performance Ads']
             case 'Northie Card':  return ['Como aumentar meu score?', 'Quando serei aprovado?', 'Split explicado']
+            case 'Financeiro':    return ['Como está minha margem este mês?', 'Qual foi minha receita líquida?', 'Onde estou gastando mais?']
+            case 'Caixa':         return ['Posso escalar os ads agora?', 'Qual meu runway atual?', 'Projeção para os próximos 30 dias?']
+            case 'Fornecedores':  return ['Qual fornecedor está custando mais?', 'Tenho algum gasto desnecessário?', 'ROAS da agência justifica o custo?']
+            case 'Agentes Financeiros': return ['O que os agentes detectaram hoje?', 'Tenho algum alerta crítico?', 'O que devo resolver primeiro?']
             default:              return ['Resumo do dia', 'Próximas ações']
         }
     }, [context])

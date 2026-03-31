@@ -12,6 +12,10 @@ export type Page =
     | 'canais'
     | 'canais-meta'
     | 'canais-google'
+    | 'financeiro'
+    | 'caixa'
+    | 'fornecedores'
+    | 'agentes'
     | 'conversas'
     | 'contexto'
     | 'relatorios'
@@ -183,6 +187,111 @@ export interface Campaign {
 export interface Integration {
     platform: string
     status: 'active' | 'inactive'
+}
+
+// ── Retention ────────────────────────────────────────────────────────────────
+
+// ── Financial Features ──────────────────────────────────────────────────────
+
+export type ExpenseCategory = 'ads' | 'saas' | 'agencia' | 'freelancer' | 'plataforma' | 'pessoal' | 'outro'
+
+export interface FixedCost {
+    id: string
+    profile_id: string
+    name: string
+    supplier_name?: string
+    category: ExpenseCategory
+    monthly_cost_brl: number
+    is_active: boolean
+    notes?: string
+    created_at: string
+    updated_at: string
+}
+
+export interface PLResult {
+    receita_bruta: number
+    taxas_plataforma: number
+    custo_ads: number
+    gastos_fixos: number
+    margem_estimada: number
+    margem_pct: number
+    periodo: { inicio: string; fim: string }
+    variacao_mes_anterior?: number
+}
+
+export interface ExtratoItem {
+    date: string
+    receita: number
+    ads_spend: number
+    plataforma: string
+}
+
+export interface CashflowForecast {
+    cenario: 'base' | 'otimista' | 'pessimista'
+    projecao_30d: number
+    projecao_60d: number
+}
+
+export interface CaixaPosicao {
+    caixa_estimado: number
+    variacao_mes_anterior: number
+    runway_meses: number
+    custos_fixos_mensais: number
+    media_ads_spend: number
+}
+
+export interface Fornecedor {
+    id: string
+    name: string
+    category: ExpenseCategory
+    monthly_cost: number
+    origem: 'auto' | 'manual'
+    platform?: string
+    roas?: number
+    ltv_cac?: number
+    status: 'saudavel' | 'neutro' | 'atencao' | 'critico'
+    tendencia?: number
+}
+
+export type AgentType = 'receita' | 'caixa' | 'gastos' | 'oportunidade'
+export type AlertSeverity = 'info' | 'atencao' | 'critico'
+export type AlertStatus = 'aberto' | 'resolvido' | 'ignorado'
+
+export interface AgentLog {
+    id: string
+    profile_id: string
+    agent_type: AgentType
+    severity: AlertSeverity
+    title: string
+    description?: string
+    suggestion?: string
+    data: Record<string, unknown>
+    status: AlertStatus
+    resolved_at?: string
+    created_at: string
+}
+
+export interface AgentConfig {
+    id: string
+    profile_id: string
+    agent_type: AgentType
+    is_active: boolean
+    thresholds: Record<string, number>
+    updated_at: string
+}
+
+export interface CashflowSnapshot {
+    id: string
+    profile_id: string
+    snapshot_date: string
+    caixa_estimado_brl: number
+    forecast_30d_base: number
+    forecast_30d_otimista: number
+    forecast_30d_pessimista: number
+    forecast_60d_base: number
+    runway_meses: number
+    custos_fixos_mensais: number
+    media_ads_spend_mensal: number
 }
 
 // ── Retention ────────────────────────────────────────────────────────────────
