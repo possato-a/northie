@@ -162,7 +162,10 @@ ${channelPerfLines}
 
 NORTHIE GROWTH — ${ctx.pendingGrowthRecs} ações identificadas aguardando aprovação:
 ${pendingRecsLines}
-
+${ctx.growthDecisions.length > 0 ? `
+DECISÕES ANTERIORES DO FOUNDER (respeite estas ao fazer sugestões):
+${ctx.growthDecisions.map(d => `— [${new Date(d.created_at).toLocaleDateString('pt-BR')}] ${d.context}`).join('\n')}
+` : ''}
 CONTEXTO DA PÁGINA ATIVA: ${ctx.pageContext}${modeBlock}${businessContextBlock}${aiInstructionsBlock}${skills.length > 0 ? `\n\n# Skills ativas\n${skills.map(s => `## ${s.name}\n${s.content}`).join('\n\n')}` : ''}`;
 
   return [

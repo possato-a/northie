@@ -10,6 +10,10 @@ export const ALL_TOOLS: Anthropic.Tool[] = [
   tools.revenueTrendTool.definition,
   tools.growthRecommendationsTool.definition,
   tools.businessContextTool.definition,
+  tools.campaignLtvAnalysisTool.definition,
+  tools.reactivationCandidatesTool.definition,
+  tools.channelLtvCacTool.definition,
+  tools.cohortRepurchaseTool.definition,
 ];
 
 /** Tools disponíveis no modo 'growth' — conjunto completo */
@@ -27,6 +31,10 @@ const EXECUTOR_MAP: Record<string, (input: Record<string, unknown>, profileId: s
   revenue_trend: tools.revenueTrendTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
   growth_recommendations: tools.growthRecommendationsTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
   business_context: tools.businessContextTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
+  get_campaign_ltv_analysis: tools.campaignLtvAnalysisTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
+  get_reactivation_candidates: tools.reactivationCandidatesTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
+  get_channel_ltv_cac: tools.channelLtvCacTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
+  get_cohort_repurchase: tools.cohortRepurchaseTool.execute as (input: Record<string, unknown>, profileId: string) => Promise<string>,
 };
 
 export async function executeTool(name: string, input: Record<string, unknown>, profileId: string): Promise<string> {

@@ -65,6 +65,23 @@ export async function approveRecommendation(req: Request, res: Response) {
         .update({ status: 'approved', updated_at: new Date().toISOString() })
         .eq('id', id);
 
+    // Registrar decisão de aprovação
+    const { data: recDetail } = await supabase
+        .from('growth_recommendations')
+        .select('type, title')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+
+    if (recDetail) {
+        await supabase.from('growth_decisions').insert({
+            profile_id: profileId,
+            decision_type: 'approved',
+            context: `Aprovou: "${recDetail.title}"`,
+            action_type: recDetail.type,
+        });
+    }
+
     // Execução não-bloqueante em background
     executeRecommendation(profileId, id).catch(err =>
         console.error(`[Growth] Background execution error for ${id}:`, err)
@@ -82,13 +99,38 @@ export async function dismissRecommendation(req: Request, res: Response) {
     const { id } = req.params;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
 
+    const reason = req.body?.reason as string | undefined;
+
+    const { data: rec } = await supabase
+        .from('growth_recommendations')
+        .select('type, title')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+
     const { error } = await supabase
         .from('growth_recommendations')
-        .update({ status: 'dismissed', updated_at: new Date().toISOString() })
+        .update({
+            status: 'dismissed',
+            dismissed_reason: reason ?? null,
+            dismissed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .eq('profile_id', profileId);
 
     if (error) return res.status(500).json({ error: 'Failed to dismiss recommendation' });
+
+    // Registrar decisão
+    if (rec) {
+        await supabase.from('growth_decisions').insert({
+            profile_id: profileId,
+            decision_type: 'rejected',
+            context: `Descartou: "${rec.title}"${reason ? ` — motivo: "${reason}"` : ''}`,
+            action_type: rec.type,
+        });
+    }
+
     res.json({ message: 'Recommendation dismissed', id });
 }
 
@@ -111,13 +153,37 @@ export async function rejectRecommendation(req: Request, res: Response) {
     if (fetchErr || !rec) return res.status(404).json({ error: 'Recommendation not found' });
     if (rec.status !== 'pending') return res.status(409).json({ error: 'Only pending recommendations can be rejected' });
 
+    const reason = req.body?.reason as string | undefined;
+
+    const { data: recDetail } = await supabase
+        .from('growth_recommendations')
+        .select('type, title')
+        .eq('id', id)
+        .eq('profile_id', profileId)
+        .single();
+
     const { error } = await supabase
         .from('growth_recommendations')
-        .update({ status: 'rejected', updated_at: new Date().toISOString() })
+        .update({
+            status: 'rejected',
+            dismissed_reason: reason ?? null,
+            dismissed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        })
         .eq('id', id)
         .eq('profile_id', profileId);
 
     if (error) return res.status(500).json({ error: 'Failed to reject recommendation' });
+
+    if (recDetail) {
+        await supabase.from('growth_decisions').insert({
+            profile_id: profileId,
+            decision_type: 'rejected',
+            context: `Rejeitou definitivamente: "${recDetail.title}"${reason ? ` — motivo: "${reason}"` : ''}`,
+            action_type: recDetail.type,
+        });
+    }
+
     res.json({ message: 'Recommendation rejected', id });
 }
 
@@ -399,6 +465,97 @@ export async function getRecommendationStatus(req: Request, res: Response) {
  * Aciona analise on-demand pelo AI Alert Analyst.
  * Retorna os findings estruturados (alertas + recomendacoes).
  */
+/**
+ * POST /api/growth/engine/run
+ * Força execução manual do growth engine (correlations job).
+ */
+export async function runEngine(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    // Import dinâmico para evitar circular deps
+    const { runCorrelationsForProfile } = await import('../jobs/growth-correlations.job.js');
+    runCorrelationsForProfile(profileId).catch(err => {
+        console.error('[Growth] engine run error:', err);
+    });
+
+    res.status(202).json({ message: 'Growth engine executando...' });
+}
+
+/**
+ * GET /api/growth/insights
+ * Lista insights pendentes (growth_recommendations com status pending).
+ */
+export async function listInsights(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    try {
+        const { data, error } = await supabase
+            .from('growth_recommendations')
+            .select('id, type, status, title, narrative, impact_estimate, sources, meta, created_at')
+            .eq('profile_id', profileId)
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data);
+    } catch (err: unknown) {
+        console.error('[Growth] listInsights error:', err);
+        res.status(500).json({ error: 'Failed to fetch insights' });
+    }
+}
+
+/**
+ * GET /api/growth/memory
+ * Retorna decisões históricas do founder para incluir no system prompt.
+ */
+export async function getMemory(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    try {
+        const { data, error } = await supabase
+            .from('growth_decisions')
+            .select('decision_type, context, action_type, result_summary, created_at')
+            .eq('profile_id', profileId)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+        if (error) return res.status(500).json({ error: error.message });
+        res.json(data ?? []);
+    } catch (err: unknown) {
+        console.error('[Growth] getMemory error:', err);
+        res.status(500).json({ error: 'Failed to fetch memory' });
+    }
+}
+
+/**
+ * POST /api/growth/memory
+ * Registra instrução permanente do founder (ex: "nunca pausar campanhas durante lançamento").
+ */
+export async function addInstruction(req: Request, res: Response) {
+    const profileId = req.headers['x-profile-id'] as string;
+    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });
+
+    const { instruction } = req.body;
+    if (!instruction) return res.status(400).json({ error: 'instruction é obrigatório' });
+
+    const { data, error } = await supabase
+        .from('growth_decisions')
+        .insert({
+            profile_id: profileId,
+            decision_type: 'instruction',
+            context: instruction,
+        })
+        .select()
+        .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.status(201).json(data);
+}
+
 export async function runAIAnalysis(req: Request, res: Response) {
     const profileId = req.headers['x-profile-id'] as string;
     if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id' });

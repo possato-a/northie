@@ -36,6 +36,12 @@ router.get('/metrics', GrowthController.getGrowthMetrics);
 router.get('/recommendations', GrowthController.listRecommendations);
 router.get('/execution-history', GrowthController.getExecutionHistory);
 
+// Growth v2 — engine, insights, memory
+router.post('/engine/run', syncRateLimiter, GrowthController.runEngine);
+router.get('/insights', GrowthController.listInsights);
+router.get('/memory', GrowthController.getMemory);
+router.post('/memory', GrowthController.addInstruction);
+
 /**
  * @route POST /api/growth/recommendations/:id/approve
  * @desc Aprova e dispara execução (202 Accepted)

@@ -6,3 +6,7 @@ export * as campaignPerformanceTool from './campaign-performance.tool.js';
 export * as revenueTrendTool from './revenue-trend.tool.js';
 export * as growthRecommendationsTool from './growth-recommendations.tool.js';
 export * as businessContextTool from './business-context.tool.js';
+export * as campaignLtvAnalysisTool from './campaign-ltv-analysis.tool.js';
+export * as reactivationCandidatesTool from './reactivation-candidates.tool.js';
+export * as channelLtvCacTool from './channel-ltv-cac.tool.js';
+export * as cohortRepurchaseTool from './cohort-repurchase.tool.js';

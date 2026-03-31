@@ -155,6 +155,13 @@ export const growthApi = {
     confirmExecution: (sessionId: string, approvedMessage: string) =>
         api.post(`/growth/collaboration/${sessionId}/confirm`, { approved_message: approvedMessage }),
     abandonSession: (sessionId: string) => api.post(`/growth/collaboration/${sessionId}/abandon`),
+    // Growth v2
+    listInsights: () => cachedGet('/growth/insights'),
+    runEngine: () => api.post('/growth/engine/run'),
+    getMemory: () => cachedGet('/growth/memory'),
+    addInstruction: (instruction: string) => api.post('/growth/memory', { instruction }),
+    dismissWithReason: (id: string, reason?: string) => api.post(`/growth/recommendations/${id}/dismiss`, { reason }),
+    rejectWithReason: (id: string, reason?: string) => api.post(`/growth/recommendations/${id}/reject`, { reason }),
 };
 
 export const pixelApi = {

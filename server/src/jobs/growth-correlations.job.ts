@@ -696,3 +696,26 @@ export function startGrowthCorrelationsJob(): void {
 }
 
 export { runGrowthCorrelationsForAllProfiles };
+
+/** Executa correlações para um profile específico (chamado via POST /api/growth/engine/run) */
+export async function runCorrelationsForProfile(profileId: string): Promise<void> {
+    const { data: customerRows } = await supabase
+        .from('customers')
+        .select('id, email, total_ltv, cac, churn_probability, rfm_score, acquisition_channel, last_purchase_at')
+        .eq('profile_id', profileId);
+
+    const allCustomers: CustomerRow[] = (customerRows as CustomerRow[]) || [];
+
+    await Promise.all([
+        detectReativacaoAltoLtv(profileId, allCustomers),
+        detectPausaCampanhaLtvBaixo(profileId, allCustomers),
+        detectAudienceSyncChampions(profileId, allCustomers),
+        detectReaLocacaoBudget(profileId, allCustomers),
+        detectUpsellCohort(profileId),
+        detectDivergenciaRoiCanal(profileId),
+        detectQuedaRetencaoCohort(profileId),
+        detectCanalAltoLtvUnderinvested(profileId),
+        detectCacVsLtvDeficit(profileId, allCustomers),
+        detectEmRiscoAltoValor(profileId, allCustomers),
+    ]);
+}

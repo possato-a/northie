@@ -78,6 +78,7 @@ export interface OrchestratorContext {
   channelPerformance: ChannelPerformance[];
   pendingGrowthRecs: number;
   growthRecommendations: GrowthRecommendation[];
+  growthDecisions: Array<{ decision_type: string; context: string; created_at: string }>;
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 

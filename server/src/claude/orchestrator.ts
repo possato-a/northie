@@ -30,6 +30,7 @@ async function loadContext(profileId: string, mode: ChatRequest['mode'], pageCon
     recsResult,
     channelPerfResult,
     adMetricsResult,
+    decisionsResult,
   ] = await Promise.all([
     supabase.from('profiles').select('id, business_type, business_context, ai_instructions').eq('id', profileId).single(),
     supabase.from('ai_chat_history').select('role, content').eq('user_id', profileId).eq('mode', mode).order('created_at', { ascending: false }).limit(HISTORY_LIMIT),
@@ -39,6 +40,7 @@ async function loadContext(profileId: string, mode: ChatRequest['mode'], pageCon
     supabase.from('growth_recommendations').select('id, type, title, narrative, impact_estimate, meta, status').eq('user_id', profileId).in('status', ['pending', 'approved', 'executing']).order('created_at', { ascending: false }).limit(10),
     supabase.from('mv_campaign_ltv_performance').select('*').eq('user_id', profileId),
     supabase.from('ad_metrics').select('platform, spend_brl').eq('user_id', profileId).gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]!),
+    supabase.from('growth_decisions').select('decision_type, context, created_at').eq('profile_id', profileId).order('created_at', { ascending: false }).limit(15),
   ]);
 
   const profile: ProfileContext = profileResult.data ?? { id: profileId, business_type: null, business_context: null, ai_instructions: null };
@@ -134,6 +136,7 @@ async function loadContext(profileId: string, mode: ChatRequest['mode'], pageCon
     channelPerformance,
     pendingGrowthRecs: recsCountResult.count || 0,
     growthRecommendations: (recsResult.data || []) as OrchestratorContext['growthRecommendations'],
+    growthDecisions: (decisionsResult.data || []) as Array<{ decision_type: string; context: string; created_at: string }>,
     history,
   };
 }

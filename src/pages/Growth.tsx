@@ -28,7 +28,7 @@ export interface Message {
 
 const ContextoPage = lazy(() => import('./Contexto'))
 
-type ActiveView = 'chat' | 'history' | 'contexto'
+type ActiveView = 'insights' | 'execucoes' | 'exploracao'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,8 +52,8 @@ interface ConvItem {
   id: string
   title: string | null
   updated_at: string
-  startTime: string   // ISO timestamp of first message in this conversation
-  endTime: string     // ISO timestamp of last message in this conversation
+  startTime: string
+  endTime: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -81,7 +81,6 @@ const IChat = () => (
     <path d="M18 13a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9z" />
   </svg>
 )
-
 const IBolt = () => (
   <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
     <path d="M11 2L4 11h7l-2 7 9-10h-7l2-6z" />
@@ -107,7 +106,6 @@ const IVoice = () => (
     <rect x="7" y="1" width="6" height="10" rx="3" /><path d="M3 10a7 7 0 0 0 14 0M10 17v2M7 19h6" />
   </svg>
 )
-
 const ICheck = () => (
   <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 8l3.5 3.5L13 4" />
@@ -122,6 +120,22 @@ const ISpin = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
     style={{ animation: 'spin 0.9s linear infinite' }}>
     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+  </svg>
+)
+const ILightbulb = () => (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 2a6 6 0 0 1 4.33 10.16c-.48.5-.83 1.14-.83 1.84H6.5c0-.7-.35-1.34-.83-1.84A6 6 0 0 1 10 2z" />
+    <path d="M7.5 17h5M8.5 19h3" />
+  </svg>
+)
+const IHistory = () => (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 10a7 7 0 1 0 1.5-4.33" /><path d="M3 5v5h5" /><path d="M10 7v3l2 2" />
+  </svg>
+)
+const IRefresh = () => (
+  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 10a7 7 0 1 1-1.5-4.33" /><path d="M17 5v5h-5" />
   </svg>
 )
 
@@ -163,7 +177,7 @@ function NavItem({ icon, label, badge, active, onClick }: {
   )
 }
 
-// ── Execution card ────────────────────────────────────────────────────────────
+// ── Execution card (drawer) ───────────────────────────────────────────────────
 
 function ExecCard({ rec, onApprove, onDismiss }: {
   rec: Recommendation
@@ -280,6 +294,144 @@ function ExecDrawer({ recs, onApprove, onDismiss, onClose }: {
             </span>
           </div>
         )}
+      </div>
+    </motion.div>
+  )
+}
+
+// ── InsightCard ───────────────────────────────────────────────────────────────
+
+interface InsightCardProps {
+  insight: Recommendation
+  onApprove: (id: string) => void
+  onDismiss: (id: string, reason?: string) => void
+  index: number
+}
+
+function InsightCard({ insight, onApprove, onDismiss, index }: InsightCardProps) {
+  const typeIconMap: Record<string, React.ReactNode> = {
+    reactivation: <IBolt />,
+    budget_reallocation: <ISliders />,
+    audience_sync: <ISearch />,
+    upsell: <ILightbulb />,
+    pause_campaign: <IClose />,
+  }
+  const typeIcon = typeIconMap[insight.type] ?? <ILightbulb />
+  const typeLabel = (insight.type ?? 'growth').replace(/_/g, ' ')
+
+  // Replace numbers in narrative with mono-styled spans
+  const renderNarrative = (text: string) => {
+    const parts = text.split(/(\b\d[\d.,]*%?(?:\s*(?:R\$|BRL))?\b|R\$\s*[\d.,]+)/g)
+    return parts.map((part, i) =>
+      /\d/.test(part)
+        ? <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: '#37352F' }}>{part}</span>
+        : part
+    )
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1], delay: index * 0.06 }}
+      style={{
+        background: '#FFFFFF',
+        border: '1px solid rgba(66,87,138,0.12)',
+        borderRadius: 10,
+        padding: 20,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          background: 'rgba(255,89,0,0.08)', color: '#FF5900',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {typeIcon}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 3 }}>
+            {typeLabel}
+          </span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: '#37352F', lineHeight: 1.4 }}>
+            {insight.title}
+          </span>
+        </div>
+      </div>
+
+      {/* Narrative */}
+      {insight.narrative && (
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: '#37352F', lineHeight: 1.65, margin: 0, opacity: 0.85 }}>
+          {renderNarrative(insight.narrative)}
+        </p>
+      )}
+
+      {/* Footer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginTop: 2 }}>
+        {/* Sources */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {(insight.sources ?? []).map((src, i) => (
+            <span key={i} style={{
+              fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 500,
+              color: 'var(--color-text-tertiary)',
+              background: 'rgba(66,87,138,0.06)',
+              border: '1px solid rgba(66,87,138,0.1)',
+              borderRadius: 4, padding: '2px 7px',
+              letterSpacing: '0.04em',
+            }}>
+              {src.replace(/_/g, ' ')}
+            </span>
+          ))}
+          {(insight.sources ?? []).length >= 2 && (
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--color-text-tertiary)', padding: '2px 4px', alignSelf: 'center' }}>
+              cruzamento
+            </span>
+          )}
+        </div>
+
+        {/* Impact + actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {insight.impact_estimate && (
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--color-text-tertiary)', maxWidth: 160, textAlign: 'right', lineHeight: 1.35 }}>
+              {insight.impact_estimate}
+            </span>
+          )}
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+            onClick={() => onDismiss(insight.id)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              height: 32, padding: '0 12px', borderRadius: 7,
+              border: '1px solid rgba(66,87,138,0.15)',
+              background: 'transparent', cursor: 'pointer',
+              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
+              color: 'var(--color-text-secondary)',
+              transition: 'background 0.12s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+          >
+            Ignorar
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+            onClick={() => onApprove(insight.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              height: 32, padding: '0 14px', borderRadius: 7,
+              border: 'none', background: '#0F7B6C', cursor: 'pointer',
+              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600,
+              color: 'white',
+            }}
+          >
+            <ICheck /> Aprovar
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   )
@@ -642,7 +794,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
             value={value}
             onChange={e => handleChange(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Pergunte sobre seus dados ou use / para comandos..."
+            placeholder="Explore seus dados — use / para comandos..."
             rows={1}
             style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', resize: 'none', lineHeight: 1.55, maxHeight: 140, padding: 0 }}
           />
@@ -688,67 +840,55 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const CHIPS = ['Análise de canais', 'Estratégias', 'Do Meta Ads', 'Do Google Ads', 'Do Stripe']
+const EXPLORACAO_CHIPS = [
+  'Qual campanha está destruindo margem?',
+  'Quem são meus clientes prontos para recomprar?',
+  'Qual canal devo escalar agora?',
+  'Por que meu LTV caiu esse mês?',
+]
 
 export default function Growth() {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [input, setInput] = useState('')
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [insights, setInsights] = useState<Recommendation[]>([])
+  const [executionHistory, setExecutionHistory] = useState<Recommendation[]>([])
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [engineRunning, setEngineRunning] = useState(false)
   const [history, setHistory] = useState<ConvItem[]>([])
   const [execOpen, setExecOpen] = useState(false)
-  const [activeView, setActiveView] = useState<ActiveView>('chat')
+  const [activeView, setActiveView] = useState<ActiveView>('insights')
   const [model, setModel] = useState<AIModel>(() => (localStorage.getItem('northie:ai-model') as AIModel) || 'sonnet')
   const [userName, setUserName] = useState('Francisco')
   const [userInitial, setUserInitial] = useState('F')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-
   const userIdRef = useRef<string | null>(null)
 
   useEffect(() => { localStorage.setItem('northie:ai-model', model) }, [model])
 
-  // ── Group user messages into conversations by time proximity ──
-  // Messages within SESSION_GAP_MS of each other belong to the same conversation.
-  const SESSION_GAP_MS = 30 * 60 * 1000 // 30 minutes
+  const SESSION_GAP_MS = 30 * 60 * 1000
 
   const buildConversations = useCallback((rows: { id: string; content: string; created_at: string }[]): ConvItem[] => {
     if (rows.length === 0) return []
-    // rows arrive DESC (newest first) — reverse for chronological grouping
     const sorted = [...rows].reverse()
     const convs: ConvItem[] = []
     let groupStart = sorted[0]
     let groupEnd = sorted[0]
-
     for (let i = 1; i < sorted.length; i++) {
       const prev = new Date(groupEnd.created_at).getTime()
       const curr = new Date(sorted[i].created_at).getTime()
       if (curr - prev > SESSION_GAP_MS) {
-        // Gap detected — close current group, start new one
-        convs.push({
-          id: groupStart.id,
-          title: (groupStart.content as string)?.slice(0, 60) ?? null,
-          updated_at: groupEnd.created_at,
-          startTime: groupStart.created_at,
-          endTime: groupEnd.created_at,
-        })
+        convs.push({ id: groupStart.id, title: (groupStart.content as string)?.slice(0, 60) ?? null, updated_at: groupEnd.created_at, startTime: groupStart.created_at, endTime: groupEnd.created_at })
         groupStart = sorted[i]
       }
       groupEnd = sorted[i]
     }
-    // Push final group
-    convs.push({
-      id: groupStart.id,
-      title: (groupStart.content as string)?.slice(0, 60) ?? null,
-      updated_at: groupEnd.created_at,
-      startTime: groupStart.created_at,
-      endTime: groupEnd.created_at,
-    })
-    // Return newest first for display
+    convs.push({ id: groupStart.id, title: (groupStart.content as string)?.slice(0, 60) ?? null, updated_at: groupEnd.created_at, startTime: groupStart.created_at, endTime: groupEnd.created_at })
     return convs.reverse()
   }, [SESSION_GAP_MS])
 
-  // ── Refresh history from DB ──
   const refreshHistory = useCallback(async () => {
     const uid = userIdRef.current
     if (!uid) return
@@ -762,7 +902,27 @@ export default function Growth() {
     setHistory(buildConversations(data ?? []))
   }, [buildConversations])
 
-  // ── Send message (passes model + skill to backend) ──
+  const loadInsights = useCallback(async () => {
+    setInsightsLoading(true)
+    try {
+      const res = await growthApi.listInsights()
+      setInsights(res.data ?? [])
+    } catch {
+      setInsights([])
+    } finally {
+      setInsightsLoading(false)
+    }
+  }, [])
+
+  const loadExecutionHistory = useCallback(async () => {
+    try {
+      const res = await growthApi.getExecutionHistory()
+      setExecutionHistory(res.data ?? [])
+    } catch {
+      setExecutionHistory([])
+    }
+  }, [])
+
   const sendMessage = useCallback(async (text: string, skillId?: string) => {
     if (!text.trim() || isLoading) return
     const isFirstMessage = messages.length === 0
@@ -781,9 +941,10 @@ export default function Growth() {
     }
   }, [isLoading, model, messages.length, refreshHistory])
 
-  // ── Initial load (once) ──
   useEffect(() => {
     growthApi.listRecommendations().then(res => setRecommendations(res.data ?? [])).catch(() => {})
+    loadInsights()
+    loadExecutionHistory()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       userIdRef.current = user.id
@@ -792,14 +953,12 @@ export default function Growth() {
       setUserInitial(name[0]?.toUpperCase() ?? 'U')
       refreshHistory()
     })
-  }, [refreshHistory])
+  }, [refreshHistory, loadInsights, loadExecutionHistory])
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
@@ -819,14 +978,11 @@ export default function Growth() {
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage])
 
-  // ── Load a specific conversation's messages ──
   const loadConversation = useCallback(async (conv: ConvItem) => {
     const uid = userIdRef.current
     if (!uid) return
-    // Fetch all messages (user + assistant) within the conversation's time window
-    // Use a small buffer to include the assistant reply after the last user message
     const startIso = conv.startTime
-    const endDate = new Date(new Date(conv.endTime).getTime() + 5 * 60 * 1000) // +5min buffer
+    const endDate = new Date(new Date(conv.endTime).getTime() + 5 * 60 * 1000)
     const { data } = await supabase
       .from('ai_chat_history')
       .select('id, role, content, created_at')
@@ -835,13 +991,9 @@ export default function Growth() {
       .lte('created_at', endDate.toISOString())
       .order('created_at', { ascending: true })
     if (data && data.length > 0) {
-      setMessages(data.map(row => ({
-        id: row.id as string,
-        role: row.role as 'user' | 'assistant',
-        content: row.content as string,
-      })))
+      setMessages(data.map(row => ({ id: row.id as string, role: row.role as 'user' | 'assistant', content: row.content as string })))
     }
-    setActiveView('chat')
+    setActiveView('exploracao')
   }, [])
 
   const handleNewChat = () => {
@@ -849,19 +1001,52 @@ export default function Growth() {
     setInput('')
   }
 
+  const handleApproveInsight = async (id: string) => {
+    setInsights(prev => prev.filter(r => r.id !== id))
+    setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'executing' as RecStatus } : r))
+    try {
+      await growthApi.approve(id)
+      loadExecutionHistory()
+    } catch {
+      setInsights(prev => {
+        const rec = recommendations.find(r => r.id === id)
+        return rec ? [...prev, { ...rec, status: 'failed' as RecStatus }] : prev
+      })
+    }
+  }
+
+  const handleDismissInsight = async (id: string, reason?: string) => {
+    setInsights(prev => prev.filter(r => r.id !== id))
+    try {
+      await growthApi.dismissWithReason(id, reason)
+    } catch { /* ok */ }
+  }
+
   const handleApprove = async (id: string) => {
     setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'executing' as RecStatus } : r))
     try { await growthApi.approve(id) } catch { setRecommendations(prev => prev.map(r => r.id === id ? { ...r, status: 'failed' as RecStatus } : r)) }
   }
+
   const handleDismiss = async (id: string) => {
     setRecommendations(prev => prev.filter(r => r.id !== id))
     try { await growthApi.dismiss(id) } catch { /* ok */ }
   }
 
+  const handleRunEngine = async () => {
+    if (engineRunning) return
+    setEngineRunning(true)
+    try {
+      await growthApi.runEngine()
+      await loadInsights()
+    } catch { /* ok */ } finally {
+      setEngineRunning(false)
+    }
+  }
+
   const pendingCount = recommendations.filter(r => r.status === 'pending' || r.status === 'awaiting_confirmation').length
+  const insightCount = insights.length
   const hasMessages = messages.length > 0
 
-  // Group history
   const todayStr = new Date().toDateString()
   const yesterdayStr = new Date(Date.now() - 86400000).toDateString()
   const histToday = history.filter(c => new Date(c.updated_at).toDateString() === todayStr)
@@ -870,7 +1055,6 @@ export default function Growth() {
     const d = new Date(c.updated_at).toDateString()
     return d !== todayStr && d !== yesterdayStr
   })
-
   const histGroups = [
     { label: 'Hoje', items: histToday },
     { label: 'Ontem', items: histYesterday },
@@ -890,31 +1074,36 @@ export default function Growth() {
         borderRight: '1px solid var(--color-border)',
         overflow: 'hidden',
       }}>
-        {/* Top: Nova conversa */}
-        <div style={{ padding: '14px 12px 10px' }}>
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={handleNewChat}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-primary)' }}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 500,
-              color: 'var(--color-text-primary)',
-              padding: '8px 14px', borderRadius: 10,
-              background: 'var(--color-bg-primary)',
-              border: '1px solid var(--color-border)',
-              cursor: 'pointer', transition: 'background 0.15s',
-            }}
-          >
-            <IPlus /> Nova conversa
-          </motion.button>
+
+        {/* Primary tabs */}
+        <div style={{ padding: '14px 8px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <NavItem
+            icon={<ILightbulb />}
+            label="Insights"
+            badge={insightCount}
+            active={activeView === 'insights'}
+            onClick={() => setActiveView('insights')}
+          />
+          <NavItem
+            icon={<IHistory />}
+            label="Execuções"
+            active={activeView === 'execucoes'}
+            onClick={() => setActiveView('execucoes')}
+          />
+          <NavItem
+            icon={<IChat />}
+            label="Exploração"
+            active={activeView === 'exploracao'}
+            onClick={() => setActiveView('exploracao')}
+          />
         </div>
+
+        <div style={{ height: 1, background: 'var(--color-border)', margin: '2px 12px 6px' }} />
 
         {/* Utility nav */}
         <div style={{ padding: '0 8px 6px' }}>
           <NavItem icon={<ISearch />} label="Procurar" onClick={() => {}} />
-          <NavItem icon={<ISliders />} label="Personalizar" active={activeView === 'contexto'} onClick={() => setActiveView(v => v === 'contexto' ? 'chat' : 'contexto')} />
+          <NavItem icon={<ISliders />} label="Personalizar" onClick={() => setActiveView('exploracao')} />
         </div>
 
         <div style={{ height: 1, background: 'var(--color-border)', margin: '0 12px 6px' }} />
@@ -924,14 +1113,13 @@ export default function Growth() {
           <span style={{ display: 'block', padding: '4px 12px 4px', fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Navegação
           </span>
-          <NavItem icon={<IChat />} label="Conversas" active={activeView === 'history'} onClick={() => setActiveView(v => v === 'history' ? 'chat' : 'history')} />
-          <NavItem icon={<IBolt />} label="Automações" badge={pendingCount} active={execOpen} onClick={() => { setExecOpen(o => !o) }} />
+          <NavItem icon={<IBolt />} label="Automações" badge={pendingCount} active={execOpen} onClick={() => setExecOpen(o => !o)} />
           <NavItem icon={<IPlug />} label="Integrações" onClick={() => window.dispatchEvent(new CustomEvent('northie:navigate', { detail: 'app-store' }))} />
         </div>
 
         <div style={{ height: 1, background: 'var(--color-border)', margin: '6px 12px' }} />
 
-        {/* Section: Recentes */}
+        {/* Section: Conversas recentes */}
         <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin', padding: '0 8px' }}>
           <span style={{ display: 'block', padding: '2px 12px 4px', fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Recentes
@@ -1005,77 +1193,217 @@ export default function Growth() {
       ══════════════════════════════════════════════════════ */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', minWidth: 0 }}>
 
-        {/* ── VIEW: Contexto (Personalizar) ── */}
         <AnimatePresence mode="wait">
-          {activeView === 'contexto' && (
-            <motion.div key="contexto"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin', padding: '0 56px' }}
-            >
-              <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-                <Suspense fallback={
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', paddingTop: 80 }}>
-                    <motion.div animate={{ opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 1.4, repeat: Infinity }}
-                      style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--color-primary)', opacity: 0.4 }} />
-                  </div>
-                }>
-                  <ContextoPage onToggleChat={() => {}} />
-                </Suspense>
-              </div>
-            </motion.div>
-          )}
 
-          {/* ── VIEW: Histórico de conversas ── */}
-          {activeView === 'history' && (
-            <motion.div key="history"
+          {/* ── VIEW: Insights ── */}
+          {activeView === 'insights' && (
+            <motion.div key="insights"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin', padding: '40px 48px' }}
+              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' }}
             >
-              <div style={{ maxWidth: 680, margin: '0 auto' }}>
-                <h2 style={{ fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 22, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: '0 0 28px' }}>
-                  Conversas
-                </h2>
-                {history.length === 0 ? (
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--color-text-tertiary)' }}>
-                    Nenhuma conversa encontrada.
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {history.map(conv => (
-                      <button
-                        key={conv.id}
-                        onClick={() => loadConversation(conv)}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-secondary)'}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '12px 16px', borderRadius: 10,
-                          background: 'transparent', border: '1px solid var(--color-border)',
-                          cursor: 'pointer', transition: 'background 0.12s', textAlign: 'left',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                          <IChat />
-                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {conv.title ?? 'Nova conversa'}
-                          </span>
-                        </div>
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--color-text-tertiary)', flexShrink: 0, marginLeft: 16 }}>
-                          {new Date(conv.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                        </span>
-                      </button>
+              <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 40px 60px' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16 }}>
+                  <div>
+                    <h1 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+                      Insights
+                    </h1>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
+                      Recomendações identificadas pelos agentes. Aprove para executar.
+                    </p>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={handleRunEngine}
+                    disabled={engineRunning}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                      fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 500,
+                      color: engineRunning ? 'var(--color-text-tertiary)' : 'var(--color-text-secondary)',
+                      padding: '7px 14px', borderRadius: 8,
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      cursor: engineRunning ? 'default' : 'pointer',
+                      transition: 'background 0.12s',
+                    }}
+                    onMouseEnter={e => { if (!engineRunning) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-primary)' }}
+                  >
+                    {engineRunning
+                      ? <><ISpin /> Analisando...</>
+                      : <><IRefresh /> Forçar análise</>
+                    }
+                  </motion.button>
+                </div>
+
+                {/* Feed */}
+                {insightsLoading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {[0, 1, 2].map(i => (
+                      <motion.div key={i}
+                        animate={{ opacity: [0.4, 0.7, 0.4] }}
+                        transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
+                        style={{ height: 120, background: '#FFFFFF', border: '1px solid rgba(66,87,138,0.12)', borderRadius: 10 }}
+                      />
                     ))}
+                  </div>
+                ) : insights.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                    style={{
+                      padding: '48px 32px', textAlign: 'center',
+                      background: '#FFFFFF', border: '1px solid rgba(66,87,138,0.12)',
+                      borderRadius: 12,
+                    }}
+                  >
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, margin: '0 auto 16px',
+                      background: 'rgba(255,89,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#FF5900',
+                    }}>
+                      <ILightbulb />
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
+                      Nenhum insight pendente
+                    </p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6 }}>
+                      Os agentes estão analisando seus dados.<br />Insights aparecem aqui automaticamente.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <AnimatePresence>
+                      {insights.map((insight, i) => (
+                        <InsightCard
+                          key={insight.id}
+                          insight={insight}
+                          index={i}
+                          onApprove={handleApproveInsight}
+                          onDismiss={handleDismissInsight}
+                        />
+                      ))}
+                    </AnimatePresence>
                   </div>
                 )}
               </div>
             </motion.div>
           )}
 
-          {/* ── VIEW: Chat ── */}
-          {activeView === 'chat' && (
-            <motion.div key="chat"
+          {/* ── VIEW: Execuções ── */}
+          {activeView === 'execucoes' && (
+            <motion.div key="execucoes"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'thin' }}
+            >
+              <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 40px 60px' }}>
+                <div style={{ marginBottom: 28 }}>
+                  <h1 style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: 24, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+                    Execuções
+                  </h1>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.5 }}>
+                    Histórico de ações aprovadas e executadas.
+                  </p>
+                </div>
+
+                {executionHistory.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                    style={{
+                      padding: '48px 32px', textAlign: 'center',
+                      background: '#FFFFFF', border: '1px solid rgba(66,87,138,0.12)',
+                      borderRadius: 12,
+                    }}
+                  >
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, margin: '0 auto 16px',
+                      background: 'rgba(66,87,138,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--color-text-tertiary)',
+                    }}>
+                      <IHistory />
+                    </div>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary)', margin: '0 0 6px' }}>
+                      Nenhuma execução ainda
+                    </p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, lineHeight: 1.6 }}>
+                      Aprove um insight para começar.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <AnimatePresence>
+                      {executionHistory.map((rec, i) => {
+                        const isDone = rec.status === 'completed'
+                        const isFailed = rec.status === 'failed'
+                        const isRunning = rec.status === 'approved' || rec.status === 'executing'
+                        return (
+                          <motion.div
+                            key={rec.id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2, delay: i * 0.04 }}
+                            style={{
+                              background: '#FFFFFF',
+                              border: '1px solid rgba(66,87,138,0.12)',
+                              borderRadius: 10,
+                              padding: '16px 20px',
+                              display: 'flex', flexDirection: 'column', gap: 8,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, color: 'var(--color-text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                                  {(rec.type ?? 'growth').replace(/_/g, ' ')}
+                                </span>
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: '#37352F', lineHeight: 1.4 }}>
+                                  {rec.title}
+                                </span>
+                              </div>
+                              <div style={{ flexShrink: 0 }}>
+                                {isDone && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: '#0F7B6C', background: 'rgba(15,123,108,0.08)', borderRadius: 6, padding: '3px 9px' }}>
+                                    <ICheck /> Concluída
+                                  </span>
+                                )}
+                                {isFailed && (
+                                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: '#dc2626', background: '#fef2f2', borderRadius: 6, padding: '3px 9px' }}>
+                                    Falhou
+                                  </span>
+                                )}
+                                {isRunning && (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: 'var(--color-primary)' }}>
+                                    <ISpin /> Executando
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                              {rec.impact_estimate && (
+                                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--color-text-tertiary)', lineHeight: 1.4 }}>
+                                  {rec.impact_estimate}
+                                </span>
+                              )}
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>
+                                {new Date(rec.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </span>
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── VIEW: Exploração (chat) ── */}
+          {activeView === 'exploracao' && (
+            <motion.div key="exploracao"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
@@ -1102,7 +1430,7 @@ export default function Growth() {
                     transition={{ duration: 0.3, delay: 0.14 }}
                     style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, justifyContent: 'center', maxWidth: 680 }}
                   >
-                    {CHIPS.map(chip => (
+                    {EXPLORACAO_CHIPS.map(chip => (
                       <motion.button key={chip} whileTap={{ scale: 0.97 }}
                         onClick={() => { setInput(chip); inputRef.current?.focus() }}
                         onMouseEnter={e => { const el = e.currentTarget as HTMLButtonElement; el.style.background = 'var(--color-bg-tertiary)'; el.style.borderColor = 'var(--color-text-tertiary)' }}
@@ -1138,6 +1466,7 @@ export default function Growth() {
               )}
             </motion.div>
           )}
+
         </AnimatePresence>
       </div>
 
