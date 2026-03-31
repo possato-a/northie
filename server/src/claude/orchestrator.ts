@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient } from '../lib/anthropic.js';
 import { supabase } from '../lib/supabase.js';
 import { buildSystemPrompt } from './system-prompt.js';
+import { getActiveSkills } from './skills/index.js';
 import { executeTool, ALL_TOOLS } from './tools/executor.js';
 import type { ChatRequest, ChatResponse, OrchestratorContext, ProfileContext, BusinessStats, RfmSegments, ChannelBreakdown } from './types.js';
 
@@ -148,8 +149,11 @@ async function persistMessages(profileId: string, mode: ChatRequest['mode'], use
  * Executa o agentic loop: chama Claude, processa tool_use, repete até stop_end ou MAX_TOOL_ROUNDS.
  */
 export async function chat(profileId: string, request: ChatRequest): Promise<ChatResponse> {
-  const ctx = await loadContext(profileId, request.mode, request.pageContext ?? 'Visão Geral');
-  const systemBlocks = buildSystemPrompt(ctx);
+  const [ctx, skills] = await Promise.all([
+    loadContext(profileId, request.mode, request.pageContext ?? 'Visão Geral'),
+    getActiveSkills(profileId),
+  ]);
+  const systemBlocks = buildSystemPrompt(ctx, skills);
 
   const useThinking = needsDeepThinking(request.message);
   const messages: Anthropic.MessageParam[] = [

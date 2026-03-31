@@ -1,4 +1,5 @@
 import type { OrchestratorContext, SystemBlock } from './types.js';
+import type { SkillRow } from './skills/index.js';
 
 const fmt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
@@ -107,7 +108,7 @@ REGRAS DE COMUNICAÇÃO — INVIOLÁVEIS:
   cache_control: { type: 'ephemeral' },
 };
 
-export function buildSystemPrompt(ctx: OrchestratorContext): SystemBlock[] {
+export function buildSystemPrompt(ctx: OrchestratorContext, skills: SkillRow[] = []): SystemBlock[] {
   const rfm = ctx.rfmSegments;
 
   const channelLines = ctx.channelBreakdown.length > 0
@@ -162,7 +163,7 @@ ${channelPerfLines}
 NORTHIE GROWTH — ${ctx.pendingGrowthRecs} ações identificadas aguardando aprovação:
 ${pendingRecsLines}
 
-CONTEXTO DA PÁGINA ATIVA: ${ctx.pageContext}${modeBlock}${businessContextBlock}${aiInstructionsBlock}`;
+CONTEXTO DA PÁGINA ATIVA: ${ctx.pageContext}${modeBlock}${businessContextBlock}${aiInstructionsBlock}${skills.length > 0 ? `\n\n# Skills ativas\n${skills.map(s => `## ${s.name}\n${s.content}`).join('\n\n')}` : ''}`;
 
   return [
     STATIC_BLOCK,

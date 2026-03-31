@@ -33,6 +33,7 @@ import agentsRoutes from './routes/agents.routes.js';
 import pipelineRoutes from './routes/pipeline.routes.js';
 import contextRoutes from './routes/context.routes.js';
 import valuationRoutes from './routes/valuation.routes.js';
+import skillsRoutes from './routes/skills.routes.js';
 // @ts-ignore — plain JS modules without .d.ts (compiled separately)
 import whatsappRoutes from './routes/whatsapp.routes.js';
 // @ts-ignore
@@ -113,6 +114,7 @@ app.use('/api/agents', authMiddleware, agentsRoutes);
 app.use('/api/pipeline', authMiddleware, pipelineRoutes);
 app.use('/api/context', authMiddleware, contextRoutes);
 app.use('/api/valuation', authMiddleware, valuationRoutes);
+app.use('/api/skills', authMiddleware, skillsRoutes);
 
 // Basic Route
 app.get('/api/health', (_req, res) => {
