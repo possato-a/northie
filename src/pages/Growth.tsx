@@ -6,17 +6,17 @@ import { supabase } from '../lib/supabase'
 // ── AI Models ─────────────────────────────────────────────────────────────────
 
 type AIModel = 'haiku' | 'sonnet' | 'opus'
-interface ModelDef { id: AIModel; label: string; description: string; icon: string }
+interface ModelDef { id: AIModel; label: string; description: string; tag: string }
 const MODELS: ModelDef[] = [
-  { id: 'haiku',  label: 'Haiku',  description: 'Rápido — perguntas simples', icon: '⚡' },
-  { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado — uso geral',    icon: '◆' },
-  { id: 'opus',   label: 'Opus',   description: 'Análise profunda',           icon: '◈' },
+  { id: 'haiku',  label: 'Haiku',  description: 'Rápido — perguntas simples', tag: 'Fast'  },
+  { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado — uso geral',    tag: 'Std'   },
+  { id: 'opus',   label: 'Opus',   description: 'Análise profunda',           tag: 'Pro'   },
 ]
 
-interface SlashCmd { id: string; icon: string; label: string; description: string }
+interface SlashCmd { id: string; label: string; description: string }
 const SLASH_COMMANDS: SlashCmd[] = [
-  { id: 'skills', icon: '⚡', label: 'Skills',          description: 'Use uma skill especializada' },
-  { id: 'clear',  icon: '↺',  label: 'Limpar conversa', description: 'Inicia uma nova conversa'    },
+  { id: 'skills', label: 'Skills',          description: 'Aplicar uma skill especializada' },
+  { id: 'clear',  label: 'Limpar conversa', description: 'Iniciar uma nova conversa'       },
 ]
 interface SkillItem { id: string; name: string; description?: string; is_global: boolean }
 
@@ -349,6 +349,39 @@ function TypingDots() {
   )
 }
 
+// ── Inline SVG icons for menus ────────────────────────────────────────────────
+const ISkill = () => (
+  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="10,2 12.9,7.6 19,8.5 14.5,12.9 15.6,19 10,16 4.4,19 5.5,12.9 1,8.5 7.1,7.6" />
+  </svg>
+)
+const IClear = () => (
+  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <path d="M4 6h12M7 6V4h6v2M8 10v5M12 10v5M5 6l1 11h8l1-11" />
+  </svg>
+)
+const IChevronDown = () => (
+  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+    <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
+const ICheckMark = () => (
+  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+    <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+)
+const IClipX = () => (
+  <svg width="9" height="9" viewBox="0 0 14 14" fill="none">
+    <line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+)
+const IAttach = () => (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+    <path d="M15 9l-6 6a3 3 0 0 1-4.24-4.24l7-7a2 2 0 0 1 2.83 2.83l-7 7a1 1 0 0 1-1.41-1.41L13 5" />
+  </svg>
+)
+
 // ── Chat input box ────────────────────────────────────────────────────────────
 
 function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, model, onModelChange, onClear }: {
@@ -370,7 +403,9 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
   const [skillsLoading, setSkillsLoading] = useState(false)
   const [attachedSkill, setAttachedSkill] = useState<SkillItem | null>(null)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const currentModel = MODELS.find(m => m.id === model)!
   const slashFilter = value.startsWith('/') ? value.slice(1).toLowerCase() : ''
@@ -417,10 +452,25 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
     onKeyDown(e)
   }
 
-  const menuStyle: React.CSSProperties = {
-    position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, right: 0,
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length) setAttachedFiles(prev => [...prev, ...files])
+    e.target.value = ''
+  }
+
+  const removeFile = (idx: number) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))
+
+  const menuBase: React.CSSProperties = {
+    position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0,
     background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
-    borderRadius: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.10)', overflow: 'hidden', zIndex: 600,
+    borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', zIndex: 600,
+  }
+
+  const iconBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 28, height: 28, borderRadius: 7, background: 'none', border: 'none',
+    cursor: 'pointer', color: 'var(--color-text-tertiary)', transition: 'background 0.1s, color 0.1s',
+    flexShrink: 0,
   }
 
   return (
@@ -429,23 +479,25 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
       {/* ── Slash menu ── */}
       <AnimatePresence>
         {slashMenuOpen && filteredCmds.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }} style={menuStyle}>
-            <div style={{ padding: '5px 12px 4px', borderBottom: '1px solid var(--color-border)' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Comandos</span>
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }} style={menuBase}>
+            <div style={{ padding: '7px 12px 5px', borderBottom: '1px solid var(--color-border)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Comandos</span>
             </div>
             {filteredCmds.map((cmd, i) => (
               <button key={cmd.id} onMouseDown={e => { e.preventDefault(); selectCmd(cmd) }}
                 onMouseEnter={() => setSlashIndex(i)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: i === slashIndex ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}>
-                <span style={{ fontSize: 14 }}>{cmd.icon}</span>
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: i === slashIndex ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const, transition: 'background 0.08s' }}>
+                <div style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', flexShrink: 0 }}>
+                  {cmd.id === 'skills' ? <ISkill /> : <IClear />}
+                </div>
                 <div>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block' }}>{cmd.label}</span>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>{cmd.description}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block', lineHeight: 1.3 }}>{cmd.label}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.3 }}>{cmd.description}</span>
                 </div>
               </button>
             ))}
-            <div style={{ padding: '3px 12px 6px' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>↑↓ navegar · Enter selecionar · Esc fechar</span>
+            <div style={{ padding: '4px 12px 7px', borderTop: '1px solid var(--color-border)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', opacity: 0.7 }}>↑↓ navegar  ·  Enter selecionar  ·  Esc fechar</span>
             </div>
           </motion.div>
         )}
@@ -454,35 +506,42 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
       {/* ── Skills picker ── */}
       <AnimatePresence>
         {skillsPickerOpen && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }}
-            style={{ ...menuStyle, maxHeight: 240, overflowY: 'auto' }}>
-            <div style={{ padding: '5px 12px 4px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--color-bg-primary)' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Skills disponíveis</span>
-              <button onMouseDown={e => { e.preventDefault(); setSkillsPickerOpen(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center', padding: 2 }}>
-                <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
+            style={{ ...menuBase, maxHeight: 260, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '7px 12px 5px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>Skills</span>
+              <button onMouseDown={e => { e.preventDefault(); setSkillsPickerOpen(false) }} style={{ ...iconBtnStyle, width: 22, height: 22 }}>
+                <IClipX />
               </button>
             </div>
-            {skillsLoading
-              ? <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Carregando...</div>
-              : skills.length === 0
-              ? <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Nenhuma skill disponível</div>
-              : skills.map(skill => (
-                <button key={skill.id}
-                  onMouseDown={e => { e.preventDefault(); setAttachedSkill(skill); setSkillsPickerOpen(false); setTimeout(() => inputRef.current?.focus(), 50) }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = attachedSkill?.id === skill.id ? 'var(--color-bg-secondary)' : 'transparent' }}
-                  style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', background: attachedSkill?.id === skill.id ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', borderBottom: '1px solid var(--color-border)', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}>
-                  <span style={{ fontSize: 13, marginTop: 1 }}>⚡</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{skill.name}</span>
-                      {skill.is_global && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, background: 'var(--color-bg-tertiary)', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Global</span>}
-                    </div>
-                    {skill.description && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', display: 'block', marginTop: 1 }}>{skill.description}</span>}
-                  </div>
-                </button>
-              ))
-            }
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {skillsLoading
+                ? <div style={{ padding: '16px 12px', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Carregando...</div>
+                : skills.length === 0
+                ? <div style={{ padding: '16px 12px', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Nenhuma skill disponível</div>
+                : skills.map(skill => {
+                  const isSelected = attachedSkill?.id === skill.id
+                  return (
+                    <button key={skill.id}
+                      onMouseDown={e => { e.preventDefault(); setAttachedSkill(isSelected ? null : skill); setSkillsPickerOpen(false); setTimeout(() => inputRef.current?.focus(), 50) }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: isSelected ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', borderBottom: '1px solid var(--color-border)', cursor: 'pointer', textAlign: 'left' as const, transition: 'background 0.08s' }}
+                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+                      onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{skill.name}</span>
+                          {skill.is_global && (
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)', borderRadius: 3, padding: '0 4px', textTransform: 'uppercase' as const, letterSpacing: '0.06em', lineHeight: '16px' }}>Northie</span>
+                          )}
+                        </div>
+                        {skill.description && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', display: 'block', marginTop: 1 }}>{skill.description}</span>}
+                      </div>
+                      {isSelected && <div style={{ color: 'var(--color-primary)', flexShrink: 0 }}><ICheckMark /></div>}
+                    </button>
+                  )
+                })
+              }
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -490,48 +549,56 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
       {/* ── Model dropdown ── */}
       <AnimatePresence>
         {modelMenuOpen && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }}
-            style={{ ...menuStyle, right: 'auto', width: 220 }}>
-            <div style={{ padding: '5px 12px 4px', borderBottom: '1px solid var(--color-border)' }}>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Modelo</span>
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.12 }}
+            style={{ ...menuBase, right: 'auto', width: 210 }}>
+            <div style={{ padding: '7px 12px 5px', borderBottom: '1px solid var(--color-border)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>Modelo de IA</span>
             </div>
             {MODELS.map(m => (
               <button key={m.id} onMouseDown={e => { e.preventDefault(); onModelChange(m.id); setModelMenuOpen(false) }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: model === m.id ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const, transition: 'background 0.08s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = model === m.id ? 'var(--color-bg-secondary)' : 'transparent' }}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: model === m.id ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}>
-                <span style={{ fontSize: 13 }}>{m.icon}</span>
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = model === m.id ? 'var(--color-bg-secondary)' : 'transparent' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: model === m.id ? 'var(--color-primary)' : 'var(--color-text-tertiary)', border: `1px solid ${model === m.id ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em', lineHeight: '16px', flexShrink: 0 }}>{m.tag}</span>
                 <div style={{ flex: 1 }}>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block' }}>{m.label}</span>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>{m.description}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block', lineHeight: 1.3 }}>{m.label}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.3 }}>{m.description}</span>
                 </div>
-                {model === m.id && <span style={{ color: 'var(--color-primary)', fontSize: 12, fontWeight: 700 }}>✓</span>}
+                {model === m.id && <div style={{ color: 'var(--color-primary)', flexShrink: 0 }}><ICheckMark /></div>}
               </button>
             ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Attached skill badge ── */}
+      {/* ── Context chips (skill + files) ── */}
       <AnimatePresence>
-        {attachedSkill && (
-          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>Skill ativa:</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '2px 8px' }}>
-              <span style={{ fontSize: 11 }}>⚡</span>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)' }}>{attachedSkill.name}</span>
-              <button onClick={() => setAttachedSkill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: 0, display: 'flex', alignItems: 'center', marginLeft: 2 }}>
-                <svg width="9" height="9" viewBox="0 0 14 14" fill="none"><line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-              </button>
-            </div>
+        {(attachedSkill || attachedFiles.length > 0) && (
+          <motion.div initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {attachedSkill && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 8px 0 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                <ISkill />
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)' }}>{attachedSkill.name}</span>
+                <button onClick={() => setAttachedSkill(null)} style={{ ...iconBtnStyle, width: 16, height: 16, borderRadius: 3, marginLeft: 2 }}><IClipX /></button>
+              </div>
+            )}
+            {attachedFiles.map((f, i) => (
+              <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 8px 0 10px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 6 }}>
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7z"/><polyline points="13,2 13,7 18,7"/></svg>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--color-text-primary)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                <button onClick={() => removeFile(i)} style={{ ...iconBtnStyle, width: 16, height: 16, borderRadius: 3, marginLeft: 2 }}><IClipX /></button>
+              </div>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Input box ── */}
-      <div style={{ background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 16, boxShadow: '0 2px 20px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', padding: '12px 14px 10px' }}>
+      <input ref={fileInputRef} type="file" multiple accept=".pdf,.csv,.txt,.xlsx,.png,.jpg,.jpeg" onChange={handleFileChange} style={{ display: 'none' }} />
+
+      <div style={{ background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 14, boxShadow: '0 1px 12px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px 8px' }}>
           <textarea
             ref={inputRef}
             value={value}
@@ -539,29 +606,40 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
             onKeyDown={handleKey}
             placeholder="Pergunte sobre seus dados ou use / para comandos..."
             rows={1}
-            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', resize: 'none', lineHeight: 1.55, maxHeight: 140, padding: 0 }}
+            style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', resize: 'none', lineHeight: 1.55, maxHeight: 140, padding: 0 }}
           />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px 10px', gap: 6 }}>
-          {/* Model button */}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '4px 8px 8px', gap: 2 }}>
+          {/* Attach */}
+          <motion.button whileTap={{ scale: 0.93 }}
+            onClick={() => fileInputRef.current?.click()}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)' }}
+            title="Anexar arquivo"
+            style={iconBtnStyle}>
+            <IAttach />
+          </motion.button>
+          {/* Model selector */}
           <motion.button whileTap={{ scale: 0.95 }}
             onMouseDown={e => { e.preventDefault(); setModelMenuOpen(v => !v); setSlashMenuOpen(false); setSkillsPickerOpen(false) }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500, color: 'var(--color-text-tertiary)', padding: '3px 9px', borderRadius: 99, border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer' }}>
-            <span>{currentModel.icon}</span>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 400, color: 'var(--color-text-tertiary)', padding: '3px 8px', borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', transition: 'background 0.1s, color 0.1s', marginLeft: 2 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 3, padding: '0 4px', lineHeight: '15px' }}>{currentModel.tag}</span>
             {currentModel.label}
-            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            <IChevronDown />
           </motion.button>
           <div style={{ flex: 1 }} />
           {/* Voice */}
           <motion.button whileTap={{ scale: 0.95 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', transition: 'background 0.12s' }}>
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-secondary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-tertiary)' }}
+            style={iconBtnStyle}>
             <IVoice />
           </motion.button>
           {/* Send */}
-          <motion.button whileHover={{ scale: canSend ? 1.05 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={onSend} disabled={!canSend}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 10, border: 'none', cursor: canSend ? 'pointer' : 'default', background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', color: canSend ? 'white' : 'var(--color-text-tertiary)', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>
+          <motion.button whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={onSend} disabled={!canSend}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: 'none', cursor: canSend ? 'pointer' : 'default', background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', color: canSend ? 'white' : 'var(--color-text-tertiary)', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>
             <ISend />
           </motion.button>
         </div>
@@ -619,7 +697,7 @@ export default function Growth() {
       supabase
         .from('ai_chat_history')
         .select('id, content, created_at')
-        .eq('user_id', user.id)
+        .eq('profile_id', user.id)
         .eq('mode', 'growth')
         .eq('role', 'user')
         .order('created_at', { ascending: false })
@@ -663,6 +741,7 @@ export default function Growth() {
   const handleNewChat = () => {
     setMessages([])
     setInput('')
+    setHistory([])
     aiApi.clearHistory('growth').catch(() => {})
   }
 
