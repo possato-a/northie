@@ -1,9 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { supabase } from '../lib/supabase.js';
 const JWT_SECRET = process.env.SUPABASE_JWT_SECRET;
-if (!JWT_SECRET) {
-    console.warn('[Auth] SUPABASE_JWT_SECRET não configurada — usando validação via Supabase API (adicione a variável para melhor performance).');
-}
+const IS_PROD = process.env.NODE_ENV === 'production';
 // ── Verificação local (rápida, sem rede) ──────────────────────────────────────
 function verifyLocal(token) {
     const payload = jwt.verify(token, JWT_SECRET);
@@ -27,9 +25,20 @@ export async function authMiddleware(req, res, next) {
     }
     const token = authHeader.slice(7);
     try {
-        const userId = JWT_SECRET ? verifyLocal(token) : await verifyRemote(token);
+        let userId;
+        if (JWT_SECRET) { userId = verifyLocal(token); }
+        else if (!IS_PROD) {
+            // Dev: decode without signature check (ES256 without JWKS)
+            const decoded = jwt.decode(token);
+            if (!decoded?.sub) throw new Error('invalid token format');
+            const now = Math.floor(Date.now() / 1000);
+            if (decoded.exp && decoded.exp < now) { const e = new Error('jwt expired'); e.name = 'TokenExpiredError'; throw e; }
+            userId = decoded.sub;
+        }
+        else { userId = await verifyRemote(token); }
         // Sobrescreve x-profile-id com o userId extraído do JWT verificado.
         // Qualquer valor enviado pelo cliente é descartado aqui.
+        res.locals.profileId = userId;
         req.headers['x-profile-id'] = userId;
         next();
     }
