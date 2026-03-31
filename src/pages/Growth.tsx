@@ -404,6 +404,9 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
   const [attachedSkill, setAttachedSkill] = useState<SkillItem | null>(null)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+  const [creatingSkill, setCreatingSkill] = useState(false)
+  const [newSkillName, setNewSkillName] = useState('')
+  const [newSkillContent, setNewSkillContent] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -463,6 +466,15 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
 
   const removeFile = (idx: number) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))
 
+  const handleCreateSkill = async () => {
+    if (!newSkillName.trim() || !newSkillContent.trim()) return
+    try {
+      const res = await skillsApi.create({ name: newSkillName.trim(), content: newSkillContent.trim() })
+      setSkills(prev => [...prev, res.data])
+      setNewSkillName(''); setNewSkillContent(''); setCreatingSkill(false)
+    } catch { /* silent */ }
+  }
+
   const menuBase: React.CSSProperties = {
     position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0,
     background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
@@ -518,7 +530,20 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
               </button>
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
-              {skillsLoading
+              {creatingSkill ? (
+                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input value={newSkillName} onChange={e => setNewSkillName(e.target.value)} placeholder="Nome da skill"
+                    style={{ fontFamily: 'var(--font-sans)', fontSize: 13, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none' }} />
+                  <textarea value={newSkillContent} onChange={e => setNewSkillContent(e.target.value)} placeholder="Instrucoes para a IA (ex: sempre responda em formato de lista...)"
+                    rows={3} style={{ fontFamily: 'var(--font-sans)', fontSize: 12, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', outline: 'none', resize: 'vertical' }} />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onMouseDown={e => { e.preventDefault(); handleCreateSkill() }}
+                      style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, padding: '5px 0', borderRadius: 6, border: 'none', cursor: 'pointer', background: 'var(--color-primary)', color: 'white' }}>Criar</button>
+                    <button onMouseDown={e => { e.preventDefault(); setCreatingSkill(false); setNewSkillName(''); setNewSkillContent('') }}
+                      style={{ fontFamily: 'var(--font-sans)', fontSize: 12, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--color-border)', cursor: 'pointer', background: 'transparent', color: 'var(--color-text-secondary)' }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : skillsLoading
                 ? <div style={{ padding: '16px 12px', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Carregando...</div>
                 : skills.length === 0
                 ? <div style={{ padding: '16px 12px', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Nenhuma skill disponível</div>
@@ -545,6 +570,16 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
                 })
               }
             </div>
+            {!creatingSkill && !skillsLoading && (
+              <div style={{ padding: '6px 12px 8px', borderTop: '1px solid var(--color-border)', flexShrink: 0 }}>
+                <button onMouseDown={e => { e.preventDefault(); setCreatingSkill(true) }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)', padding: '5px 0', borderRadius: 6, border: '1px dashed var(--color-border)', cursor: 'pointer', background: 'transparent', transition: 'background 0.1s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
+                  <IPlus /> Criar skill
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -663,11 +698,13 @@ export default function Growth() {
   const [history, setHistory] = useState<ConvItem[]>([])
   const [execOpen, setExecOpen] = useState(false)
   const [activeView, setActiveView] = useState<ActiveView>('chat')
-  const [model, setModel] = useState<AIModel>('sonnet')
+  const [model, setModel] = useState<AIModel>(() => (localStorage.getItem('northie:ai-model') as AIModel) || 'sonnet')
   const [userName, setUserName] = useState('Francisco')
   const [userInitial, setUserInitial] = useState('F')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => { localStorage.setItem('northie:ai-model', model) }, [model])
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return
@@ -740,13 +777,33 @@ export default function Growth() {
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage, inputRef])
 
+  const loadConversation = useCallback(async (_conv: ConvItem) => {
+    // Load all messages around this conversation's time
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('ai_chat_history')
+      .select('id, role, content, created_at')
+      .eq('profile_id', user.id)
+      .order('created_at', { ascending: true })
+    if (data && data.length > 0) {
+      setMessages(data.map(row => ({
+        id: row.id as string,
+        role: row.role as 'user' | 'assistant',
+        content: row.content as string,
+      })))
+    }
+    setActiveView('chat')
+  }, [])
+
   // Enter is handled inside ChatInput (so it can pass attached files)
   const handleKeyDown = (_e: React.KeyboardEvent) => {}
 
   const handleNewChat = () => {
     setMessages([])
     setInput('')
-    setHistory([])
+    // Don't wipe history list — just start fresh conversation
+    // clearHistory on backend so next AI call doesn't use old context
     aiApi.clearHistory('growth').catch(() => {})
   }
 
@@ -856,7 +913,7 @@ export default function Growth() {
               {group.items.map(conv => (
                 <button
                   key={conv.id}
-                  onClick={() => setActiveView('chat')}
+                  onClick={() => loadConversation(conv)}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                   style={{
@@ -947,7 +1004,7 @@ export default function Growth() {
                     {history.map(conv => (
                       <button
                         key={conv.id}
-                        onClick={() => setActiveView('chat')}
+                        onClick={() => loadConversation(conv)}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-secondary)'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                         style={{

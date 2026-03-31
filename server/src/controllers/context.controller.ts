@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabase.js';
  * Retorna o contexto de negócio do founder (ou null se ainda não preencheu).
  */
 export async function getContext(req: Request, res: Response) {
-    const profileId = req.headers['x-profile-id'] as string;
-    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+    const profileId = (res.locals.profileId as string) || (req.headers['x-profile-id'] as string);
+    if (!profileId) return res.status(400).json({ error: 'Missing profileId' });
 
     try {
         const { data, error } = await supabase
@@ -34,8 +34,8 @@ export async function getContext(req: Request, res: Response) {
  * Body: { segmento?, icp?, ticket_medio?, ciclo_vendas?, sazonalidades?, instrucoes_ia?, custom_fields? }
  */
 export async function saveContext(req: Request, res: Response) {
-    const profileId = req.headers['x-profile-id'] as string;
-    if (!profileId) return res.status(400).json({ error: 'Missing x-profile-id header' });
+    const profileId = (res.locals.profileId as string) || (req.headers['x-profile-id'] as string);
+    if (!profileId) return res.status(400).json({ error: 'Missing profileId' });
 
     const {
         segmento,
