@@ -389,7 +389,7 @@ const IAttach = () => (
 function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelChange, onClear }: {
   value: string
   onChange: (v: string) => void
-  onSend: (files: File[]) => void
+  onSend: (files: File[], skillId?: string) => void
   inputRef: React.RefObject<HTMLTextAreaElement>
   loading: boolean
   model: AIModel
@@ -454,7 +454,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
       return
     }
     if (e.key === 'Enter' && !e.shiftKey && value.trim() && !loading) {
-      e.preventDefault(); onSend(attachedFiles); setAttachedFiles([]); return
+      e.preventDefault(); onSend(attachedFiles, attachedSkill?.id); setAttachedFiles([]); return
     }
   }
 
@@ -676,7 +676,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
             <IVoice />
           </motion.button>
           {/* Send */}
-          <motion.button whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={() => { onSend(attachedFiles); setAttachedFiles([]) }} disabled={!canSend}
+          <motion.button whileHover={{ scale: canSend ? 1.04 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={() => { onSend(attachedFiles, attachedSkill?.id); setAttachedFiles([]) }} disabled={!canSend}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, border: 'none', cursor: canSend ? 'pointer' : 'default', background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', color: canSend ? 'white' : 'var(--color-text-tertiary)', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>
             <ISend />
           </motion.button>
@@ -762,18 +762,17 @@ export default function Growth() {
     setHistory(buildConversations(data ?? []))
   }, [buildConversations])
 
-  // ── Send message (passes model to backend) ──
-  const sendMessage = useCallback(async (text: string) => {
+  // ── Send message (passes model + skill to backend) ──
+  const sendMessage = useCallback(async (text: string, skillId?: string) => {
     if (!text.trim() || isLoading) return
     const isFirstMessage = messages.length === 0
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setIsLoading(true)
     try {
-      const res = await aiApi.chat(text, 'Growth', 'growth', model)
+      const res = await aiApi.chat(text, 'Growth', 'growth', model, skillId)
       const content: string = res.data?.content ?? res.data?.message ?? 'Sem resposta.'
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content }])
-      // Only refresh sidebar when starting a new conversation
       if (isFirstMessage) refreshHistory()
     } catch {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: ERROR_MESSAGE }])
@@ -808,7 +807,7 @@ export default function Growth() {
     el.style.height = Math.min(Math.max(el.scrollHeight, 22), 140) + 'px'
   }, [input])
 
-  const handleSend = useCallback(async (files: File[] = []) => {
+  const handleSend = useCallback(async (files: File[] = [], skillId?: string) => {
     if (!input.trim() || isLoading) return
     let text = input.trim()
     if (files.length > 0) {
@@ -816,7 +815,7 @@ export default function Growth() {
       text = `[Arquivos anexados: ${fileList}]\n\n${text}`
     }
     setInput('')
-    await sendMessage(text)
+    await sendMessage(text, skillId)
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage])
 

@@ -72,6 +72,17 @@ export async function handleChatMessage(req, res) {
         const pendingGrowthRecs = recsCountResult.count || 0;
         const pageContext = req.body.page_context || 'Visão Geral';
         const model = req.body.model || 'sonnet';
+        const skillId = req.body.skill_id;
+        // Fetch active skill content if a specific skill was selected
+        let activeSkillContent = null;
+        if (skillId) {
+            const { data: skill } = await supabase
+                .from('skills')
+                .select('name, content')
+                .eq('id', skillId)
+                .single();
+            if (skill) activeSkillContent = `\n\n# Skill ativa: ${skill.name}\n${skill.content}`;
+        }
         // Top 30 customers by LTV for individual lookup
         const customerList = [...customers]
             .sort((a, b) => Number(b.total_ltv) - Number(a.total_ltv))
@@ -86,7 +97,7 @@ export async function handleChatMessage(req, res) {
         }));
         const context = {
             profileId,
-            pageContext,
+            pageContext: pageContext + (activeSkillContent || ''),
             model,
             customerList,
             stats: {
@@ -109,8 +120,12 @@ export async function handleChatMessage(req, res) {
         };
         // Fire-and-forget user message insert — does not block the AI call
         void Promise.resolve(supabase.from('ai_chat_history').insert({ profile_id: profileId, role: 'user', content: message })).catch((e) => console.error('[AI] Failed to save user msg:', e));
+        // Prepend skill instructions to message if a skill is active
+        const enrichedMessage = activeSkillContent
+            ? `[Instrucao de skill aplicada]${activeSkillContent}\n\n[Mensagem do founder]\n${message}`
+            : message;
         // Generate response
-        const response = await AIService.generateAIResponse(message, context);
+        const response = await AIService.generateAIResponse(enrichedMessage, context);
         // Persist AI response (awaited — we want the DB write before returning)
         await supabase.from('ai_chat_history').insert({
             profile_id: profileId,
@@ -193,6 +208,12 @@ export async function handleGrowthChatMessage(req, res) {
             true_roi: row.true_roi != null ? Number(row.true_roi) : null,
         }));
         const growthModel = req.body.model || 'sonnet';
+        const skillId = req.body.skill_id;
+        let activeSkillContent = null;
+        if (skillId) {
+            const { data: skill } = await supabase.from('skills').select('name, content').eq('id', skillId).single();
+            if (skill) activeSkillContent = `\n\n# Skill ativa: ${skill.name}\n${skill.content}`;
+        }
         const context = {
             profileId,
             model: growthModel,
@@ -205,7 +226,10 @@ export async function handleGrowthChatMessage(req, res) {
         };
         // Persistir mensagem do usuário
         await supabase.from('ai_chat_history').insert({ profile_id: profileId, role: 'user', content: message });
-        const response = await AIService.generateGrowthAIResponse(message, context);
+        const enrichedMessage = activeSkillContent
+            ? `[Instrucao de skill aplicada]${activeSkillContent}\n\n[Mensagem do founder]\n${message}`
+            : message;
+        const response = await AIService.generateGrowthAIResponse(enrichedMessage, context);
         // Persistir resposta
         await supabase.from('ai_chat_history').insert({ profile_id: profileId, role: 'assistant', content: response.content });
         res.status(200).json(response);
