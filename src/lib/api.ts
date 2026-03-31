@@ -121,12 +121,20 @@ export const dataApi = {
 };
 
 export const aiApi = {
-    chat: (message: string, pageContext?: string, mode: 'general' | 'growth' = 'general') =>
-        api.post('/ai/chat', { message, page_context: pageContext, mode }, { timeout: 90000 }),
+    chat: (message: string, pageContext?: string, mode: 'general' | 'growth' = 'general', model?: string, skillId?: string) =>
+        api.post('/ai/chat', { message, page_context: pageContext, mode, model, skill_id: skillId }, { timeout: 90000 }),
     growthChat: (message: string) =>
         api.post('/ai/chat', { message, page_context: 'Growth', mode: 'growth' }, { timeout: 90000 }),
     clearHistory: (mode?: 'general' | 'growth') =>
         api.delete('/ai/history', { params: mode ? { mode } : undefined }),
+};
+
+export const skillsApi = {
+    list: () => demoGet('/skills'),
+    create: (data: { name: string; description?: string; content: string }) => api.post('/skills', data),
+    update: (id: string, data: { name?: string; description?: string; content?: string }) => api.patch(`/skills/${id}`, data),
+    toggle: (id: string) => api.patch(`/skills/${id}/toggle`),
+    remove: (id: string) => api.delete(`/skills/${id}`),
 };
 
 export const growthApi = {

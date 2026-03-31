@@ -6,6 +6,7 @@ export interface ChatRequest {
   message: string;
   mode: ChatMode;
   pageContext?: string;
+  model?: string;
 }
 
 export interface ChatResponse {

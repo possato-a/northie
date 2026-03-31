@@ -165,13 +165,17 @@ export async function chat(profileId: string, request: ChatRequest): Promise<Cha
   const usedTools: string[] = [];
   let rounds = 0;
 
+  const resolvedModel = request.model === 'opus' ? 'claude-opus-4-6'
+    : request.model === 'haiku' ? 'claude-haiku-4-5-20251001'
+    : 'claude-sonnet-4-6';
+
   let currentMessages = messages;
 
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
 
     const createParams: Anthropic.MessageCreateParamsNonStreaming = {
-      model: MODEL,
+      model: resolvedModel,
       max_tokens: useThinking ? 16000 : 4096,
       system: systemBlocks as Anthropic.TextBlockParam[],
       messages: currentMessages,
@@ -192,7 +196,7 @@ export async function chat(profileId: string, request: ChatRequest): Promise<Cha
         console.error('[claude/orchestrator] Falha ao persistir mensagens:', e)
       );
 
-      const response_: ChatResponse = { role: 'assistant', content: text, model: MODEL };
+      const response_: ChatResponse = { role: 'assistant', content: text, model: resolvedModel };
       if (usedTools.length > 0) response_.usedTools = usedTools;
       return response_;
     }
@@ -236,5 +240,5 @@ export async function chat(profileId: string, request: ChatRequest): Promise<Cha
 
   void persistMessages(profileId, request.mode, request.message, fallbackText).catch(() => {});
 
-  return { role: 'assistant', content: fallbackText, model: MODEL, usedTools };
+  return { role: 'assistant', content: fallbackText, model: resolvedModel, usedTools };
 }

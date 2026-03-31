@@ -12,10 +12,11 @@ import type { ChatMode } from '../claude/types.js';
  */
 export async function handleChatMessage(req: Request, res: Response) {
   const profileId: string = (res.locals.profileId as string) || (req.headers['x-profile-id'] as string);
-  const { message, mode, page_context } = req.body as {
+  const { message, mode, page_context, model } = req.body as {
     message?: string;
     mode?: ChatMode;
     page_context?: string;
+    model?: string;
   };
 
   if (!profileId) {
@@ -32,6 +33,7 @@ export async function handleChatMessage(req: Request, res: Response) {
       message: message.trim(),
       mode: resolvedMode,
       pageContext: page_context ?? 'Visão Geral',
+      model: model ?? 'sonnet',
     });
 
     return res.status(200).json(response);
