@@ -1,7 +1,24 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { growthApi, aiApi } from '../lib/api'
+import { growthApi, aiApi, skillsApi } from '../lib/api'
 import { supabase } from '../lib/supabase'
+
+// ── AI Models ─────────────────────────────────────────────────────────────────
+
+type AIModel = 'haiku' | 'sonnet' | 'opus'
+interface ModelDef { id: AIModel; label: string; description: string; icon: string }
+const MODELS: ModelDef[] = [
+  { id: 'haiku',  label: 'Haiku',  description: 'Rápido — perguntas simples', icon: '⚡' },
+  { id: 'sonnet', label: 'Sonnet', description: 'Equilibrado — uso geral',    icon: '◆' },
+  { id: 'opus',   label: 'Opus',   description: 'Análise profunda',           icon: '◈' },
+]
+
+interface SlashCmd { id: string; icon: string; label: string; description: string }
+const SLASH_COMMANDS: SlashCmd[] = [
+  { id: 'skills', icon: '⚡', label: 'Skills',          description: 'Use uma skill especializada' },
+  { id: 'clear',  icon: '↺',  label: 'Limpar conversa', description: 'Inicia uma nova conversa'    },
+]
+interface SkillItem { id: string; name: string; description?: string; is_global: boolean }
 
 export interface Message {
   id: string
@@ -88,11 +105,7 @@ const IVoice = () => (
     <rect x="7" y="1" width="6" height="10" rx="3" /><path d="M3 10a7 7 0 0 0 14 0M10 17v2M7 19h6" />
   </svg>
 )
-const IAttach = () => (
-  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-    <path d="M15 9l-6 6a3 3 0 0 1-4.24-4.24l7-7a2 2 0 0 1 2.83 2.83l-7 7a1 1 0 0 1-1.41-1.41L13 5" />
-  </svg>
-)
+
 const ICheck = () => (
   <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 8l3.5 3.5L13 4" />
@@ -338,84 +351,220 @@ function TypingDots() {
 
 // ── Chat input box ────────────────────────────────────────────────────────────
 
-function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading }: {
+function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, model, onModelChange, onClear }: {
   value: string
   onChange: (v: string) => void
   onSend: () => void
   onKeyDown: (e: React.KeyboardEvent) => void
   inputRef: React.RefObject<HTMLTextAreaElement>
   loading: boolean
+  model: AIModel
+  onModelChange: (m: AIModel) => void
+  onClear: () => void
 }) {
   const canSend = value.trim() && !loading
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [skillsPickerOpen, setSkillsPickerOpen] = useState(false)
+  const [skills, setSkills] = useState<SkillItem[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(false)
+  const [attachedSkill, setAttachedSkill] = useState<SkillItem | null>(null)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const currentModel = MODELS.find(m => m.id === model)!
+  const slashFilter = value.startsWith('/') ? value.slice(1).toLowerCase() : ''
+  const filteredCmds = SLASH_COMMANDS.filter(c =>
+    c.label.toLowerCase().includes(slashFilter) || c.description.toLowerCase().includes(slashFilter)
+  )
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setSlashMenuOpen(false); setSkillsPickerOpen(false); setModelMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleChange = (v: string) => {
+    onChange(v)
+    if (v.startsWith('/')) { setSlashMenuOpen(true); setSkillsPickerOpen(false); setModelMenuOpen(false); setSlashIndex(0) }
+    else setSlashMenuOpen(false)
+  }
+
+  const selectCmd = async (cmd: SlashCmd) => {
+    setSlashMenuOpen(false); onChange('')
+    if (cmd.id === 'clear') { onClear() }
+    else if (cmd.id === 'skills') {
+      setSkillsLoading(true)
+      try { const res = await skillsApi.list(); setSkills(res.data ?? []) } catch { setSkills([]) }
+      finally { setSkillsLoading(false) }
+      setSkillsPickerOpen(true)
+    }
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  const handleKey = (e: React.KeyboardEvent) => {
+    if (slashMenuOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIndex(i => Math.min(i + 1, filteredCmds.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setSlashIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter')     { e.preventDefault(); if (filteredCmds[slashIndex]) selectCmd(filteredCmds[slashIndex]); return }
+      if (e.key === 'Escape')    { setSlashMenuOpen(false); return }
+      return
+    }
+    onKeyDown(e)
+  }
+
+  const menuStyle: React.CSSProperties = {
+    position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, right: 0,
+    background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
+    borderRadius: 14, boxShadow: '0 4px 24px rgba(0,0,0,0.10)', overflow: 'hidden', zIndex: 600,
+  }
+
   return (
-    <div style={{
-      background: 'var(--color-bg-primary)',
-      border: '1px solid var(--color-border)',
-      borderRadius: 16,
-      boxShadow: '0 2px 20px rgba(0,0,0,0.06)',
-      overflow: 'hidden',
-    }}>
-      {/* Text row */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', padding: '12px 14px 10px' }}>
-        <textarea
-          ref={inputRef}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="Pergunte sobre seus dados..."
-          rows={1}
-          style={{
-            flex: 1, border: 'none', outline: 'none', background: 'transparent',
-            fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)',
-            resize: 'none', lineHeight: 1.55, maxHeight: 140, padding: 0,
-          }}
-        />
-      </div>
-      {/* Toolbar row */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px 10px', gap: 6 }}>
-        {/* Attach */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', transition: 'background 0.12s' }}>
-          <IAttach />
-        </motion.button>
-        {/* Model badge */}
-        <div style={{ flex: 1 }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500,
-            color: 'var(--color-text-tertiary)',
-            padding: '3px 9px', borderRadius: 99,
-            border: '1px solid var(--color-border)',
-            cursor: 'default',
-          }}>
-            Growth AI
-            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-          </span>
+    <div ref={containerRef} style={{ position: 'relative' }}>
+
+      {/* ── Slash menu ── */}
+      <AnimatePresence>
+        {slashMenuOpen && filteredCmds.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }} style={menuStyle}>
+            <div style={{ padding: '5px 12px 4px', borderBottom: '1px solid var(--color-border)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Comandos</span>
+            </div>
+            {filteredCmds.map((cmd, i) => (
+              <button key={cmd.id} onMouseDown={e => { e.preventDefault(); selectCmd(cmd) }}
+                onMouseEnter={() => setSlashIndex(i)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: i === slashIndex ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}>
+                <span style={{ fontSize: 14 }}>{cmd.icon}</span>
+                <div>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block' }}>{cmd.label}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>{cmd.description}</span>
+                </div>
+              </button>
+            ))}
+            <div style={{ padding: '3px 12px 6px' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)' }}>↑↓ navegar · Enter selecionar · Esc fechar</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Skills picker ── */}
+      <AnimatePresence>
+        {skillsPickerOpen && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }}
+            style={{ ...menuStyle, maxHeight: 240, overflowY: 'auto' }}>
+            <div style={{ padding: '5px 12px 4px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, background: 'var(--color-bg-primary)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Skills disponíveis</span>
+              <button onMouseDown={e => { e.preventDefault(); setSkillsPickerOpen(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center', padding: 2 }}>
+                <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </button>
+            </div>
+            {skillsLoading
+              ? <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Carregando...</div>
+              : skills.length === 0
+              ? <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--color-text-tertiary)' }}>Nenhuma skill disponível</div>
+              : skills.map(skill => (
+                <button key={skill.id}
+                  onMouseDown={e => { e.preventDefault(); setAttachedSkill(skill); setSkillsPickerOpen(false); setTimeout(() => inputRef.current?.focus(), 50) }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = attachedSkill?.id === skill.id ? 'var(--color-bg-secondary)' : 'transparent' }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', background: attachedSkill?.id === skill.id ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', borderBottom: '1px solid var(--color-border)', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}>
+                  <span style={{ fontSize: 13, marginTop: 1 }}>⚡</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{skill.name}</span>
+                      {skill.is_global && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, background: 'var(--color-bg-tertiary)', color: 'var(--color-text-tertiary)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Global</span>}
+                    </div>
+                    {skill.description && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)', display: 'block', marginTop: 1 }}>{skill.description}</span>}
+                  </div>
+                </button>
+              ))
+            }
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Model dropdown ── */}
+      <AnimatePresence>
+        {modelMenuOpen && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }} transition={{ duration: 0.14 }}
+            style={{ ...menuStyle, right: 'auto', width: 220 }}>
+            <div style={{ padding: '5px 12px 4px', borderBottom: '1px solid var(--color-border)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Modelo</span>
+            </div>
+            {MODELS.map(m => (
+              <button key={m.id} onMouseDown={e => { e.preventDefault(); onModelChange(m.id); setModelMenuOpen(false) }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = model === m.id ? 'var(--color-bg-secondary)' : 'transparent' }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: model === m.id ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' }}>
+                <span style={{ fontSize: 13 }}>{m.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block' }}>{m.label}</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>{m.description}</span>
+                </div>
+                {model === m.id && <span style={{ color: 'var(--color-primary)', fontSize: 12, fontWeight: 700 }}>✓</span>}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Attached skill badge ── */}
+      <AnimatePresence>
+        {attachedSkill && (
+          <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-tertiary)' }}>Skill ativa:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '2px 8px' }}>
+              <span style={{ fontSize: 11 }}>⚡</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)' }}>{attachedSkill.name}</span>
+              <button onClick={() => setAttachedSkill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', padding: 0, display: 'flex', alignItems: 'center', marginLeft: 2 }}>
+                <svg width="9" height="9" viewBox="0 0 14 14" fill="none"><line x1="1" y1="1" x2="13" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><line x1="13" y1="1" x2="1" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Input box ── */}
+      <div style={{ background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 16, boxShadow: '0 2px 20px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', padding: '12px 14px 10px' }}>
+          <textarea
+            ref={inputRef}
+            value={value}
+            onChange={e => handleChange(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder="Pergunte sobre seus dados ou use / para comandos..."
+            rows={1}
+            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--color-text-primary)', resize: 'none', lineHeight: 1.55, maxHeight: 140, padding: 0 }}
+          />
         </div>
-        {/* Voice */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', transition: 'background 0.12s' }}>
-          <IVoice />
-        </motion.button>
-        {/* Send */}
-        <motion.button whileHover={{ scale: canSend ? 1.05 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={onSend}
-          disabled={!canSend}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 32, height: 32, borderRadius: 10, border: 'none',
-            cursor: canSend ? 'pointer' : 'default',
-            background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
-            color: canSend ? 'white' : 'var(--color-text-tertiary)',
-            transition: 'background 0.15s, color 0.15s', flexShrink: 0,
-          }}>
-          <ISend />
-        </motion.button>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px 10px', gap: 6 }}>
+          {/* Model button */}
+          <motion.button whileTap={{ scale: 0.95 }}
+            onMouseDown={e => { e.preventDefault(); setModelMenuOpen(v => !v); setSlashMenuOpen(false); setSkillsPickerOpen(false) }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 500, color: 'var(--color-text-tertiary)', padding: '3px 9px', borderRadius: 99, border: '1px solid var(--color-border)', background: 'none', cursor: 'pointer' }}>
+            <span>{currentModel.icon}</span>
+            {currentModel.label}
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </motion.button>
+          <div style={{ flex: 1 }} />
+          {/* Voice */}
+          <motion.button whileTap={{ scale: 0.95 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-secondary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', transition: 'background 0.12s' }}>
+            <IVoice />
+          </motion.button>
+          {/* Send */}
+          <motion.button whileHover={{ scale: canSend ? 1.05 : 1 }} whileTap={{ scale: canSend ? 0.93 : 1 }} onClick={onSend} disabled={!canSend}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 10, border: 'none', cursor: canSend ? 'pointer' : 'default', background: canSend ? 'var(--color-primary)' : 'var(--color-bg-tertiary)', color: canSend ? 'white' : 'var(--color-text-tertiary)', transition: 'background 0.15s, color 0.15s', flexShrink: 0 }}>
+            <ISend />
+          </motion.button>
+        </div>
       </div>
     </div>
   )
@@ -433,6 +582,7 @@ export default function Growth() {
   const [history, setHistory] = useState<ConvItem[]>([])
   const [execOpen, setExecOpen] = useState(false)
   const [activeView, setActiveView] = useState<ActiveView>('chat')
+  const [model, setModel] = useState<AIModel>('sonnet')
   const [userName, setUserName] = useState('Francisco')
   const [userInitial, setUserInitial] = useState('F')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -762,7 +912,7 @@ export default function Growth() {
                     transition={{ duration: 0.35, delay: 0.06, ease: [0.25, 0.1, 0.25, 1] }}
                     style={{ width: '100%', maxWidth: 680 }}
                   >
-                    <ChatInput value={input} onChange={setInput} onSend={handleSend} onKeyDown={handleKeyDown} inputRef={inputRef} loading={isLoading} />
+                    <ChatInput value={input} onChange={setInput} onSend={handleSend} onKeyDown={handleKeyDown} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -795,7 +945,7 @@ export default function Growth() {
                   </div>
                   <div style={{ flexShrink: 0, padding: '10px 32px 22px' }}>
                     <div style={{ maxWidth: 680, margin: '0 auto' }}>
-                      <ChatInput value={input} onChange={setInput} onSend={handleSend} onKeyDown={handleKeyDown} inputRef={inputRef} loading={isLoading} />
+                      <ChatInput value={input} onChange={setInput} onSend={handleSend} onKeyDown={handleKeyDown} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
                       <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 8, marginBottom: 0 }}>
                         A Northie recomenda — você decide. Nenhuma ação é executada sem aprovação.
                       </p>
