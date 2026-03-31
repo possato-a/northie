@@ -7,9 +7,9 @@ const HISTORY_LIMIT = 20; // últimas N mensagens enviadas ao Claude
  */
 export async function handleChatMessage(req, res) {
     const { message } = req.body;
-    const profileId = req.headers['x-profile-id'];
+    const profileId = res.locals.profileId || req.headers['x-profile-id'];
     if (!profileId || !message) {
-        return res.status(400).json({ error: 'Missing x-profile-id or message' });
+        return res.status(400).json({ error: 'Missing profileId or message' });
     }
     try {
         // Parallel fetch: history + all data needed for rich context
@@ -128,9 +128,9 @@ export async function handleChatMessage(req, res) {
  * Limpa o histórico de chat de um perfil (botão "Nova conversa" no frontend).
  */
 export async function clearChatHistory(req, res) {
-    const profileId = req.headers['x-profile-id'];
+    const profileId = res.locals.profileId || req.headers['x-profile-id'];
     if (!profileId)
-        return res.status(400).json({ error: 'Missing x-profile-id' });
+        return res.status(400).json({ error: 'Missing profileId' });
     const { error } = await supabase
         .from('ai_chat_history')
         .delete()
@@ -144,9 +144,9 @@ export async function clearChatHistory(req, res) {
  */
 export async function handleGrowthChatMessage(req, res) {
     const { message } = req.body;
-    const profileId = req.headers['x-profile-id'];
+    const profileId = res.locals.profileId || req.headers['x-profile-id'];
     if (!profileId || !message) {
-        return res.status(400).json({ error: 'Missing x-profile-id or message' });
+        return res.status(400).json({ error: 'Missing profileId or message' });
     }
     try {
         // Buscar tudo em paralelo (5 queries → 1 round-trip)

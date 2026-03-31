@@ -384,11 +384,10 @@ const IAttach = () => (
 
 // ── Chat input box ────────────────────────────────────────────────────────────
 
-function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, model, onModelChange, onClear }: {
+function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelChange, onClear }: {
   value: string
   onChange: (v: string) => void
   onSend: (files: File[]) => void
-  onKeyDown: (e: React.KeyboardEvent) => void
   inputRef: React.RefObject<HTMLTextAreaElement>
   loading: boolean
   model: AIModel
@@ -455,7 +454,6 @@ function ChatInput({ value, onChange, onSend, onKeyDown, inputRef, loading, mode
     if (e.key === 'Enter' && !e.shiftKey && value.trim() && !loading) {
       e.preventDefault(); onSend(attachedFiles); setAttachedFiles([]); return
     }
-    onKeyDown(e)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -704,66 +702,72 @@ export default function Growth() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  const userIdRef = useRef<string | null>(null)
+
   useEffect(() => { localStorage.setItem('northie:ai-model', model) }, [model])
 
+  // ── Refresh history from DB ──
+  const refreshHistory = useCallback(async () => {
+    const uid = userIdRef.current
+    if (!uid) return
+    const { data } = await supabase
+      .from('ai_chat_history')
+      .select('id, content, created_at')
+      .eq('profile_id', uid)
+      .eq('role', 'user')
+      .order('created_at', { ascending: false })
+      .limit(30)
+    setHistory((data ?? []).map(row => ({
+      id: row.id as string,
+      title: (row.content as string)?.slice(0, 50) ?? null,
+      updated_at: row.created_at as string,
+    })))
+  }, [])
+
+  // ── Send message (passes model to backend) ──
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
     setIsLoading(true)
     try {
-      const res = await aiApi.growthChat(text)
+      const res = await aiApi.chat(text, 'Growth', 'growth', model)
       const content: string = res.data?.content ?? res.data?.message ?? 'Sem resposta.'
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content }])
+      // Refresh history sidebar after successful exchange
+      refreshHistory()
     } catch {
       setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: ERROR_MESSAGE }])
     } finally {
       setIsLoading(false)
     }
-  }, [isLoading])
+  }, [isLoading, model, refreshHistory])
 
-  // Load recommendations
+  // ── Initial load: user info + history + recommendations (once) ──
   useEffect(() => {
     growthApi.listRecommendations().then(res => setRecommendations(res.data ?? [])).catch(() => {})
-  }, [])
-
-  // Load user info + history
-  useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
+      userIdRef.current = user.id
       const name = user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'Você'
       setUserName(name)
       setUserInitial(name[0]?.toUpperCase() ?? 'U')
-      supabase
-        .from('ai_chat_history')
-        .select('id, content, created_at')
-        .eq('profile_id', user.id)
-        .eq('role', 'user')
-        .order('created_at', { ascending: false })
-        .limit(30)
-        .then(({ data }) => {
-          const items = (data ?? []).map(row => ({
-            id: row.id as string,
-            title: (row.content as string)?.slice(0, 50) ?? null,
-            updated_at: row.created_at as string,
-          }))
-          setHistory(items)
-        })
+      refreshHistory()
     })
-  }, [messages.length])
+  }, [refreshHistory])
 
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  // Auto-resize textarea — also fires when hasMessages flips (layout shift)
+  // Auto-resize textarea
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
     el.style.height = '0px'
     el.style.height = Math.min(Math.max(el.scrollHeight, 22), 140) + 'px'
-  }, [input, messages.length])
+  }, [input])
 
   const handleSend = useCallback(async (files: File[] = []) => {
     if (!input.trim() || isLoading) return
@@ -775,16 +779,16 @@ export default function Growth() {
     setInput('')
     await sendMessage(text)
     setTimeout(() => inputRef.current?.focus(), 50)
-  }, [input, isLoading, sendMessage, inputRef])
+  }, [input, isLoading, sendMessage])
 
-  const loadConversation = useCallback(async (_conv: ConvItem) => {
-    // Load all messages around this conversation's time
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+  // ── Load full conversation from DB ──
+  const loadConversation = useCallback(async () => {
+    const uid = userIdRef.current
+    if (!uid) return
     const { data } = await supabase
       .from('ai_chat_history')
-      .select('id, role, content, created_at')
-      .eq('profile_id', user.id)
+      .select('id, role, content')
+      .eq('profile_id', uid)
       .order('created_at', { ascending: true })
     if (data && data.length > 0) {
       setMessages(data.map(row => ({
@@ -796,14 +800,9 @@ export default function Growth() {
     setActiveView('chat')
   }, [])
 
-  // Enter is handled inside ChatInput (so it can pass attached files)
-  const handleKeyDown = (_e: React.KeyboardEvent) => {}
-
   const handleNewChat = () => {
     setMessages([])
     setInput('')
-    // Don't call clearHistory — that deletes from DB and wipes Recentes
-    // Just clear in-memory messages so the user starts a fresh conversation
   }
 
   const handleApprove = async (id: string) => {
@@ -912,7 +911,7 @@ export default function Growth() {
               {group.items.map(conv => (
                 <button
                   key={conv.id}
-                  onClick={() => loadConversation(conv)}
+                  onClick={() => loadConversation()}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-tertiary)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                   style={{
@@ -1003,7 +1002,7 @@ export default function Growth() {
                     {history.map(conv => (
                       <button
                         key={conv.id}
-                        onClick={() => loadConversation(conv)}
+                        onClick={() => loadConversation()}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-secondary)'}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                         style={{
@@ -1052,7 +1051,7 @@ export default function Growth() {
                     transition={{ duration: 0.35, delay: 0.06, ease: [0.25, 0.1, 0.25, 1] }}
                     style={{ width: '100%', maxWidth: 680 }}
                   >
-                    <ChatInput value={input} onChange={setInput} onSend={handleSend} onKeyDown={handleKeyDown} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
+                    <ChatInput value={input} onChange={setInput} onSend={handleSend} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -1085,7 +1084,7 @@ export default function Growth() {
                   </div>
                   <div style={{ flexShrink: 0, padding: '10px 32px 22px' }}>
                     <div style={{ maxWidth: 680, margin: '0 auto' }}>
-                      <ChatInput value={input} onChange={setInput} onSend={handleSend} onKeyDown={handleKeyDown} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
+                      <ChatInput value={input} onChange={setInput} onSend={handleSend} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
                       <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 8, marginBottom: 0 }}>
                         A Northie recomenda — você decide. Nenhuma ação é executada sem aprovação.
                       </p>
