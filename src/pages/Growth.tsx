@@ -13,10 +13,16 @@ const MODELS: ModelDef[] = [
   { id: 'opus',   label: 'Opus',   description: 'Análise profunda',           tag: 'Pro'   },
 ]
 
-interface SlashCmd { id: string; label: string; description: string }
+interface SlashCmd { id: string; label: string; description: string; icon?: string }
 const SLASH_COMMANDS: SlashCmd[] = [
-  { id: 'skills', label: 'Skills',          description: 'Aplicar uma skill especializada' },
-  { id: 'clear',  label: 'Limpar conversa', description: 'Iniciar uma nova conversa'       },
+  { id: 'skills',     label: 'Skills',           description: 'Aplicar uma skill especializada',            icon: 'skill'   },
+  { id: 'clear',      label: 'Limpar conversa',  description: 'Iniciar uma nova conversa',                  icon: 'clear'   },
+  { id: 'insights',   label: 'Insights',         description: 'Ver insights detectados pelo Growth Engine',  icon: 'bolt'    },
+  { id: 'executar',   label: 'Forçar análise',   description: 'Rodar o Growth Engine agora',                icon: 'refresh' },
+  { id: 'automacoes', label: 'Automações',       description: 'Ver status das automações aprovadas',        icon: 'plug'    },
+  { id: 'memoria',    label: 'Memória',          description: 'Ver decisões e instruções registradas',      icon: 'history' },
+  { id: 'instrucao',  label: 'Instrução',        description: 'Registrar instrução permanente para a IA',   icon: 'sliders' },
+  { id: 'diagnostico',label: 'Diagnóstico',      description: 'Análise profunda multi-agente do negócio',   icon: 'search'  },
 ]
 interface SkillItem { id: string; name: string; description?: string; is_global: boolean }
 
@@ -90,6 +96,16 @@ const IBolt = () => (
 const IPlug = () => (
   <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
     <path d="M7 7v-4M13 7v-4M5 7h10v4a5 5 0 0 1-10 0V7z" /><path d="M10 15v2" />
+  </svg>
+)
+const IRefresh = () => (
+  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 10a7 7 0 1 1-1.5-4.33" /><path d="M17 5v5h-5" />
+  </svg>
+)
+const IHistory = () => (
+  <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 10a7 7 0 1 0 1.5-4.33" /><path d="M3 5v5h5" /><path d="M10 7v3l2 2" />
   </svg>
 )
 const IPlus = () => (
@@ -386,10 +402,11 @@ const IAttach = () => (
 
 // ── Chat input box ────────────────────────────────────────────────────────────
 
-function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelChange, onClear }: {
+function ChatInput({ value, onChange, onSend, onSlashCommand, inputRef, loading, model, onModelChange, onClear }: {
   value: string
   onChange: (v: string) => void
   onSend: (files: File[], skillId?: string) => void
+  onSlashCommand: (cmd: SlashCmd) => void
   inputRef: React.RefObject<HTMLTextAreaElement>
   loading: boolean
   model: AIModel
@@ -434,14 +451,22 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
   }
 
   const selectCmd = async (cmd: SlashCmd) => {
-    setSlashMenuOpen(false); onChange('')
-    if (cmd.id === 'clear') { onClear() }
+    setSlashMenuOpen(false)
+    if (cmd.id === 'clear') { onChange(''); onClear() }
     else if (cmd.id === 'skills') {
+      onChange('')
       setSkillsLoading(true)
       try { const res = await skillsApi.list(); setSkills(res.data ?? []) } catch { setSkills([]) }
       finally { setSkillsLoading(false) }
       setSkillsPickerOpen(true)
     }
+    else if (cmd.id === 'instrucao') {
+      // Keep the /instrucao prefix so user can type the instruction
+      onChange('/instrucao ')
+      setTimeout(() => inputRef.current?.focus(), 50)
+      return
+    }
+    else { onChange(''); onSlashCommand(cmd) }
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
@@ -476,7 +501,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
   }
 
   const menuBase: React.CSSProperties = {
-    position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, right: 0,
+    position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
     background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)',
     borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', zIndex: 600,
   }
@@ -503,7 +528,7 @@ function ChatInput({ value, onChange, onSend, inputRef, loading, model, onModelC
                 onMouseEnter={() => setSlashIndex(i)}
                 style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: i === slashIndex ? 'var(--color-bg-secondary)' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const, transition: 'background 0.08s' }}>
                 <div style={{ width: 26, height: 26, borderRadius: 6, border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-secondary)', flexShrink: 0 }}>
-                  {cmd.id === 'skills' ? <ISkill /> : <IClear />}
+                  {cmd.icon === 'skill' ? <ISkill /> : cmd.icon === 'bolt' ? <IBolt /> : cmd.icon === 'refresh' ? <IRefresh /> : cmd.icon === 'plug' ? <IPlug /> : cmd.icon === 'history' ? <IHistory /> : cmd.icon === 'search' ? <ISearch /> : cmd.icon === 'sliders' ? <ISliders /> : <IClear />}
                 </div>
                 <div>
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)', display: 'block', lineHeight: 1.3 }}>{cmd.label}</span>
@@ -810,6 +835,23 @@ export default function Growth() {
   const handleSend = useCallback(async (files: File[] = [], skillId?: string) => {
     if (!input.trim() || isLoading) return
     let text = input.trim()
+
+    // Handle /instrucao inline
+    if (text.startsWith('/instrucao ')) {
+      const instruction = text.slice('/instrucao '.length).trim()
+      if (!instruction) return
+      setInput('')
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: text }])
+      setIsLoading(true)
+      try {
+        await growthApi.addInstruction(instruction)
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: `Instrução registrada: "${instruction}"\n\nVou considerar isso em todas as análises futuras.` }])
+      } catch {
+        setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: 'Não foi possível registrar a instrução.' }])
+      } finally { setIsLoading(false) }
+      return
+    }
+
     if (files.length > 0) {
       const fileList = files.map(f => f.name).join(', ')
       text = `[Arquivos anexados: ${fileList}]\n\n${text}`
@@ -818,6 +860,90 @@ export default function Growth() {
     await sendMessage(text, skillId)
     setTimeout(() => inputRef.current?.focus(), 50)
   }, [input, isLoading, sendMessage])
+
+  // ── Slash command handler ──
+  const handleSlashCommand = useCallback(async (cmd: SlashCmd) => {
+    const addUser = (text: string) => setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: text }])
+    const addAssistant = (text: string) => setMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: text }])
+
+    switch (cmd.id) {
+      case 'insights': {
+        addUser('/insights')
+        setIsLoading(true)
+        try {
+          const res = await growthApi.listInsights()
+          const items = (res.data ?? []) as Array<{ title: string; type: string; impact_estimate?: string; sources?: string[] }>
+          if (items.length === 0) {
+            addAssistant('Nenhum insight pendente. Os agentes estão analisando seus dados continuamente.')
+          } else {
+            addAssistant(`**${items.length} insight${items.length > 1 ? 's' : ''} pendente${items.length > 1 ? 's' : ''}:**\n\n` +
+              items.map((r, i) => `${i + 1}. **${r.title}**\n   Tipo: ${r.type.replace(/_/g, ' ')}${r.impact_estimate ? `\n   Impacto: ${r.impact_estimate}` : ''}${r.sources?.length ? `\n   Fontes: ${r.sources.join(' × ')}` : ''}`).join('\n\n'))
+          }
+        } catch { addAssistant('Não foi possível carregar os insights agora.') }
+        finally { setIsLoading(false) }
+        break
+      }
+      case 'executar': {
+        addUser('/executar')
+        setIsLoading(true)
+        try {
+          await growthApi.runEngine()
+          addAssistant('Growth Engine iniciado. Os novos insights aparecerão em alguns instantes.\n\nUse `/insights` para ver os resultados.')
+        } catch { addAssistant('Não foi possível iniciar o Growth Engine agora.') }
+        finally { setIsLoading(false) }
+        break
+      }
+      case 'automacoes': {
+        addUser('/automacoes')
+        setIsLoading(true)
+        try {
+          const res = await growthApi.listRecommendations()
+          const items = (res.data ?? []) as Array<{ title: string; status: string; type: string; impact_estimate?: string; created_at: string }>
+          if (items.length === 0) {
+            addAssistant('Nenhuma automação registrada. Aprove um insight para criar a primeira.')
+          } else {
+            const statusEmoji: Record<string, string> = { pending: '⏳', approved: '✅', executing: '⚙️', completed: '✓', failed: '✗', dismissed: '—', rejected: '✗', cancelled: '—' }
+            addAssistant(`**${items.length} automações:**\n\n` +
+              items.map((r, i) => `${i + 1}. ${statusEmoji[r.status] ?? '·'} **${r.title}**\n   Status: ${r.status} · ${r.type.replace(/_/g, ' ')}${r.impact_estimate ? ` · ${r.impact_estimate}` : ''}`).join('\n\n'))
+          }
+        } catch { addAssistant('Não foi possível carregar as automações.') }
+        finally { setIsLoading(false) }
+        break
+      }
+      case 'memoria': {
+        addUser('/memoria')
+        setIsLoading(true)
+        try {
+          const res = await growthApi.getMemory()
+          const items = (res.data ?? []) as Array<{ decision_type: string; context: string; created_at: string }>
+          if (items.length === 0) {
+            addAssistant('Nenhuma decisão ou instrução registrada ainda.\n\nUse `/instrucao <texto>` para registrar uma instrução permanente.')
+          } else {
+            const typeLabel: Record<string, string> = { approved: '✅ Aprovado', rejected: '✗ Rejeitado', instruction: '📌 Instrução' }
+            addAssistant(`**Memória de decisões (${items.length}):**\n\n` +
+              items.map((d, i) => `${i + 1}. ${typeLabel[d.decision_type] ?? d.decision_type} — ${d.context}\n   _${new Date(d.created_at).toLocaleDateString('pt-BR')}_`).join('\n\n'))
+          }
+        } catch { addAssistant('Não foi possível carregar a memória.') }
+        finally { setIsLoading(false) }
+        break
+      }
+      case 'diagnostico': {
+        addUser('/diagnostico')
+        setIsLoading(true)
+        try {
+          const res = await growthApi.runDiagnostic()
+          const diag = res.data
+          if (diag?.summary) {
+            addAssistant(`**Diagnóstico completo:**\n\n${diag.summary}`)
+          } else {
+            addAssistant('Diagnóstico executado. Os resultados serão incorporados nas próximas análises.')
+          }
+        } catch { addAssistant('Não foi possível executar o diagnóstico agora. Tente novamente em alguns minutos.') }
+        finally { setIsLoading(false) }
+        break
+      }
+    }
+  }, [])
 
   // ── Load a specific conversation's messages ──
   const loadConversation = useCallback(async (conv: ConvItem) => {
@@ -1095,7 +1221,7 @@ export default function Growth() {
                     transition={{ duration: 0.35, delay: 0.06, ease: [0.25, 0.1, 0.25, 1] }}
                     style={{ width: '100%', maxWidth: 680 }}
                   >
-                    <ChatInput value={input} onChange={setInput} onSend={handleSend} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
+                    <ChatInput value={input} onChange={setInput} onSend={handleSend} onSlashCommand={handleSlashCommand} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -1128,7 +1254,7 @@ export default function Growth() {
                   </div>
                   <div style={{ flexShrink: 0, padding: '10px 32px 22px' }}>
                     <div style={{ maxWidth: 680, margin: '0 auto' }}>
-                      <ChatInput value={input} onChange={setInput} onSend={handleSend} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
+                      <ChatInput value={input} onChange={setInput} onSend={handleSend} onSlashCommand={handleSlashCommand} inputRef={inputRef} loading={isLoading} model={model} onModelChange={setModel} onClear={handleNewChat} />
                       <p style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 8, marginBottom: 0 }}>
                         A Northie recomenda — você decide. Nenhuma ação é executada sem aprovação.
                       </p>
